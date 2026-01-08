@@ -3,38 +3,14 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
-// --- OVO JE KLJUČNO RJEŠENJE ---
-// Ručno postavljamo URL aplikacije prije nego se NextAuth pokrene.
-// Server sada mora misliti da je na ovoj adresi.
-process.env.NEXTAUTH_URL = "https://aiwtool-production2025.up.railway.app"; 
-
 export const authOptions: NextAuthOptions = {
+  // OVO JE JEDINA STVAR KOJA NAM TREBA ZA RAILWAY:
   // @ts-ignore
-  trustHost: true, // Vjeruj proxy-ju
-
-  // Hardkodirana šifra
-  secret: "tvoja_super_tajna_sifra_koja_sigurno_radi_123_456", 
+  trustHost: true, 
   
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 dana
-  },
-  
-  // Eksplicitno podešavanje kolačića za Railway
-  cookies: {
-    sessionToken: {
-      name: `__Secure-next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: true
-      }
-    }
-  },
-
-  pages: {
-    signIn: "/login",
   },
   
   providers: [
@@ -46,25 +22,25 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Molimo unesite email i lozinku.");
+          throw new Error("Podaci nedostaju");
         }
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         });
 
-        if (!user) {
-          throw new Error("Korisnik ne postoji.");
+        if (!user || !user.password) {
+          throw new Error("Pogrešan email ili lozinka");
         }
 
-        const isPasswordValid = await compare(credentials.password, user.password || "");
+        const isPasswordValid = await compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
-          throw new Error("Pogrešna lozinka.");
+          throw new Error("Pogrešan email ili lozinka");
         }
 
         if (!user.isActive) {
-            throw new Error("Vaš nalog je deaktiviran.");
+            throw new Error("Račun deaktiviran");
         }
 
         return {
@@ -93,14 +69,11 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).permissions = token.permissions;
       }
       return session;
-    },
-    // Dodajemo redirect callback da budemo sigurni da ne bježi na localhost
-    async redirect({ url, baseUrl }) {
-      // Ako url počinje sa / (npr /dashboard), dodaj mu naš pravi domen
-      if (url.startsWith("/")) return `${process.env.NEXTAUTH_URL}${url}`;
-      // Ako je url već validan, vrati ga
-      else if (new URL(url).origin === process.env.NEXTAUTH_URL) return url;
-      return process.env.NEXTAUTH_URL as string;
     }
+  },
+  // Ovim micanjem custom pages-a puštamo NextAuth da koristi svoj defaultni login ako naš ne radi
+  // Ali pošto ti imaš /login rutu, ostavit ćemo ovo:
+  pages: {
+    signIn: '/login',
   }
 };
