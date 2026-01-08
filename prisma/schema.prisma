@@ -6,7 +6,8 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // OVDJE JE PROMJENA: Upisan direktan link umjesto env("DATABASE_URL")
+  url      = "postgresql://neondb_owner:npg_yKzlAxk4hQ9P@ep-gentle-haze-ag17i2my-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 }
 
 // 1. KORISNICI & PERMISIJE
@@ -93,81 +94,80 @@ model VacationRequest {
 
 // 5. PRODUKTIVNOST (CL ALAT)
 model ProductivityReport {
-  id           String   @id @default(cuid())
-  restaurantId String
-  date         String   // "YYYY-MM-DD"
-  targetProd   Float    @default(120)
-  netCoeff     Float    @default(1.17)
-  hourlyData   Json     
+  id             String   @id @default(cuid())
+  restaurantId   String
+  date           String   // "YYYY-MM-DD"
+  targetProd     Float    @default(120)
+  netCoeff       Float    @default(1.17)
+  hourlyData     Json     
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@unique([restaurantId, date])
 }
 
 // 6. PRAZNICI / BLOKIRANI DANI
 model BlockedDay {
-  id           String     @id @default(cuid())
-  date         String     
-  reason       String?
-  restaurantId String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  createdAt    DateTime   @default(now())
+  id             String     @id @default(cuid())
+  date           String     
+  reason         String?
+  restaurantId   String
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt      DateTime   @default(now())
 }
 
 // --- STANDARDNI MODELI ---
 
 model Restaurant {
-  id            String    @id @default(cuid())
-  code          String    @unique
-  name          String
-  city          String?
-  address       String?
-  isActive      Boolean   @default(true)
+  id             String    @id @default(cuid())
+  code           String    @unique
+  name           String
+  city           String?
+  address        String?
+  isActive       Boolean   @default(true)
   
-  // OVO JE FALILO I PRAVILO P1012 GREŠKU:
-  openingHours  Json?     @default("{}") 
+  openingHours   Json?     @default("{}") 
   
-  users         RestaurantUser[]
-  rules         RuleRestaurant[]
-  evaluations   EvaluationSubmission[]
-  blockedDays   BlockedDay[]           // <--- Popravljeno
-  productivityReports ProductivityReport[] // <--- Popravljeno
+  users          RestaurantUser[]
+  rules          RuleRestaurant[]
+  evaluations    EvaluationSubmission[]
+  blockedDays    BlockedDay[]            
+  productivityReports ProductivityReport[] 
   
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model RestaurantUser {
-  id            String     @id @default(cuid())
-  userId        String
-  restaurantId  String
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  isPrimary     Boolean    @default(false)
+  id             String     @id @default(cuid())
+  userId         String
+  restaurantId   String
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  isPrimary      Boolean    @default(false)
   @@unique([userId, restaurantId])
 }
 
 model RuleRestaurant {
-  id            String     @id @default(cuid())
-  ruleId        String
-  restaurantId  String
-  rule          Rule       @relation(fields: [ruleId], references: [id])
-  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  id             String     @id @default(cuid())
+  ruleId         String
+  restaurantId   String
+  rule           Rule       @relation(fields: [ruleId], references: [id])
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id])
   @@unique([ruleId, restaurantId])
 }
 
 model AuditLog {
-  id            String   @id @default(cuid())
-  action        String
-  entity        String
-  entityId      String?
-  details       String?
-  performedBy   String
-  createdAt     DateTime @default(now())
+  id             String   @id @default(cuid())
+  action         String
+  entity         String
+  entityId       String?
+  details        String?
+  performedBy    String
+  createdAt      DateTime @default(now())
 }
 
 // NextAuth modeli
