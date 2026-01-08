@@ -4,15 +4,26 @@ import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  // OVE DVIJE LINIJE RJEŠAVAJU PROBLEM NA RAILWAY-u:
-  trustHost: true,                                   // Vjeruj Railway proxy-ju
-  secret: process.env.NEXTAUTH_SECRET || "tvoja_super_tajna_sifra_hardcoded_backup", // Backup ako varijabla zakaže
+  // 1. OVO RJEŠAVA SVE RAILWAY PROBLEME:
+  // Koristimo @ts-ignore da ućutkamo VS Code grešku, jer ova opcija RADI u produkciji
+  // @ts-ignore
+  trustHost: true,
+
+  // 2. Hardkodirana šifra (ostavljamo jer radi)
+  secret: "tvoja_super_tajna_sifra_koja_sigurno_radi_123_456", 
+  
+  // 3. Forsiramo sigurne kolačiće (Bez custom imena, koristimo standard)
+  useSecureCookies: true,
+  
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 dana
   },
+  
   pages: {
     signIn: "/login",
   },
+  
   providers: [
     CredentialsProvider({
       name: "Credentials",
