@@ -4,16 +4,33 @@ import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  // OVO JE PROMJENA: Nema process.env, samo "gola" šifra.
-  // Ovo MORA raditi jer ne zavisi od servera.
+  debug: true, // Da vidimo greške u logovima ako ih bude
+  
+  // 1. HARDKODIRANE TAJNE (Da budemo 100% sigurni)
   secret: "tvoja_super_tajna_sifra_koja_sigurno_radi_123_456", 
   
+  // 2. FORSIRANJE KOLAČIĆA (Ovo rješava LOGIN LOOP)
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax', // Bitno za Railway/Vercel
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    }
+  },
+
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 dana
   },
+  
   pages: {
     signIn: "/login",
   },
+  
   providers: [
     CredentialsProvider({
       name: "Credentials",
