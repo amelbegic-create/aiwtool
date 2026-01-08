@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation"; 
-import { Store, MapPin, ArrowRight, Hash, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+// Ne treba nam useRouter jer koristimo window.location
 import { getRestaurants } from "@/app/actions/getRestaurants";
 
-// 1. Definicija tipa (MORA BITI OVDJE)
+// Definicija tipa da TypeScript ne pravi probleme
 interface Restaurant {
   id: string;
   code: string;
@@ -15,111 +14,66 @@ interface Restaurant {
 }
 
 export default function SelectRestaurantPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [userName, setUserName] = useState("");
-
-  const selectRestaurant = useCallback((rest: Restaurant) => {
-    localStorage.setItem("selected_restaurant_id", rest.id);
-    localStorage.setItem("selected_restaurant_name", rest.name);
-    localStorage.setItem("selected_restaurant_code", rest.code);
-    
-    // 2. FIX ZA LOGIN LOOP (Ovo mora proći na server!)
-    window.location.href = "/"; 
-  }, []);
+  // Nemamo state za prikaz jer nećemo ništa prikazivati osim Loadinga
 
   useEffect(() => {
-    const fetchData = async () => {
+    const autoSelectAndRedirect = async () => {
       try {
+        // 1. Dohvati sve restorane
         const allRestaurants = await getRestaurants();
         
+        // 2. Filtriraj (kopirano iz prošle verzije za svaki slučaj)
         const role = localStorage.getItem("user_role");
         const allowedIdsJson = localStorage.getItem("allowed_restaurants");
         const allowedIds: string[] = allowedIdsJson ? JSON.parse(allowedIdsJson) : [];
-        setUserName(localStorage.getItem("user_name") || "Korisnik");
+        
+        let targetRestaurant: Restaurant | null = null;
 
-        let filtered: Restaurant[] = [];
-
+        // Logika za odabir prvog dostupnog
         if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
            if (allowedIds.length > 0) {
-             // 3. FIX ZA TYPESCRIPT ERROR (Dodali smo tip r: Restaurant)
-             filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
+             const filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
+             if (filtered.length > 0) targetRestaurant = filtered[0];
            } else {
-             filtered = allRestaurants;
+             // Ako je admin i nema restrikcija, uzmi prvi sa liste
+             if (allRestaurants.length > 0) targetRestaurant = allRestaurants[0];
            }
         } else {
-           // 4. FIX ZA TYPESCRIPT ERROR I OVDJE
-           filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
+           const filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
+           if (filtered.length > 0) targetRestaurant = filtered[0];
         }
 
-        setRestaurants(filtered);
-
-        if (filtered.length === 1) {
-          selectRestaurant(filtered[0]);
+        // 3. AKO SMO NAŠLI RESTORAN -> ODMAH PREUSMJERI
+        if (targetRestaurant) {
+          console.log("Auto-selecting:", targetRestaurant.name);
+          
+          localStorage.setItem("selected_restaurant_id", targetRestaurant.id);
+          localStorage.setItem("selected_restaurant_name", targetRestaurant.name);
+          localStorage.setItem("selected_restaurant_code", targetRestaurant.code);
+          
+          // CRITICAL: Hard redirect na početnu
+          window.location.href = "/"; 
         } else {
-          setLoading(false);
+          // Ako nema restorana, vrati na login (ili pokaži grešku)
+          console.error("Nema dostupnih restorana");
+          window.location.href = "/login";
         }
+
       } catch (error) {
-        console.error("Failed to load restaurants");
-        setLoading(false);
+        console.error("Failed to load restaurants", error);
+        window.location.href = "/login";
       }
     };
 
-    fetchData();
-  }, [selectRestaurant]);
+    // Pokreni odmah pri učitavanju
+    autoSelectAndRedirect();
+  }, []);
 
-  const handleLogout = () => {
-    localStorage.clear();
-    window.location.href = "/login"; 
-  };
-
-  if (loading) return (
-    <div className="min-h-screen bg-[#1a3826] flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-white/20 border-t-[#FFC72C] rounded-full animate-spin"></div>
-    </div>
-  );
-
+  // Prikazujemo SAMO spinner dok on to radi u pozadini
   return (
-    <div className="min-h-screen bg-[#1a3826] flex flex-col items-center justify-center p-6">
-      <div className="absolute top-6 right-6">
-         <button onClick={handleLogout} className="flex items-center gap-2 text-white/50 hover:text-white text-xs font-bold uppercase">
-            <LogOut size={14}/> Odjavi se ({userName})
-         </button>
-      </div>
-      <div className="text-center mb-10">
-        <img src="/logo.png" alt="Logo" className="h-24 w-auto mx-auto mb-4 object-contain" />
-        <h1 className="text-3xl font-black text-white uppercase tracking-tight">Dobrodošli, {userName}</h1>
-        <p className="text-emerald-200/60 mt-2 font-medium">Izaberite lokaciju za rad.</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl w-full">
-        {restaurants.length > 0 ? (
-          restaurants.map((rest) => (
-            <button 
-              key={rest.id}
-              onClick={() => selectRestaurant(rest)}
-              className="group relative bg-white hover:bg-emerald-50 p-6 rounded-2xl text-left transition-all hover:scale-[1.02] shadow-lg border border-transparent hover:border-emerald-200"
-            >
-              <div className="absolute top-4 right-4 bg-slate-100 group-hover:bg-white p-2 rounded-full transition-colors">
-                <Store className="text-slate-400 group-hover:text-[#1a3826] w-6 h-6" />
-              </div>
-              <div className="flex items-center gap-3 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                <span className="flex items-center gap-1"><MapPin size={12} /> {rest.city || "BiH"}</span>
-                <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-slate-500"><Hash size={10} /> {rest.code}</span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 group-hover:text-[#1a3826] mb-1">{rest.name}</h3>
-              <div className="mt-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase tracking-wider group-hover:text-[#1a3826] group-hover:gap-3 transition-all">
-                Otvori <ArrowRight size={14} />
-              </div>
-            </button>
-          ))
-        ) : (
-          <div className="col-span-1 md:col-span-3 text-center text-white/50 p-8 border-2 border-dashed border-white/10 rounded-xl">
-            <p className="font-bold">Nemate pristup nijednom restoranu.</p>
-            <p className="text-sm mt-2">Kontaktirajte administratora.</p>
-          </div>
-        )}
-      </div>
+    <div className="min-h-screen bg-[#1a3826] flex flex-col items-center justify-center">
+      <div className="w-12 h-12 border-4 border-white/20 border-t-[#FFC72C] rounded-full animate-spin mb-4"></div>
+      <p className="text-white/50 text-sm font-medium animate-pulse">Učitavanje restorana...</p>
     </div>
   );
 }
