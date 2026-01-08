@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation"; 
 import { Store, MapPin, ArrowRight, Hash, LogOut } from "lucide-react";
 import { getRestaurants } from "@/app/actions/getRestaurants";
 
+// Definicija tipa
 interface Restaurant {
   id: string;
   code: string;
@@ -14,18 +15,21 @@ interface Restaurant {
 }
 
 export default function SelectRestaurantPage() {
+  // router nam treba samo za logout, ne za navigaciju u dashboard
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [userName, setUserName] = useState("");
 
-  // FIX: Funkcija premještena IZNAD useEffect-a
   const selectRestaurant = useCallback((rest: Restaurant) => {
     localStorage.setItem("selected_restaurant_id", rest.id);
     localStorage.setItem("selected_restaurant_name", rest.name);
     localStorage.setItem("selected_restaurant_code", rest.code);
-    router.push("/");
-  }, [router]);
+    
+    // ⚠️ KLJUČNI FIX: Forsiramo hard refresh da browser pošalje kolačiće serveru
+    // Ovo rješava "Login Loop" na Vercelu
+    window.location.href = "/"; 
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,12 +45,14 @@ export default function SelectRestaurantPage() {
 
         if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
            if (allowedIds.length > 0) {
-             filtered = allRestaurants.filter(r => allowedIds.includes(r.id));
+             // FIX: Dodali smo tip (r: Restaurant) da TypeScript ne prijavljuje grešku
+             filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
            } else {
              filtered = allRestaurants;
            }
         } else {
-           filtered = allRestaurants.filter(r => allowedIds.includes(r.id));
+           // FIX: Dodali smo tip (r: Restaurant) ovdje također
+           filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
         }
 
         setRestaurants(filtered);
@@ -67,7 +73,7 @@ export default function SelectRestaurantPage() {
 
   const handleLogout = () => {
     localStorage.clear();
-    router.push("/login");
+    window.location.href = "/login"; 
   };
 
   if (loading) return (
