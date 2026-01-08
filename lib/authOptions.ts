@@ -3,15 +3,26 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
+// OBRISALI SMO ONU LINIJU process.env.NEXTAUTH_URL KOJA JE PRAVILA HAOS NA VERCELU
+
 export const authOptions: NextAuthOptions = {
-  // OVO JE JEDINA STVAR KOJA NAM TREBA ZA RAILWAY:
+  // Na Vercelu ovo obično nije nužno, ali neka stoji za svaki slučaj
   // @ts-ignore
-  trustHost: true, 
-  
+  trustHost: true,
+
+  // Ostavljamo šifru hardkodiranu da ne misliš o Environment varijablama
+  secret: "tvoja_super_tajna_sifra_za_prezentaciju_123",
+
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 dana
   },
+  
+  pages: {
+    signIn: "/login",
+  },
+  
+  // OBRISALI SMO 'cookies' SEKCIJU - Vercel zna sam podesiti kolačiće bolje od nas
   
   providers: [
     CredentialsProvider({
@@ -70,10 +81,6 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     }
-  },
-  // Ovim micanjem custom pages-a puštamo NextAuth da koristi svoj defaultni login ako naš ne radi
-  // Ali pošto ti imaš /login rutu, ostavit ćemo ovo:
-  pages: {
-    signIn: '/login',
+    // OBRISALI SMO 'redirect' CALLBACK - Neka NextAuth radi standardno
   }
 };
