@@ -17,47 +17,67 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials): Promise<any> {
-        if (!credentials?.email || !credentials?.password) return null;
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+           console.log("DEBUG: Nedostaju podaci");
+           return null;
+        }
         
-        const user = await (prisma as any).user.findUnique({ 
+        // Pronađi korisnika
+        const user = await prisma.user.findUnique({ 
           where: { email: credentials.email },
           include: { restaurants: true }
         });
         
-        if (!user || !user.password) return null;
+        if (!user || !user.password) {
+           console.log("DEBUG: Korisnik nije pronađen u bazi");
+           return null;
+        }
         
-        // Poredimo lozinke (ako su običan tekst u bazi, koristi credentials.password === user.password)
-        const isValid = await compare(credentials.password, user.password);
-        if (!isValid) return null;
+        // --- PROVERA LOZINKE (Pokriva oba slučaja) ---
+        let isValid = false;
+        
+        if (user.password.startsWith('$2')) {
+          // Ako je lozinka u bazi hashovana (bcrypt)
+          isValid = await compare(credentials.password, user.password);
+        } else {
+          // Ako je lozinka u bazi običan tekst (plain text)
+          isValid = credentials.password === user.password;
+        }
 
+        if (!isValid) {
+           console.log("DEBUG: Lozinka se ne poklapa");
+           return null;
+        }
+
+        // Vraćamo objekat sa svim potrebnim poljima da build prođe
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
-          allowedRestaurants: user.restaurants.map((r: any) => r.restaurantId),
-          permissions: user.permissions || [],
-        };
+          allowedRestaurants: user.restaurants.map(r => r.restaurantId),
+          permissions: (user.permissions as any) || [],
+        } as any; 
       }
     })
   ],
   callbacks: {
-    async jwt({ token, user }: any) {
+    async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
+        token.role = (user as any).role;
         token.id = user.id;
-        token.permissions = user.permissions;
-        token.allowedRestaurants = user.allowedRestaurants;
+        token.permissions = (user as any).permissions;
+        token.allowedRestaurants = (user as any).allowedRestaurants;
       }
       return token;
     },
-    async session({ session, token }: any) {
+    async session({ session, token }) {
       if (session?.user) {
-        session.user.role = token.role;
-        session.user.id = token.id;
-        session.user.permissions = token.permissions;
-        session.user.allowedRestaurants = token.allowedRestaurants;
+        (session.user as any).role = token.role;
+        (session.user as any).id = token.id;
+        (session.user as any).permissions = token.permissions;
+        (session.user as any).allowedRestaurants = token.allowedRestaurants;
       }
       return session;
     }
