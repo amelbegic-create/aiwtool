@@ -4,13 +4,15 @@ import {
   Clock, History, Store, Calculator, Briefcase 
 } from "lucide-react";
 
-// Definišemo nazive koje Sidebar i Navbar traže
+// Definišemo nazive koje sistem traži
 export interface Category {
   id: string;
   label: string;
-  icon: any; // Obavezno polje rješava build error
+  icon: any; 
 }
+// Ovi aliasi rješavaju greške u uvozima
 export type ToolCategory = Category;
+export type AppTool = Tool;
 
 export interface Tool {
   id: string;
@@ -19,7 +21,6 @@ export interface Tool {
   icon: any;
   category: string;
 }
-export type AppTool = Tool;
 
 export const TOOL_CATEGORIES: ToolCategory[] = [
   { id: 'general', label: 'OPĆENITO', icon: LayoutDashboard },
@@ -32,12 +33,5 @@ export const APP_TOOLS: AppTool[] = [
   { id: 'dashboard', name: 'Kontrolna Tabla', href: '/', icon: LayoutDashboard, category: 'general' },
   { id: 'user-management', name: 'Upravljanje Korisnicima', href: '/admin/users', icon: ShieldCheck, category: 'staff' },
   { id: 'add-user', name: 'Novi Korisnik', href: '/admin/users/new', icon: UserPlus, category: 'staff' },
-  { id: 'vacations', name: 'Godišnji Odmori', href: '/tools/staff/vacations', icon: PlaneTakeoff, category: 'staff' },
-  { id: 'attendance', name: 'Prisustvo / Satnica', href: '/tools/staff/attendance', icon: Clock, category: 'staff' },
-  { id: 'inventory', name: 'Inventura / Skladište', href: '/tools/operations/inventory', icon: ClipboardCheck, category: 'operations' },
-  { id: 'reports', name: 'Dnevni Izvještaji', href: '/tools/operations/reports', icon: FileText, category: 'operations' },
-  { id: 'costs', name: 'Analiza Troškova', href: '/tools/operations/costs', icon: Calculator, category: 'operations' },
-  { id: 'settings', name: 'Postavke Sistema', href: '/settings', icon: Settings, category: 'other' },
-  { id: 'logs', name: 'Logovi Aktivnosti', href: '/admin/logs', icon: History, category: 'other' },
-  { id: 'rest-switch', name: 'Promjena Restorana', href: '/select-restaurant', icon: Store, category: 'other' }
+  { id: 'vacations', name: 'Godišnji Odmori', href: '/tools/staff/vacations', icon: PlaneTakeoff, category: 'staff' }
 ];
