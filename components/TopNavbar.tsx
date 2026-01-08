@@ -1,69 +1,85 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import Link from "next/link"; // KLJUČNO ZA KLIKABILNOST
+import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
+import { ChevronDown, LayoutGrid, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
-import { ChevronDown, LogOut, LayoutGrid } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
 
 export default function TopNavbar() {
-  const { data: session } = useSession();
   const pathname = usePathname();
-  const [selectedRestName, setSelectedRestName] = useState("");
+  const { data: session } = useSession();
+  const [restName, setRestName] = useState("Učitavanje...");
+
+  useEffect(() => {
+    const savedName = localStorage.getItem("selected_restaurant_name");
+    if (savedName) setRestName(savedName);
+  }, [pathname]);
 
   if (pathname === "/login" || pathname === "/select-restaurant") return null;
 
-  useEffect(() => {
-    setSelectedRestName(localStorage.getItem("selected_restaurant_name") || "RESTORAN 1");
-  }, []);
-
   return (
-    <nav className="bg-[#1a3826] text-white px-6 py-4 flex items-center justify-between shadow-lg relative z-50">
-      <div className="flex items-center gap-10">
-        <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-          <div className="bg-white p-1 rounded">
-             <img src="/logo.png" alt="AIW" className="h-7 w-auto" />
-          </div>
+    <header className="h-24 bg-[#1a3826] text-white shadow-md flex-shrink-0 relative z-50">
+      <div className="h-full max-w-[1920px] mx-auto px-6 flex justify-between items-center">
+        
+        {/* LOGO SEKCIJA */}
+        <Link href="/" className="flex items-center gap-4 w-72">
+          <img src="/logo.png" alt="AIWTool" className="h-16 w-auto object-contain" />
           <div className="flex flex-col">
-            <span className="text-lg font-black leading-none tracking-tight">AIWTool</span>
-            <span className="text-[9px] font-bold text-yellow-400 uppercase tracking-[0.2em]">Enterprise</span>
+            <h1 className="font-black text-xl tracking-tight leading-none">AIWTool</h1>
+            <p className="text-[10px] text-[#FFC72C] font-bold tracking-[0.2em] uppercase">Enterprise</p>
           </div>
         </Link>
 
-        {/* KLIKABILNE KATEGORIJE */}
-        <div className="hidden lg:flex items-center gap-2">
-          <Link href="/" className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition-colors ${pathname === '/' ? 'bg-white/10' : 'hover:bg-white/5'}`}>
-            <LayoutGrid size={14} /> Općenito
-          </Link>
-          
-          <Link href="/staff" className="flex items-center gap-1.5 px-4 py-2 text-white/70 hover:text-white transition-colors text-[11px] font-black uppercase tracking-wider group">
-            Osoblje <ChevronDown size={14} className="opacity-50 group-hover:opacity-100" />
-          </Link>
+        {/* DINAMIČKA NAVIGACIJA */}
+        <nav className="hidden md:flex h-full items-center gap-1">
+          {TOOL_CATEGORIES.map((category) => {
+            const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
+            const isGeneral = category.id === 'general';
+            const isActive = categoryTools.some(t => pathname === t.href) || (isGeneral && pathname === '/');
 
-          <Link href="/operations" className="flex items-center gap-1.5 px-4 py-2 text-white/70 hover:text-white transition-colors text-[11px] font-black uppercase tracking-wider group">
-            Operacije <ChevronDown size={14} className="opacity-50 group-hover:opacity-100" />
-          </Link>
+            return (
+              <div key={category.id} className="relative group h-full flex items-center">
+                <Link 
+                  href={isGeneral ? "/" : `/tools/categories/${category.id}`}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-2 ${isActive ? 'bg-white/10 text-white' : 'text-emerald-100/60 hover:text-white hover:bg-white/5'}`}
+                >
+                  {isGeneral && <LayoutGrid size={16} />}
+                  {category.label}
+                  {!isGeneral && <ChevronDown size={14} className="opacity-50 group-hover:rotate-180 transition-transform" />}
+                </Link>
 
-          <Link href="/other" className="flex items-center gap-1.5 px-4 py-2 text-white/70 hover:text-white transition-colors text-[11px] font-black uppercase tracking-wider group">
-            Ostalo <ChevronDown size={14} className="opacity-50 group-hover:opacity-100" />
-          </Link>
-        </div>
-      </div>
+                {/* DROPDOWN ZA BRZI PRISTUP */}
+                {!isGeneral && categoryTools.length > 0 && (
+                  <div className="absolute top-[80%] left-0 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0">
+                    <div className="p-2 space-y-1">
+                      {categoryTools.map((tool) => (
+                        <Link key={tool.id} href={tool.href} className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-[#1a3826] transition-colors">
+                          <span className="p-2 bg-slate-100 rounded-lg text-slate-400"><tool.icon size={16} /></span>
+                          <span className="text-sm font-bold">{tool.name}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
 
-      <div className="flex items-center gap-5">
-        <div className="flex flex-col items-end leading-none">
-          <span className="text-xs font-black text-white uppercase">{session?.user?.name || "Admin User"}</span>
-          <span className="text-[10px] font-bold text-yellow-400 uppercase mt-1">{selectedRestName}</span>
-        </div>
-        <div className="flex items-center gap-3 border-l border-white/10 pl-5">
-          <div className="w-9 h-9 bg-yellow-400 rounded-full flex items-center justify-center text-[#1a3826] font-black text-xs shadow-lg">
-            {session?.user?.name?.substring(0, 2).toUpperCase() || "AD"}
+        {/* KORISNIČKI INFO */}
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-xs font-bold">{session?.user?.name || "Korisnik"}</p>
+            <p className="text-[10px] text-[#FFC72C] font-black uppercase tracking-widest">{restName}</p>
           </div>
-          <button onClick={() => signOut({ callbackUrl: "/login" })} className="p-2 text-white/50 hover:text-red-400">
-            <LogOut size={18} />
+          <button onClick={() => signOut({ callbackUrl: "/login" })} className="w-10 h-10 bg-[#FFC72C] rounded-full flex items-center justify-center text-[#1a3826] font-black hover:scale-105 transition-transform">
+            {session?.user?.name?.substring(0, 2).toUpperCase() || "AD"}
           </button>
         </div>
+
       </div>
-    </nav>
+    </header>
   );
 }
