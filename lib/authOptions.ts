@@ -3,14 +3,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
-// OBRISALI SMO ONU LINIJU process.env.NEXTAUTH_URL KOJA JE PRAVILA HAOS NA VERCELU
-
 export const authOptions: NextAuthOptions = {
-  // Na Vercelu ovo obično nije nužno, ali neka stoji za svaki slučaj
-  // @ts-ignore
-  trustHost: true,
-
-  // Ostavljamo šifru hardkodiranu da ne misliš o Environment varijablama
+  // Hardkodirana šifra ostaje (to je OK)
   secret: "tvoja_super_tajna_sifra_za_prezentaciju_123",
 
   session: {
@@ -22,7 +16,8 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   
-  // OBRISALI SMO 'cookies' SEKCIJU - Vercel zna sam podesiti kolačiće bolje od nas
+  // ❌ OBRISANO: cookies {...} (Vercel će sam napraviti __Secure- kolačić)
+  // ❌ OBRISANO: process.env.NEXTAUTH_URL (Vercel zna svoj URL)
   
   providers: [
     CredentialsProvider({
@@ -47,7 +42,7 @@ export const authOptions: NextAuthOptions = {
         const isPasswordValid = await compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
-          throw new Error("Pogrešan email ili lozinka");
+          throw new Error("Pogrešna lozinka");
         }
 
         if (!user.isActive) {
@@ -81,6 +76,5 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     }
-    // OBRISALI SMO 'redirect' CALLBACK - Neka NextAuth radi standardno
   }
 };
