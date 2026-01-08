@@ -1,83 +1,124 @@
 import { 
   Users, 
-  BarChart3, 
-  LayoutGrid, 
-  MoreHorizontal, 
-  Calendar, 
-  ClipboardCheck, 
-  TrendingUp, 
-  Calculator 
+  LayoutDashboard, 
+  ShieldCheck, 
+  PlaneTakeoff, 
+  UserPlus,
+  Settings,
+  ClipboardCheck,
+  FileText,
+  Clock,
+  History,
+  Store,
+  Calculator
 } from "lucide-react";
 
-// --- EXPORT TIPOVA ---
-export interface ToolCategory {
-  id: string;
-  label: string;
-  icon: any;
-}
-
-export interface AppTool {
+// 1. DEFINICIJA TIPOVA
+export interface Tool {
   id: string;
   name: string;
-  description?: string;
   href: string;
   icon: any;
   category: string;
-  color: string;
-  status: string;
 }
 
-// --- KATEGORIJE ---
-export const TOOL_CATEGORIES: ToolCategory[] = [
-  { id: 'general', label: 'Općenito', icon: LayoutGrid },
-  { id: 'staff', label: 'Osoblje', icon: Users },
-  { id: 'operations', label: 'Operacije', icon: BarChart3 },
-  { id: 'other', label: 'Ostalo', icon: MoreHorizontal },
+export interface Category {
+  id: string;
+  label: string;
+}
+
+// 2. KATEGORIJE (Gornji padajući meni)
+export const TOOL_CATEGORIES: Category[] = [
+  { id: 'general', label: 'OPĆENITO' },
+  { id: 'staff', label: 'OSOBLJE' },
+  { id: 'operations', label: 'OPERACIJE' },
+  { id: 'other', label: 'OSTALO' }
 ];
 
-// --- ALATI ---
-export const APP_TOOLS: AppTool[] = [
-  // OSOBLJE
+// 3. SVI ALATI (Tools)
+export const APP_TOOLS: Tool[] = [
+  // --- OPĆENITO ---
   {
-    id: "evaluations",
-    name: "Evaluacija Učinka",
-    description: "Obrasci za procjenu radnika",
-    href: "/tools/evaluations",
-    icon: ClipboardCheck,
-    category: "staff", 
-    color: "green",
-    status: "active"
+    id: 'dashboard',
+    name: 'Kontrolna Tabla',
+    href: '/',
+    icon: LayoutDashboard,
+    category: 'general'
+  },
+  
+  // --- OSOBLJE ---
+  {
+    id: 'user-management',
+    name: 'Upravljanje Korisnicima',
+    href: '/admin/users',
+    icon: ShieldCheck,
+    category: 'staff'
   },
   {
-    id: "vacation-planner",
-    name: "Godišnji Odmori",
-    description: "Planer odmora sa blokadama",
-    href: "/tools/vacations", // OVO JE ISPRAVNO JER TI JE FOLDER 'vacations'
-    icon: Calendar,
-    category: "staff",
-    color: "blue",
-    status: "active"
+    id: 'add-user',
+    name: 'Novi Korisnik',
+    href: '/admin/users/new',
+    icon: UserPlus,
+    category: 'staff'
+  },
+  {
+    id: 'vacations',
+    name: 'Godišnji Odmori',
+    href: '/tools/staff/vacations',
+    icon: PlaneTakeoff,
+    category: 'staff'
+  },
+  {
+    id: 'attendance',
+    name: 'Prisustvo / Satnica',
+    href: '/tools/staff/attendance',
+    icon: Clock,
+    category: 'staff'
   },
 
-  // OPERACIJE
+  // --- OPERACIJE ---
   {
-    id: "productivity",
-    name: "Plan Produktivnosti",
-    description: "Promet i sati rada",
-    href: "/tools/productivity",
-    icon: TrendingUp,
-    category: "operations",
-    color: "orange",
-    status: "active"
+    id: 'inventory',
+    name: 'Inventura / Skladište',
+    href: '/tools/operations/inventory',
+    icon: ClipboardCheck,
+    category: 'operations'
   },
   {
-    id: "labor-planner",
-    name: "Mjesečni Planer",
-    description: "Raspored smjena i sati",
-    href: "/tools/labor-planner",
+    id: 'reports',
+    name: 'Dnevni Izvještaji',
+    href: '/tools/operations/reports',
+    icon: FileText,
+    category: 'operations'
+  },
+  {
+    id: 'costs',
+    name: 'Analiza Troškova',
+    href: '/tools/operations/costs',
     icon: Calculator,
-    category: "operations",
-    color: "red",
-    status: "active"
+    category: 'operations'
+  },
+
+  // --- OSTALO ---
+  {
+    id: 'settings',
+    name: 'Postavke Sistema',
+    href: '/settings',
+    icon: Settings,
+    category: 'other'
+  },
+  {
+    id: 'logs',
+    name: 'Logovi Aktivnosti',
+    href: '/admin/logs',
+    icon: History,
+    category: 'other'
+  },
+  {
+    id: 'rest-switch',
+    name: 'Promjena Restorana',
+    href: '/select-restaurant',
+    icon: Store,
+    category: 'other'
   }
 ];
