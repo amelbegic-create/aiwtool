@@ -11,13 +11,19 @@ export const metadata: Metadata = {
   description: "Interni alati za upravljanje restoranom",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-slate-50 text-slate-900 flex flex-col h-screen overflow-hidden`}>
+      <body className={`${inter.className} bg-white text-slate-900 flex flex-col h-screen overflow-hidden`}>
         <Providers>
+          {/* Gornja navigacija sa tvojim kategorijama */}
           <TopNavbar />
-          <main className="flex-1 overflow-auto w-full relative">
+
+          <main className="flex-1 overflow-auto w-full relative bg-white">
             {children}
           </main>
         </Providers>
