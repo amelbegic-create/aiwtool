@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Store, MapPin, ArrowRight, Hash, LogOut } from "lucide-react";
 import { getRestaurants } from "@/app/actions/getRestaurants";
 
-// Definicija tipa
+// 1. Definicija tipa (MORA BITI OVDJE)
 interface Restaurant {
   id: string;
   code: string;
@@ -15,7 +15,6 @@ interface Restaurant {
 }
 
 export default function SelectRestaurantPage() {
-  // router nam treba samo za logout, ne za navigaciju u dashboard
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -26,8 +25,7 @@ export default function SelectRestaurantPage() {
     localStorage.setItem("selected_restaurant_name", rest.name);
     localStorage.setItem("selected_restaurant_code", rest.code);
     
-    // ⚠️ KLJUČNI FIX: Forsiramo hard refresh da browser pošalje kolačiće serveru
-    // Ovo rješava "Login Loop" na Vercelu
+    // 2. FIX ZA LOGIN LOOP (Ovo mora proći na server!)
     window.location.href = "/"; 
   }, []);
 
@@ -45,13 +43,13 @@ export default function SelectRestaurantPage() {
 
         if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
            if (allowedIds.length > 0) {
-             // FIX: Dodali smo tip (r: Restaurant) da TypeScript ne prijavljuje grešku
+             // 3. FIX ZA TYPESCRIPT ERROR (Dodali smo tip r: Restaurant)
              filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
            } else {
              filtered = allRestaurants;
            }
         } else {
-           // FIX: Dodali smo tip (r: Restaurant) ovdje također
+           // 4. FIX ZA TYPESCRIPT ERROR I OVDJE
            filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
         }
 
