@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>McDonald's Pravila i Standardi</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-body: #f8f9fa;
+    --mcd-red: #DA291C;
+    --mcd-yellow: #FFC72C;
+    --mcd-dark: #27251F;
+    --text-main: #202020;
+    --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --radius: 12px;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-body);
+    margin: 0; padding: 40px 20px;
+    color: var(--text-main);
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  /* Header sekcije */
+  .section-header {
+    text-align: center; margin-bottom: 50px;
+  }
+  .section-header h2 {
+    font-size: 2rem; font-weight: 800; color: var(--mcd-dark);
+    margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: -1px;
+  }
+  .section-header p {
+    color: #666; font-size: 1.1rem; max-width: 600px; margin: 0 auto;
+  }
+  .divider {
+    height: 4px; width: 60px; background: var(--mcd-yellow);
+    margin: 20px auto 0; border-radius: 2px;
+  }
+
+  /* Grid Layout */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 30px;
+  }
+
+  /* Card Design */
+  .rule-card {
+    background: #fff;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-top: 5px solid var(--mcd-red);
+    display: flex; flex-direction: column;
+  }
+
+  .rule-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Vizuelni dio (Ikona/Slika) */
+  .card-visual {
+    background: #fffbeb; /* Svijetlo žuta pozadina */
+    padding: 30px;
+    display: flex; justify-content: center; align-items: center;
+    border-bottom: 1px solid #eee;
+  }
+  .card-visual svg {
+    width: 64px; height: 64px;
+    fill: var(--mcd-dark);
+  }
+
+  /* Sadržaj */
+  .card-content { padding: 25px; flex: 1; }
+  
+  .card-badge {
+    background: var(--mcd-red); color: #fff;
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    padding: 4px 8px; border-radius: 4px; display: inline-block; margin-bottom: 10px;
+  }
+
+  .card-title {
+    font-size: 1.25rem; font-weight: 800; margin: 0 0 10px 0;
+    color: var(--mcd-dark);
+  }
+
+  .card-text {
+    font-size: 0.95rem; line-height: 1.6; color: #555; margin-bottom: 20px;
+  }
+
+  /* Video Embed Placeholder */
+  .video-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    background: #000;
+    margin-top: auto; /* Gura video na dno */
+  }
+
+  .video-container iframe {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;
+  }
+
+  /* Fake Video Player (Placeholder design) */
+  .video-placeholder {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: #1a1a1a;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    cursor: pointer;
+    color: #fff;
+    transition: background 0.3s;
+  }
+  .video-placeholder:hover { background: #2a2a2a; }
+  .play-btn {
+    width: 50px; height: 50px; background: var(--mcd-red);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    margin-bottom: 10px; box-shadow: 0 0 20px rgba(218, 41, 28, 0.4);
+  }
+  .play-icon { width: 0; height: 0; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 14px solid #fff; margin-left: 4px; }
+  
+</style>
+</head>
+<body>
+
+<div class="container">
+  
+  <div class="section-header">
+    <h2>Operativni Standardi</h2>
+    <p>Ključna pravila za održavanje kvalitete, usluge i čistoće (QSC).</p>
+    <div class="divider"></div>
+  </div>
+
+  <div class="rules-grid">
+
+    <div class="rule-card">
+      <div class="card-visual">
+        <svg viewBox="0 0 24 24">
+          <path d="M21 5c-1.1 0-2 .9-2 2v2h-1V7c0-1.1-.9-2-2-2s-2 .9-2 2v2h-1V7c0-1.1-.9-2-2-2s-2 .9-2 2v2H8V7c0-1.1-.9-2-2-2s-2 .9-2 2v2H2v10c0 1.1.9 2 2 2h9.5c.3 1.4 1.6 2.5 3 2.5s2.7-1.1 3-2.5H20c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zM4 9h16v8H4V9zm12.5 10c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5z"/>
+        </svg>
+      </div>
+      <div class="card-content">
+        <span class="card-badge">Sigurnost Hrane</span>
+        <h3 class="card-title">Pranje ruku (Svakih 30 min)</h3>
+        <p class="card-text">
+          Pravilno pranje ruku je temelj naše sigurnosti. Ruke se moraju prati <strong>minimalno 20 sekundi</strong> sapunom i toplom vodom:
+          <br>• Prije početka smjene
+          <br>• Nakon svake promjene radne stanice
+          <br>• Nakon rukovanja novcem ili otpadom.
+        </p>
+      </div>
+      <div class="video-container">
+        <div class="video-placeholder">
+          <div class="play-btn"><div class="play-icon"></div></div>
+          <span style="font-size:0.8rem; font-weight:600; text-transform:uppercase;">Pogledaj Trening: Higijena</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-card" style="border-top-color: var(--mcd-yellow);">
+      <div class="card-visual">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+        </svg>
+      </div>
+      <div class="card-content">
+        <span class="card-badge" style="background: var(--mcd-yellow); color:#000;">Gostoprimstvo</span>
+        <h3 class="card-title">Pravilo "5 Sekundi"</h3>
+        <p class="card-text">
+          Svaki gost koji priđe kasi ili kiosku mora biti primijećen i pozdravljen unutar <strong>5 sekundi</strong>.
+          <br><br>
+          Osmijeh je dio uniforme. Koristite fraze: <em>"Dobrodošli u McDonald's"</em> i <em>"Hvala, dođite nam opet"</em>.
+        </p>
+      </div>
+      <div class="video-container">
+        <div class="video-placeholder">
+          <div class="play-btn" style="background:var(--mcd-yellow);"><div class="play-icon" style="border-left-color:#000;"></div></div>
+          <span style="font-size:0.8rem; font-weight:600; text-transform:uppercase;">Video: Standardi Usluge</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule-card">
+      <div class="card-visual">
+        <svg viewBox="0 0 24 24">
+          <path d="M20.57 6.43l-4.29-1.43-1.64-3.57C14.42 1.15 14.12 1 13.8 1h-3.6c-.32 0-.62.15-.84.43L7.72 5 3.43 6.43c-.49.16-.83.62-.83 1.14v11.86c0 .88.72 1.57 1.6 1.57h15.6c.88 0 1.6-.69 1.6-1.57V7.57c0-.52-.34-.98-.83-1.14zM12 3.14l1.86 3.86h-3.72L12 3.14zM12 15c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+        </svg>
+      </div>
+      <div class="card-content">
+        <span class="card-badge">Izgled</span>
+        <h3 class="card-title">Standardi Uniforme</h3>
+        <p class="card-text">
+          Zaposlenici moraju biti u <strong>kompletnoj, čistoj i ispeglanoj uniformi</strong> prije ulaska u radni prostor.
+          <br>• Pločica sa imenom na lijevoj strani.
+          <br>• Kapa je obavezna u kuhinji.
+          <br>• Obuća mora biti protuklizna i crna.
+        </p>
+      </div>
+      <div class="video-container">
+        <div class="video-placeholder">
+           <div class="play-btn"><div class="play-icon"></div></div>
+           <span style="font-size:0.8rem; font-weight:600; text-transform:uppercase;">Video: Dress Code</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>

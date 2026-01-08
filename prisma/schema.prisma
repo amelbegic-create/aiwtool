@@ -1,0 +1,204 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. KORISNICI & PERMISIJE
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  CREW
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  password      String?
+  role          Role      @default(CREW)
+  
+  department    String?   @default("RL") 
+  isActive      Boolean   @default(true)
+  image         String?
+  permissions   Json?      
+
+  restaurants   RestaurantUser[]
+  evaluations   EvaluationSubmission[]
+  vacations     VacationRequest[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  accounts      Account[]
+  sessions      Session[]
+}
+
+// 2. CMS - PRAVILA
+model Rule {
+  id            String   @id @default(cuid())
+  title         String
+  slug          String   @unique 
+  content       String   
+  category      String   
+  isGlobal      Boolean  @default(true) 
+  restaurants   RuleRestaurant[]
+  published     Boolean  @default(false)
+  authorId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 3. EVALUACIJE
+model EvaluationTemplate {
+  id            String   @id @default(cuid())
+  title         String   
+  criteria      Json      
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  submissions   EvaluationSubmission[]
+}
+
+model EvaluationSubmission {
+  id            String             @id @default(cuid())
+  templateId    String
+  template      EvaluationTemplate @relation(fields: [templateId], references: [id])
+  restaurantId  String
+  restaurant    Restaurant         @relation(fields: [restaurantId], references: [id])
+  userId        String     
+  user          User               @relation(fields: [userId], references: [id])
+  answers       Json        
+  totalScore    Int        
+  createdAt     DateTime   @default(now())
+}
+
+// 4. GODIŠNJI ODMORI
+model VacationRequest {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  start      String   
+  end        String   
+  days       Int      
+  realDays   Int      
+  status     String   @default("PENDING") 
+  createdAt  DateTime @default(now())
+}
+
+// 5. PRODUKTIVNOST (CL ALAT)
+model ProductivityReport {
+  id           String   @id @default(cuid())
+  restaurantId String
+  date         String   // "YYYY-MM-DD"
+  targetProd   Float    @default(120)
+  netCoeff     Float    @default(1.17)
+  hourlyData   Json     
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, date])
+}
+
+// 6. PRAZNICI / BLOKIRANI DANI
+model BlockedDay {
+  id           String     @id @default(cuid())
+  date         String     
+  reason       String?
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+}
+
+// --- STANDARDNI MODELI ---
+
+model Restaurant {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  name          String
+  city          String?
+  address       String?
+  isActive      Boolean   @default(true)
+  
+  // OVO JE FALILO I PRAVILO P1012 GREŠKU:
+  openingHours  Json?     @default("{}") 
+  
+  users         RestaurantUser[]
+  rules         RuleRestaurant[]
+  evaluations   EvaluationSubmission[]
+  blockedDays   BlockedDay[]           // <--- Popravljeno
+  productivityReports ProductivityReport[] // <--- Popravljeno
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model RestaurantUser {
+  id            String     @id @default(cuid())
+  userId        String
+  restaurantId  String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  isPrimary     Boolean    @default(false)
+  @@unique([userId, restaurantId])
+}
+
+model RuleRestaurant {
+  id            String     @id @default(cuid())
+  ruleId        String
+  restaurantId  String
+  rule          Rule       @relation(fields: [ruleId], references: [id])
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  @@unique([ruleId, restaurantId])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  action        String
+  entity        String
+  entityId      String?
+  details       String?
+  performedBy   String
+  createdAt     DateTime @default(now())
+}
+
+// NextAuth modeli
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}

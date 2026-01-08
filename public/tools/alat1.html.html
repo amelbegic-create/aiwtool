@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrewLabor Kalkulator</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #3498db;
+            --bg-color: #f4f7f6;
+            --table-header-bg: #dfe6e9;
+            --border-color: #dcdde1;
+            --success: #27ae60;
+            --danger: #c0392b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* --- Header & Controls --- */
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        h1 { margin: 0; font-size: 24px; color: var(--primary-color); }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+        .btn:hover { background-color: #1a252f; }
+        .btn-print { background-color: var(--accent-color); }
+        .btn-print:hover { background-color: #2980b9; }
+
+        /* --- Dashboard Grid --- */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            text-transform: uppercase;
+            color: #7f8c8d;
+            letter-spacing: 0.5px;
+        }
+
+        .card-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .card-row label { font-size: 13px; font-weight: 500; }
+        
+        .card-input {
+            width: 80px;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .big-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-color);
+            display: block;
+            margin-top: 5px;
+        }
+
+        /* --- Table Styling --- */
+        .table-wrapper {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            background-color: var(--table-header-bg);
+            color: var(--primary-color);
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 700;
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Input styling inside table */
+        td input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 8px 5px;
+            box-sizing: border-box;
+            text-align: right;
+            outline: none;
+            font-family: inherit;
+            background: transparent;
+            transition: background 0.2s;
+        }
+
+        td input:focus {
+            background-color: #e8f0fe;
+            border-bottom: 2px solid var(--accent-color);
+        }
+
+        /* Specific Columns */
+        .col-day { width: 100px; text-align: left; padding-left: 10px; font-weight: 500; }
+        .col-calc { background-color: #f8f9fa; color: #555; font-weight: bold; pointer-events: none; } /* Read only visual */
+        
+        tr.weekend { background-color: #fafafa; }
+        tr:hover { background-color: #f1f1f1; }
+
+        /* Footer Totals */
+        tfoot tr {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        tfoot td {
+            padding: 12px 5px;
+            text-align: right;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        /* Status Colors */
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
+
+        /* --- PRINT STYLES (LANDSCAPE) --- */
+        @media print {
+            /* OVO FORSIRA LANDSCAPE */
+            @page {
+                size: landscape;
+                margin: 10mm; 
+            }
+
+            body {
+                background: white;
+                padding: 0;
+                margin: 0;
+                zoom: 95%; /* Blago smanjenje da stane sve */
+            }
+
+            /* Sakrij dugmad i nepotrebne elemente */
+            .header-section button { display: none !important; }
+            .header-section { 
+                box-shadow: none; 
+                border-bottom: 2px solid #333;
+                padding: 0 0 10px 0;
+                margin-bottom: 10px;
+            }
+
+            /* Pojednostavi kartice */
+            .dashboard {
+                display: flex; /* Redaj ih u red */
+                justify-content: space-between;
+                gap: 20px;
+                margin-bottom: 15px;
+            }
+            .card {
+                border: 1px solid #ddd;
+                box-shadow: none;
+                flex: 1;
+                padding: 10px;
+            }
+
+            .card-input {
+                border: none;
+                background: transparent;
+                padding: 0;
+                width: auto;
+            }
+
+            /* Tabela za print */
+            .table-wrapper {
+                box-shadow: none;
+            }
+            
+            table { font-size: 11px; }
+            th { background-color: #eee !important; color: black; border: 1px solid #999; padding: 5px; }
+            td { border: 1px solid #ccc; padding: 0; height: 20px; }
+            td input { padding: 2px 5px; font-size: 11px; }
+            
+            tfoot tr { background-color: #ddd !important; color: black !important; -webkit-print-color-adjust: exact; }
+            tfoot td { border: 1px solid #000; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <h1>📊 CrewLabor Analiza</h1>
+        <div>
+            <button class="btn" onclick="clearTable()">🗑️ Obriši sve</button>
+            <button class="btn btn-print" onclick="window.print()">🖨️ Štampaj / Sačuvaj PDF</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <h3>⚙️ Postavke</h3>
+            <div class="card-row">
+                <label>Satnica (€):</label>
+                <input type="number" id="hourlyWage" class="card-input" value="11.80" oninput="calculateAll()">
+            </div>
+            <div class="card-row">
+                <label>Godišnji (h):</label>
+                <input type="number" id="vacationHours" class="card-input" value="0" oninput="calculateAll()">
+            </div>
+            <div class="card-row">
+                <label>Bolovanje (h):</label>
+                <input type="number" id="sickHours" class="card-input" value="0" oninput="calculateAll()">
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>🎯 Budžet</h3>
+            <div class="card-row">
+                <label>Plan Promet (€):</label>
+                <input type="number" id="budgetSales" class="card-input" value="" placeholder="0" oninput="calculateAll()">
+            </div>
+            <div class="card-row">
+                <label>Plan CL Trošak (€):</label>
+                <input type="number" id="budgetCL" class="card-input" value="" placeholder="0" oninput="calculateAll()">
+            </div>
+            <div style="text-align: right; margin-top: 5px; font-size: 0.9em;">
+                Max CL%: <strong id="budgetPercent">0.00%</strong>
+            </div>
+        </div>
+
+        <div class="card" id="resultCard" style="border-left-color: var(--success);">
+            <h3>📈 Rezultat</h3>
+            <div class="card-row">
+                <span>Ukupno Sati (za isplatu):</span>
+                <strong><span id="resTotalHours">0</span> h</strong>
+            </div>
+            <div class="card-row">
+                <span>Ukupno CL Trošak:</span>
+                <strong class="big-number" id="resTotalCost">0 €</strong>
+            </div>
+            <div class="card-row">
+                <span>Realni CL %:</span>
+                <strong class="big-number" id="resPercent">0.00%</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th style="width:30px">#</th>
+                    <th style="width:120px">Dan</th>
+                    <th>Promet (Netto)</th>
+                    <th>Cilj Prod.</th>
+                    <th>Produktive Std.*</th>
+                    <th>SF Sati</th>
+                    <th>HM Sati</th>
+                    <th>NZ (€)</th>
+                    <th>Extra Sati</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="2" style="text-align: left; padding-left: 10px;">UKUPNO</td>
+                    <td id="sumUmsatz">0</td>
+                    <td>-</td>
+                    <td id="sumProd">0</td>
+                    <td id="sumSF">0</td>
+                    <td id="sumHM">0</td>
+                    <td id="sumNZ">0</td>
+                    <td id="sumExtra">0</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script>
+        const daysOfWeek = ["Ponedjeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota", "Nedjelja"];
+        
+        function val(input) {
+            if (!input || input.value === "") return 0;
+            return parseFloat(input.value) || 0;
+        }
+
+        // Inicijalizacija
+        function initTable() {
+            const tbody = document.getElementById('tableBody');
+            let html = '';
+            
+            for (let i = 1; i <= 31; i++) {
+                let dayName = daysOfWeek[(i - 1) % 7];
+                let isWeekend = dayName === "Subota" || dayName === "Nedjelja";
+                
+                html += `
+                    <tr class="${isWeekend ? 'weekend' : ''}">
+                        <td style="text-align:center; color:#888;">${i}</td>
+                        <td class="col-day">${dayName}</td>
+                        <td><input type="number" class="inp-umsatz" placeholder="" oninput="calcRow(this)"></td>
+                        <td><input type="number" class="inp-ziel" value="100" oninput="calcRow(this)"></td>
+                        <td class="col-calc"><input type="text" class="inp-prod" readonly tabindex="-1"></td>
+                        <td><input type="number" class="inp-sf" placeholder="" oninput="calcRow(this)"></td>
+                        <td><input type="number" class="inp-hm" placeholder="" oninput="calcRow(this)"></td>
+                        <td><input type="number" class="inp-nz" placeholder="" oninput="calcRow(this)"></td>
+                        <td><input type="number" class="inp-extra" placeholder="" oninput="calcRow(this)"></td>
+                    </tr>
+                `;
+            }
+            tbody.innerHTML = html;
+        }
+
+        // Računanje jednog reda
+        function calcRow(el) {
+            const row = el.closest('tr');
+            
+            const umsatz = val(row.querySelector('.inp-umsatz'));
+            const ziel = val(row.querySelector('.inp-ziel'));
+            const sf = val(row.querySelector('.inp-sf'));
+
+            if (umsatz === 0 && sf === 0) {
+                row.querySelector('.inp-prod').value = "";
+            } else {
+                let prod = 0;
+                if (ziel > 0) prod = (umsatz / ziel) - sf;
+                row.querySelector('.inp-prod').value = prod.toFixed(2);
+            }
+
+            calculateAll();
+        }
+
+        // Glavna kalkulacija
+        function calculateAll() {
+            let sUmsatz = 0, sProd = 0, sSF = 0, sHM = 0, sNZ = 0, sExtra = 0;
+
+            document.querySelectorAll('#tableBody tr').forEach(row => {
+                sUmsatz += val(row.querySelector('.inp-umsatz'));
+                sProd += val(row.querySelector('.inp-prod'));
+                sSF += val(row.querySelector('.inp-sf'));
+                sHM += val(row.querySelector('.inp-hm'));
+                sNZ += val(row.querySelector('.inp-nz'));
+                sExtra += val(row.querySelector('.inp-extra'));
+            });
+
+            // Update footer
+            document.getElementById('sumUmsatz').textContent = sUmsatz.toLocaleString('de-DE');
+            document.getElementById('sumProd').textContent = sProd.toFixed(1);
+            document.getElementById('sumSF').textContent = sSF;
+            document.getElementById('sumHM').textContent = sHM;
+            document.getElementById('sumNZ').textContent = sNZ;
+            document.getElementById('sumExtra').textContent = sExtra;
+
+            // Global settings
+            const wage = val(document.getElementById('hourlyWage'));
+            const vacation = val(document.getElementById('vacationHours'));
+            const sick = val(document.getElementById('sickHours'));
+            
+            // Financials
+            const totalHoursPaid = sProd + sHM + sExtra + vacation + sick;
+            const totalCost = (totalHoursPaid * wage) + sNZ;
+            let percent = 0;
+            if (sUmsatz > 0) percent = (totalCost / sUmsatz) * 100;
+
+            // Display
+            document.getElementById('resTotalHours').innerText = totalHoursPaid.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('resTotalCost').innerText = totalCost.toLocaleString('de-DE', {style: 'currency', currency: 'EUR'});
+            
+            const elPercent = document.getElementById('resPercent');
+            elPercent.innerText = percent.toFixed(2) + "%";
+
+            // Colors
+            const budgetSales = val(document.getElementById('budgetSales'));
+            const budgetCost = val(document.getElementById('budgetCL'));
+            let budgetMaxPercent = 0;
+
+            if (budgetSales > 0 && budgetCost > 0) {
+                budgetMaxPercent = (budgetCost / budgetSales) * 100;
+                document.getElementById('budgetPercent').innerText = budgetMaxPercent.toFixed(2) + "%";
+            } else {
+                document.getElementById('budgetPercent').innerText = "-";
+            }
+
+            const resCard = document.getElementById('resultCard');
+            if (budgetCost > 0) {
+                if (totalCost <= budgetCost) {
+                    resCard.style.borderLeftColor = "var(--success)";
+                    document.getElementById('resTotalCost').style.color = "var(--success)";
+                } else {
+                    resCard.style.borderLeftColor = "var(--danger)";
+                    document.getElementById('resTotalCost').style.color = "var(--danger)";
+                }
+            }
+            if (budgetMaxPercent > 0) {
+                if (percent <= budgetMaxPercent) elPercent.style.color = "var(--success)";
+                else elPercent.style.color = "var(--danger)";
+            }
+        }
+
+        // Reset
+        function clearTable() {
+            if(confirm("Da li ste sigurni da želite obrisati sve podatke?")) {
+                const inputs = document.querySelectorAll('input');
+                inputs.forEach(inp => {
+                    if(inp.id !== 'hourlyWage' && !inp.classList.contains('inp-ziel')) {
+                        inp.value = "";
+                    }
+                    if(inp.classList.contains('inp-ziel')) inp.value = "100";
+                });
+                calculateAll();
+            }
+        }
+
+        initTable();
+    </script>
+</body>
+</html>

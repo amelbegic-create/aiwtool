@@ -1,0 +1,107 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+
+// 1. DOHVATI SVE KORISNIKE
+export async function getAllUsers() {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { 
+        restaurants: { 
+          include: { restaurant: true } 
+        } 
+      }
+    });
+    return users;
+  } catch (error) {
+    console.error("Greška getAllUsers:", error);
+    return []; // Vraća prazan niz ako pukne, da ne sruši aplikaciju
+  }
+}
+
+// 2. KREIRAJ KORISNIKA
+export async function createUser(formData: FormData) {
+  try {
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+    const role = formData.get("role") as any;
+    const department = formData.get("department") as string;
+    const restaurantIdsJson = formData.get("restaurantIds") as string;
+    const restaurantIds: string[] = JSON.parse(restaurantIdsJson || "[]");
+
+    await prisma.user.create({
+      data: {
+        name,
+        email,
+        password,
+        role,
+        department, 
+        restaurants: {
+          create: restaurantIds.map((restId, index) => ({
+            restaurantId: restId,
+            isPrimary: index === 0
+          }))
+        }
+      },
+    });
+    
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (error) {
+    console.error("Create error:", error);
+    return { success: false, error: "Greška pri kreiranju" };
+  }
+}
+
+// 3. AŽURIRAJ KORISNIKA
+export async function updateUser(formData: FormData) {
+  try {
+    const id = formData.get("id") as string;
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+    const role = formData.get("role") as any;
+    const department = formData.get("department") as string;
+    const restaurantIdsJson = formData.get("restaurantIds") as string;
+    const restaurantIds: string[] = JSON.parse(restaurantIdsJson || "[]");
+
+    const updateData: any = { name, email, role, department };
+    if (password && password.trim() !== "") {
+      updateData.password = password; 
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id }, data: updateData });
+      await tx.restaurantUser.deleteMany({ where: { userId: id } });
+      if (restaurantIds.length > 0) {
+        await tx.restaurantUser.createMany({
+          data: restaurantIds.map((restId, index) => ({
+            userId: id,
+            restaurantId: restId,
+            isPrimary: index === 0
+          }))
+        });
+      }
+    });
+    
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (error) {
+    console.error("Update error:", error);
+    return { success: false, error: "Greška pri ažuriranju" };
+  }
+}
+
+// 4. OBRIŠI KORISNIKA
+export async function deleteUser(userId: string) {
+  try {
+    await prisma.user.delete({ where: { id: userId } });
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
