@@ -11,8 +11,14 @@ import {
   History,
   Store,
   Calculator,
-  Briefcase // Dodana ikona za kategoriju
+  Briefcase 
 } from "lucide-react";
+
+export interface Category {
+  id: string;
+  label: string;
+  icon: any; // Obavezno polje
+}
 
 export interface Tool {
   id: string;
@@ -20,12 +26,6 @@ export interface Tool {
   href: string;
   icon: any;
   category: string;
-}
-
-export interface Category {
-  id: string;
-  label: string;
-  icon?: any; // Dodano icon polje koje TypeScript traži
 }
 
 export const TOOL_CATEGORIES: Category[] = [
