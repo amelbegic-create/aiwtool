@@ -4,25 +4,28 @@ import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  // 1. debug: true nam omogućava da vidimo greške u Vercel logovima
-  debug: true,
+  // @ts-ignore
+  trustHost: true, // Ključno za Vercel/Railway proxy
+  secret: process.env.NEXTAUTH_SECRET,
   
-  // 2. secret: Čita iz Environment Varijabli (ono što si gore podesio)
-  // Ako tamo ne nađe, koristi ovaj backup string
-  secret: process.env.NEXTAUTH_SECRET || "fallback_sifra_za_svaki_slucaj_123",
-
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 dana
+    maxAge: 30 * 24 * 60 * 60,
   },
-  
-  pages: {
-    signIn: "/login",
+
+  // Forsiranje naziva kolačića kako bi izbjegli nesporazume sa domenom
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: true // Vercel uvijek koristi HTTPS
+      }
+    }
   },
-  
-  // 3. NEMOJ OVDJE DEFINISATI COOKIES NI TRUSTHOST
-  // Vercel to radi automatski kad ima NEXTAUTH_URL varijablu
-  
+
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -31,34 +34,23 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Podaci nedostaju");
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
+        if (!credentials?.email || !credentials?.password) return null;
+        
+        const user = await prisma.user.findUnique({ 
+            where: { email: credentials.email } 
         });
-
-        if (!user || !user.password) {
-          throw new Error("Pogrešan email ili lozinka");
-        }
-
-        const isPasswordValid = await compare(credentials.password, user.password);
-
-        if (!isPasswordValid) {
-          throw new Error("Pogrešna lozinka");
-        }
-
-        if (!user.isActive) {
-            throw new Error("Račun deaktiviran");
-        }
+        
+        if (!user || !user.password) return null;
+        
+        // PAŽNJA: Provjeri da li u bazi čuvaš hash ili plain text
+        const isValid = await compare(credentials.password, user.password);
+        if (!isValid) return null;
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
-          permissions: user.permissions as any, 
         };
       }
     })
@@ -66,9 +58,8 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
+        token.role = (user as any).role;
         token.id = user.id;
-        token.permissions = user.permissions;
       }
       return token;
     },
@@ -76,7 +67,6 @@ export const authOptions: NextAuthOptions = {
       if (session?.user) {
         (session.user as any).role = token.role;
         (session.user as any).id = token.id;
-        (session.user as any).permissions = token.permissions;
       }
       return session;
     }

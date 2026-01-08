@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { Store, MapPin, ArrowRight, Hash, LogOut } from "lucide-react";
 import { getRestaurants } from "@/app/actions/getRestaurants";
 
 // Definisanje interfejsa za restoran
@@ -13,57 +14,103 @@ interface Restaurant {
 }
 
 export default function SelectRestaurantPage() {
+  const [loading, setLoading] = useState(true);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [userName, setUserName] = useState("");
+
   const selectRestaurant = useCallback((rest: Restaurant) => {
     localStorage.setItem("selected_restaurant_id", rest.id);
     localStorage.setItem("selected_restaurant_name", rest.name);
     localStorage.setItem("selected_restaurant_code", rest.code);
     
-    // Forsiramo hard refresh da browser sigurno pošalje kolačiće serveru
+    // Forsiramo hard refresh da browser sigurno pošalje sesijske kolačiće
     window.location.href = "/"; 
   }, []);
 
   useEffect(() => {
-    const autoSelect = async () => {
+    const fetchData = async () => {
       try {
         const allRestaurants = await getRestaurants();
         
         const role = localStorage.getItem("user_role");
         const allowedIdsJson = localStorage.getItem("allowed_restaurants");
         const allowedIds: string[] = allowedIdsJson ? JSON.parse(allowedIdsJson) : [];
-        
-        let target: Restaurant | null = null;
+        setUserName(localStorage.getItem("user_name") || "Korisnik");
 
-        // Popravljene TypeScript greške dodavanjem tipa (r: Restaurant)
+        let filtered: Restaurant[] = [];
+
+        // ISPRAVKA: Dodali smo (r: Restaurant) kako bi izbjegli TypeScript grešku
         if (role === 'SUPER_ADMIN' || role === 'ADMIN') {
            if (allowedIds.length > 0) {
-             const filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
-             if (filtered.length > 0) target = filtered[0];
-           } else if (allRestaurants.length > 0) {
-             target = allRestaurants[0];
+             filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
+           } else {
+             filtered = allRestaurants;
            }
         } else {
-           const filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
-           if (filtered.length > 0) target = filtered[0];
+           filtered = allRestaurants.filter((r: Restaurant) => allowedIds.includes(r.id));
         }
 
-        if (target) {
-          selectRestaurant(target);
+        setRestaurants(filtered);
+
+        if (filtered.length === 1) {
+          selectRestaurant(filtered[0]);
         } else {
-          window.location.href = "/login";
+          setLoading(false);
         }
       } catch (error) {
-        console.error("Greška pri učitavanju:", error);
-        window.location.href = "/login";
+        console.error("Failed to load restaurants");
+        setLoading(false);
       }
     };
 
-    autoSelect();
+    fetchData();
   }, [selectRestaurant]);
 
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = "/login";
+  };
+
+  if (loading) return (
+    <div className="min-h-screen bg-[#1a3826] flex items-center justify-center">
+      <div className="w-8 h-8 border-4 border-white/20 border-t-[#FFC72C] rounded-full animate-spin"></div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-[#1a3826] flex flex-col items-center justify-center">
-      <div className="w-12 h-12 border-4 border-white/20 border-t-[#FFC72C] rounded-full animate-spin mb-4"></div>
-      <p className="text-white/50 text-sm font-medium">Učitavanje restorana...</p>
+    <div className="min-h-screen bg-[#1a3826] flex flex-col items-center justify-center p-6">
+      <div className="absolute top-6 right-6">
+         <button onClick={handleLogout} className="flex items-center gap-2 text-white/50 hover:text-white text-xs font-bold uppercase">
+            <LogOut size={14}/> Odjavi se ({userName})
+         </button>
+      </div>
+      
+      <div className="text-center mb-10">
+        <h1 className="text-3xl font-black text-white uppercase tracking-tight">Dobrodošli, {userName}</h1>
+        <p className="text-emerald-200/60 mt-2 font-medium">Izaberite lokaciju za rad.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl w-full">
+        {restaurants.map((rest) => (
+          <button 
+            key={rest.id}
+            onClick={() => selectRestaurant(rest)}
+            className="group relative bg-white hover:bg-emerald-50 p-6 rounded-2xl text-left transition-all hover:scale-[1.02] shadow-lg border border-transparent hover:border-emerald-200"
+          >
+            <div className="absolute top-4 right-4 bg-slate-100 group-hover:bg-white p-2 rounded-full transition-colors">
+              <Store className="text-slate-400 group-hover:text-[#1a3826] w-6 h-6" />
+            </div>
+            <div className="flex items-center gap-3 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              <span className="flex items-center gap-1"><MapPin size={12} /> {rest.city || "BiH"}</span>
+              <span className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-slate-500"><Hash size={10} /> {rest.code}</span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 group-hover:text-[#1a3826] mb-1">{rest.name}</h3>
+            <div className="mt-6 flex items-center gap-2 text-slate-400 font-bold text-xs uppercase tracking-wider group-hover:text-[#1a3826] group-hover:gap-3 transition-all">
+              Otvori <ArrowRight size={14} />
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

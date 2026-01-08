@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import TopNavbar from "@/components/TopNavbar";
-import { Providers } from "./providers"; 
+import { Providers } from "./providers"; // <--- UVOZIMO PROVIDER KOJI SMO NAPRAVILI
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,12 +19,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-slate-50 text-slate-900 flex flex-col h-screen overflow-hidden`}>
+        
+        {/* OMOTAVAMO SVE U PROVIDERS: 
+          Ovo omogućava useSession() kuki da radi u cijeloj aplikaciji 
+        */}
         <Providers>
           <TopNavbar />
+
           <main className="flex-1 overflow-auto w-full relative">
             {children}
           </main>
         </Providers>
+
       </body>
     </html>
   );
