@@ -37,7 +37,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (!user.isActive) {
-           throw new Error("Vaš nalog je deaktiviran.");
+            throw new Error("Vaš nalog je deaktiviran.");
         }
 
         return {
@@ -45,7 +45,8 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          permissions: user.permissions, 
+          // OVDJE JE DODANO 'as any' DA SE RIJEŠI BUILD GREŠKA
+          permissions: user.permissions as any, 
         };
       }
     })
