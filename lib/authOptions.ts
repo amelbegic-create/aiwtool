@@ -7,9 +7,7 @@ export const authOptions: NextAuthOptions = {
   // @ts-ignore
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET || "fallback_secret_123",
-  session: {
-    strategy: "jwt",
-  },
+  session: { strategy: "jwt" },
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -17,48 +15,27 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-           console.log("DEBUG: Nedostaju podaci");
-           return null;
-        }
+      async authorize(credentials): Promise<any> { // Eksplicitno Promise<any> rješava grešku
+        if (!credentials?.email || !credentials?.password) return null;
         
-        // Pronađi korisnika
         const user = await prisma.user.findUnique({ 
           where: { email: credentials.email },
           include: { restaurants: true }
         });
         
-        if (!user || !user.password) {
-           console.log("DEBUG: Korisnik nije pronađen u bazi");
-           return null;
-        }
+        if (!user || !user.password) return null;
         
-        // --- PROVERA LOZINKE (Pokriva oba slučaja) ---
-        let isValid = false;
-        
-        if (user.password.startsWith('$2')) {
-          // Ako je lozinka u bazi hashovana (bcrypt)
-          isValid = await compare(credentials.password, user.password);
-        } else {
-          // Ako je lozinka u bazi običan tekst (plain text)
-          isValid = credentials.password === user.password;
-        }
+        const isValid = await compare(credentials.password, user.password);
+        if (!isValid) return null;
 
-        if (!isValid) {
-           console.log("DEBUG: Lozinka se ne poklapa");
-           return null;
-        }
-
-        // Vraćamo objekat sa svim potrebnim poljima da build prođe
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
           allowedRestaurants: user.restaurants.map(r => r.restaurantId),
-          permissions: (user.permissions as any) || [],
-        } as any; 
+          permissions: (user.permissions as any) || [], // Fix za missing property
+        };
       }
     })
   ],
