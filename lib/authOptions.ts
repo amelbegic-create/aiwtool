@@ -4,6 +4,9 @@ import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
+  // OBRISALI SMO 'trustHost' JER PUCA TYPESCRIPT
+  // Ostavljamo secret hardkodiran kao zadnju liniju odbrane:
+  secret: process.env.NEXTAUTH_SECRET || "tvoja_super_tajna_sifra_hardcoded_backup", 
   session: {
     strategy: "jwt",
   },
@@ -45,7 +48,6 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          // OVDJE JE DODANO 'as any' DA SE RIJEŠI BUILD GREŠKA
           permissions: user.permissions as any, 
         };
       }
