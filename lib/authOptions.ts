@@ -4,10 +4,13 @@ import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  // Hardkodirana šifra da ne bude NO_SECRET greške
-  secret: "tvoja_super_tajna_sifra_za_prezentaciju_123",
+  // 1. debug: true nam omogućava da vidimo greške u Vercel logovima
+  debug: true,
   
-  // Vercel treba ovo, ali NE TREBA process.env.NEXTAUTH_URL ovdje
+  // 2. secret: Čita iz Environment Varijabli (ono što si gore podesio)
+  // Ako tamo ne nađe, koristi ovaj backup string
+  secret: process.env.NEXTAUTH_SECRET || "fallback_sifra_za_svaki_slucaj_123",
+
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 dana
@@ -17,8 +20,8 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   
-  // NEMA 'cookies' sekcije
-  // NEMA 'trustHost' (Vercel to radi sam)
+  // 3. NEMOJ OVDJE DEFINISATI COOKIES NI TRUSTHOST
+  // Vercel to radi automatski kad ima NEXTAUTH_URL varijablu
   
   providers: [
     CredentialsProvider({
