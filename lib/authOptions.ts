@@ -17,47 +17,47 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials): Promise<any> {
         if (!credentials?.email || !credentials?.password) return null;
         
-        const user = await prisma.user.findUnique({ 
+        const user = await (prisma as any).user.findUnique({ 
           where: { email: credentials.email },
           include: { restaurants: true }
         });
         
         if (!user || !user.password) return null;
         
+        // Poredimo lozinke (ako su običan tekst u bazi, koristi credentials.password === user.password)
         const isValid = await compare(credentials.password, user.password);
         if (!isValid) return null;
 
-        // Vraćamo objekat koji NextAuth očekuje
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
-          allowedRestaurants: user.restaurants.map(r => r.restaurantId),
+          allowedRestaurants: user.restaurants.map((r: any) => r.restaurantId),
           permissions: user.permissions || [],
-        } as any; 
+        };
       }
     })
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user }: any) {
       if (user) {
-        token.role = (user as any).role;
+        token.role = user.role;
         token.id = user.id;
-        token.permissions = (user as any).permissions;
-        token.allowedRestaurants = (user as any).allowedRestaurants;
+        token.permissions = user.permissions;
+        token.allowedRestaurants = user.allowedRestaurants;
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: any) {
       if (session?.user) {
-        (session.user as any).role = token.role;
-        (session.user as any).id = token.id;
-        (session.user as any).permissions = token.permissions;
-        (session.user as any).allowedRestaurants = token.allowedRestaurants;
+        session.user.role = token.role;
+        session.user.id = token.id;
+        session.user.permissions = token.permissions;
+        session.user.allowedRestaurants = token.allowedRestaurants;
       }
       return session;
     }
