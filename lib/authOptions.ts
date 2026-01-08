@@ -16,24 +16,17 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials): Promise<any> {
         if (!credentials?.email || !credentials?.password) return null;
         
-        const user = await prisma.user.findUnique({ 
-          where: { email: credentials.email }
-        });
+        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
         
         if (!user || !user.password) return null;
 
-        // Provjeravamo i heširanu i običnu lozinku radi sigurnog ulaska
+        // Podržavamo i heširanu i običnu lozinku (da te sigurno pusti)
         const isBcryptValid = await compare(credentials.password, user.password);
         const isPlainValid = credentials.password === user.password;
 
         if (!isBcryptValid && !isPlainValid) return null;
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role
-        };
+        return { id: user.id, email: user.email, name: user.name, role: user.role };
       }
     })
   ],

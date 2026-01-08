@@ -1,73 +1,101 @@
 "use client";
-
+import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, ArrowRight, AlertCircle } from "lucide-react";
-import { signIn } from "next-auth/react";
+import { Lock, Mail, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
-  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
     
-    // KLJUČNA PROMENA: Koristimo NextAuth signIn umesto server akcije
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
+    const result = await signIn("credentials", { 
+      email, 
+      password, 
+      redirect: false 
     });
 
-    if (result?.ok) {
-      // Hard refresh na select-restaurant da se učita sesija
-      window.location.href = "/select-restaurant";
-    } else {
-      setError("Pogrešan email ili lozinka.");
+    if (result?.error) {
+      alert("Neispravni podaci za prijavu. Pokušajte ponovo.");
       setLoading(false);
+    } else {
+      router.push("/select-restaurant");
+      router.refresh();
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#1a3826] flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="bg-white w-full max-w-md p-8 rounded-2xl shadow-2xl relative z-10">
-        <div className="flex flex-col items-center mb-8">
-          <img src="/logo.png" alt="AIWTool Logo" className="h-48 w-auto object-contain mb-6" />
-          <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tight">AIWTool</h1>
-          <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Enterprise Login</p>
+    <div className="min-h-screen bg-[#1a3826] flex items-center justify-center p-4">
+      {/* Centralna karta logina */}
+      <div className="bg-white p-8 md:p-12 rounded-[3rem] w-full max-w-[450px] shadow-[0_20px_50px_rgba(0,0,0,0.3)] animate-in fade-in zoom-in duration-500">
+        
+        {/* Logo i Naslov */}
+        <div className="text-center mb-10">
+          <div className="inline-block p-3 bg-slate-50 rounded-2xl mb-4 border border-slate-100">
+            <img src="/logo.png" className="h-14 w-auto object-contain" alt="Logo" />
+          </div>
+          <h1 className="text-2xl font-black text-[#1a3826] uppercase tracking-tighter">
+            AIWTool <span className="text-[#FFC72C]">Enterprise</span>
+          </h1>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em] mt-2">
+            Autorizovani Pristup Sistemu
+          </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm font-bold flex items-center gap-2">
-              <AlertCircle size={18}/> {error}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Email Polje */}
+          <div className="relative group">
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#1a3826] transition-colors">
+              <Mail size={18} />
             </div>
-          )}
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Email Adresa</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input name="email" type="email" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1a3826]" placeholder="ime@mcd.ba" />
-            </div>
+            <input 
+              type="email" 
+              placeholder="Email Adresa" 
+              required 
+              className="w-full pl-14 pr-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#1a3826]/10 focus:bg-white font-bold text-slate-700 transition-all" 
+              onChange={e => setEmail(e.target.value)} 
+            />
           </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">Lozinka</label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-              <input name="password" type="password" required className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1a3826]" placeholder="••••••••" />
+
+          {/* Password Polje */}
+          <div className="relative group">
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#1a3826] transition-colors">
+              <Lock size={18} />
             </div>
+            <input 
+              type="password" 
+              placeholder="Lozinka" 
+              required 
+              className="w-full pl-14 pr-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#1a3826]/10 focus:bg-white font-bold text-slate-700 transition-all" 
+              onChange={e => setPassword(e.target.value)} 
+            />
           </div>
-          <button disabled={loading} className="w-full bg-[#1a3826] hover:bg-[#234a33] text-white font-bold py-3.5 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
-            {loading ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : <>Prijavi se <ArrowRight className="w-4 h-4" /></>}
+
+          {/* Dugme za prijavu */}
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-[#1a3826] text-white font-black py-4 rounded-2xl uppercase text-xs tracking-[0.2em] hover:bg-[#FFC72C] hover:text-[#1a3826] transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-50"
+          >
+            {loading ? (
+              <Loader2 className="animate-spin" size={18} />
+            ) : (
+              "Prijavi se na sistem"
+            )}
           </button>
         </form>
+
+        {/* Footer logina */}
+        <div className="mt-10 text-center">
+          <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">
+            © 2024 AIWTool Systems • Sva prava pridržana
+          </p>
+        </div>
       </div>
     </div>
   );
