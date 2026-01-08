@@ -4,9 +4,10 @@ import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
-  // Hardkodirana šifra ostaje (to je OK)
+  // Hardkodirana šifra da ne bude NO_SECRET greške
   secret: "tvoja_super_tajna_sifra_za_prezentaciju_123",
-
+  
+  // Vercel treba ovo, ali NE TREBA process.env.NEXTAUTH_URL ovdje
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 dana
@@ -16,8 +17,8 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
   
-  // ❌ OBRISANO: cookies {...} (Vercel će sam napraviti __Secure- kolačić)
-  // ❌ OBRISANO: process.env.NEXTAUTH_URL (Vercel zna svoj URL)
+  // NEMA 'cookies' sekcije
+  // NEMA 'trustHost' (Vercel to radi sam)
   
   providers: [
     CredentialsProvider({
