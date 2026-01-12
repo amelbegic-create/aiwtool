@@ -1,14 +1,14 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
-// Putanja mora biti točna. Ako je components u rootu:
-import LoginForm from "../components/LoginForm"; 
+// SADA IMPORTIRAMO IZ ISTOG FOLDERA
+import LoginForm from "./LoginForm"; 
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
 
   if (session) {
-    redirect("/tools/PDS");
+    redirect("/tools/productivity");
   }
 
   return (

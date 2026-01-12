@@ -538,7 +538,7 @@ export default function ProductivityTool() {
                             </tr>
                         ))}
                     </tbody>
-                    <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300 sticky bottom-0 z-10 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+                    <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300 sticky bottom-0 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
                         <tr>
                             <td className="p-3 text-left text-sm pl-4 text-gray-600 sticky left-0 bg-gray-100 z-30">UKUPNO</td>
                             <td className="p-3 text-center text-[#1b3a26] bg-yellow-100/80 text-sm border-r border-gray-300 sticky left-16 z-30">{fmtCurr(totals.sumRev)}</td>
