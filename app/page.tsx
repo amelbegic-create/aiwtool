@@ -1,7 +1,8 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
-// SADA IMPORTIRAMO IZ ISTOG FOLDERA
+
+// OVO JE KLJUČNO: ./ znači "traži u ovom istom folderu"
 import LoginForm from "./LoginForm"; 
 
 export default async function HomePage() {
