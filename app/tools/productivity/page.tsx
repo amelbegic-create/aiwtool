@@ -1,626 +1,685 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { 
-  ArrowLeft, Save, Printer, Settings, 
-  TrendingUp, CheckCircle, AlertTriangle, RefreshCw,
-  X, Filter, Clock, CalendarDays
+  Settings, Save, FileText, Plus, Trash2, 
+  Calendar, Clock, AlertCircle, X, Check, Edit2, Info, ChevronDown, Building2
 } from "lucide-react";
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { getProductivityData, saveProductivityReport, saveOpeningHours, getMonthlyProductivityData } from "@/app/actions/productivityActions";
 
-// --- KONFIGURACIJA ---
-const ALL_STATIONS = [
-  { key: "ausgabe", label: "Ausg." },
-  { key: "kitch", label: "Kuhinja" },
-  { key: "lobby", label: "Lobby" },
-  { key: "cafe", label: "McCafé" },
-  { key: "drive", label: "Drive" },
-  { key: "drinks", label: "Getr." },
-  { key: "front", label: "Kasa" },
-  { key: "table", label: "T.Serv." },
-  { key: "fries", label: "Pom." },
-  { key: "sf", label: "SF Prod." },
-  { key: "pause", label: "Pause(-)" }
+// --- TIPOVI ---
+
+interface Restaurant {
+  id: string;
+  code: string;
+  name: string | null;
+}
+
+interface Station {
+  key: string;
+  label: string;
+  group: "Service" | "Kuhinja" | "Lobby" | "McCafé" | "Ostalo" | "Custom";
+  isCustom?: boolean;
+}
+
+interface HourData {
+  rev: string;
+  [key: string]: string;
+}
+
+interface ProductivityState {
+  rows: Record<number, HourData>;
+  hoursFrom: number;
+  hoursTo: number;
+  customDayNames: Record<string, string>;
+  hiddenColumns: string[];
+  customStations: Station[];
+}
+
+// Defaultne fiksne kolone
+const DEFAULT_STATIONS: Station[] = [
+  { key: "ausgabe", label: "Izlaz", group: "Service" },
+  { key: "kueche", label: "Kuhinja", group: "Kuhinja" },
+  { key: "lobby", label: "Lobby", group: "Lobby" },
+  { key: "mccafe", label: "McCafé", group: "McCafé" },
+  { key: "drive", label: "Drive", group: "Service" },
+  { key: "getraenke", label: "Pića", group: "Service" },
+  { key: "kasse", label: "Kasa", group: "Service" },
+  { key: "tableservice", label: "T.Serv.", group: "Service" },
+  { key: "pommes", label: "Pomfrit", group: "Service" },
+  { key: "sf", label: "SF Prod.", group: "Ostalo" },
+  { key: "pause", label: "Pauza(-)", group: "Ostalo" },
 ];
 
-const DAYS = ["mo","di","mi","do","fr","sa","so"];
-const DAY_NAMES: any = {mo:"Ponedjeljak", di:"Utorak", mi:"Srijeda", do:"Četvrtak", fr:"Petak", sa:"Subota", so:"Nedjelja"};
-const DEFAULT_HOURS = { from: 7, to: 1 };
+const DAYS = [
+  { key: "monday", label: "Ponedjeljak" },
+  { key: "tuesday", label: "Utorak" },
+  { key: "wednesday", label: "Srijeda" },
+  { key: "thursday", label: "Četvrtak" },
+  { key: "friday", label: "Petak" },
+  { key: "saturday", label: "Subota" },
+  { key: "sunday", label: "Nedjelja" },
+  { key: "special_1", label: "Posebni Dan 1" },
+  { key: "special_2", label: "Posebni Dan 2" },
+  { key: "special_3", label: "Posebni Dan 3" },
+];
 
-const TIME_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
-    value: i,
-    label: `${String(i).padStart(2, '0')}:00`
-}));
+// --- POMOĆNE FUNKCIJE ---
 
-// Helper za učitavanje slike
-const loadImage = (src: string): Promise<HTMLImageElement> => {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.src = src;
-        img.onload = () => resolve(img);
-        img.onerror = (e) => reject(e);
-    });
+const parseNum = (val: string | undefined): number => {
+  if (!val) return 0;
+  const clean = val.replace(",", ".");
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
 };
 
-function ProductivityContent() {
-  const router = useRouter();
-  const chartRef = useRef<any>(null);
+const fmtCurr = (n: number) => 
+  new Intl.NumberFormat("bs-BA", { style: "currency", currency: "EUR" }).format(n);
 
-  // GLOBAL STATE
-  const [restId, setRestId] = useState<string | null>(null);
-  const [restName, setRestName] = useState("");
-  
-  // DATA STATE
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dayType, setDayType] = useState("mo");
-  
-  const [tableData, setTableData] = useState<any>({});
-  const [hoursConfig, setHoursConfig] = useState<any>({});
-  
-  // SETTINGS & UI
-  const [targetProd, setTargetProd] = useState(120);
-  const [netCoeff, setNetCoeff] = useState(1.17);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [isHoursModalOpen, setIsHoursModalOpen] = useState(false);
-  const [totals, setTotals] = useState({ gross: 0, net: 0, hours: 0, prod: 0 });
+const fmtNum = (n: number) => 
+  new Intl.NumberFormat("bs-BA", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-  // VISIBILITY STATE
-  const [visibleStations, setVisibleStations] = useState<string[]>(ALL_STATIONS.map(s => s.key));
+// --- GLAVNA KOMPONENTA ---
 
-  // --- INIT ---
+export default function ProductivityTool() {
+  // Ovo rješava Hydration Error
+  const [isMounted, setIsMounted] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [selectedRestId, setSelectedRestId] = useState("");
+  
+  const [mode, setMode] = useState<"template" | "date">("template");
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState("monday");
+  const [selectedDate, setSelectedDate] = useState("");
+
+  const [hoursFrom, setHoursFrom] = useState(6);
+  const [hoursTo, setHoursTo] = useState(1);
+  const [rows, setRows] = useState<Record<number, HourData>>({});
+  
+  const [customDayNames, setCustomDayNames] = useState<Record<string, string>>({});
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+  const [customStations, setCustomStations] = useState<Station[]>([]);
+  
+  const [showHoursModal, setShowHoursModal] = useState(false);
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState("");
+  const [newColName, setNewColName] = useState("");
+
+  // Postavi isMounted na true tek nakon prvog renderiranja na klijentu
   useEffect(() => {
-    const id = localStorage.getItem("selected_restaurant_id");
-    const name = localStorage.getItem("selected_restaurant_name");
-    if (!id) { router.push("/select-restaurant"); return; }
-    setRestId(id);
-    setRestName(name || "");
-  }, [router]);
+    setIsMounted(true);
+    setSelectedDate(new Date().toISOString().split("T")[0]);
+  }, []);
 
+  // 1. UČITAVANJE RESTORANA
   useEffect(() => {
-    if (restId && date) {
-      loadData();
-      const d = new Date(date);
-      const dayIndex = d.getDay(); 
-      const map = ["so", "mo", "di", "mi", "do", "fr", "sa"];
-      setDayType(map[dayIndex]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restId, date]);
+    fetch("/api/restaurants")
+      .then((res) => {
+        if(!res.ok) throw new Error("Failed to fetch");
+        return res.json();
+      })
+      .then((data) => {
+        if (Array.isArray(data)) {
+            setRestaurants(data);
+            if (data.length > 0) setSelectedRestId(data[0].id);
+        } else {
+            setRestaurants([]); 
+        }
+      })
+      .catch(err => {
+          console.error(err);
+          setRestaurants([]);
+      });
+  }, []);
 
-  // --- LOGIC ---
-  const loadData = async () => {
-    if(!restId) return;
-    setIsLoading(true);
-    const { report, openingHours } = await getProductivityData(restId, date);
-    
-    if(openingHours) setHoursConfig(openingHours);
-    if(report) {
-      setTableData(report.hourlyData || {});
-      setTargetProd(report.targetProd);
-      setNetCoeff(report.netCoeff);
+  const allStations = useMemo(() => {
+    return [...DEFAULT_STATIONS, ...customStations];
+  }, [customStations]);
+
+  const activeColumns = useMemo(() => {
+    return allStations.filter(s => !hiddenColumns.includes(s.key));
+  }, [hiddenColumns, allStations]);
+
+  const activeHours = useMemo(() => {
+    const arr: number[] = [];
+    if (hoursFrom === hoursTo) {
+      for (let i = 0; i < 24; i++) arr.push(i);
     } else {
-      setTableData({});
+      let h = hoursFrom;
+      while (true) {
+        arr.push(h);
+        h = (h + 1) % 24;
+        if (h === hoursTo) break;
+      }
     }
-    setIsLoading(false);
-  };
+    return arr;
+  }, [hoursFrom, hoursTo]);
+
+  const loadData = useCallback(async () => {
+    const key = mode === "template" ? selectedTemplateKey : selectedDate;
+    if (!selectedRestId || !key) return;
+    
+    try {
+      const res = await fetch(`/api/productivity?restaurantId=${selectedRestId}&date=${key}`);
+      const json = await res.json();
+      
+      if (json.success && json.data) {
+        const savedData = json.data as any;
+        setRows(savedData.rows || {});
+        if (typeof savedData.hoursFrom === 'number') setHoursFrom(savedData.hoursFrom);
+        if (typeof savedData.hoursTo === 'number') setHoursTo(savedData.hoursTo);
+        if (savedData.customDayNames) setCustomDayNames(savedData.customDayNames);
+        if (savedData.hiddenColumns) setHiddenColumns(savedData.hiddenColumns);
+        if (savedData.customStations) setCustomStations(savedData.customStations);
+      } else {
+        setRows({});
+      }
+    } catch (err) {
+      console.error(err);
+    } 
+  }, [selectedRestId, selectedTemplateKey, selectedDate, mode]);
 
   useEffect(() => {
-    calculateTotals();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableData, netCoeff, visibleStations]); 
+    loadData();
+  }, [loadData]);
 
-  const calculateTotals = () => {
-    let gross = 0, hours = 0;
-    const activeStations = ALL_STATIONS.filter(s => visibleStations.includes(s.key));
-
-    Object.values(tableData).forEach((row: any) => {
-        gross += Number(row.gross) || 0;
-        activeStations.forEach(s => {
-            const val = Number(row[s.key]) || 0;
-            if (s.key === 'pause') hours -= val;
-            else hours += val;
-        });
-    });
-    
-    const net = gross / netCoeff;
-    const prod = hours > 0 ? net / hours : 0;
-    
-    setTotals({ gross, net, hours, prod });
-  };
-
-  const handleCellChange = (h: number, field: string, value: string) => {
-    setTableData((prev: any) => ({
-        ...prev,
-        [h]: { ...prev[h], [field]: value }
+  const handleInputChange = (h: number, field: string, val: string) => {
+    setRows((prev) => ({
+      ...prev,
+      [h]: { ...prev[h], [field]: val },
     }));
   };
 
+  const handleRenameDay = () => {
+    if (tempName.trim()) {
+      setCustomDayNames(prev => ({ ...prev, [selectedTemplateKey]: tempName }));
+    }
+    setIsEditingName(false);
+  };
+
+  const getDayLabel = (key: string) => {
+    if (customDayNames[key]) return customDayNames[key];
+    return DAYS.find(d => d.key === key)?.label || key;
+  };
+
+  const handleAddCustomStation = () => {
+    if (customStations.length >= 3) return alert("Maksimalno 3 dodatna radna mjesta.");
+    if (!newColName.trim()) return;
+    
+    const newStation: Station = {
+      key: `custom_${Date.now()}`,
+      label: newColName,
+      group: "Custom",
+      isCustom: true
+    };
+    
+    setCustomStations(prev => [...prev, newStation]);
+    setNewColName("");
+  };
+
+  const removeCustomStation = (key: string) => {
+    setCustomStations(prev => prev.filter(s => s.key !== key));
+  };
+
+  const totals = useMemo(() => {
+    let sumRev = 0;
+    let sumStaff = 0;
+
+    const rowStats = activeHours.map((h) => {
+      const row = rows[h] || {};
+      const rev = parseNum(row.rev);
+      const staff = activeColumns.reduce((acc, s) => acc + parseNum(row[s.key]), 0);
+      const prod = staff > 0 ? rev / staff : 0;
+
+      sumRev += rev;
+      sumStaff += staff;
+
+      return { h, rev, staff, prod };
+    });
+
+    const avgProd = sumStaff > 0 ? sumRev / sumStaff : 0;
+    return { sumRev, sumStaff, avgProd, rowStats };
+  }, [activeHours, rows, activeColumns]);
+
   const handleSave = async () => {
-    if(!restId) return;
-    setIsLoading(true);
-    await saveProductivityReport(restId, date, tableData, targetProd, netCoeff);
-    setIsLoading(false);
-    alert("✅ Podaci sačuvani u bazu!");
-  };
+    if (!selectedRestId) return alert("Odaberite restoran");
+    setLoading(true);
+    
+    const key = mode === "template" ? selectedTemplateKey : selectedDate;
 
-  const handleSaveHours = async () => {
-    if(!restId) return;
-    await saveOpeningHours(restId, hoursConfig);
-    setIsHoursModalOpen(false);
-    alert("✅ Radno vrijeme sačuvano!");
-  };
-
-  const toggleStation = (key: string) => {
-    setVisibleStations(prev => 
-      prev.includes(key) 
-        ? prev.filter(k => k !== key) 
-        : [...prev, key]
-    );
-  };
-
-  const updateHoursConfigState = (day: string, type: 'from' | 'to', val: number) => {
-      setHoursConfig((prev: any) => ({
-          ...prev,
-          [day]: {
-              ...(prev[day] || DEFAULT_HOURS),
-              [type]: val
-          }
-      }));
-  };
-
-  const getDayHours = () => hoursConfig?.[dayType] || DEFAULT_HOURS;
-  const { from, to } = getDayHours();
-  const hoursArray: number[] = []; 
-  let h = from;
-  let safety = 0;
-  while (h !== to && safety < 24) {
-      hoursArray.push(h);
-      h = (h + 1) % 24;
-      safety++;
-  }
-
-  // --- ZAJEDNIČKA FUNKCIJA ZA CRTANJE STRANICE ---
-  const generatePageContent = (
-      doc: any, 
-      pageDate: string, 
-      pageData: any, 
-      pageTarget: number, 
-      pageCoeff: number, 
-      logo: HTMLImageElement | null
-  ) => {
-      // Filtrirane stanice
-      const activeStations = ALL_STATIONS.filter(s => visibleStations.includes(s.key));
-
-      // Header Pozadina
-      doc.setFillColor(26, 56, 38);
-      doc.rect(0, 0, 297, 30, 'F'); 
-
-      // LOGO (Desno gore, manji i elegantniji)
-      if (logo) {
-          // x=250, y=5, w=30, h=15
-          doc.addImage(logo, 'PNG', 250, 7, 30, 15); 
-      }
-
-      // Naslov
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20); doc.setFont("helvetica", 'bold');
-      doc.text("DNEVNI PLAN PRODUKTIVNOSTI", 14, 18);
-      
-      // Info linija
-      doc.setFontSize(10); doc.setFont("helvetica", 'normal');
-      doc.text(`Restoran: ${restName} | Datum: ${pageDate}`, 14, 25);
-      doc.text(`Cilj: ${pageTarget} | Koef: ${pageCoeff}`, 240, 25, {align:'right'}); // Pomjereno lijevo od loga
-
-      // Priprema podataka za tabelu
-      const hours = Object.keys(pageData).map(Number).sort((a,b) => a - b);
-      const morningHours = hours.filter(h => h < 5);
-      const dayHours = hours.filter(h => h >= 5);
-      const sortedHours = [...dayHours, ...morningHours];
-      const finalHours = sortedHours.length > 0 ? sortedHours : Array.from({length:17}, (_,i)=>i+7);
-
-      const bodyRows = finalHours.map(h => {
-          const row = pageData[h] || {};
-          const g = Number(row.gross) || 0;
-          const n = g / pageCoeff;
-          
-          let rowHrs = 0;
-          activeStations.forEach(s => {
-              const v = Number(row[s.key]) || 0;
-              if(s.key === 'pause') rowHrs -= v;
-              else rowHrs += v;
-          });
-          
-          const p = rowHrs > 0 ? n / rowHrs : 0;
-
-          return [
-              `${('0'+h).slice(-2)}:00`,
-              g.toFixed(2),
-              n.toFixed(2),
-              ...activeStations.map(s => (Number(row[s.key]) || 0).toFixed(1)),
-              rowHrs.toFixed(1),
-              p.toFixed(0)
-          ];
-      });
-
-      // Totals za footer
-      let tGross = 0, tNet = 0, tHours = 0;
-      bodyRows.forEach((r: any) => {
-          tGross += Number(r[1]);
-          tNet += Number(r[2]);
-          tHours += Number(r[r.length-2]);
-      });
-      const tProd = tHours > 0 ? tNet / tHours : 0;
-
-      // Col Totals (Stations)
-      const stationTotals = activeStations.map((s, idx) => {
-          return finalHours.reduce((acc, h) => acc + (Number(pageData[h]?.[s.key]) || 0), 0).toFixed(1);
-      });
-
-      bodyRows.push([
-          "TOTAL",
-          tGross.toFixed(2),
-          tNet.toFixed(2),
-          ...stationTotals,
-          tHours.toFixed(1),
-          tProd.toFixed(0)
-      ]);
-
-      autoTable(doc, {
-          head: [['Sat', 'Bruto', 'Neto', ...activeStations.map(s => s.label), 'Sati', 'Prod.']],
-          body: bodyRows,
-          startY: 35,
-          theme: 'grid',
-          headStyles: { 
-              fillColor: [26, 56, 38], 
-              textColor: 255, 
-              fontSize: 8, 
-              halign: 'center',
-              lineWidth: 0.1,
-              lineColor: [200, 200, 200]
-          },
-          styles: { 
-              fontSize: 8, 
-              halign: 'center', 
-              cellPadding: 1.5, 
-              lineColor: [220, 220, 220], 
-              lineWidth: 0.1 
-          },
-          columnStyles: {
-              0: { fontStyle: 'bold', fillColor: [245, 245, 245] },
-              1: { fontStyle: 'bold' },
-              2: { fontStyle: 'bold', textColor: [26, 56, 38] },
-              [activeStations.length + 4]: { fontStyle: 'bold', fillColor: [255, 248, 220] }
-          },
-          didParseCell: (data) => {
-              if (data.row.index === bodyRows.length - 1) {
-                  data.cell.styles.fillColor = [255, 199, 44];
-                  data.cell.styles.textColor = [0, 0, 0];
-                  data.cell.styles.fontStyle = 'bold';
-              }
-          }
-      });
-  };
-
-  const exportDailyPDF = async () => {
-    const doc = new jsPDF('l', 'mm', 'a4');
-    let logo = null;
-    try { logo = await loadImage('/logo.png'); } catch (e) {}
-    generatePageContent(doc, date, tableData, targetProd, netCoeff, logo);
-    doc.save(`Produktivnost_Dnevni_${date}.pdf`);
-  };
-
-  const exportMonthlyPDF = async () => {
-    if(!restId) return;
-    setIsExporting(true);
+    const dataToSave: ProductivityState = {
+      rows,
+      hoursFrom,
+      hoursTo,
+      customDayNames,
+      hiddenColumns,
+      customStations
+    };
 
     try {
-        const yearMonth = date.substring(0, 7); 
-        const monthlyData = await getMonthlyProductivityData(restId, yearMonth);
-        
-        if (monthlyData.length === 0) {
-            alert("Nema sačuvanih podataka za ovaj mjesec.");
-            return;
-        }
-
-        const doc = new jsPDF('l', 'mm', 'a4'); 
-        let logo = null;
-        try { logo = await loadImage('/logo.png'); } catch (e) {}
-
-        monthlyData.forEach((report: any, index: number) => {
-            if (index > 0) doc.addPage();
-            const hData = typeof report.hourlyData === 'string' ? JSON.parse(report.hourlyData) : report.hourlyData;
-            generatePageContent(
-                doc, 
-                report.date, 
-                hData, 
-                report.targetProd, 
-                report.netCoeff, 
-                logo
-            );
-        });
-
-        doc.save(`Produktivnost_Mjesec_${yearMonth}.pdf`);
-
+      const res = await fetch("/api/productivity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: selectedRestId,
+          date: key,
+          data: dataToSave,
+        }),
+      });
+      if (res.ok) alert("✅ Podaci uspješno spremljeni!");
+      else alert("❌ Greška pri spremanju");
     } catch (error) {
-        console.error(error);
-        alert("Greška pri generisanju mjesečnog izvještaja.");
+      console.error(error);
+      alert("❌ Greška");
     } finally {
-        setIsExporting(false);
+      setLoading(false);
     }
   };
 
-  if(!restId) return null;
+  const handleExport = () => {
+    const doc = new jsPDF("l", "mm", "a4");
+    const selectedRest = restaurants.find((r) => r.id === selectedRestId);
+    const keyLabel = mode === "template" ? getDayLabel(selectedTemplateKey) : selectedDate;
+    
+    doc.setFillColor(27, 58, 38);
+    doc.rect(0, 0, 297, 25, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("AIW Services - Produktivnost", 14, 10);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${selectedRest?.code || ''} | ${keyLabel} | ${hoursFrom}:00 - ${hoursTo}:00`, 14, 18);
 
-  const activeStations = ALL_STATIONS.filter(s => visibleStations.includes(s.key));
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Promet: ${fmtCurr(totals.sumRev)} | Sati: ${fmtNum(totals.sumStaff)} | Prod: ${fmtCurr(totals.avgProd)}`, 14, 32);
+
+    const headRow = ["Sat", "Promet", ...activeColumns.map(s => s.label), "Σ MA", "Prod."];
+
+    const bodyData = totals.rowStats.map((stat) => {
+      const rowData = rows[stat.h] || {};
+      return [
+        `${String(stat.h).padStart(2, '0')}:00`,
+        fmtNum(stat.rev),
+        ...activeColumns.map(s => {
+          const val = parseNum(rowData[s.key]);
+          return val === 0 ? "" : fmtNum(val);
+        }),
+        fmtNum(stat.staff),
+        fmtNum(stat.prod)
+      ];
+    });
+
+    const footerRow = [
+      "UKUPNO",
+      fmtNum(totals.sumRev),
+      ...activeColumns.map(() => ""),
+      fmtNum(totals.sumStaff),
+      fmtNum(totals.avgProd)
+    ];
+
+    autoTable(doc, {
+      startY: 36,
+      head: [headRow],
+      body: [...bodyData, footerRow],
+      theme: 'grid',
+      headStyles: { fillColor: [27, 58, 38], halign: 'center', textColor: 255, fontSize: 8 },
+      styles: { fontSize: 7, halign: 'center', lineColor: [200, 200, 200], lineWidth: 0.1, cellPadding: 1 },
+      columnStyles: { 0: { fontStyle: 'bold', halign: 'left', cellWidth: 15 }, 1: { halign: 'right', fontStyle: 'bold' } },
+      didParseCell: function(data: any) {
+        if (data.row.index === bodyData.length) {
+           data.cell.styles.fillColor = [220, 220, 220];
+           data.cell.styles.fontStyle = 'bold';
+        }
+      }
+    });
+
+    doc.save(`Prod_${selectedRest?.code}_${keyLabel}.pdf`);
+  };
+
+  // AKO NIJE MOUNTAN (SERVER SIDE), NE PRIKAZUJ NIŠTA
+  if (!isMounted) return null;
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-[#F8FAFC] flex flex-col font-sans text-slate-800">
-      
-      {/* HEADER */}
-      <div className="bg-[#1a3826] text-white pt-4 pb-6 px-6 shadow-md relative z-10 flex-shrink-0">
-          <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row justify-between items-end gap-4">
-              <div>
-                  <button onClick={() => router.back()} className="flex items-center gap-2 text-white/70 font-bold hover:text-white mb-2 text-xs">
-                      <ArrowLeft className="w-3 h-3" /> Nazad
-                  </button>
-                  <h1 className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
-                      CL Alat <span className="text-[#FFC72C]">v2.5</span>
-                      {(isLoading || isExporting) && <RefreshCw className="animate-spin w-4 h-4 text-white/50"/>}
-                  </h1>
-                  <p className="text-emerald-100 text-xs opacity-80">{restName} • Planiranje Produktivnosti</p>
-              </div>
-              <div className="flex gap-2">
-                  <button onClick={exportMonthlyPDF} disabled={isExporting} className="bg-slate-700 text-white px-4 py-2 rounded font-bold text-xs flex items-center gap-2 shadow hover:bg-slate-600 disabled:opacity-50">
-                      <CalendarDays size={14}/> {isExporting ? "Generisanje..." : "Mjesečni PDF"}
-                  </button>
-                  <button onClick={exportDailyPDF} className="bg-[#FFC72C] text-[#1a3826] px-4 py-2 rounded font-bold text-xs flex items-center gap-2 shadow hover:bg-yellow-400">
-                      <Printer size={14}/> Dnevni PDF
-                  </button>
-                  <button onClick={handleSave} className="bg-white text-[#1a3826] px-4 py-2 rounded font-bold text-xs flex items-center gap-2 shadow hover:bg-gray-100">
-                      <Save size={14}/> Sačuvaj
-                  </button>
-              </div>
-          </div>
-      </div>
+    <div className="flex flex-col h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden">
+      {loading && (
+        <div className="fixed inset-0 bg-white/70 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-4 border-[#1b3a26]"></div>
+        </div>
+      )}
 
-      {/* TOOLBAR */}
-      <div className="bg-white border-b border-slate-200 p-4 shadow-sm flex-shrink-0">
-          <div className="max-w-[1800px] mx-auto grid grid-cols-2 md:grid-cols-6 gap-4 items-end">
-              <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Datum</label>
-                  <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border rounded p-2 text-sm font-bold bg-slate-50"/>
-              </div>
-              <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cilj (Neto/h)</label>
-                  <input type="number" value={targetProd} onChange={e => setTargetProd(Number(e.target.value))} className="w-full border rounded p-2 text-sm font-bold"/>
-              </div>
-              <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Neto Koeficijent</label>
-                  <input type="number" step="0.01" value={netCoeff} onChange={e => setNetCoeff(Number(e.target.value))} className="w-full border rounded p-2 text-sm font-bold text-blue-600 bg-blue-50"/>
-              </div>
-              <div className="col-span-2 flex items-center justify-between bg-slate-50 p-2 rounded border border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setIsHoursModalOpen(true)}>
-                  <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Radno Vrijeme ({DAY_NAMES[dayType]})</span>
-                      <span className="font-bold text-[#1a3826] text-sm flex items-center gap-2">
-                        <Clock size={14}/>
-                        {('0'+from).slice(-2)}:00 - {('0'+to).slice(-2)}:00
-                      </span>
-                  </div>
-                  <Settings size={16} className="text-slate-400"/>
-              </div>
-          </div>
-      </div>
-
-      {/* FILTER CHIPS */}
-      <div className="px-4 pt-4 flex-shrink-0">
-          <div className="max-w-[1800px] mx-auto flex flex-wrap gap-2">
-              <span className="text-xs font-bold text-slate-400 flex items-center gap-1 mr-2"><Filter size={12}/> Prikaz:</span>
-              {ALL_STATIONS.map(s => (
-                  <button 
-                    key={s.key}
-                    onClick={() => toggleStation(s.key)}
-                    className={`text-[10px] px-2 py-1 rounded-full border transition-all font-bold flex items-center gap-1 ${visibleStations.includes(s.key) ? 'bg-[#1a3826] text-white border-[#1a3826]' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'}`}
-                  >
-                    {visibleStations.includes(s.key) && <CheckCircle size={10}/>} {s.label}
-                  </button>
-              ))}
-          </div>
-      </div>
-
-      {/* KPI CARDS */}
-      <div className="p-4 bg-[#F8FAFC] flex-shrink-0">
-          <div className="max-w-[1800px] mx-auto grid grid-cols-4 gap-4">
-              <div className="bg-white p-4 rounded-xl border shadow-sm">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Ukupno Bruto</div>
-                  <div className="text-xl font-black text-slate-800">{totals.gross.toLocaleString('bs-BA')} <span className="text-xs font-normal text-slate-400">KM</span></div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-blue-200 shadow-sm bg-blue-50/30">
-                  <div className="text-[10px] uppercase font-bold text-blue-400">Ukupno Neto</div>
-                  <div className="text-xl font-black text-blue-700">{totals.net.toLocaleString('bs-BA', {maximumFractionDigits:0})} <span className="text-xs font-normal text-blue-400">KM</span></div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border shadow-sm">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Ukupno Sati</div>
-                  <div className="text-xl font-black text-orange-600">{totals.hours.toFixed(1)} <span className="text-xs font-normal text-slate-400">h</span></div>
-              </div>
-              <div className={`p-4 rounded-xl border shadow-sm flex justify-between items-center ${totals.prod >= targetProd ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-                  <div>
-                      <div className={`text-[10px] uppercase font-bold ${totals.prod >= targetProd ? 'text-emerald-600' : 'text-red-500'}`}>Produktivnost</div>
-                      <div className={`text-2xl font-black ${totals.prod >= targetProd ? 'text-emerald-700' : 'text-red-600'}`}>{totals.prod.toFixed(0)}</div>
-                  </div>
-                  {totals.prod >= targetProd ? <CheckCircle className="text-emerald-500 w-8 h-8"/> : <AlertTriangle className="text-red-500 w-8 h-8"/>}
-              </div>
-          </div>
-      </div>
-
-      {/* TABLE */}
-      <div className="flex-grow overflow-auto px-4 pb-4">
-          <div className="max-w-[1800px] mx-auto bg-white rounded-xl shadow border border-slate-200 overflow-hidden">
-              <table className="w-full text-center text-xs border-collapse">
-                  <thead className="bg-[#1a3826] text-white font-bold uppercase sticky top-0 z-20">
-                      <tr>
-                          <th className="p-3 w-16 text-left pl-4">Sat</th>
-                          <th className="p-3 w-24 bg-white/10 border-r border-white/20">Bruto (KM)</th>
-                          <th className="p-3 w-24 bg-[#FFC72C] text-[#1a3826] border-r border-white/20">Neto (KM)</th>
-                          {activeStations.map(s => <th key={s.key} className="p-3 border-r border-white/10 min-w-[60px]">{s.label}</th>)}
-                          <th className="p-3 w-20 bg-slate-700">Sati</th>
-                          <th className="p-3 w-20 bg-slate-800">Prod.</th>
-                      </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
-                      {hoursArray.map(h => {
-                          const row = tableData[h] || {};
-                          const gross = Number(row.gross) || 0;
-                          const net = gross / netCoeff;
-                          
-                          let rowHrs = 0;
-                          activeStations.forEach(s => {
-                              const v = Number(row[s.key]) || 0;
-                              if(s.key === 'pause') rowHrs -= v;
-                              else rowHrs += v;
-                          });
-                          
-                          const prod = rowHrs > 0 ? net / rowHrs : 0;
-
-                          return (
-                              <tr key={h} className="hover:bg-slate-50 transition-colors">
-                                  <td className="p-2 text-left pl-4 font-bold text-slate-500 bg-slate-50 border-r">{('0'+h).slice(-2)}:00</td>
-                                  
-                                  <td className="p-0 border-r bg-white">
-                                      <input type="number" 
-                                          className="w-full h-full p-2 text-center outline-none bg-transparent font-bold text-slate-700 focus:bg-blue-50"
-                                          placeholder="0"
-                                          value={row.gross || ""}
-                                          onChange={e => handleCellChange(h, 'gross', e.target.value)}
-                                      />
-                                  </td>
-
-                                  <td className="p-2 border-r bg-yellow-50 text-[#1a3826] font-bold">
-                                      {gross > 0 ? net.toFixed(0) : "-"}
-                                  </td>
-
-                                  {activeStations.map(s => (
-                                      <td key={s.key} className="p-0 border-r">
-                                          <input type="number" 
-                                              className="w-full h-full p-2 text-center outline-none bg-transparent text-slate-600 focus:bg-emerald-50 placeholder:text-slate-200"
-                                              placeholder="-"
-                                              value={row[s.key] || ""}
-                                              onChange={e => handleCellChange(h, s.key, e.target.value)}
-                                          />
-                                      </td>
-                                  ))}
-
-                                  <td className="p-2 font-bold bg-slate-50 border-r text-orange-600">{rowHrs > 0 ? rowHrs.toFixed(1) : "-"}</td>
-                                  <td className={`p-2 font-bold ${prod >= targetProd ? 'text-emerald-600 bg-emerald-50' : prod > 0 ? 'text-red-500 bg-red-50' : 'text-slate-300'}`}>
-                                      {prod > 0 ? prod.toFixed(0) : "-"}
-                                  </td>
-                              </tr>
-                          )
-                      })}
-                  </tbody>
-                  <tfoot className="bg-slate-100 font-bold text-slate-800 sticky bottom-0 z-20 border-t-2 border-slate-300">
-                      <tr>
-                          <td className="p-3 text-left pl-4">TOTAL</td>
-                          <td className="p-3 border-r">{totals.gross.toFixed(0)}</td>
-                          <td className="p-3 border-r bg-[#FFC72C]/20">{totals.net.toFixed(0)}</td>
-                          <td colSpan={activeStations.length} className="p-3 border-r text-[10px] uppercase text-slate-400 tracking-widest text-center">Raspodjela Sati</td>
-                          <td className="p-3 border-r text-orange-600">{totals.hours.toFixed(1)}</td>
-                          <td className={`p-3 ${totals.prod >= targetProd ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>{totals.prod.toFixed(0)}</td>
-                      </tr>
-                  </tfoot>
-              </table>
-          </div>
-      </div>
-
-      {/* HOURS MODAL (REDESIGNED) */}
-      {isHoursModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-200">
+      {/* --- HEADER --- */}
+      <header className="bg-white border-b border-gray-200 p-4 shadow-sm z-20 shrink-0">
+        <div className="flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center">
+            
+            {/* Lijeva strana */}
+            <div className="flex items-center gap-6 w-full xl:w-auto">
+                <h1 className="text-2xl font-black tracking-tight text-[#1b3a26] leading-none whitespace-nowrap">
+                    PROD<span className="text-[#ffc72c]">TOOL</span>
+                </h1>
                 
-                {/* Modal Header */}
-                <div className="p-5 border-b bg-[#1a3826] text-white flex justify-between items-center">
-                    <div>
-                        <h3 className="font-bold text-lg flex items-center gap-2"><Clock size={18} className="text-[#FFC72C]"/> Podešavanje Radnog Vremena</h3>
-                        <p className="text-xs text-white/70 mt-1">Definišite početak i kraj smjene za svaki dan.</p>
+                <div className="relative w-full xl:w-72">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <Building2 size={20} />
                     </div>
-                    <button onClick={() => setIsHoursModalOpen(false)} className="text-white/70 hover:text-white transition-colors"><X size={24}/></button>
+                    <select 
+                        value={selectedRestId}
+                        onChange={(e) => setSelectedRestId(e.target.value)}
+                        className="w-full h-12 pl-10 pr-10 border-2 border-gray-300 rounded-xl text-lg font-bold text-gray-800 bg-white focus:ring-2 focus:ring-[#ffc72c] focus:border-[#1b3a26] outline-none appearance-none cursor-pointer shadow-sm transition-all hover:border-gray-400"
+                    >
+                        {restaurants.length === 0 ? (
+                            <option value="">Učitavanje restorana...</option>
+                        ) : (
+                            restaurants.map(r => <option key={r.id} value={r.id}>{r.code} - {r.name}</option>)
+                        )}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
                 </div>
+            </div>
 
-                {/* Modal Body */}
-                <div className="p-6 max-h-[60vh] overflow-y-auto bg-slate-50">
-                    <div className="grid grid-cols-1 gap-3">
-                        {DAYS.map(d => {
-                            const h = hoursConfig?.[d] || DEFAULT_HOURS;
-                            return (
-                                <div key={d} className="grid grid-cols-12 items-center bg-white p-3 rounded-lg border border-slate-200 shadow-sm hover:border-[#1a3826]/30 transition-all">
-                                    
-                                    {/* Dan */}
-                                    <div className="col-span-4 flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-[#1a3826]/10 flex items-center justify-center text-[#1a3826] font-bold text-xs">
-                                            {d.substring(0,2).toUpperCase()}
-                                        </div>
-                                        <span className="font-bold text-sm text-slate-700 uppercase">{DAY_NAMES[d]}</span>
-                                    </div>
-
-                                    {/* Selectori */}
-                                    <div className="col-span-8 flex items-center justify-end gap-2">
-                                        
-                                        {/* FROM */}
-                                        <div className="flex flex-col">
-                                            <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 ml-1">Od</label>
-                                            <select 
-                                                value={h.from} 
-                                                onChange={(e) => updateHoursConfigState(d, 'from', Number(e.target.value))}
-                                                className="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-[#1a3826] focus:border-[#1a3826] block p-2.5 font-bold outline-none"
-                                            >
-                                                {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                            </select>
-                                        </div>
-
-                                        <div className="h-[1px] w-4 bg-slate-300 mt-5"></div>
-
-                                        {/* TO */}
-                                        <div className="flex flex-col">
-                                            <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 ml-1">Do</label>
-                                            <select 
-                                                value={h.to} 
-                                                onChange={(e) => updateHoursConfigState(d, 'to', Number(e.target.value))}
-                                                className="bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-[#1a3826] focus:border-[#1a3826] block p-2.5 font-bold outline-none"
-                                            >
-                                                {TIME_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                            </select>
-                                        </div>
-
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-
-                {/* Modal Footer */}
-                <div className="p-5 border-t bg-white flex justify-end gap-3">
-                    <button onClick={() => setIsHoursModalOpen(false)} className="px-5 py-2.5 text-slate-500 font-bold hover:bg-slate-100 rounded-lg text-sm">Odustani</button>
-                    <button onClick={handleSaveHours} className="bg-[#1a3826] text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-lg hover:bg-[#264f36] flex items-center gap-2">
-                        <Save size={16}/> Sačuvaj Izmjene
+            {/* Sredina */}
+            <div className="flex flex-wrap items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-200 w-full xl:w-auto">
+                <div className="flex bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <button 
+                        onClick={() => setMode("template")} 
+                        className={`px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${mode==="template" ? "bg-[#1b3a26] text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                    >
+                        <Settings size={14}/> ŠABLONI
+                    </button>
+                    <button 
+                        onClick={() => setMode("date")} 
+                        className={`px-4 py-2 text-xs font-bold transition flex items-center gap-2 ${mode==="date" ? "bg-[#1b3a26] text-white" : "text-gray-500 hover:bg-gray-50"}`}
+                    >
+                        <Calendar size={14}/> KALENDAR
                     </button>
                 </div>
+
+                <div className="flex-1">
+                    {mode === "template" ? (
+                        <div className="flex items-center gap-2">
+                            {isEditingName ? (
+                                <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-[#1b3a26] shadow-sm">
+                                    <input autoFocus type="text" value={tempName} onChange={(e) => setTempName(e.target.value)} className="w-32 p-1 text-sm outline-none font-bold bg-transparent" />
+                                    <button onClick={handleRenameDay} className="text-green-600 hover:bg-green-100 p-1 rounded"><Check size={16}/></button>
+                                    <button onClick={() => setIsEditingName(false)} className="text-red-500 hover:bg-red-100 p-1 rounded"><X size={16}/></button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <select 
+                                            value={selectedTemplateKey} 
+                                            onChange={(e) => setSelectedTemplateKey(e.target.value)} 
+                                            className="h-10 pl-3 pr-8 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-800 outline-none cursor-pointer focus:border-[#1b3a26] shadow-sm appearance-none"
+                                        >
+                                            {DAYS.map(d => <option key={d.key} value={d.key}>{getDayLabel(d.key)}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                                    </div>
+                                    
+                                    {selectedTemplateKey.startsWith('special') && (
+                                        <button 
+                                            onClick={() => { setTempName(getDayLabel(selectedTemplateKey)); setIsEditingName(true); }} 
+                                            className="p-2 bg-white border border-gray-300 rounded-lg text-gray-500 hover:text-[#1b3a26] hover:border-[#1b3a26] transition shadow-sm"
+                                            title="Preimenuj dan"
+                                        >
+                                            <Edit2 size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <input 
+                                type="date" 
+                                value={selectedDate} 
+                                onChange={(e) => setSelectedDate(e.target.value)} 
+                                className="h-10 px-3 bg-white border border-gray-300 rounded-lg text-sm font-bold text-gray-800 outline-none focus:border-[#1b3a26] shadow-sm"
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Desna strana */}
+            <div className="flex flex-wrap items-center gap-2 ml-auto w-full xl:w-auto justify-end">
+                <button onClick={() => setShowHoursModal(true)} className="flex items-center gap-2 h-10 px-4 bg-white border border-gray-300 hover:border-[#1b3a26] text-gray-700 hover:text-[#1b3a26] rounded-lg text-sm font-bold transition shadow-sm">
+                    <Clock size={18}/> <span>{String(hoursFrom).padStart(2,'0')}-{String(hoursTo).padStart(2,'0')}</span>
+                </button>
+                <button onClick={() => setShowColumnsModal(true)} className="flex items-center gap-2 h-10 px-4 bg-white border border-gray-300 hover:border-[#1b3a26] text-gray-700 hover:text-[#1b3a26] rounded-lg text-sm font-bold transition shadow-sm">
+                    <Settings size={18}/> <span className="hidden sm:inline">Kolone</span>
+                </button>
+                <div className="h-8 w-px bg-gray-300 mx-1 hidden xl:block"></div>
+                <button onClick={handleSave} className="flex items-center gap-2 h-10 px-6 bg-[#ffc72c] hover:bg-[#e0af25] text-[#1b3a26] rounded-lg text-sm font-black shadow-md transition transform hover:scale-105">
+                    <Save size={18}/> SPREMI
+                </button>
+                <button onClick={handleExport} className="flex items-center gap-2 h-10 px-6 bg-[#1b3a26] hover:bg-[#142e1e] text-white rounded-lg text-sm font-black shadow-md transition transform hover:scale-105">
+                    <FileText size={18}/> PDF
+                </button>
+                <button onClick={() => alert("MEO funkcionalnost je trenutno u izradi!")} className="flex items-center gap-2 h-10 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-black shadow-md transition transform hover:scale-105 ml-2">
+                    MEO <AlertCircle size={18}/>
+                </button>
+            </div>
+        </div>
+      </header>
+
+      {/* --- KPI BAR --- */}
+      <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 flex items-center justify-center shrink-0">
+         <div className="flex gap-8 bg-white px-6 py-2 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex items-baseline gap-2">
+                <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Promet</span>
+                <span className="font-black text-xl text-[#1b3a26]">{fmtCurr(totals.sumRev)}</span>
+            </div>
+            <div className="w-px bg-gray-200"></div>
+            <div className="flex items-baseline gap-2">
+                <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Sati</span>
+                <span className="font-black text-xl text-[#1b3a26]">{fmtNum(totals.sumStaff)}</span>
+            </div>
+            <div className="w-px bg-gray-200"></div>
+            <div className="flex items-baseline gap-2">
+                <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">Produktivnost</span>
+                <span className="font-black text-xl text-white bg-[#1b3a26] px-2 py-0.5 rounded-lg shadow-sm">{fmtCurr(totals.avgProd)}</span>
+            </div>
+         </div>
+      </div>
+
+      {/* --- TABLICA --- */}
+      <div className="flex-1 overflow-auto bg-gray-100 p-4">
+        <div className="bg-white rounded-xl shadow border border-gray-200 w-full overflow-hidden">
+            <div className="overflow-x-auto relative" style={{ maxHeight: "calc(100vh - 220px)" }}>
+                <table className="w-full text-xs border-collapse">
+                    <thead className="bg-[#1b3a26] text-white sticky top-0 z-20 shadow-md">
+                        <tr>
+                            <th className="p-3 w-16 text-left border-r border-white/10 font-bold sticky left-0 bg-[#1b3a26] z-30">Sat</th>
+                            <th className="p-3 w-28 text-center border-r border-white/10 bg-[#ffc72c] text-[#1b3a26] font-bold shadow-inner sticky left-16 z-30">PROMET</th>
+                            {activeColumns.map(s => (
+                                <th key={s.key} className="p-3 min-w-[70px] text-center border-r border-white/10 font-medium whitespace-nowrap">
+                                    {s.label}
+                                </th>
+                            ))}
+                            <th className="p-3 w-20 text-center bg-[#142e1e] font-bold border-l border-white/10">Σ MA</th>
+                            <th className="p-3 w-20 text-center bg-[#142e1e] font-bold">Prod.</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {totals.rowStats.map((stat, idx) => (
+                            <tr key={stat.h} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50 transition-colors duration-150`}>
+                                <td className={`p-2 font-bold text-gray-500 border-r border-gray-200 text-center sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                    {String(stat.h).padStart(2, '0')}:00
+                                </td>
+                                <td className="p-0 border-r border-gray-200 bg-yellow-50/30 sticky left-16 z-10">
+                                    <input 
+                                        type="text"
+                                        value={rows[stat.h]?.rev || ""}
+                                        onChange={(e) => handleInputChange(stat.h, "rev", e.target.value)}
+                                        className="w-full h-9 bg-transparent text-center font-bold text-gray-900 text-sm focus:bg-white focus:ring-2 focus:ring-inset focus:ring-[#ffc72c] outline-none transition-all"
+                                        placeholder="0"
+                                    />
+                                </td>
+                                {activeColumns.map(s => (
+                                    <td key={s.key} className="p-0 border-r border-gray-200">
+                                        <input 
+                                            type="text"
+                                            value={rows[stat.h]?.[s.key] || ""}
+                                            onChange={(e) => handleInputChange(stat.h, s.key, e.target.value)}
+                                            className="w-full h-9 bg-transparent text-center text-gray-600 font-medium focus:bg-white focus:ring-2 focus:ring-inset focus:ring-[#1b3a26] outline-none transition-all hover:bg-gray-100/50"
+                                            placeholder="-"
+                                        />
+                                    </td>
+                                ))}
+                                <td className="p-2 text-center font-bold text-gray-800 bg-gray-100 border-l border-gray-200">{fmtNum(stat.staff)}</td>
+                                <td className={`p-2 text-center font-bold border-l border-gray-200 ${stat.prod > 0 ? 'text-[#1b3a26]' : 'text-gray-300'}`}>
+                                    {stat.prod > 0 ? fmtNum(stat.prod) : "-"}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300 sticky bottom-0 z-10 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
+                        <tr>
+                            <td className="p-3 text-left text-sm pl-4 text-gray-600 sticky left-0 bg-gray-100 z-30">UKUPNO</td>
+                            <td className="p-3 text-center text-[#1b3a26] bg-yellow-100/80 text-sm border-r border-gray-300 sticky left-16 z-30">{fmtCurr(totals.sumRev)}</td>
+                            {activeColumns.map(s => <td key={s.key} className="border-r border-gray-300"></td>)}
+                            <td className="p-3 text-center text-sm border-r border-gray-300 bg-white">{fmtNum(totals.sumStaff)}</td>
+                            <td className="p-3 text-center text-[#1b3a26] text-sm bg-white">{fmtCurr(totals.avgProd)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+      </div>
+
+      {/* --- MODAL ZA SATE --- */}
+      {showHoursModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm transform scale-100 transition-all border border-gray-100">
+                <div className="text-center mb-6">
+                    <h3 className="font-black text-2xl text-[#1b3a26] uppercase">Radno Vrijeme</h3>
+                    <p className="text-gray-400 text-xs font-bold uppercase mt-1">Postavi interval</p>
+                </div>
+                
+                <div className="flex gap-4 mb-8">
+                    <div className="flex-1 group">
+                        <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase text-center group-focus-within:text-[#1b3a26] transition">Početak (h)</label>
+                        <input 
+                            type="number" min="0" max="23" 
+                            value={hoursFrom} onChange={e => setHoursFrom(Number(e.target.value))} 
+                            className="w-full border-2 border-gray-200 p-4 rounded-xl focus:border-[#ffc72c] focus:ring-0 outline-none font-black text-4xl text-center text-[#1b3a26] bg-gray-50 focus:bg-white transition"
+                        />
+                    </div>
+                    <div className="flex items-center text-gray-300 pt-6">➔</div>
+                    <div className="flex-1 group">
+                        <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase text-center group-focus-within:text-[#1b3a26] transition">Kraj (h)</label>
+                        <input 
+                            type="number" min="0" max="23" 
+                            value={hoursTo} onChange={e => setHoursTo(Number(e.target.value))} 
+                            className="w-full border-2 border-gray-200 p-4 rounded-xl focus:border-[#ffc72c] focus:ring-0 outline-none font-black text-4xl text-center text-[#1b3a26] bg-gray-50 focus:bg-white transition"
+                        />
+                    </div>
+                </div>
+
+                <button 
+                    onClick={() => setShowHoursModal(false)} 
+                    className="w-full bg-[#1b3a26] text-white py-4 rounded-xl font-black text-sm hover:bg-[#142e1e] transition-colors shadow-lg uppercase tracking-wider active:scale-95 duration-150"
+                >
+                    Potvrdi Promjene
+                </button>
+            </div>
+        </div>
+      )}
+
+      {/* --- MODAL ZA KOLONE --- */}
+      {showColumnsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col border border-gray-100">
+                <div className="flex justify-between items-center mb-6 border-b pb-4 shrink-0">
+                    <h3 className="font-black text-lg text-[#1b3a26] uppercase flex items-center gap-2">
+                        <Settings size={20} className="text-[#ffc72c]"/> Postavke Kolona
+                    </h3>
+                    <button onClick={() => setShowColumnsModal(false)} className="p-1 hover:bg-gray-100 rounded-full transition"><X size={20} className="text-gray-400"/></button>
+                </div>
+                
+                <div className="overflow-auto flex-1 pr-2 custom-scrollbar">
+                    {/* Standardne */}
+                    <div className="mb-6">
+                        <h4 className="text-[10px] font-bold text-gray-400 uppercase mb-3 tracking-wider">Standardna Radna Mjesta</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            {DEFAULT_STATIONS.map(s => (
+                                <button
+                                    key={s.key}
+                                    onClick={() => {
+                                        if (hiddenColumns.includes(s.key)) setHiddenColumns(prev => prev.filter(k => k !== s.key));
+                                        else setHiddenColumns(prev => [...prev, s.key]);
+                                    }}
+                                    className={`p-3 rounded-xl text-xs font-bold flex justify-between items-center transition border-2 ${
+                                        !hiddenColumns.includes(s.key)
+                                        ? 'bg-green-50 border-green-500 text-green-800 shadow-sm'
+                                        : 'bg-white border-gray-100 text-gray-400'
+                                    }`}
+                                >
+                                    {s.label} {!hiddenColumns.includes(s.key) && <Check size={14} strokeWidth={3}/>}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Custom */}
+                    <div className="mb-2">
+                        <div className="flex justify-between items-center mb-3">
+                            <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Moja Radna Mjesta (Max 3)</h4>
+                            <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded text-gray-500">{customStations.length}/3</span>
+                        </div>
+                        
+                        <div className="space-y-2 mb-3">
+                            {customStations.map(s => (
+                                <div key={s.key} className="flex items-center gap-2 p-2 border-2 rounded-xl bg-yellow-50 border-[#ffc72c]/30">
+                                    <button 
+                                        onClick={() => {
+                                            if (hiddenColumns.includes(s.key)) setHiddenColumns(prev => prev.filter(k => k !== s.key));
+                                            else setHiddenColumns(prev => [...prev, s.key]);
+                                        }}
+                                        className={`flex-1 text-left text-xs font-bold flex items-center gap-2 ${hiddenColumns.includes(s.key) ? 'text-gray-400' : 'text-gray-800'}`}
+                                    >
+                                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${!hiddenColumns.includes(s.key) ? 'bg-[#1b3a26] border-[#1b3a26]' : 'border-gray-300'}`}>
+                                            {!hiddenColumns.includes(s.key) && <Check size={10} className="text-white" strokeWidth={3}/>}
+                                        </div>
+                                        {s.label}
+                                    </button>
+                                    <button onClick={() => removeCustomStation(s.key)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition"><Trash2 size={16}/></button>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {customStations.length < 3 && (
+                            <div className="flex gap-2 items-center border-2 border-dashed border-gray-300 p-1.5 rounded-xl hover:border-gray-400 transition focus-within:border-[#1b3a26] focus-within:bg-white bg-gray-50">
+                                <input 
+                                    type="text" 
+                                    placeholder="Naziv novog mjesta..." 
+                                    value={newColName}
+                                    onChange={(e) => setNewColName(e.target.value)}
+                                    className="flex-1 p-2 text-xs outline-none bg-transparent font-bold placeholder-gray-400 text-gray-800"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddCustomStation()}
+                                />
+                                <button 
+                                    onClick={handleAddCustomStation} 
+                                    className={`p-2 rounded-lg transition ${newColName.trim() ? 'bg-[#1b3a26] text-white hover:bg-[#142e1e] shadow-md' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                                    disabled={!newColName.trim()}
+                                >
+                                    <Plus size={16} strokeWidth={3}/>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <button onClick={() => setShowColumnsModal(false)} className="w-full bg-gray-100 text-gray-800 py-3 rounded-xl font-black text-xs mt-4 hover:bg-gray-200 shrink-0 uppercase tracking-wide transition">Zatvori</button>
             </div>
         </div>
       )}
 
     </div>
-  );
-}
-
-// 2. Eksportujemo "omotanu" komponentu u Suspense
-export default function ProductivityPage() {
-  return (
-    <Suspense fallback={<div className="flex h-screen items-center justify-center text-[#1a3826] font-bold">Učitavanje alata...</div>}>
-      <ProductivityContent />
-    </Suspense>
   );
 }

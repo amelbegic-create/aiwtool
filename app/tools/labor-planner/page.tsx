@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -51,14 +53,14 @@ interface Restaurant {
 }
 
 interface Holiday {
-  d: number; // Dan
-  m: number; // Mjesec
+  d: number;
+  m: number;
 }
 
 // --- BOJE ---
 const COLORS = {
-  green: "#1b3a26", // Tamno zelena
-  yellow: "#ffc72c", // McDonald's žuta
+  green: "#1b3a26",
+  yellow: "#ffc72c",
   lightGray: "#f3f4f6",
   white: "#ffffff",
   border: "#d1d5db",
@@ -88,10 +90,8 @@ const getEasterDate = (year: number): Holiday => {
 
 const getHolidaysForYear = (year: number): Holiday[] => {
   const holidays: Holiday[] = [];
-  // Fiksni
   holidays.push({d: 1, m: 1}); holidays.push({d: 2, m: 1}); holidays.push({d: 1, m: 3}); 
   holidays.push({d: 1, m: 5}); holidays.push({d: 2, m: 5}); holidays.push({d: 25, m: 11}); 
-  // Pomični
   const easter = getEasterDate(year);
   const addDays = (h: Holiday, days: number): Holiday => {
     const date = new Date(year, h.m - 1, h.d);
@@ -122,6 +122,7 @@ export default function LaborPlanner() {
   const [budgetCLPct, setBudgetCLPct] = useState("");
 
   const [daysData, setDaysData] = useState<DayData[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   const monthNames = ["Januar", "Februar", "Mart", "April", "Maj", "Juni", "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar"];
 
@@ -152,7 +153,7 @@ export default function LaborPlanner() {
 
     for (let i = 1; i <= 31; i++) {
         const date = new Date(y, m - 1, i);
-        const dayNameEng = date.toLocaleDateString("en-US", { weekday: "short" }) as keyof typeof dayNamesBS;
+        const dayNameEng = date.toLocaleDateString("en-US", { weekday: "short" }) as any;
         const dayName = dayNamesBS[dayNameEng] || dayNameEng;
         
         const isWeekend = dayName === "Sub" || dayName === "Ned";
@@ -258,16 +259,15 @@ export default function LaborPlanner() {
     finally { setLoading(false); }
   };
 
-  // 6. PDF EXPORT - MJESEČNI (Podaci -> Tablica)
+  // 6. PDF EXPORT (MJESEČNI)
   const handlePrintSingle = () => {
     if(!selectedRestaurantId) return alert("Odaberite restoran.");
+    setIsExporting(true);
     
-    // Kreiraj novi PDF
     const doc = new jsPDF("p", "mm", "a4");
     const selectedRest = restaurants.find(r => r.id === selectedRestaurantId);
-    const restTitle = selectedRest ? `${selectedRest.code} - ${selectedRest.name || ''}` : "";
+    // const restTitle = selectedRest ? `${selectedRest.code} - ${selectedRest.name || ''}` : "";
 
-    // Pripremi podatke za tablicu iz trenutnog state-a (daysData)
     const tableBody = daysData.filter(d => d.exists).map(d => {
         const u = parseDE(d.umsatz); 
         const p = parseDE(d.prod); 
@@ -290,7 +290,6 @@ export default function LaborPlanner() {
         ];
     });
 
-    // Total red
     const totalRow = [
         "UKUPNO",
         fmtNum(totals.sumUmsatz),
@@ -302,7 +301,6 @@ export default function LaborPlanner() {
         fmtNum(totals.sumExtra)
     ];
 
-    // Header (Zeleni)
     doc.setFillColor(27, 58, 38);
     doc.rect(0, 0, 210, 25, "F");
     doc.setTextColor(255, 255, 255);
@@ -311,9 +309,8 @@ export default function LaborPlanner() {
     doc.text("AIW Services", 14, 16);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(`Labor Planner | ${restTitle} | ${monthNames[month-1]} ${year}`, 14, 22);
+    doc.text(`Labor Planner | ${selectedRest?.code || ''} | ${monthNames[month-1]} ${year}`, 14, 22);
 
-    // KPI Sekcija
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     const yPos = 35;
@@ -322,7 +319,6 @@ export default function LaborPlanner() {
     doc.setFont("helvetica", "bold");
     doc.text(`CL: ${fmtNum(totals.clEuro)} € (${fmtNum(totals.clPct)} %) | Sati: ${fmtNum(totals.totalHours)}`, 110, yPos);
 
-    // Generiraj Tablicu
     autoTable(doc, {
         startY: yPos + 8,
         head: [['Dan', 'Promet', 'Prod(€)', 'P.Sati', 'SF', 'HM', 'Noćni', 'Extra']],
@@ -338,20 +334,18 @@ export default function LaborPlanner() {
             3: { halign: 'center', fillColor: [245, 245, 245] },
             7: { halign: 'center' }
         },
-        // OVDJE KORISTIMO any DA SPRIJEČIMO TYPE ERROR
         didParseCell: function(data: any) {
-            if (data.section === 'body' && data.row.index < tableBody.length) {
+            if (data.section === 'body' && typeof data.row.index === 'number' && data.row.index < tableBody.length) {
                 const rowRaw = data.row.raw as string[];
                 const dayStr = rowRaw[0];
-                
                 if (dayStr.includes('Sub') || dayStr.includes('Ned')) {
-                    data.cell.styles.fillColor = [243, 244, 246]; // Siva
+                    data.cell.styles.fillColor = [243, 244, 246];
                 }
                 if (dayStr.includes('*')) {
-                    data.cell.styles.fillColor = [254, 226, 226]; // Crvenkasta
+                    data.cell.styles.fillColor = [254, 226, 226];
                 }
             }
-            if (data.row.index === tableBody.length) {
+            if (typeof data.row.index === 'number' && data.row.index === tableBody.length) {
                  data.cell.styles.fillColor = [220, 220, 220];
                  data.cell.styles.fontStyle = 'bold';
             }
@@ -359,16 +353,17 @@ export default function LaborPlanner() {
     });
 
     doc.save(`Labor_${selectedRest?.code || 'Plan'}_${monthNames[month-1]}_${year}.pdf`);
+    setIsExporting(false);
   };
 
-  // 7. PDF EXPORT - GODIŠNJI
+  // 7. PDF EXPORT (GODIŠNJI)
   const handleExportYear = async () => {
     if(!selectedRestaurantId) return alert("Odaberite restoran.");
     setLoading(true);
     try {
         const doc = new jsPDF("p", "mm", "a4");
         const selectedRest = restaurants.find(r => r.id === selectedRestaurantId);
-        const restTitle = selectedRest ? `${selectedRest.code} - ${selectedRest.name || ''}` : "";
+        // const restTitle = selectedRest ? `${selectedRest.code} - ${selectedRest.name || ''}` : "";
         const holidays = getHolidaysForYear(year);
 
         for (let m = 1; m <= 12; m++) {
@@ -432,7 +427,6 @@ export default function LaborPlanner() {
 
             if (m > 1) doc.addPage();
 
-            // HEADER
             doc.setFillColor(27, 58, 38);
             doc.rect(0, 0, 210, 20, "F");
             doc.setTextColor(255, 255, 255);
@@ -441,9 +435,8 @@ export default function LaborPlanner() {
             doc.text("AIW Services", 14, 12);
             doc.setFontSize(9);
             doc.setFont("helvetica", "normal");
-            doc.text(`Labor Planner | ${restTitle} | ${monthNames[m-1]} ${year}`, 14, 17);
+            doc.text(`Labor Planner | ${selectedRest?.code || ''} | ${monthNames[m-1]} ${year}`, 14, 17);
 
-            // KPI
             doc.setTextColor(0, 0, 0);
             doc.setFontSize(9);
             const yPos = 28;
@@ -460,7 +453,6 @@ export default function LaborPlanner() {
             doc.setFont("helvetica", "bold");
             doc.text(`CL: ${fmtNum(clEuro)} € (${fmtNum(clPct)} %) | Sati: ${fmtNum(totalHours)}`, 130, yPos);
 
-            // TABLICA
             autoTable(doc, {
                 startY: yPos + 5,
                 head: [['Dan', 'Promet', 'Prod(€)', 'P.Sati', 'SF', 'HM', 'Noćni', 'Extra']],
@@ -477,7 +469,7 @@ export default function LaborPlanner() {
                     7: { halign: 'center' }
                 },
                 didParseCell: function(data: any) {
-                    if (data.section === 'body' && data.row.index < calculatedRows.length) {
+                    if (data.section === 'body' && typeof data.row.index === 'number' && data.row.index < calculatedRows.length) {
                         const raw = data.row.raw as string[];
                         const dayStr = raw[0];
                         if (dayStr.includes('Sub') || dayStr.includes('Ned')) {
@@ -543,19 +535,27 @@ export default function LaborPlanner() {
         </div>
       </div>
 
-      {/* GLAVNI CONTAINER */}
-      <div 
-        className="mx-auto bg-white p-8 rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
-        style={{ backgroundColor: '#ffffff', color: '#000000', maxWidth: '1600px' }} 
-      >
-        
+      {/* PDF UI HEADER */}
+      {isExporting && (
+          <div className="w-full py-4 px-8 mb-4 flex justify-between items-center text-white" style={{ backgroundColor: COLORS.green }}>
+              <div className="font-bold text-2xl">AIW Services</div>
+              <div className="text-right">
+                  <div className="text-sm opacity-80">Labor Planner Report</div>
+                  <div className="font-bold text-lg">
+                      {restaurants.find(r => r.id === selectedRestaurantId)?.code} - {monthNames[month-1]} {year}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      <div className="mx-auto bg-white p-8 rounded-2xl shadow-xl border border-gray-100 overflow-hidden" style={{ maxWidth: '1600px' }}>
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
         
             {/* LIJEVA STRANA */}
             <div className="xl:col-span-3 flex flex-col gap-6">
                 
                 {/* 1. KARTICA POSTAVKI */}
-                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 no-print" style={{ backgroundColor: '#ffffff' }}>
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 no-print">
                     <h3 className="text-[#1b3a26] font-bold text-lg border-b border-gray-100 pb-3 mb-4 uppercase">Postavke</h3>
                     <div className="space-y-4">
                         <div>
@@ -605,7 +605,7 @@ export default function LaborPlanner() {
                 </div>
 
                 {/* 2. ULAZNI PODACI */}
-                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5" style={{ backgroundColor: '#ffffff' }}>
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
                     <h3 className="text-gray-700 font-bold text-sm uppercase mb-3">Parametri</h3>
                     <div className="space-y-2">
                         <InputRow label="Satnica (€)" value={avgWage} onChange={setAvgWage} />
@@ -645,7 +645,7 @@ export default function LaborPlanner() {
 
             {/* DESNA STRANA - TABLICA */}
             <div className="xl:col-span-9">
-                <div className="border border-gray-300 rounded-lg overflow-hidden" style={{ borderColor: COLORS.border, backgroundColor: '#ffffff' }}>
+                <div className="border border-gray-300 rounded-lg overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse" style={{ borderColor: COLORS.border }}>
                             <thead>
