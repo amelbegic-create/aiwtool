@@ -13,7 +13,7 @@ export const TOOL_CATEGORIES = [
 export const APP_TOOLS = [
   // OSOBLJE
   { id: 'vacations', name: 'Godišnji Odmori', href: '/tools/vacations', icon: PlaneTakeoff, category: 'staff' },
-  { id: 'evaluations', name: 'Evaluacije', href: '/tools/evaluations', icon: ClipboardList, category: 'staff' },
+  { id: 'PDS', name: 'PDS', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
   
   // OPERACIJE
   { id: 'labor-planner', name: 'Labor Planner', href: '/tools/labor-planner', icon: Clock, category: 'operations' },

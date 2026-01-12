@@ -1,28 +1,111 @@
-// app/actions/userActions.ts
 "use server";
-import prisma from "@/lib/prisma";
 
-export async function getRestaurantStaff(restaurantId: string) {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs"; 
+
+// 1. DOHVATI KORISNIKE ZA RESTORAN
+export async function getUsersByRestaurant(restaurantId: string) {
   try {
-    // Tražimo sve korisnike koji su povezani sa ovim restoranom u bazi
-    const staff = await prisma.user.findMany({
+    const users = await prisma.user.findMany({
       where: {
         restaurants: {
-          some: {
-            restaurantId: restaurantId
-          }
+          some: { restaurantId: restaurantId }
         }
       },
-      select: {
-        id: true,
-        name: true,
-        role: true,
-        email: true
-      }
+      include: {
+        restaurants: true 
+      },
+      orderBy: { name: 'asc' }
     });
-    return staff;
+    return users;
   } catch (error) {
-    console.error("Greška pri dohvatu osoblja:", error);
+    console.error("Greška pri dohvatu korisnika:", error);
     return [];
   }
+}
+
+// 2. KREIRAJ ILI AŽURIRAJ KORISNIKA (MULTI-RESTORAN PODRŠKA)
+export async function upsertUser(data: any, restaurantIds: string[]) {
+  try {
+    const { id, name, email, password, role, department, entitlement, carryover, permissions } = data;
+
+    let hashedPassword = undefined;
+    if (password && password.length > 0) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
+    // Default permission object
+    const perms = permissions || {};
+
+    // Priprema konekcija za restorane (Prvi u nizu je Primary)
+    const restaurantConnections = restaurantIds.map((rId, index) => ({
+        restaurantId: rId,
+        isPrimary: index === 0 
+    }));
+
+    if (id) {
+      // --- UPDATE ---
+      await prisma.user.update({
+        where: { id },
+        data: {
+          name, 
+          email, 
+          role, 
+          department,
+          vacationEntitlement: Number(entitlement || 0),
+          vacationCarryover: Number(carryover || 0),
+          permissions: perms,
+          ...(hashedPassword && { password: hashedPassword }),
+          // OVDJE JE MAGIJA: Brišemo stare veze i dodajemo nove odabrane
+          restaurants: {
+            deleteMany: {}, 
+            create: restaurantConnections
+          }
+        }
+      });
+    } else {
+      // --- CREATE ---
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) {
+        return { success: false, message: "Email već postoji!" };
+      }
+
+      await prisma.user.create({
+        data: {
+          name, 
+          email, 
+          password: hashedPassword,
+          role, 
+          department,
+          vacationEntitlement: Number(entitlement || 20),
+          vacationCarryover: Number(carryover || 0),
+          permissions: perms,
+          restaurants: {
+            create: restaurantConnections
+          }
+        }
+      });
+    }
+
+    revalidatePath("/admin/users");
+    return { success: true };
+  } catch (error) {
+    console.error("Greška pri snimanju:", error);
+    return { success: false, message: "Greška na serveru." };
+  }
+}
+
+// 3. OBRIŠI VEZU KORISNIKA I RESTORANA
+export async function deleteUserFromRestaurant(userId: string, restaurantId: string) {
+    try {
+        await prisma.restaurantUser.deleteMany({
+            where: { userId, restaurantId }
+        });
+        revalidatePath("/admin/users");
+        return { success: true };
+    } catch (error) {
+        return { success: false };
+    }
 }

@@ -1,29 +1,30 @@
-import { Role } from "@prisma/client";
-import { DefaultSession } from "next-auth";
-
-// Definišemo tip za tvoj JSON objekat permisija
-type PermissionSet = Record<string, string[]> | null; 
+import { DefaultSession, DefaultUser } from "next-auth"
+import { JWT, DefaultJWT } from "next-auth/jwt"
+import { Role } from "@prisma/client"
 
 declare module "next-auth" {
   interface Session {
     user: {
-      id: string;
-      role: Role;
-      permissions: PermissionSet;
+      id: string
+      role: Role
+      permissions: string[]
+      name?: string | null
+      email?: string | null
+      image?: string | null
     } & DefaultSession["user"]
   }
 
-  interface User {
-    id: string;
-    role: Role;
-    permissions: PermissionSet;
+  interface User extends DefaultUser {
+    id: string
+    role: Role
+    permissions: string[]
   }
 }
 
 declare module "next-auth/jwt" {
-  interface JWT {
-    id: string;
-    role: Role;
-    permissions: PermissionSet;
+  interface JWT extends DefaultJWT {
+    id: string
+    role: Role
+    permissions: string[]
   }
 }

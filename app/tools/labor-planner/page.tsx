@@ -1,173 +1,212 @@
 "use client";
 
-import { useState, Suspense } from "react"; // Dodan Suspense
-import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Printer, Trash2, Settings, DollarSign } from "lucide-react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter } from "next/navigation";
+import { 
+  ArrowLeft, Save, Printer, CalendarDays, Download, RefreshCw, Calculator, DollarSign
+} from "lucide-react";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { saveLaborReport, getLaborData, getYearlyLaborData } from "@/app/actions/laborActions";
 
-interface DayRow {
-  id: number;
-  dayName: string;
-  isWeekend: boolean;
-  sales: number | "";
-  target: number;
-  sf: number | "";
-  hm: number | "";
-  nz: number | "";
-  extra: number | "";
-}
+const MONTHS = ["Januar", "Februar", "Mart", "April", "Maj", "Juni", "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar"];
+const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
+const DAY_NAMES = ["Ned", "Pon", "Uto", "Sri", "Čet", "Pet", "Sub"];
 
-// 1. Premjesti glavnu logiku u zasebnu komponentu
 function LaborPlannerContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const restaurantCode = searchParams.get("restaurant");
+  const [restId, setRestId] = useState<string | null>(null);
+  const [restName, setRestName] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [rows, setRows] = useState<any[]>([]);
+  const [hourlyWage, setHourlyWage] = useState(11.80);
+  const [budgetSales, setBudgetSales] = useState(0);
+  const [budgetCost, setBudgetCost] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // POSTAVKE
-  const [hourlyWage, setHourlyWage] = useState<number>(11.80);
-  const [vacationHours, setVacationHours] = useState<number>(0);
-  const [sickHours, setSickHours] = useState<number>(0);
-  const [budgetSales, setBudgetSales] = useState<number | "">("");
-  const [budgetCost, setBudgetCost] = useState<number | "">("");
+  useEffect(() => {
+    const id = localStorage.getItem("selected_restaurant_id");
+    const name = localStorage.getItem("selected_restaurant_name");
+    if (!id) { router.push("/select-restaurant"); return; }
+    setRestId(id);
+    setRestName(name || "");
+  }, [router]);
 
-  // GENERISANJE 31 DANA
-  const daysOfWeek = ["Ponedjeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota", "Nedjelja"];
-  const [rows, setRows] = useState<DayRow[]>(() => {
-    return Array.from({ length: 31 }, (_, i) => {
-      const dayName = daysOfWeek[i % 7];
-      return {
-        id: i + 1,
-        dayName,
-        isWeekend: dayName === "Subota" || dayName === "Nedjelja",
-        sales: "", target: 100, sf: "", hm: "", nz: "", extra: ""
-      };
-    });
-  });
+  useEffect(() => {
+    if (restId) loadData();
+  }, [restId, selectedMonth, selectedYear]);
 
-  const updateRow = (id: number, field: keyof DayRow, value: string) => {
-    const numValue = value === "" ? "" : parseFloat(value);
-    setRows(prev => prev.map(row => row.id === id ? { ...row, [field]: numValue } : row));
+  const loadData = async () => {
+    setIsLoading(true);
+    const data = await getLaborData(restId!, selectedMonth, selectedYear);
+    if (data) {
+      setRows(data.daysData as any[]);
+      setHourlyWage(data.hourlyWage);
+      setBudgetSales(data.budgetSales);
+      setBudgetCost(data.budgetCost);
+    } else {
+      generateRows();
+    }
+    setIsLoading(false);
   };
 
-  const handleClear = () => {
-    if (confirm("Da li ste sigurni?")) {
-      setRows(rows.map(r => ({ ...r, sales: "", target: 100, sf: "", hm: "", nz: "", extra: "" })));
-    }
+  const generateRows = () => {
+    const days = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const newRows = Array.from({ length: days }, (_, i) => {
+      const date = new Date(selectedYear, selectedMonth, i + 1);
+      return { day: i + 1, name: DAY_NAMES[date.getDay()], isWeekend: date.getDay() === 0 || date.getDay() === 6, sales: 0, target: 100, sf: 0, hm: 0, nz: 0, extra: 0 };
+    });
+    setRows(newRows);
   };
 
   const calculateTotals = () => {
-    let sSales = 0, sProd = 0, sSF = 0, sHM = 0, sNZ = 0, sExtra = 0;
-
-    rows.forEach(row => {
-      const sales = Number(row.sales) || 0;
-      const target = row.target || 1;
-      const sf = Number(row.sf) || 0;
-      let prod = 0;
-      if (sales > 0 || sf > 0) {
-         if (target > 0) prod = (sales / target) - sf;
-      }
-      sSales += sales;
-      sProd += prod;
-      sSF += sf;
-      sHM += Number(row.hm) || 0;
-      sNZ += Number(row.nz) || 0;
-      sExtra += Number(row.extra) || 0;
+    let tSales = 0, tHours = 0, tCost = 0;
+    rows.forEach(r => {
+      const s = Number(r.sales) || 0;
+      const target = Number(r.target) || 1;
+      const sf = Number(r.sf) || 0;
+      const prodHrs = s > 0 ? (s / target) - sf : 0;
+      const rowHrs = prodHrs + (Number(r.hm) || 0) + (Number(r.extra) || 0);
+      tSales += s; tHours += rowHrs; tCost += (rowHrs * hourlyWage) + (Number(r.nz) || 0);
     });
-
-    const totalHoursPaid = sProd + sHM + sExtra + vacationHours + sickHours;
-    const totalCost = (totalHoursPaid * hourlyWage) + sNZ;
-    
-    let realPercent = 0;
-    if (sSales > 0) realPercent = (totalCost / sSales) * 100;
-
-    let budgetPercent = 0;
-    const bSales = Number(budgetSales) || 0;
-    const bCost = Number(budgetCost) || 0;
-    if (bSales > 0) budgetPercent = (bCost / bSales) * 100;
-
-    return { sales: sSales, prodHours: sProd, sf: sSF, hm: sHM, nz: sNZ, extra: sExtra, totalHoursPaid, totalCost, realPercent, budgetPercent };
+    const tProd = tSales > 0 ? (tCost / tSales) * 100 : 0;
+    const bProd = budgetSales > 0 ? (budgetCost / budgetSales) * 100 : 0;
+    return { tSales, tHours, tCost, tProd, bProd };
   };
 
   const totals = calculateTotals();
 
+  const handleSave = async () => {
+    setIsLoading(true);
+    const res = await saveLaborReport(restId!, selectedMonth, selectedYear, rows, hourlyWage, budgetSales, budgetCost);
+    setIsLoading(false);
+    if(res.success) alert("✅ Podaci uspješno sačuvani u Neon DB!");
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 text-[#0F172A] print:bg-white print:p-0">
-      <div className="max-w-[1600px] mx-auto">
-        <div className="flex items-center justify-between mb-6 print:hidden">
-            <button onClick={() => router.push(restaurantCode ? `/restaurant/${restaurantCode}` : '/restaurants')} className="flex items-center gap-2 text-slate-500 font-bold hover:text-[#1a3826]"><ArrowLeft className="w-5 h-5" /> Nazad</button>
-            <div className="flex gap-2">
-                <button onClick={handleClear} className="px-4 py-2 bg-white border border-slate-200 text-red-600 font-bold rounded-md flex items-center gap-2"><Trash2 className="w-4 h-4" /> Obriši</button>
-                <button onClick={() => window.print()} className="px-4 py-2 bg-[#1a3826] text-white font-bold rounded-md flex items-center gap-2"><Printer className="w-4 h-4" /> Štampaj</button>
-            </div>
+    <div className="h-screen w-full overflow-hidden bg-[#F8FAFC] flex flex-col font-sans">
+      {/* HEADER */}
+      <div className="bg-[#1a3826] text-white p-6 shadow-md flex justify-between items-center shrink-0">
+        <div>
+          <button onClick={() => router.back()} className="text-white/70 hover:text-white flex items-center gap-1 text-xs font-bold mb-1 uppercase tracking-widest">
+            <ArrowLeft size={12}/> Nazad
+          </button>
+          <h1 className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
+            Labor Planer <span className="text-[#FFC72C]">{selectedYear}</span>
+            {isLoading && <RefreshCw className="animate-spin w-4 h-4 opacity-50"/>}
+          </h1>
+          <p className="text-[10px] text-emerald-200 uppercase font-black tracking-widest leading-none">{restName}</p>
         </div>
-        <div className="flex items-center justify-between mb-6 border-b border-slate-200 pb-4">
-            <h1 className="text-2xl font-bold text-slate-900 uppercase">Mjesečni Planer Rada</h1>
-            {restaurantCode && <div className="text-xl font-mono font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded">{restaurantCode}</div>}
+        <div className="flex gap-2">
+           <button onClick={handleSave} className="bg-[#FFC72C] text-[#1a3826] px-5 py-2.5 rounded-xl font-black text-[10px] uppercase shadow-xl hover:bg-yellow-400 transition-all flex items-center gap-2">
+            <Save size={14}/> Sačuvaj Plan
+          </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 print:grid-cols-3">
-            <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm print:border">
-                <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2"><Settings className="w-3 h-3"/> Postavke</h3>
-                <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><label>Satnica (€)</label><input type="number" value={hourlyWage} onChange={e => setHourlyWage(Number(e.target.value))} className="w-20 text-right border rounded font-bold" /></div>
-                    <div className="flex justify-between"><label>Godišnji (h)</label><input type="number" value={vacationHours} onChange={e => setVacationHours(Number(e.target.value))} className="w-20 text-right border rounded" /></div>
-                    <div className="flex justify-between"><label>Bolovanje (h)</label><input type="number" value={sickHours} onChange={e => setSickHours(Number(e.target.value))} className="w-20 text-right border rounded" /></div>
-                </div>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm print:border">
-                <h3 className="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2"><DollarSign className="w-3 h-3"/> Budžet</h3>
-                <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><label>Plan Promet (€)</label><input type="number" value={budgetSales} onChange={e => setBudgetSales(Number(e.target.value))} className="w-24 text-right border rounded" /></div>
-                    <div className="flex justify-between"><label>Plan Trošak (€)</label><input type="number" value={budgetCost} onChange={e => setBudgetCost(Number(e.target.value))} className="w-24 text-right border rounded" /></div>
-                    <div className="text-right text-xs">Max Labor %: <strong>{totals.budgetPercent.toFixed(2)}%</strong></div>
-                </div>
-            </div>
-            <div className={`p-4 rounded-lg border shadow-sm flex flex-col justify-between ${totals.totalCost <= (Number(budgetCost) || 999999) ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
-                <h3 className="text-xs font-bold uppercase mb-2">Rezultat</h3>
-                <div className="flex justify-between items-end">
-                    <div><div className="text-xs opacity-70">Isplata sati</div><div className="text-2xl font-black text-slate-800">{totals.totalHoursPaid.toFixed(1)} h</div></div>
-                    <div className="text-right"><div className="text-xs opacity-70">Trošak</div><div className="text-xl font-bold text-slate-800">{totals.totalCost.toLocaleString('de-DE', {style: 'currency', currency: 'EUR'})}</div></div>
-                </div>
-                <div className="mt-2 pt-2 border-t border-black/10 flex justify-between items-center"><span className="font-bold text-sm">REALNI %</span><span className="text-2xl font-black">{totals.realPercent.toFixed(2)}%</span></div>
-            </div>
+      </div>
+
+      {/* TOOLBAR */}
+      <div className="bg-white border-b border-slate-200 p-4 shrink-0 shadow-sm">
+        <div className="max-w-[1800px] mx-auto grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="flex gap-2">
+            <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))} className="w-full border rounded-xl p-2 text-[10px] font-black uppercase bg-slate-50 outline-none focus:ring-2 focus:ring-[#1a3826]">
+              {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+            </select>
+            <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="w-full border rounded-xl p-2 text-[10px] font-black uppercase bg-slate-50 outline-none focus:ring-2 focus:ring-[#1a3826]">
+              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center">
+             <label className="text-[8px] font-black text-slate-400 uppercase block mb-1 ml-1 tracking-tighter">Prosječna Satnica (€)</label>
+             <input type="number" step="0.1" value={hourlyWage} onChange={e => setHourlyWage(Number(e.target.value))} className="w-full bg-transparent font-black text-blue-600 outline-none px-1 text-sm"/>
+          </div>
+          <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center">
+             <label className="text-[8px] font-black text-slate-400 uppercase block mb-1 ml-1 tracking-tighter">Planirani Promet (€)</label>
+             <input type="number" value={budgetSales} onChange={e => setBudgetSales(Number(e.target.value))} className="w-full bg-transparent font-black text-[#1a3826] outline-none px-1 text-sm"/>
+          </div>
+          <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col justify-center">
+             <label className="text-[8px] font-black text-slate-400 uppercase block mb-1 ml-1 tracking-tighter">Dozvoljeni Trošak (€)</label>
+             <input type="number" value={budgetCost} onChange={e => setBudgetCost(Number(e.target.value))} className="w-full bg-transparent font-black text-[#1a3826] outline-none px-1 text-sm"/>
+          </div>
+          <div className={`p-2 rounded-xl border flex flex-col justify-center items-center shadow-sm ${totals.tProd <= totals.bProd ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-600'}`}>
+            <span className="text-[8px] font-black uppercase opacity-60 tracking-widest mb-1">Status Labor %</span>
+            <div className="text-xl font-black leading-none">{totals.tProd.toFixed(2)}%</div>
+          </div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-x-auto print:shadow-none print:border-0">
-            <table className="w-full text-sm text-left border-collapse">
-                <thead className="bg-slate-100 text-slate-600 text-xs uppercase print:bg-slate-200">
-                    <tr><th className="px-2 py-2 border w-8">#</th><th className="px-2 py-2 border w-24">Dan</th><th className="px-2 py-2 border text-right bg-blue-50/50">Promet</th><th className="px-2 py-2 border text-right w-16">Cilj</th><th className="px-2 py-2 border text-right bg-slate-50 font-bold">Prod.*</th><th className="px-2 py-2 border text-right w-16">SF</th><th className="px-2 py-2 border text-right w-16">HM</th><th className="px-2 py-2 border text-right w-20">NZ</th><th className="px-2 py-2 border text-right w-16">Extra</th></tr>
-                </thead>
-                <tbody>
-                    {rows.map((row) => {
-                        let prodDisplay = 0;
-                        const s = Number(row.sales) || 0; const sf = Number(row.sf) || 0;
-                        if(s > 0 || sf > 0) prodDisplay = (s / (row.target || 1)) - sf;
-                        return (
-                            <tr key={row.id} className={`hover:bg-slate-50 ${row.isWeekend ? 'bg-slate-50/50' : ''}`}>
-                                <td className="px-1 py-1 border text-center text-xs text-slate-400">{row.id}</td>
-                                <td className={`px-2 py-1 border text-xs font-bold ${row.isWeekend ? 'text-[#1a3826]' : 'text-slate-600'}`}>{row.dayName}</td>
-                                <td className="p-0 border"><input type="number" className="w-full h-full px-2 py-1 text-right outline-none bg-transparent focus:bg-blue-50" value={row.sales} onChange={e => updateRow(row.id, 'sales', e.target.value)} /></td>
-                                <td className="p-0 border"><input type="number" className="w-full h-full px-2 py-1 text-right outline-none bg-transparent focus:bg-blue-50 text-xs" value={row.target} onChange={e => updateRow(row.id, 'target', e.target.value)} /></td>
-                                <td className="px-2 py-1 border text-right font-mono font-bold bg-slate-50">{prodDisplay !== 0 ? prodDisplay.toFixed(2) : ''}</td>
-                                <td className="p-0 border"><input type="number" className="w-full h-full px-2 py-1 text-right outline-none bg-transparent focus:bg-blue-50 text-xs" value={row.sf} onChange={e => updateRow(row.id, 'sf', e.target.value)} /></td>
-                                <td className="p-0 border"><input type="number" className="w-full h-full px-2 py-1 text-right outline-none bg-transparent focus:bg-blue-50 text-xs" value={row.hm} onChange={e => updateRow(row.id, 'hm', e.target.value)} /></td>
-                                <td className="p-0 border"><input type="number" className="w-full h-full px-2 py-1 text-right outline-none bg-transparent focus:bg-blue-50 text-xs" value={row.nz} onChange={e => updateRow(row.id, 'nz', e.target.value)} /></td>
-                                <td className="p-0 border"><input type="number" className="w-full h-full px-2 py-1 text-right outline-none bg-transparent focus:bg-blue-50 text-xs" value={row.extra} onChange={e => updateRow(row.id, 'extra', e.target.value)} /></td>
-                            </tr>
-                        )
-                    })}
-                </tbody>
-                <tfoot className="bg-[#1a3826] text-white font-bold text-xs uppercase print:bg-slate-300 print:text-black">
-                    <tr><td colSpan={2} className="px-4 py-3 border border-white/10">UKUPNO</td><td className="px-2 py-3 text-right border border-white/10">{totals.sales.toLocaleString('de-DE')} €</td><td className="px-2 py-3 text-right border border-white/10">-</td><td className="px-2 py-3 text-right border border-white/10 bg-white/10">{totals.prodHours.toFixed(1)}</td><td className="px-2 py-3 text-right border border-white/10">{totals.sf.toFixed(0)}</td><td className="px-2 py-3 text-right border border-white/10">{totals.hm.toFixed(0)}</td><td className="px-2 py-3 text-right border border-white/10">{totals.nz.toFixed(0)}</td><td className="px-2 py-3 text-right border border-white/10">{totals.extra.toFixed(0)}</td></tr>
-                </tfoot>
-            </table>
+      </div>
+
+      {/* TABLE */}
+      <div className="flex-grow overflow-auto p-4 bg-white">
+        <div className="max-w-[1800px] mx-auto bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+          <table className="w-full text-center text-[10px] border-collapse">
+            <thead className="bg-[#1a3826] text-white font-black uppercase sticky top-0 z-20">
+              <tr>
+                <th className="p-3 border-r border-white/5 w-10">#</th>
+                <th className="p-3 border-r border-white/5 text-left w-20">Dan</th>
+                <th className="p-3 border-r border-white/5 bg-white/5">Promet (€)</th>
+                <th className="p-3 border-r border-white/5">Cilj</th>
+                <th className="p-3 border-r border-white/5 bg-[#FFC72C] text-[#1a3826]">Sati (Prod)</th>
+                <th className="p-3 border-r border-white/5">SF</th>
+                <th className="p-3 border-r border-white/5">HM</th>
+                <th className="p-3 border-r border-white/5">NZ (€)</th>
+                <th className="p-3 border-r border-white/5">Extra</th>
+                <th className="p-3 bg-slate-800">Ukupno h</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {rows.map((row, idx) => {
+                const prodHrs = row.sales > 0 ? (row.sales / row.target) - row.sf : 0;
+                const totalRowHrs = prodHrs + row.hm + row.extra;
+                return (
+                  <tr key={idx} className={`hover:bg-slate-50/50 transition-colors ${row.isWeekend ? 'bg-slate-50/30' : ''}`}>
+                    <td className="p-2 border-r border-slate-50 text-slate-300 font-bold">{row.day}</td>
+                    <td className={`p-2 border-r border-slate-50 text-left font-black uppercase ${row.isWeekend ? 'text-[#1a3826]' : 'text-slate-400'}`}>{row.name}</td>
+                    <td className="p-0 border-r border-slate-50"><input type="number" className="w-full p-2 text-center outline-none bg-transparent font-black text-slate-700 focus:bg-emerald-50 transition-all" value={row.sales || ""} onChange={e => {
+                        const newRows = [...rows];
+                        newRows[idx].sales = parseFloat(e.target.value) || 0;
+                        setRows(newRows);
+                    }} /></td>
+                    <td className="p-0 border-r border-slate-50"><input type="number" className="w-full p-2 text-center outline-none bg-transparent text-slate-400" value={row.target} onChange={e => {
+                        const newRows = [...rows];
+                        newRows[idx].target = parseFloat(e.target.value) || 1;
+                        setRows(newRows);
+                    }} /></td>
+                    <td className="p-2 border-r border-slate-50 font-black bg-amber-50/30 text-[#1a3826]">{prodHrs > 0 ? prodHrs.toFixed(1) : "-"}</td>
+                    <td className="p-0 border-r border-slate-50"><input type="number" className="w-full p-2 text-center outline-none bg-transparent text-slate-500" value={row.sf || ""} onChange={e => {
+                        const newRows = [...rows];
+                        newRows[idx].sf = parseFloat(e.target.value) || 0;
+                        setRows(newRows);
+                    }} /></td>
+                    <td className="p-0 border-r border-slate-50"><input type="number" className="w-full p-2 text-center outline-none bg-transparent text-slate-500" value={row.hm || ""} onChange={e => {
+                        const newRows = [...rows];
+                        newRows[idx].hm = parseFloat(e.target.value) || 0;
+                        setRows(newRows);
+                    }} /></td>
+                    <td className="p-0 border-r border-slate-50"><input type="number" className="w-full p-2 text-center outline-none bg-transparent font-black text-blue-600 focus:bg-blue-50" value={row.nz || ""} onChange={e => {
+                        const newRows = [...rows];
+                        newRows[idx].nz = parseFloat(e.target.value) || 0;
+                        setRows(newRows);
+                    }} /></td>
+                    <td className="p-0 border-r border-slate-50"><input type="number" className="w-full p-2 text-center outline-none bg-transparent text-slate-500" value={row.extra || ""} onChange={e => {
+                        const newRows = [...rows];
+                        newRows[idx].extra = parseFloat(e.target.value) || 0;
+                        setRows(newRows);
+                    }} /></td>
+                    <td className="p-2 font-black bg-slate-50/50 text-[#1a3826]">{totalRowHrs > 0 ? totalRowHrs.toFixed(1) : "-"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 }
 
-// 2. Eksportuj komponentu umotanu u Suspense
-export default function MonthlyLaborPlanner() {
+export default function LaborPlannerPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center">Učitavanje planera...</div>}>
+    <Suspense fallback={<div className="flex h-screen items-center justify-center font-black uppercase text-[#1a3826] bg-[#F8FAFC]">Učitavanje Modula...</div>}>
       <LaborPlannerContent />
     </Suspense>
   );

@@ -6,17 +6,32 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // OVDJE JE PROMJENA: Upisan direktan link umjesto env("DATABASE_URL")
-  url      = "postgresql://neondb_owner:npg_yKzlAxk4hQ9P@ep-gentle-haze-ag17i2my-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+  url      = env("DATABASE_URL")
 }
 
-// 1. KORISNICI & PERMISIJE
+// ---------------------------------------------------------
+// 1. ENUMS
+// ---------------------------------------------------------
+
 enum Role {
+  SYSTEM_ARCHITECT
   SUPER_ADMIN
   ADMIN
   MANAGER
   CREW
 }
+
+enum PDSStatus {
+  DRAFT       // Manager creates
+  OPEN        // Employee inputs
+  SUBMITTED   // Sent to manager
+  COMPLETED   // Locked
+  ARCHIVED    // Old
+}
+
+// ---------------------------------------------------------
+// 2. USERS
+// ---------------------------------------------------------
 
 model User {
   id            String    @id @default(cuid())
@@ -28,41 +43,147 @@ model User {
   department    String?   @default("RL") 
   isActive      Boolean   @default(true)
   image         String?
-  permissions   Json?      
+  lastSeen      DateTime? @default(now())
 
+  // Permissions
+  permissions   String[]  @default([]) 
+
+  // Vacation
+  vacationEntitlement Int @default(20) 
+  vacationCarryover   Int @default(0)  
+
+  // RELATIONS
   restaurants   RestaurantUser[]
   evaluations   EvaluationSubmission[]
   vacations     VacationRequest[]
+  
+  // NEW: PDS LIST
+  pdsList       PDS[]     
+  
+  // NextAuth
+  accounts      Account[]
+  sessions      Session[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  
-  accounts      Account[]
-  sessions      Session[]
 }
 
-// 2. CMS - PRAVILA
-model Rule {
+// ---------------------------------------------------------
+// 3. NEW: PDS (Performance Development System) & Templates
+// ---------------------------------------------------------
+
+model PDSTemplate {
+  id        String   @id @default(cuid())
+  year      Int      @unique // One template per year
+  goals     Json     // Default goals and rules
+  scale     Json     // Default scale
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PDS {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  managerId String   
+  year      Int      
+  
+  // Link to template (optional but good for tracking)
+  templateId String?
+
+  // JSON fields (Goals and Scale - copied from template or custom)
+  goals     Json     
+  scale     Json     
+  
+  // Comments (Text for long inputs)
+  employeeComment String? @db.Text
+  managerComment  String? @db.Text
+  
+  // Signatures (Base64 images are large, must be Text)
+  employeeSignature String? @db.Text
+  managerSignature  String? @db.Text
+  
+  totalScore      Int     @default(0)
+  status          PDSStatus @default(DRAFT)
+
+  // One PDS per year for one employee
+  @@unique([userId, year])
+}
+
+// ---------------------------------------------------------
+// 4. RESTAURANTS
+// ---------------------------------------------------------
+
+model Restaurant {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  name          String?
+  city          String?
+  address       String?
+  isActive      Boolean   @default(true)
+  openingHours  Json?     @default("{}") 
+  
+  users               RestaurantUser[]
+  rules               RuleRestaurant[]
+  evaluations         EvaluationSubmission[]
+  blockedDays         BlockedDay[]            
+  productivityReports ProductivityReport[] 
+  laborReports        LaborReport[]
+  vacationRequests    VacationRequest[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model RestaurantUser {
+  id            String     @id @default(cuid())
+  userId        String
+  restaurantId  String
+  isPrimary     Boolean    @default(false) 
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+}
+
+// ---------------------------------------------------------
+// 5. OTHER TOOLS (Vacations, Evaluations, CMS, Reports)
+// ---------------------------------------------------------
+
+model VacationRequest {
   id            String   @id @default(cuid())
-  title         String
-  slug          String   @unique 
-  content       String   
-  category      String   
-  isGlobal      Boolean  @default(true) 
-  restaurants   RuleRestaurant[]
-  published     Boolean  @default(false)
-  authorId      String
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId  String?  
+  restaurant    Restaurant? @relation(fields: [restaurantId], references: [id])
+  start         String   
+  end           String   
+  days          Int      
+  status        String   @default("PENDING") 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
-// 3. EVALUACIJE
+model BlockedDay {
+  id            String     @id @default(cuid())
+  date          String     
+  reason        String?
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+}
+
 model EvaluationTemplate {
-  id            String   @id @default(cuid())
-  title         String   
+  id            String    @id @default(cuid())
+  title         String    
   criteria      Json      
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
   submissions   EvaluationSubmission[]
 }
 
@@ -76,101 +197,74 @@ model EvaluationSubmission {
   user          User               @relation(fields: [userId], references: [id])
   answers       Json        
   totalScore    Int        
-  createdAt     DateTime   @default(now())
+  createdAt     DateTime           @default(now())
 }
 
-// 4. GODIŠNJI ODMORI
-model VacationRequest {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  start      String   
-  end        String   
-  days       Int      
-  realDays   Int      
-  status     String   @default("PENDING") 
-  createdAt  DateTime @default(now())
-}
-
-// 5. PRODUKTIVNOST (CL ALAT)
-model ProductivityReport {
-  id             String   @id @default(cuid())
-  restaurantId   String
-  date           String   // "YYYY-MM-DD"
-  targetProd     Float    @default(120)
-  netCoeff       Float    @default(1.17)
-  hourlyData     Json     
-
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-
-  @@unique([restaurantId, date])
-}
-
-// 6. PRAZNICI / BLOKIRANI DANI
-model BlockedDay {
-  id             String     @id @default(cuid())
-  date           String     
-  reason         String?
-  restaurantId   String
-  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  createdAt      DateTime   @default(now())
-}
-
-// --- STANDARDNI MODELI ---
-
-model Restaurant {
-  id             String    @id @default(cuid())
-  code           String    @unique
-  name           String
-  city           String?
-  address        String?
-  isActive       Boolean   @default(true)
-  
-  openingHours   Json?     @default("{}") 
-  
-  users          RestaurantUser[]
-  rules          RuleRestaurant[]
-  evaluations    EvaluationSubmission[]
-  blockedDays    BlockedDay[]            
-  productivityReports ProductivityReport[] 
-  
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-}
-
-model RestaurantUser {
-  id             String     @id @default(cuid())
-  userId         String
-  restaurantId   String
-  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  isPrimary      Boolean    @default(false)
-  @@unique([userId, restaurantId])
+model Rule {
+  id            String         @id @default(cuid())
+  title         String
+  slug          String         @unique 
+  content       String   
+  category      String   
+  isGlobal      Boolean        @default(true) 
+  published     Boolean        @default(false)
+  authorId      String
+  restaurants   RuleRestaurant[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model RuleRestaurant {
-  id             String     @id @default(cuid())
-  ruleId         String
-  restaurantId   String
-  rule           Rule       @relation(fields: [ruleId], references: [id])
-  restaurant     Restaurant @relation(fields: [restaurantId], references: [id])
+  id            String     @id @default(cuid())
+  ruleId        String
+  restaurantId  String
+  rule          Rule       @relation(fields: [ruleId], references: [id])
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
   @@unique([ruleId, restaurantId])
 }
 
-model AuditLog {
-  id             String   @id @default(cuid())
-  action         String
-  entity         String
-  entityId       String?
-  details        String?
-  performedBy    String
-  createdAt      DateTime @default(now())
+model ProductivityReport {
+  id            String     @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date          String     
+  targetProd    Float      @default(120)
+  netCoeff      Float      @default(1.17)
+  hourlyData    Json     
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  @@unique([restaurantId, date])
 }
 
-// NextAuth modeli
+model LaborReport {
+  id            String     @id @default(cuid())
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  month         Int
+  year          Int
+  daysData      Json     
+  hourlyWage    Float      @default(11.80)
+  budgetSales   Float      @default(0)
+  budgetCost    Float      @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  @@unique([restaurantId, month, year])
+}
+
+// ---------------------------------------------------------
+// 6. LOGS & NEXTAUTH
+// ---------------------------------------------------------
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  action        String
+  entity        String
+  entityId      String?
+  details       String?
+  performedBy   String
+  createdAt     DateTime @default(now())
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
