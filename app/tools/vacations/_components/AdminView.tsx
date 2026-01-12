@@ -6,7 +6,7 @@ import { Check, X, Trash2, Calendar, Download, Building2 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// FIX: Strogi tipovi da TypeScript ne viče "Unexpected any"
+// FIX: Definisani tipovi da se ukloni "Unexpected any" greška
 interface BlockedDay {
     id: string;
     date: string;
@@ -16,7 +16,7 @@ interface BlockedDay {
 interface UserStat {
     id: string;
     name: string | null;
-    restaurantNames: string[]; // Niz imena za pametan prikaz
+    restaurantNames: string[];
     department: string | null;
     total: number;
     used: number;
@@ -32,7 +32,7 @@ interface RequestWithUser {
     user: { 
         name: string | null; 
         email: string | null; 
-        mainRestaurant: string; // Dodano polje
+        mainRestaurant: string; 
     };
 }
 
@@ -75,7 +75,7 @@ export default function AdminView({ allRequests, blockedDays, usersStats }: Admi
         ]);
 
         autoTable(doc, {
-            head: [['Ime i Prezime', 'Restorani', 'Ukupno', 'Used', 'Preostalo']],
+            head: [['Radnik', 'Restorani', 'Ukupno', 'Used', 'Preostalo']],
             body: tableData,
             startY: 40,
             styles: { fontSize: 8 },
@@ -89,6 +89,7 @@ export default function AdminView({ allRequests, blockedDays, usersStats }: Admi
 
     return (
         <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-[#F8FAFC]">
+            {/* HEADER */}
             <div className="flex justify-between items-center mb-8">
                 <h1 className="text-3xl font-black text-[#1a3826]">ADMIN <span className="text-orange-400">GODIŠNJI</span></h1>
                 
@@ -198,7 +199,7 @@ export default function AdminView({ allRequests, blockedDays, usersStats }: Admi
                                     <tr key={u.id} className="hover:bg-slate-50">
                                         <td className="p-4 font-bold text-slate-800">{u.name}</td>
                                         <td className="p-4">
-                                            {/* FIX: Pametni prikaz (slice + VIŠE) rješava layout pucanje */}
+                                            {/* FIX: Pametni prikaz da tabela ne puca */}
                                             <div className="flex flex-wrap gap-1 max-w-[300px]">
                                                 {u.restaurantNames.slice(0, 2).map(name => (
                                                     <span key={name} className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-black uppercase">
