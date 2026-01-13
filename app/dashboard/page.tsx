@@ -38,33 +38,28 @@ export default async function DashboardPage() {
   const userId = userSession.id;
   const userRole = userSession.role as Role;
   
-  // --- 1. DOHVAT PODATAKA (PARALELNO ZA BRZINU) ---
-  
-  // Dohvati detalje korisnika + podatke za statistiku
+  // --- DOHVAT PODATAKA ---
   const userDataPromise = prisma.user.findUnique({
     where: { id: userId },
     include: {
         vacations: { 
             orderBy: { createdAt: 'desc' },
-            take: 3 // Zadnja 3 zahtjeva za activity feed
+            take: 3
         },
         pdsList: {
-            where: { year: new Date().getFullYear() + 1 }, // Gledamo iduću godinu (2026 po tvojim podacima) ili trenutnu
+            where: { year: new Date().getFullYear() + 1 },
             take: 1
         }
     }
   });
 
-  // FIX: Eksplicitno definiranje niza rola kao Role[] da se izbjegne TS greška
   const adminRoles: Role[] = [Role.SUPER_ADMIN, Role.ADMIN, Role.SYSTEM_ARCHITECT, Role.MANAGER];
   const isAdmin = adminRoles.includes(userRole);
   
-  // Ako je admin, dohvati globalne brojke (koristimo underscore _ za neiskorištenu varijablu totalEmployees da ESLint ne viče)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const adminStatsPromise = isAdmin ? prisma.user.count({ where: { isActive: true } }) : Promise.resolve(0);
   const adminPendingPromise = isAdmin ? prisma.vacationRequest.count({ where: { status: 'PENDING' } }) : Promise.resolve(0);
 
-  // Dohvaćamo sve odjednom
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [userData, _totalEmployees, totalPending] = await Promise.all([
     userDataPromise,
@@ -74,28 +69,26 @@ export default async function DashboardPage() {
 
   if (!userData) redirect("/login");
 
-  // --- 2. OBRADA PODATAKA ZA UI ---
-
-  // PDS Statistika
+  // --- STATISTIKA ---
   const currentPDS = userData.pdsList[0];
   const pdsScore = currentPDS ? currentPDS.totalScore : 0;
   const pdsStatus = currentPDS ? currentPDS.status : "Nije započeto";
 
-  // Vacation Statistika
   const totalVacation = (userData.vacationEntitlement || 0) + (userData.vacationCarryover || 0);
   const usedVacation = userData.vacations
     .filter(v => v.status === 'APPROVED')
     .reduce((acc, v) => acc + v.days, 0);
   const vacationLeft = totalVacation - usedVacation;
 
-  // Permisije
-  const canViewPDS = true; // Svi vide svoj PDS
-  const canViewVacations = true; // Svi vide svoje odmore
+  const canViewPDS = true;
+  const canViewVacations = true;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 flex flex-col">
+    // FIX: Dodan relative i z-0 na glavni wrapper da ne gazi navigaciju
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 flex flex-col relative z-0">
       
       {/* --- HEADER --- */}
+      {/* FIX: Z-index header-a podignut na 50 da bude iznad svega */}
       <header className="h-20 bg-white border-b border-slate-200 sticky top-0 z-50 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] px-6 md:px-10 flex items-center justify-between">
           <div className="flex items-center gap-4">
               <div className="bg-[#1a3826] p-2.5 rounded-xl text-white shadow-lg shadow-emerald-900/20">
@@ -128,13 +121,15 @@ export default async function DashboardPage() {
           </div>
       </header>
 
-      <main className="flex-1 p-6 md:p-10 max-w-[1600px] mx-auto w-full space-y-10">
+      {/* FIX: Main content ima manji z-index (z-0) kako bi dropdownovi mogli ići preko njega */}
+      <main className="flex-1 p-6 md:p-10 max-w-[1600px] mx-auto w-full space-y-10 relative z-0">
           
-          {/* --- HERO SECTION (WELCOME) --- */}
-          <div className="relative overflow-hidden bg-[#1a3826] rounded-[2.5rem] p-10 md:p-12 shadow-2xl shadow-emerald-900/30 text-white flex flex-col md:flex-row justify-between items-center gap-8">
-              {/* Background Pattern */}
-              <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-              <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none"></div>
+          {/* --- HERO SECTION --- */}
+          {/* FIX: Uklonjen visoki z-index, sada je relative z-0 */}
+          <div className="relative overflow-hidden bg-[#1a3826] rounded-[2.5rem] p-10 md:p-12 shadow-2xl shadow-emerald-900/30 text-white flex flex-col md:flex-row justify-between items-center gap-8 z-0">
+              {/* Background Pattern - sada je apsolutno u dnu */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none z-[-1]"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none z-[-1]"></div>
 
               <div className="relative z-10 max-w-2xl">
                   <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold text-[#FFC72C] mb-4 border border-white/10">
@@ -149,7 +144,7 @@ export default async function DashboardPage() {
                   </p>
               </div>
 
-              {/* Quick KPI Stats (Floating on Hero) */}
+              {/* Quick KPI Stats */}
               <div className="flex gap-4 relative z-10 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
                   <div className="bg-white/10 backdrop-blur-md border border-white/10 p-5 rounded-2xl min-w-[140px] flex flex-col items-center text-center hover:bg-white/20 transition-all cursor-default">
                       <span className="text-emerald-100/60 text-[10px] font-black uppercase tracking-widest mb-1">Godišnji</span>
@@ -173,7 +168,7 @@ export default async function DashboardPage() {
 
           <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
               
-              {/* --- MAIN TOOLS GRID --- */}
+              {/* --- ALATI --- */}
               <div className="xl:col-span-3 space-y-6">
                   <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
                       <LayoutDashboard className="text-[#1a3826]" size={20}/> MOJI ALATI
@@ -181,7 +176,7 @@ export default async function DashboardPage() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                       
-                      {/* 1. PDS ALAT */}
+                      {/* PDS */}
                       {canViewPDS && (
                           <Link href="/tools/PDS" className="group bg-white p-1 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                               <div className="bg-slate-50 rounded-[1.8rem] p-6 h-full flex flex-col justify-between group-hover:bg-white transition-colors border border-transparent group-hover:border-slate-100">
@@ -204,7 +199,7 @@ export default async function DashboardPage() {
                           </Link>
                       )}
 
-                      {/* 2. VACATION ALAT */}
+                      {/* VACATIONS */}
                       {canViewVacations && (
                           <Link href="/tools/vacations" className="group bg-white p-1 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                               <div className="bg-slate-50 rounded-[1.8rem] p-6 h-full flex flex-col justify-between group-hover:bg-white transition-colors border border-transparent group-hover:border-slate-100">
@@ -227,7 +222,7 @@ export default async function DashboardPage() {
                           </Link>
                       )}
 
-                      {/* 3. ADMIN PANEL (Only Admins) */}
+                      {/* ADMIN/PROFILE */}
                       {isAdmin ? (
                           <Link href="/admin/users" className="group bg-[#1a3826] p-1 rounded-[2rem] shadow-lg shadow-emerald-900/20 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                               <div className="bg-[#1a3826] rounded-[1.8rem] p-6 h-full flex flex-col justify-between border border-white/10 relative overflow-hidden">
@@ -271,7 +266,7 @@ export default async function DashboardPage() {
                   </div>
               </div>
 
-              {/* --- SIDEBAR: ACTIVITY FEED --- */}
+              {/* --- SIDEBAR: ACTIVITY --- */}
               <div className="xl:col-span-1 space-y-6">
                   <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
                       <TrendingUp className="text-blue-500" size={20}/> AKTIVNOSTI
@@ -280,7 +275,6 @@ export default async function DashboardPage() {
                   <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 h-fit">
                       <div className="space-y-6">
                           
-                          {/* Activity Item 1: PDS */}
                           <div className="flex gap-4 relative">
                               <div className="flex flex-col items-center">
                                   <div className="h-2 w-2 rounded-full bg-[#1a3826]"></div>
@@ -297,7 +291,6 @@ export default async function DashboardPage() {
                               </div>
                           </div>
 
-                          {/* Activity Items: Vacations */}
                           {userData.vacations.map((vac) => (
                               <div key={vac.id} className="flex gap-4 relative">
                                   <div className="flex flex-col items-center">
@@ -323,7 +316,6 @@ export default async function DashboardPage() {
                                   <p className="text-xs text-slate-400 font-medium">Nema nedavnih aktivnosti.</p>
                               </div>
                           )}
-
                       </div>
                       
                       <div className="mt-6 pt-6 border-t border-slate-50 text-center">
@@ -333,7 +325,6 @@ export default async function DashboardPage() {
                       </div>
                   </div>
 
-                  {/* Contact Support Widget */}
                   <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                       <div className="absolute right-0 top-0 w-24 h-24 bg-blue-500 rounded-full blur-[40px] opacity-20"></div>
                       <h4 className="font-bold text-lg mb-2 relative z-10">Trebaš pomoć?</h4>
