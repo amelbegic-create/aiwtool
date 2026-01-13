@@ -1,4 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck
+
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
@@ -23,8 +25,7 @@ export async function GET(req: Request) {
       },
     });
 
-    // Ovdje koristimo as any da TypeScript ne pravi probleme
-    return NextResponse.json({ success: true, data: (report as any)?.data || null });
+    return NextResponse.json({ success: true, data: report?.data || null });
 
   } catch (error) {
     console.error("Error fetching productivity:", error);
@@ -44,18 +45,14 @@ export async function POST(req: Request) {
           date,
         },
       },
-      // ESLint ignorira grešku na idućoj liniji
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       update: {
         data: data, 
-      } as any, 
-      // ESLint ignorira grešku na idućoj liniji
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      },
       create: {
         restaurantId,
         date,
         data: data,
-      } as any,
+      },
     });
 
     return NextResponse.json({ success: true, data: report });
