@@ -151,12 +151,8 @@ model ProductivityReport {
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  date         String     // Može biti "2024-05-20" ILI "monday", "special_1"
-  
-  // AŽURIRANO: Dodan @default("{}") da se riješi greška pri migraciji
+  date         String     
   data         Json       @default("{}")
-  
-  // Legacy fields (optional)
   targetProd   Float?     @default(120)
   netCoeff     Float?     @default(1.17)
   hourlyData   Json?
@@ -262,14 +258,4 @@ model RuleRestaurant {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
 
   @@unique([ruleId, restaurantId])
-}
-
-model AuditLog {
-  id          String   @id @default(cuid())
-  action      String
-  entity      String
-  entityId    String?
-  details     String?
-  performedBy String
-  createdAt   DateTime @default(now())
 }

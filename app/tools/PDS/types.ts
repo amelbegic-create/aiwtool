@@ -1,15 +1,16 @@
-export type PDSRange = {
+export type PDSScoringRule = {
   from: number;
   to: number;
   pts: number;
 };
 
 export type PDSGoal = {
-  id?: number;
+  id?: string; // Koristimo string za ID (uuid) ili generisani string
   title: string;
-  scoringRules: PDSRange[];
-  result?: string;
-  points?: number;
+  description?: string; // Dodano za opis cilja
+  scoringRules: PDSScoringRule[];
+  result?: string; // Unos rezultata (npr. "15.5")
+  points?: number; // Izračunati bodovi
 };
 
 export type PDSScaleLevel = {
