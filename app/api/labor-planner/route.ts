@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // Prilagodi putanju ako ti je prisma drugdje (npr. ../../lib/prisma)
+import prisma from "@/lib/prisma"; 
 
 export async function POST(req: Request) {
   try {
@@ -7,6 +7,7 @@ export async function POST(req: Request) {
     const { year, month, restaurant, data } = body;
 
     // Spremi ili Ažuriraj (Upsert)
+    // Koristimo restaurant ID kao string unutar modela LaborPlan
     const plan = await prisma.laborPlan.upsert({
       where: {
         year_month_restaurant: {
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
         },
       },
       update: {
-        data: data, // Ažuriraj JSON ako postoji
+        data: data, // Ažuriraj JSON sa novim inputima (uključujući taxAustria)
       },
       create: {
         year,
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
         year_month_restaurant: {
           year,
           month,
-          restaurant,
+          restaurant: String(restaurant),
         },
       },
     });

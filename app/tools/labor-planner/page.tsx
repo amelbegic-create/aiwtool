@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { useSearchParams, useRouter } from "next/navigation"; 
 
 // --- TIPOVI ---
 
@@ -36,6 +35,7 @@ interface SavedInputs {
   vacationStd?: string;
   sickStd?: string;
   extraUnprodStd?: string;
+  taxAustria?: string;
   budgetUmsatz?: string;
   budgetCL?: string;
   budgetCLPct?: string;
@@ -57,6 +57,13 @@ interface Holiday {
   m: number;
 }
 
+// Interface za PDF hook
+interface AutoTableHookData {
+  section: 'head' | 'body' | 'foot';
+  row: { index: number; raw: string[] };
+  cell: { styles: { fillColor?: number[]; textColor?: number[]; fontStyle?: string } };
+}
+
 // --- BOJE ---
 const COLORS = {
   green: "#1b3a26",
@@ -64,19 +71,20 @@ const COLORS = {
   lightGray: "#f3f4f6",
   white: "#ffffff",
   border: "#d1d5db",
+  redText: "#dc2626",
 };
 
 // --- POMOĆNE FUNKCIJE ---
 
 const parseDE = (s: string | number | undefined | null): number => {
   if (!s) return 0;
-  const clean = String(s).replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  const clean = String(s).replace(/\./g, "").replace(",", ".");
   const v = parseFloat(clean);
   return isNaN(v) ? 0 : v;
 };
 
 const fmtNum = (n: number, dec: number = 2): string => {
-  return new Intl.NumberFormat("bs-BA", {
+  return new Intl.NumberFormat("de-DE", {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec,
   }).format(n || 0);
@@ -104,19 +112,30 @@ const getHolidaysForYear = (year: number): Holiday[] => {
   return holidays;
 };
 
-// --- GLAVNA KOMPONENTA ---
-export default function LaborPlanner() {
+// --- GLAVNA KOMPONENTA (Sadržaj) ---
+function LaborPlannerContent() {
   const [loading, setLoading] = useState(false);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   
+  // HOOKS
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // Čitamo ID iz URL-a. Ovo je GLAVNI izvor istine.
+  const urlRestaurantId = searchParams.get("restaurantId");
+
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState("");
+  
+  // State za ID restorana (inicijalno ono što je u URL-u)
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState(urlRestaurantId || "");
 
+  // INPUT STATE
   const [avgWage, setAvgWage] = useState("");
   const [vacationStd, setVacationStd] = useState("");
   const [sickStd, setSickStd] = useState("");
   const [extraUnprodStd, setExtraUnprodStd] = useState("");
+  const [taxAustria, setTaxAustria] = useState(""); 
   const [budgetUmsatz, setBudgetUmsatz] = useState("");
   const [budgetCL, setBudgetCL] = useState("");
   const [budgetCLPct, setBudgetCLPct] = useState("");
@@ -126,34 +145,57 @@ export default function LaborPlanner() {
 
   const monthNames = ["Januar", "Februar", "Mart", "April", "Maj", "Juni", "Juli", "August", "Septembar", "Oktobar", "Novembar", "Decembar"];
 
-  // 1. DOHVAT RESTORANA
+  // 1. DOHVAT LISTE RESTORANA
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        const res = await fetch("/api/restaurants");
+        const res = await fetch("/api/restaurants"); 
         const data = await res.json();
         setRestaurants(data);
-        if (data.length > 0 && !selectedRestaurantId) {
-           setSelectedRestaurantId(data[0].id);
-        }
+        
+        // Ako nemamo URL parametar, a imamo podatke, postavi prvi
+        if (data.length > 0 && !urlRestaurantId && !selectedRestaurantId) {
+           const firstId = data[0].id;
+           // OBAVEZNO: Ažuriraj URL odmah da se uskladi
+           const newParams = new URLSearchParams(searchParams.toString());
+           newParams.set("restaurantId", firstId);
+           router.replace(`?${newParams.toString()}`);
+           setSelectedRestaurantId(firstId);
+        } 
       } catch (err) {
-        console.error("Greška", err);
+        console.error("Greška pri dohvatu restorana", err);
       }
     };
     fetchRestaurants();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2. GENERIRANJE DANA
+  // 2. STROGA SINHRONIZACIJA: Kad se promijeni URL (TopNav klik), ažuriraj State
+  useEffect(() => {
+    if (urlRestaurantId && urlRestaurantId !== selectedRestaurantId) {
+        setSelectedRestaurantId(urlRestaurantId);
+    }
+  }, [urlRestaurantId, selectedRestaurantId]);
+
+  // Handler za promjenu u Dropdownu (Sad ažurira URL, a useEffect iznad ažurira state)
+  const handleRestaurantChange = (newId: string) => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("restaurantId", newId);
+      router.push(`?${newParams.toString()}`); // Push mijenja URL i triggera refresh podataka
+  };
+
+  // GENERIRANJE DANA
   const generateEmptyDays = useCallback((m: number, y: number, savedRows: SavedRow[] = []) => {
     const daysInMonth = new Date(y, m, 0).getDate();
     const currentHolidays = getHolidaysForYear(y);
     const newDays: DayData[] = [];
+    
     const dayNamesBS = { Mon: "Pon", Tue: "Uto", Wed: "Sri", Thu: "Čet", Fri: "Pet", Sat: "Sub", Sun: "Ned" };
+    type DayKey = keyof typeof dayNamesBS;
 
     for (let i = 1; i <= 31; i++) {
         const date = new Date(y, m - 1, i);
-        const dayNameEng = date.toLocaleDateString("en-US", { weekday: "short" }) as any;
+        const dayNameEng = date.toLocaleDateString("en-US", { weekday: "short" }) as DayKey;
         const dayName = dayNamesBS[dayNameEng] || dayNameEng;
         
         const isWeekend = dayName === "Sub" || dayName === "Ned";
@@ -175,17 +217,18 @@ export default function LaborPlanner() {
   }, []);
 
   const clearInputs = () => {
-    setAvgWage(""); setVacationStd(""); setSickStd(""); setExtraUnprodStd("");
+    setAvgWage(""); setVacationStd(""); setSickStd(""); setExtraUnprodStd(""); setTaxAustria("");
     setBudgetUmsatz(""); setBudgetCL(""); setBudgetCLPct("");
   };
 
-  // 3. UČITAVANJE
+  // UČITAVANJE PODATAKA
   const loadDataFromDB = useCallback(async (m: number, y: number, rId: string) => {
     if(!rId) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/labor-planner?year=${y}&month=${m}&restaurant=${rId}`);
       const json = await res.json();
+      
       if (json.success && json.data) {
         const parsed: LaborPlanData = json.data;
         if(parsed.inputs) {
@@ -193,6 +236,7 @@ export default function LaborPlanner() {
             setVacationStd(parsed.inputs.vacationStd || "");
             setSickStd(parsed.inputs.sickStd || "");
             setExtraUnprodStd(parsed.inputs.extraUnprodStd || "");
+            setTaxAustria(parsed.inputs.taxAustria || ""); 
             setBudgetUmsatz(parsed.inputs.budgetUmsatz || "");
             setBudgetCL(parsed.inputs.budgetCL || "");
             setBudgetCLPct(parsed.inputs.budgetCLPct || "");
@@ -213,41 +257,67 @@ export default function LaborPlanner() {
     }
   }, [generateEmptyDays]);
 
+  // Trigger za učitavanje podataka
   useEffect(() => {
     if(selectedRestaurantId) {
       loadDataFromDB(month, year, selectedRestaurantId);
     }
   }, [month, year, selectedRestaurantId, loadDataFromDB]);
 
-  // 4. TOTALI
+  // TOTALI
   const totals = (() => {
     let sumUmsatz = 0, sumProdStd = 0, sumSF = 0, sumHM = 0, sumNZ = 0, sumExtra = 0;
+    
     daysData.forEach((d) => {
       if (!d.exists) return;
-      const u = parseDE(d.umsatz); const p = parseDE(d.prod); const sf = parseDE(d.sfStd);
-      sumUmsatz += u; sumHM += parseDE(d.hmStd); sumNZ += parseDE(d.nz); sumExtra += parseDE(d.extra); sumSF += sf;
-      if (u > 0 && p > 0) { let tmp = u / p - sf; if (tmp < 0) tmp = 0; sumProdStd += tmp; }
+      const u = parseDE(d.umsatz); 
+      const p = parseDE(d.prod); 
+      const sf = parseDE(d.sfStd);
+      
+      sumUmsatz += u; 
+      sumHM += parseDE(d.hmStd); 
+      sumNZ += parseDE(d.nz); 
+      sumExtra += parseDE(d.extra); 
+      sumSF += sf;
+
+      if (u > 0 && p > 0) { 
+          let tmp = u / p - sf; 
+          if (tmp < 0) tmp = 0; 
+          sumProdStd += tmp; 
+      }
     });
-    const valUrlaub = parseDE(vacationStd); const valKrank = parseDE(sickStd); const valZusatz = parseDE(extraUnprodStd); const valWage = parseDE(avgWage);
+
+    const valUrlaub = parseDE(vacationStd); 
+    const valKrank = parseDE(sickStd); 
+    const valZusatz = parseDE(extraUnprodStd); 
+    const valWage = parseDE(avgWage);
+    const valTax = parseDE(taxAustria); 
+
     const totalHours = sumProdStd + sumHM + sumExtra + valUrlaub + valKrank + valZusatz;
-    const clEuro = (valWage > 0 && (totalHours > 0 || sumNZ > 0)) ? (totalHours * valWage) + sumNZ : 0;
+    
+    const clEuroRaw = (valWage > 0 && (totalHours > 0 || sumNZ > 0)) ? (totalHours * valWage) + sumNZ : 0;
+    const clEuro = Math.max(0, clEuroRaw - valTax);
+
     const clPct = (sumUmsatz > 0 && clEuro > 0) ? (clEuro / sumUmsatz) * 100 : 0;
     const istProd = (sumProdStd + sumExtra) > 0 ? sumUmsatz / (sumProdStd + sumExtra) : 0;
     const realProd = totalHours > 0 ? sumUmsatz / totalHours : 0;
     const budgetCLVal = parseDE(budgetCL);
+
     return { sumUmsatz, sumProdStd, sumSF, sumHM, sumNZ, sumExtra, totalHours, clEuro, clPct, istProd, realProd, budgetCLVal };
   })();
 
-  // 5. SPREMANJE
+  // SPREMANJE
   const saveDataToDB = async () => {
-    if(!selectedRestaurantId) return alert("Molimo odaberite restoran");
+    if(!selectedRestaurantId) return alert("Molimo odaberite restoran.");
     setLoading(true);
+    
     const dataToSave: LaborPlanData = {
-        inputs: { avgWage, vacationStd, sickStd, extraUnprodStd, budgetUmsatz, budgetCL, budgetCLPct },
+        inputs: { avgWage, vacationStd, sickStd, extraUnprodStd, taxAustria, budgetUmsatz, budgetCL, budgetCLPct },
         rows: daysData.map(d => ({
             umsatz: d.umsatz, prod: d.prod, sfStd: d.sfStd, hmStd: d.hmStd, nz: d.nz, extra: d.extra
         }))
     };
+
     try {
         const res = await fetch('/api/labor-planner', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -259,14 +329,13 @@ export default function LaborPlanner() {
     finally { setLoading(false); }
   };
 
-  // 6. PDF EXPORT (MJESEČNI)
+  // PDF EXPORT - SINGLE MONTH (Smanjen font i padding da stane na 1 str.)
   const handlePrintSingle = () => {
-    if(!selectedRestaurantId) return alert("Odaberite restoran.");
+    if(!selectedRestaurantId) return alert("Nema odabranog restorana.");
     setIsExporting(true);
     
     const doc = new jsPDF("p", "mm", "a4");
     const selectedRest = restaurants.find(r => r.id === selectedRestaurantId);
-    // const restTitle = selectedRest ? `${selectedRest.code} - ${selectedRest.name || ''}` : "";
 
     const tableBody = daysData.filter(d => d.exists).map(d => {
         const u = parseDE(d.umsatz); 
@@ -302,52 +371,88 @@ export default function LaborPlanner() {
     ];
 
     doc.setFillColor(27, 58, 38);
-    doc.rect(0, 0, 210, 25, "F");
+    doc.rect(0, 0, 210, 25, "F"); 
+    
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
+    doc.setFontSize(20);
     doc.setFont("helvetica", "bold");
-    doc.text("AIW Services", 14, 16);
-    doc.setFontSize(10);
+    doc.text("AIW Services", 14, 15);
+    
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`Labor Planner | ${selectedRest?.code || ''} | ${monthNames[month-1]} ${year}`, 14, 22);
+    doc.text(`LABOR PLANNER`, 14, 20);
+    doc.text(`${selectedRest?.code || ''} | ${monthNames[month-1]} ${year}`, 196, 15, { align: "right" });
 
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    const yPos = 35;
+    doc.setFontSize(8);
+    const yPos = 32; 
     
-    doc.text(`Satnica: ${avgWage || '-'} € | GO: ${vacationStd || '-'}h | BO: ${sickStd || '-'}h`, 14, yPos);
-    doc.setFont("helvetica", "bold");
-    doc.text(`CL: ${fmtNum(totals.clEuro)} € (${fmtNum(totals.clPct)} %) | Sati: ${fmtNum(totals.totalHours)}`, 110, yPos);
+    doc.text(`Satnica: ${avgWage || '-'} €`, 14, yPos);
+    doc.text(`GO: ${vacationStd || '-'} h`, 50, yPos);
+    doc.text(`BO: ${sickStd || '-'} h`, 80, yPos);
+    doc.text(`Tax: ${taxAustria || '-'} €`, 110, yPos);
 
+    doc.setFillColor(255, 199, 44);
+    doc.roundedRect(145, 27, 50, 12, 2, 2, "F"); 
+    doc.setTextColor(27, 58, 38);
+    doc.setFontSize(7);
+    doc.text("CL ESTIMATION", 148, 31);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${fmtNum(totals.clEuro)} €`, 148, 36);
+    
     autoTable(doc, {
-        startY: yPos + 8,
+        startY: 45, 
         head: [['Dan', 'Promet', 'Prod(€)', 'P.Sati', 'SF', 'HM', 'Noćni', 'Extra']],
         body: [...tableBody, totalRow],
         theme: 'grid',
-        headStyles: { fillColor: [27, 58, 38], textColor: 255, fontSize: 9, halign: 'center' },
-        footStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 9 },
-        styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.1, valign: 'middle', halign: 'center' },
+        headStyles: { 
+            fillColor: [27, 58, 38], 
+            textColor: 255, 
+            fontSize: 7, 
+            halign: 'center',
+            fontStyle: 'bold',
+            cellPadding: 1.5
+        },
+        footStyles: { 
+            fillColor: [240, 240, 240], 
+            textColor: 0, 
+            fontStyle: 'bold', 
+            fontSize: 7,
+            cellPadding: 1.5
+        },
+        styles: { 
+            fontSize: 7, 
+            cellPadding: 1.5, 
+            lineColor: [220, 220, 220], 
+            lineWidth: 0.1, 
+            valign: 'middle', 
+            halign: 'center',
+            font: "helvetica"
+        },
         columnStyles: {
-            0: { fontStyle: 'bold', cellWidth: 20, halign: 'left' },
+            0: { fontStyle: 'bold', cellWidth: 18, halign: 'left' },
             1: { halign: 'right' },
             2: { halign: 'center' },
-            3: { halign: 'center', fillColor: [245, 245, 245] },
+            3: { halign: 'center', fillColor: [250, 250, 250] },
             7: { halign: 'center' }
         },
-        didParseCell: function(data: any) {
-            if (data.section === 'body' && typeof data.row.index === 'number' && data.row.index < tableBody.length) {
-                const rowRaw = data.row.raw as string[];
+        didParseCell: function(data: unknown) {
+            const hookData = data as AutoTableHookData;
+            if (hookData.section === 'body' && typeof hookData.row.index === 'number' && hookData.row.index < tableBody.length) {
+                const rowRaw = hookData.row.raw;
                 const dayStr = rowRaw[0];
                 if (dayStr.includes('Sub') || dayStr.includes('Ned')) {
-                    data.cell.styles.fillColor = [243, 244, 246];
+                    hookData.cell.styles.fillColor = [249, 250, 251];
                 }
                 if (dayStr.includes('*')) {
-                    data.cell.styles.fillColor = [254, 226, 226];
+                    hookData.cell.styles.fillColor = [254, 226, 226];
+                    hookData.cell.styles.textColor = [220, 38, 38];
                 }
             }
-            if (typeof data.row.index === 'number' && data.row.index === tableBody.length) {
-                 data.cell.styles.fillColor = [220, 220, 220];
-                 data.cell.styles.fontStyle = 'bold';
+            if (typeof hookData.row.index === 'number' && hookData.row.index === tableBody.length) {
+                 hookData.cell.styles.fillColor = [230, 230, 230];
+                 hookData.cell.styles.fontStyle = 'bold';
             }
         }
     });
@@ -356,17 +461,21 @@ export default function LaborPlanner() {
     setIsExporting(false);
   };
 
-  // 7. PDF EXPORT (GODIŠNJI)
+  // PDF EXPORT - YEARLY
   const handleExportYear = async () => {
-    if(!selectedRestaurantId) return alert("Odaberite restoran.");
+    if(!selectedRestaurantId) return alert("Nema odabranog restorana.");
     setLoading(true);
     try {
         const doc = new jsPDF("p", "mm", "a4");
         const selectedRest = restaurants.find(r => r.id === selectedRestaurantId);
-        // const restTitle = selectedRest ? `${selectedRest.code} - ${selectedRest.name || ''}` : "";
         const holidays = getHolidaysForYear(year);
 
         for (let m = 1; m <= 12; m++) {
+            // Nova stranica samo ako NIJE prva iteracija
+            if (m > 1) {
+                doc.addPage();
+            }
+
             const res = await fetch(`/api/labor-planner?year=${year}&month=${m}&restaurant=${selectedRestaurantId}`);
             const json = await res.json();
             
@@ -425,65 +534,45 @@ export default function LaborPlanner() {
                 fmtNum(mSumExtra)
             ];
 
-            if (m > 1) doc.addPage();
-
+            // Header - manje dimenzije
             doc.setFillColor(27, 58, 38);
             doc.rect(0, 0, 210, 20, "F");
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(14);
             doc.setFont("helvetica", "bold");
-            doc.text("AIW Services", 14, 12);
-            doc.setFontSize(9);
-            doc.setFont("helvetica", "normal");
-            doc.text(`Labor Planner | ${selectedRest?.code || ''} | ${monthNames[m-1]} ${year}`, 14, 17);
+            doc.text(`${selectedRest?.code || ''} | ${monthNames[m-1]} ${year}`, 105, 13, { align: "center" });
 
+            // Info
             doc.setTextColor(0, 0, 0);
-            doc.setFontSize(9);
+            doc.setFontSize(8);
             const yPos = 28;
             
             const valUrlaub = parseDE(currentInputs.vacationStd);
             const valKrank = parseDE(currentInputs.sickStd);
             const valZusatz = parseDE(currentInputs.extraUnprodStd);
             const valWage = parseDE(currentInputs.avgWage);
+            const valTax = parseDE(currentInputs.taxAustria); 
+
             const totalHours = mSumProd + mSumHM + mSumExtra + valUrlaub + valKrank + valZusatz;
-            const clEuro = (valWage > 0 && (totalHours > 0 || mSumNZ > 0)) ? (totalHours * valWage) + mSumNZ : 0;
+            
+            const clEuroRaw = (valWage > 0 && (totalHours > 0 || mSumNZ > 0)) ? (totalHours * valWage) + mSumNZ : 0;
+            const clEuro = Math.max(0, clEuroRaw - valTax);
+
             const clPct = (mSumUmsatz > 0 && clEuro > 0) ? (clEuro / mSumUmsatz) * 100 : 0;
 
-            doc.text(`Satnica: ${currentInputs.avgWage || '-'} € | GO: ${currentInputs.vacationStd || '-'}h | BO: ${currentInputs.sickStd || '-'}h`, 14, yPos);
+            doc.text(`Satnica: ${currentInputs.avgWage || '-'} € | Tax: ${currentInputs.taxAustria || '-'} €`, 14, yPos);
             doc.setFont("helvetica", "bold");
-            doc.text(`CL: ${fmtNum(clEuro)} € (${fmtNum(clPct)} %) | Sati: ${fmtNum(totalHours)}`, 130, yPos);
+            doc.text(`CL: ${fmtNum(clEuro)} € (${fmtNum(clPct)} %)`, 150, yPos);
 
             autoTable(doc, {
-                startY: yPos + 5,
+                startY: yPos + 6,
                 head: [['Dan', 'Promet', 'Prod(€)', 'P.Sati', 'SF', 'HM', 'Noćni', 'Extra']],
                 body: [...calculatedRows, totalRow],
                 theme: 'grid',
-                headStyles: { fillColor: [27, 58, 38], textColor: 255, fontSize: 8, halign: 'center' },
-                footStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 8 },
-                styles: { fontSize: 7, cellPadding: 1.5, lineColor: [200, 200, 200], lineWidth: 0.1, valign: 'middle', halign: 'center' },
-                columnStyles: {
-                    0: { fontStyle: 'bold', cellWidth: 15, halign: 'left' },
-                    1: { halign: 'right' },
-                    2: { halign: 'center' },
-                    3: { halign: 'center', fillColor: [245, 245, 245] },
-                    7: { halign: 'center' }
-                },
-                didParseCell: function(data: any) {
-                    if (data.section === 'body' && typeof data.row.index === 'number' && data.row.index < calculatedRows.length) {
-                        const raw = data.row.raw as string[];
-                        const dayStr = raw[0];
-                        if (dayStr.includes('Sub') || dayStr.includes('Ned')) {
-                            data.cell.styles.fillColor = [243, 244, 246];
-                        }
-                        if (dayStr.includes('*')) {
-                            data.cell.styles.fillColor = [254, 226, 226];
-                        }
-                    }
-                    if (data.row.index === calculatedRows.length) {
-                         data.cell.styles.fillColor = [220, 220, 220];
-                         data.cell.styles.fontStyle = 'bold';
-                    }
-                }
+                headStyles: { fillColor: [27, 58, 38], textColor: 255, fontSize: 7, halign: 'center', cellPadding: 1.5 },
+                footStyles: { fillColor: [220, 220, 220], textColor: 0, fontStyle: 'bold', fontSize: 7, cellPadding: 1.5 },
+                styles: { fontSize: 7, cellPadding: 1.5, halign: 'center' },
+                columnStyles: { 0: { halign: 'left', fontStyle: 'bold' }, 1: { halign: 'right' } }
             });
         }
         doc.save(`Labor_Plan_Godisnji_${year}.pdf`);
@@ -554,15 +643,16 @@ export default function LaborPlanner() {
             {/* LIJEVA STRANA */}
             <div className="xl:col-span-3 flex flex-col gap-6">
                 
-                {/* 1. KARTICA POSTAVKI */}
+                {/* 1. KARTICA POSTAVKI - DROPDOWN POVEZAN SA URL-om */}
                 <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 no-print">
                     <h3 className="text-[#1b3a26] font-bold text-lg border-b border-gray-100 pb-3 mb-4 uppercase">Postavke</h3>
                     <div className="space-y-4">
+                        
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Restoran</label>
                             <select 
                                 value={selectedRestaurantId} 
-                                onChange={(e) => setSelectedRestaurantId(e.target.value)}
+                                onChange={(e) => handleRestaurantChange(e.target.value)}
                                 className="w-full p-2 bg-gray-50 border border-gray-300 rounded-lg font-medium text-gray-800 focus:ring-2 focus:ring-[#ffc72c] outline-none"
                             >
                                 {restaurants.map(r => <option key={r.id} value={r.id}>{r.code} - {r.name}</option>)}
@@ -604,19 +694,27 @@ export default function LaborPlanner() {
                     </div>
                 </div>
 
-                {/* 2. ULAZNI PODACI */}
+                {/* 2. PARAMETRI - DODAN TAX AUSTRIA */}
                 <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
                     <h3 className="text-gray-700 font-bold text-sm uppercase mb-3">Parametri</h3>
                     <div className="space-y-2">
                         <InputRow label="Satnica (€)" value={avgWage} onChange={setAvgWage} />
                         <InputRow label="Godišnji (h)" value={vacationStd} onChange={setVacationStd} />
                         <InputRow label="Bolovanje (h)" value={sickStd} onChange={setSickStd} />
+                        
                         <div className="h-px bg-gray-100 my-2"></div>
+                        
                         <ReadOnlyRow label="Prod. Sati" value={fmtNum(totals.sumProdStd)} />
                         <ReadOnlyRow label="HM Sati" value={fmtNum(totals.sumHM)} />
                         <ReadOnlyRow label="Noćni (€)" value={fmtNum(totals.sumNZ)} />
+                        
                         <div className="h-px bg-gray-100 my-2"></div>
-                        <InputRow label="Dodatni Sati" value={extraUnprodStd} onChange={setExtraUnprodStd} />
+                        
+                        <InputRow label="Dodatni Sati (Neprod.)" value={extraUnprodStd} onChange={setExtraUnprodStd} />
+                        <InputRow label="Tax Austria (€)" value={taxAustria} onChange={setTaxAustria} />
+
+                        <div className="h-px bg-gray-100 my-2"></div>
+
                         <InputRow label="Budžet Promet" value={budgetUmsatz} onChange={setBudgetUmsatz} />
                         <InputRow label="Budžet CL €" value={budgetCL} onChange={setBudgetCL} />
                         <InputRow label="Budžet CL %" value={budgetCLPct} onChange={setBudgetCLPct} />
@@ -705,6 +803,15 @@ export default function LaborPlanner() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Wrapper za Suspense zbog useSearchParams
+export default function LaborPlanner() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center">Učitavanje...</div>}>
+      <LaborPlannerContent />
+    </Suspense>
   );
 }
 

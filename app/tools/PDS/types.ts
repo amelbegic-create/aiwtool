@@ -1,30 +1,31 @@
-export type PDSScoringRule = {
+export type GoalType = 'NUMERIC' | 'BOOLEAN';
+
+export interface PDSScoringRule {
   from: number;
   to: number;
   pts: number;
-};
+}
 
-export type PDSGoal = {
-  id?: string; // Koristimo string za ID (uuid) ili generisani string
+export interface PDSGoal {
+  id?: string; // Opcionalni ID za stabilnost
   title: string;
-  description?: string; // Dodano za opis cilja
-  scoringRules: PDSScoringRule[];
-  result?: string; // Unos rezultata (npr. "15.5")
-  points?: number; // Izračunati bodovi
-};
+  type: GoalType;
+  
+  // ZA DA/NE TIP:
+  yesPoints?: number; // Koliko bodova nosi DA
+  noPoints?: number;  // Koliko bodova nosi NE (može biti i minus)
 
-export type PDSScaleLevel = {
+  // ZA NUMERIČKI TIP:
+  scoringRules: PDSScoringRule[]; 
+
+  // REZULTAT (Unosi radnik/manager):
+  result: string | boolean; 
+  points: number; // Konačni osvojeni bodovi
+}
+
+export interface PDSScaleLevel {
   label: string;
   min: number;
   max: number;
   colorHex: string;
-};
-
-export interface PDSUpdateData {
-  goals: PDSGoal[];
-  scale: PDSScaleLevel[]; 
-  employeeComment?: string;
-  managerComment?: string;
-  employeeSignature?: string | null;
-  managerSignature?: string | null;
 }

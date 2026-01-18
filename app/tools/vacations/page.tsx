@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -5,86 +6,74 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import UserView from "./_components/UserView";
 import AdminView from "./_components/AdminView";
+import { cookies } from "next/headers"; // Import za kolačiće
 
-export default async function VacationPage() {
+export default async function VacationPage(props: { searchParams: Promise<{ year?: string }> }) {
   const session = await getServerSession(authOptions);
+  if (!session?.user) redirect("/login");
 
-  if (!session?.user) {
-    redirect("/login");
-  }
+  // 1. DOHVATI AKTIVNI RESTORAN IZ KOLAČIĆA
+  const cookieStore = await cookies();
+  const activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
 
-  // FIX: Siguran pristup ID-u korisnika
-  const sessionUserId = (session.user as { id: string }).id;
-
-  // Dohvati korisnika i njegove restorane
+  const sessionUserId = (session.user as any).id;
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    include: {
-      restaurants: {
-        include: { restaurant: true },
-      },
-    },
+    include: { restaurants: { include: { restaurant: true } } },
   });
 
-  if (!user) {
-    return (
-      <div className="p-10 text-red-500 font-bold">
-        Greška: Korisnik nije pronađen.
-      </div>
-    );
-  }
+  if (!user) return <div className="p-10 text-red-500">Korisnik nije pronađen.</div>;
 
-  const isGodMode =
-    user.role === Role.SYSTEM_ARCHITECT || user.role === Role.SUPER_ADMIN;
+  const searchParams = await props.searchParams;
+  const currentYear = new Date().getFullYear();
+  const selectedYear = searchParams.year ? parseInt(searchParams.year) : currentYear;
+  
+  const startOfYear = `${selectedYear}-01-01`;
+  const endOfYear = `${selectedYear}-12-31`;
+
+  const isGodMode = user.role === Role.SYSTEM_ARCHITECT || user.role === Role.SUPER_ADMIN;
   const isManager = user.role === Role.ADMIN || user.role === Role.MANAGER;
 
-  // Dohvati praznike (Globalno ili po restoranu - ovdje pojednostavljeno globalno za prikaz)
-  const blockedDaysRaw = await prisma.blockedDay.findMany({
-    orderBy: { date: "asc" },
-  });
-
-  const blockedDays = blockedDaysRaw.map((d) => ({
-    id: d.id,
-    date: d.date,
-    reason: d.reason,
-  }));
+  // Praznici
+  const blockedDaysRaw = await prisma.blockedDay.findMany({ orderBy: { date: "asc" } });
+  const blockedDays = blockedDaysRaw.map((d) => ({ id: d.id, date: d.date, reason: d.reason }));
 
   // --- ADMIN / MANAGER POGLED ---
   if (isGodMode || isManager) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let userWhereClause: any = { isActive: true }; // Samo aktivni korisnici
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let requestWhereClause: any = {};
+    let userWhereClause: any = { isActive: true };
+    let requestWhereClause: any = {
+        start: { gte: startOfYear, lte: endOfYear }
+    };
 
-    // Ako nije Super Admin, vidi samo svoje restorane
-    if (!isGodMode) {
-      const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
-
-      userWhereClause = {
-        ...userWhereClause,
-        restaurants: {
-          some: { restaurantId: { in: myRestaurantIds } },
-        },
-      };
-
-      requestWhereClause = {
-        user: {
-          restaurants: {
-            some: { restaurantId: { in: myRestaurantIds } },
-          },
-        },
-      };
+    // 2. FILTRIRANJE PREMA ODABRANOM RESTORANU (ILI DOZVOLAMA)
+    if (activeRestaurantId && activeRestaurantId !== 'all') {
+        // Ako je odabran specifičan restoran
+        userWhereClause = { 
+            ...userWhereClause, 
+            restaurants: { some: { restaurantId: activeRestaurantId } } 
+        };
+        requestWhereClause = { 
+            ...requestWhereClause,
+            user: { restaurants: { some: { restaurantId: activeRestaurantId } } } 
+        };
+    } else if (!isGodMode) {
+        // Ako je "Svi restorani", ali user nije GodMode, daj mu samo njegove restorane
+        const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
+        userWhereClause = { 
+            ...userWhereClause, 
+            restaurants: { some: { restaurantId: { in: myRestaurantIds } } } 
+        };
+        requestWhereClause = { 
+            ...requestWhereClause,
+            user: { restaurants: { some: { restaurantId: { in: myRestaurantIds } } } } 
+        };
     }
 
-    // 1. Dohvati sve zahtjeve (za tablicu zahtjeva)
+    // 3. DOHVAT PODATAKA (Već filtrirano)
     const allRequestsRaw = await prisma.vacationRequest.findMany({
       where: requestWhereClause,
       include: {
-        user: {
-          include: {
-            restaurants: { include: { restaurant: true } },
-          },
-        },
+        user: { include: { restaurants: { include: { restaurant: true } } } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -96,17 +85,22 @@ export default async function VacationPage() {
       days: req.days,
       status: req.status,
       user: {
+        id: req.user.id, // Bitno za povezivanje u PDF-u
         name: req.user.name,
         email: req.user.email,
         mainRestaurant: req.user.restaurants[0]?.restaurant.name || "N/A",
       },
     }));
 
-    // 2. Dohvati statistiku za sve zaposlenike (za glavni dashboard)
     const allUsers = await prisma.user.findMany({
       where: userWhereClause,
       include: {
-        vacations: { where: { status: "APPROVED" } }, // Samo odobreni se broje u iskorišteno
+        vacations: { 
+            where: { 
+                status: "APPROVED",
+                start: { gte: startOfYear, lte: endOfYear }
+            } 
+        },
         restaurants: { include: { restaurant: true } },
       },
       orderBy: { name: "asc" },
@@ -114,9 +108,7 @@ export default async function VacationPage() {
 
     const usersStats = allUsers.map((u) => {
       const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
-      const restaurantNames = u.restaurants.map(
-        (r) => r.restaurant.name || "Nepoznat"
-      );
+      const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Nepoznat");
       const total = (u.vacationEntitlement || 0) + (u.vacationCarryover || 0);
 
       return {
@@ -135,13 +127,18 @@ export default async function VacationPage() {
         allRequests={allRequests}
         blockedDays={blockedDays}
         usersStats={usersStats}
+        selectedYear={selectedYear}
       />
     );
   }
 
   // --- RADNIK POGLED ---
+  // (Ostaje isti kod za radnika kao prije)
   const myRequestsRaw = await prisma.vacationRequest.findMany({
-    where: { userId: user.id },
+    where: { 
+        userId: user.id,
+        start: { gte: startOfYear, lte: endOfYear }
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -153,14 +150,21 @@ export default async function VacationPage() {
     status: req.status,
   }));
 
-  // Serijalizacija za klijenta
-  const serializedUser = JSON.parse(JSON.stringify(user));
+  const usedThisYear = myRequests
+    .filter(r => r.status === "APPROVED")
+    .reduce((acc, curr) => acc + curr.days, 0);
+
+  const serializedUser = {
+      ...JSON.parse(JSON.stringify(user)),
+      usedThisYear 
+  };
 
   return (
     <UserView
       userData={serializedUser}
       myRequests={myRequests}
       blockedDays={blockedDays}
+      selectedYear={selectedYear}
     />
   );
 }

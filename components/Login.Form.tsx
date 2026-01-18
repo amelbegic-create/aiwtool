@@ -27,8 +27,10 @@ export default function LoginForm() {
         setError("Pogrešan email ili lozinka");
         setLoading(false);
       } else {
-        router.push("/tools/PDS");
-        router.refresh();
+        // --- FIX: OVDJE JE BILA PROMJENA ---
+        // Umjesto na /tools/PDS ili select-restaurant, šaljemo na Dashboard
+        router.refresh(); // Osvježi da povuče sesiju
+        router.push("/dashboard");
       }
     } catch (err) {
       setError("Greška prilikom prijave.");

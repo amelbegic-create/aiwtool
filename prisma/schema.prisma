@@ -22,6 +22,7 @@ enum PDSStatus {
   SUBMITTED
   COMPLETED
   ARCHIVED
+  RETURNED // <--- NOVO: Dodan status za vraćanje na doradu
 }
 
 // --- USERS & AUTH ---
@@ -84,38 +85,52 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// --- PDS ---
+// --- PDS (AŽURIRANO) ---
 model PDSTemplate {
-  id        String   @id @default(cuid())
-  year      Int      @unique
-  goals     Json
-  scale     Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String     @id @default(cuid())
+  year         Int
+  
+  // NOVO: Template je sada vezan za restoran
+  restaurantId String     
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  
+  goals        Json
+  scale        Json
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // NOVO: Jedinstveno po godini I restoranu (svaki restoran ima svoj template)
+  @@unique([year, restaurantId]) 
 }
 
 model PDS {
-  id                String    @id @default(cuid())
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                String     @id @default(cuid())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  
   userId            String
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // NOVO: PDS vežemo i za restoran (opcionalno ali korisno za filtriranje)
+  restaurantId      String?    
+  restaurant        Restaurant? @relation(fields: [restaurantId], references: [id])
+
   managerId         String
   year              Int
   templateId        String?
   goals             Json
   scale             Json
-  employeeComment   String?   @db.Text
-  managerComment    String?   @db.Text
-  employeeSignature String?   @db.Text
-  managerSignature  String?   @db.Text
-  totalScore        Int       @default(0)
-  status            PDSStatus @default(DRAFT)
+  employeeComment   String?    @db.Text
+  managerComment    String?    @db.Text
+  employeeSignature String?    @db.Text
+  managerSignature  String?    @db.Text
+  totalScore        Int        @default(0)
+  status            PDSStatus  @default(DRAFT)
 
   @@unique([userId, year])
 }
 
-// --- RESTAURANTS ---
+// --- RESTAURANTS (AŽURIRANO) ---
 model Restaurant {
   id                  String               @id @default(cuid())
   code                String               @unique
@@ -131,6 +146,11 @@ model Restaurant {
   productivityReports ProductivityReport[]
   laborReports        LaborReport[]
   vacationRequests    VacationRequest[]
+  
+  // NOVE RELACIJE ZA PDS
+  pdsTemplates        PDSTemplate[]
+  pdsList             PDS[]
+
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -146,7 +166,7 @@ model RestaurantUser {
   @@unique([userId, restaurantId])
 }
 
-// --- TOOLS ---
+// --- TOOLS (OSTALO ISTO) ---
 model ProductivityReport {
   id           String     @id @default(cuid())
   restaurantId String

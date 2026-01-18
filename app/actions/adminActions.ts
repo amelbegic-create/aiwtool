@@ -2,18 +2,11 @@
 
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
+import { authOptions } from "@/lib/authOptions"; 
 import { hash } from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { Role } from "@prisma/client";
 import { SYSTEM_PERMISSIONS } from "@/lib/constants";
-
-// Interfacei
-interface SessionUser {
-    id: string;
-    role: Role;
-    permissions: string[];
-}
 
 interface CreateUserDTO {
     name: string;
@@ -28,24 +21,47 @@ interface CreateUserDTO {
     permissions: string[];
 }
 
-// Helper funkcija koja je falila
+// --- GLAVNA PROMJENA OVDJE ---
 async function checkPermission(permission: string) {
+    // 1. Dohvati osnovnu sesiju (samo da dobijemo email)
     const session = await getServerSession(authOptions);
     
-    if (!session || !session.user) {
+    if (!session || !session.user || !session.user.email) {
         throw new Error("Niste prijavljeni.");
     }
 
-    const user = session.user as SessionUser; 
-    const userRole = user.role;
-    
-    const godRoles: Role[] = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
-    
-    if (godRoles.includes(userRole)) return true;
+    // 2. SIGURNOST: Dohvati NAJSVJEŽIJE podatke direktno iz baze
+    // Ne vjerujemo sesiji jer može biti "bajat" kolačić
+    const dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { role: true, permissions: true } // Dohvaćamo samo što nam treba
+    });
 
-    if (user.permissions && user.permissions.includes(permission)) return true;
+    if (!dbUser) {
+        throw new Error("Korisnik nije pronađen u bazi.");
+    }
 
-    throw new Error("NEMAŠ PERMISIJE ZA OVU RADNJU!");
+    console.log("DB Permission Check -> Role:", dbUser.role); // Debug
+
+    const userRole = String(dbUser.role);
+
+    // 3. Provjera "God Mode" uloga
+    if (
+        userRole === 'SYSTEM_ARCHITECT' || 
+        userRole === 'SUPER_ADMIN' || 
+        userRole === 'ADMIN' ||
+        userRole === Role.SYSTEM_ARCHITECT ||
+        userRole === Role.ADMIN
+    ) {
+        return true;
+    }
+
+    // 4. Provjera specifičnih permisija
+    if (dbUser.permissions && dbUser.permissions.includes(permission)) {
+        return true;
+    }
+
+    throw new Error(`NEMAŠ PERMISIJE! Tvoja rola je: ${userRole}`);
 }
 
 // --- AKCIJE ---
@@ -58,9 +74,10 @@ export async function createUser(data: CreateUserDTO) {
     const hashedPassword = await hash(data.password, 12);
     
     const adminRoles: Role[] = [Role.SYSTEM_ARCHITECT, Role.ADMIN];
+    const allPermissions = Object.values(SYSTEM_PERMISSIONS) as string[];
     
     const finalPermissions: string[] = adminRoles.includes(data.role) 
-        ? Object.values(SYSTEM_PERMISSIONS) as string[]
+        ? allPermissions
         : data.permissions;
 
     await prisma.user.create({

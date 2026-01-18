@@ -1,10 +1,5 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
-
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -26,10 +21,8 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ success: true, data: report?.data || null });
-
   } catch (error) {
-    console.error("Error fetching productivity:", error);
-    return NextResponse.json({ error: "Error fetching data" }, { status: 500 });
+    return NextResponse.json({ error: "Fetch error" }, { status: 500 });
   }
 }
 
@@ -37,6 +30,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { restaurantId, date, data } = body;
+
+    if (!restaurantId || !date) {
+      return NextResponse.json({ error: "Identification failed" }, { status: 400 });
+    }
 
     const report = await prisma.productivityReport.upsert({
       where: {
@@ -57,7 +54,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, data: report });
   } catch (error) {
-    console.error("Error saving productivity:", error);
-    return NextResponse.json({ error: "Error saving data" }, { status: 500 });
+    return NextResponse.json({ error: "Save error" }, { status: 500 });
   }
 }

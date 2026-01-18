@@ -3,6 +3,17 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+// Definicija sučelja za ulazne podatke (zamjena za any)
+interface LaborDayInput {
+  umsatz?: string;
+  prod?: string;
+  sfStd?: string;
+  hmStd?: string;
+  nz?: string;
+  extra?: string;
+  [key: string]: string | undefined; // Fleksibilnost
+}
+
 // Dohvatanje podataka za određeni mjesec i godinu
 export async function getLaborData(restaurantId: string, month: number, year: number) {
   try {
@@ -27,7 +38,7 @@ export async function saveLaborReport(
   restaurantId: string, 
   month: number, 
   year: number, 
-  daysData: any[],
+  daysData: LaborDayInput[], 
   hourlyWage: number,
   budgetSales: number,
   budgetCost: number

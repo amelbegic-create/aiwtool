@@ -2,7 +2,6 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
-import { Role } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -54,6 +53,9 @@ export const authOptions: NextAuthOptions = {
           session.user.permissions = token.permissions;
       }
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      return `${baseUrl}/dashboard`;
     }
   }
 };

@@ -1,304 +1,420 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Printer, Send, CheckCircle, Save, FileText, AlertCircle, Award } from 'lucide-react';
-import { updatePDSContent, changePDSStatus } from '../actions';
-import { PDSGoal, PDSScaleLevel, PDSUpdateData, PDSScoringRule } from '../types';
+// FIX: Ispravne putanje
+import { updatePDSContent, changePDSStatus, returnPDS } from '../actions';
 import SignaturePad from '../components/SignaturePad';
+import { Save, Send, ChevronLeft, Check, X, Undo2, FileDown, Loader2 } from 'lucide-react';
+import { PDSGoal, PDSScoringRule } from '../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import Image from 'next/image';
 
-export default function PDSFormClient({ pds, isManager }: { pds: any, isManager: boolean }) {
+interface Props {
+  pds: any;
+  isManager: boolean;
+}
+
+export default function PDSFormClient({ pds, isManager }: Props) {
   const router = useRouter();
-  const printRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
   
-  const [goals, setGoals] = useState<PDSGoal[]>(pds.goals || []);
-  const [scale] = useState<PDSScaleLevel[]>(pds.scale || []);
-  const [comments, setComments] = useState({ 
-    employee: pds.employeeComment || '', 
-    manager: pds.managerComment || '' 
-  });
-  const [signatures, setSignatures] = useState({ 
-    employee: pds.employeeSignature || '', 
-    manager: pds.managerSignature || '' 
-  });
-  
-  const [isSaving, setIsSaving] = useState(false);
+  const [goals, setGoals] = useState<PDSGoal[]>(pds.goals as PDSGoal[]);
+  const [employeeComment, setEmployeeComment] = useState(pds.employeeComment || '');
+  const [managerComment, setManagerComment] = useState(pds.managerComment || '');
+  const [employeeSignature, setEmployeeSignature] = useState(pds.employeeSignature || '');
+  const [managerSignature, setManagerSignature] = useState(pds.managerSignature || '');
 
-  // FIX: Koristimo useMemo umjesto useEffect da izbjegnemo infinite loop i re-renders
-  const totalScore = useMemo(() => {
-    return goals.reduce((acc, g) => acc + (Number(g.points) || 0), 0);
-  }, [goals]);
+  const totalScore = goals.reduce((acc, g) => acc + (g.points || 0), 0);
 
-  const currentLevel = useMemo(() => {
-    return scale.find(s => totalScore >= s.min && totalScore <= s.max);
-  }, [totalScore, scale]);
-
-  const isOpen = pds.status === 'OPEN';
+  // Logika statusa
+  const isCompleted = pds.status === 'COMPLETED';
   const isSubmitted = pds.status === 'SUBMITTED';
-  const canEmployeeEdit = !isManager && isOpen;
+  const isReturned = pds.status === 'RETURNED';
+  const isDraft = pds.status === 'DRAFT' || pds.status === 'OPEN';
+  
+  const canEmployeeEdit = !isManager && (isDraft || isReturned);
   const canManagerEdit = isManager && isSubmitted;
 
-  const handleResultChange = (index: number, val: string) => {
-    const newGoals = [...goals];
-    newGoals[index].result = val;
+  // --- PDF EXPORT LOGIKA ---
+  const handleExportPDF = async () => {
+    if (!reportRef.current) return;
+    setIsExporting(true);
 
-    const numVal = parseFloat(val);
-    if (!isNaN(numVal)) {
-        const rule = newGoals[index].scoringRules.find((r: PDSScoringRule) => numVal >= r.from && numVal <= r.to);
-        newGoals[index].points = rule ? rule.pts : 0;
+    try {
+        // Čekamo malo da se UI smiri
+        await new Promise(r => setTimeout(r, 500));
+
+        const canvas = await html2canvas(reportRef.current, {
+            scale: 2, // Visoka kvaliteta
+            backgroundColor: '#ffffff', // HEX boja obavezna!
+            useCORS: true,
+            logging: false,
+            // Mičemo elemente koji smetaju printu
+            ignoreElements: (element) => element.classList.contains('no-print')
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = pdfWidth / imgWidth;
+        const imgHeightScaled = imgHeight * ratio;
+
+        let heightLeft = imgHeightScaled;
+        let position = 0;
+
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeightScaled);
+        heightLeft -= pdfHeight;
+
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeightScaled;
+            pdf.addPage();
+            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeightScaled);
+            heightLeft -= pdfHeight;
+        }
+
+        pdf.save(`PDS_${pds.user.name}_${pds.year}.pdf`);
+    } catch (error) {
+        console.error("Export Error:", error);
+        alert("Greška pri exportu PDF-a.");
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
+  // --- OSTALI HANDLERI ---
+  const handleGoalChange = (index: number, value: any) => {
+    const newGoals = [...goals];
+    const goal = newGoals[index];
+    goal.result = value;
+
+    if (goal.type === 'BOOLEAN') {
+        goal.points = value === true ? (goal.yesPoints || 0) : (goal.noPoints || 0);
     } else {
-        newGoals[index].points = 0;
+        const numVal = parseFloat(value);
+        if (!isNaN(numVal) && goal.scoringRules) {
+            const rule = goal.scoringRules.find((r: PDSScoringRule) => numVal >= r.from && numVal <= r.to);
+            goal.points = rule ? rule.pts : 0;
+        } else {
+            goal.points = 0;
+        }
     }
     setGoals(newGoals);
   };
 
-  const handleSaveData = async (silent = false) => {
-    setIsSaving(true);
-    const updateData: PDSUpdateData = {
-      goals,
-      scale,
-      employeeComment: comments.employee,
-      managerComment: comments.manager,
-      employeeSignature: signatures.employee,
-      managerSignature: signatures.manager
-    };
-    await updatePDSContent(pds.id, updateData);
-    setIsSaving(false);
-    if (!silent) alert("Podaci uspješno spremljeni.");
+  const handleSave = async () => {
+    setLoading(true);
+    await updatePDSContent(pds.id, {
+      goals, employeeComment, managerComment, employeeSignature, managerSignature
+    });
+    setLoading(false);
+    router.refresh();
   };
 
-  const handleSendToManager = async () => {
-    if (!signatures.employee) return alert("Potpis zaposlenika je obavezan prije slanja!");
-    if (confirm("Da li ste sigurni? Nakon slanja nećete moći mijenjati podatke.")) {
-      await handleSaveData(true);
-      await changePDSStatus(pds.id, 'SUBMITTED' as any);
-      router.refresh();
+  const handleSubmit = async () => {
+    if (confirm('Jeste li sigurni?')) {
+        setLoading(true);
+        await updatePDSContent(pds.id, {
+            goals, employeeComment, managerComment, employeeSignature, managerSignature
+        });
+        const nextStatus = isManager ? 'COMPLETED' : 'SUBMITTED';
+        await changePDSStatus(pds.id, nextStatus as any);
+        setLoading(false);
+        router.push('/tools/PDS');
     }
   };
 
-  const handleExportPDF = async () => {
-    const element = printRef.current;
-    if (!element) return;
-    try {
-      const canvas = await html2canvas(element, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`PDS_${pds.user.name}_${pds.year}.pdf`);
-    } catch {
-      alert("Greška pri generiranju PDF-a.");
-    }
+  const handleReturn = async () => {
+      if(confirm("Vratiti radniku na doradu?")) {
+          setLoading(true);
+          await returnPDS(pds.id, managerComment);
+          setLoading(false);
+          router.push('/tools/PDS');
+      }
+  }
+
+  // --- STILOVI ZA PDF (HEX only - Rješava "lab" grešku) ---
+  const pdfStyles = {
+      container: { fontFamily: 'Arial, sans-serif', color: '#000000', backgroundColor: '#ffffff', padding: '40px', border: '1px solid #e5e7eb', borderRadius: '8px' },
+      header: { display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #f3f4f6', paddingBottom: '20px', marginBottom: '30px' },
+      h1: { fontSize: '24px', fontWeight: 'bold', margin: '0 0 5px 0', textTransform: 'uppercase' as const, color: '#1a3826' },
+      sub: { fontSize: '12px', color: '#6b7280', margin: 0 },
+      scoreBox: { textAlign: 'right' as const, background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' },
+      scoreVal: { fontSize: '32px', fontWeight: 'bold', color: '#1a3826', lineHeight: 1 },
+      // FIX: breakInside umjesto pageBreakInside
+      goalItem: { background: '#f9fafb', border: '1px solid #e5e7eb', padding: '15px', marginBottom: '15px', borderRadius: '8px', breakInside: 'avoid' as const },
+      goalTop: { display: 'flex', justifyContent: 'space-between', marginBottom: '10px' },
+      goalTitle: { fontSize: '14px', fontWeight: 'bold', width: '80%' },
+      goalPts: { fontSize: '14px', fontWeight: 'bold', color: '#1a3826' },
+      resultBox: { background: '#fff', border: '1px solid #e5e7eb', padding: '10px', borderRadius: '6px', fontSize: '12px' },
+      commentSection: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '30px', borderTop: '2px solid #f3f4f6', paddingTop: '20px', breakInside: 'avoid' as const },
+      commentBox: { background: '#f8fafc', padding: '10px', border: '1px solid #e5e7eb', borderRadius: '6px', minHeight: '60px', fontSize: '11px', marginTop: '5px', marginBottom: '10px', whiteSpace: 'pre-wrap' as const },
+      sigImg: { maxHeight: '60px', maxWidth: '100%', border: '1px solid #eee', borderRadius: '8px' }
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 pb-20 font-sans">
+    <div className="max-w-5xl mx-auto pb-20">
       
-      {/* Top Action Bar */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-3 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/tools/PDS')} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
-            <ArrowLeft size={20}/>
-          </button>
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Dokument Evaluacije</span>
-            <h1 className="text-sm font-bold text-slate-800 uppercase">{pds.user.name} / {pds.year}</h1>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-            <button onClick={handleExportPDF} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors">
-                <Printer size={16}/> <span className="hidden sm:inline">Print / PDF</span>
+      {/* UI HEADER (Tailwind OK) */}
+      <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-col xl:flex-row justify-between items-center gap-4 sticky top-4 z-40">
+        <div>
+            <button onClick={() => router.back()} className="flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold mb-2">
+                <ChevronLeft size={14}/> NAZAD NA LISTU
             </button>
-            
-            {(canEmployeeEdit || canManagerEdit) && (
-                <button onClick={() => handleSaveData()} disabled={isSaving} className="px-4 py-2 bg-white border border-[#1a3826] text-[#1a3826] hover:bg-[#1a3826] hover:text-white rounded-lg text-xs font-bold flex items-center gap-2 transition-all">
-                    <Save size={16}/> {isSaving ? "Spremanje..." : "Spremi"}
-                </button>
-            )}
-
-            {canEmployeeEdit && (
-                <button onClick={handleSendToManager} className="px-4 py-2 bg-[#FFC72C] hover:bg-[#e0af25] text-[#1a3826] rounded-lg text-xs font-black uppercase flex items-center gap-2 shadow-sm transition-all">
-                    <Send size={16}/> Pošalji Manageru
-                </button>
-            )}
-
-            {canManagerEdit && (
-                <button onClick={async () => { await handleSaveData(true); await changePDSStatus(pds.id, 'COMPLETED' as any); router.refresh(); }} className="px-4 py-2 bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-lg text-xs font-black uppercase flex items-center gap-2 shadow-sm transition-all">
-                    <CheckCircle size={16}/> Zaključi i Odobri
-                </button>
-            )}
-        </div>
-      </div>
-
-      {/* Main Document Area */}
-      <div className="max-w-4xl mx-auto mt-8 p-8 bg-white shadow-xl rounded-xl min-h-[297mm]" ref={printRef}>
-        
-        {/* Document Header */}
-        <div className="flex justify-between items-start border-b-4 border-[#1a3826] pb-8 mb-8">
-            <div>
-                <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">PDS EVALUACIJA</h1>
-                <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">{pds.year}. GODINA</p>
-            </div>
-            <div className="text-right">
-                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Status Dokumenta</div>
-                <span className={`inline-block px-3 py-1 rounded text-xs font-black uppercase ${
-                    pds.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
-                    pds.status === 'SUBMITTED' ? 'bg-blue-100 text-blue-700' :
-                    'bg-orange-100 text-orange-700'
-                }`}>
-                    {pds.status}
+            <div className="flex items-center gap-3">
+                <h1 className="text-xl md:text-2xl font-black text-[#1a3826] uppercase">{pds.user.name}</h1>
+                <span className="px-2 py-1 rounded text-[10px] font-bold uppercase border bg-slate-50 text-slate-500 border-slate-200">
+                    {pds.status === 'RETURNED' ? 'VRAĆENO' : pds.status}
                 </span>
             </div>
         </div>
 
-        {/* Score & Rank Hero Section */}
-        <div className="grid grid-cols-2 gap-8 mb-12">
-            <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 flex items-center gap-6">
-                <div className="h-16 w-16 bg-[#1a3826] rounded-full flex items-center justify-center text-[#FFC72C] shadow-lg">
-                    <FileText size={32} />
-                </div>
-                <div>
-                    <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Ukupni Bodovi</div>
-                    <div className="text-5xl font-black text-slate-800 tracking-tighter">{totalScore}</div>
-                </div>
-            </div>
-            <div className="bg-[#1a3826] p-6 rounded-xl text-white flex items-center gap-6 shadow-md relative overflow-hidden">
-                <div className="absolute right-0 top-0 opacity-10 transform translate-x-1/4 -translate-y-1/4">
-                    <Award size={120} />
-                </div>
-                <div className="h-16 w-16 bg-white/10 rounded-full flex items-center justify-center text-[#FFC72C] backdrop-blur-sm">
-                    <Award size={32} />
-                </div>
-                <div className="relative z-10">
-                    <div className="text-xs font-bold text-white/60 uppercase tracking-widest mb-1">Rang Uspješnosti</div>
-                    <div className="text-3xl font-black text-[#FFC72C] uppercase tracking-tight truncate">
-                        {currentLevel?.label || "Nije ocijenjeno"}
-                    </div>
-                </div>
-            </div>
-        </div>
+        <div className="flex flex-wrap items-center gap-2 justify-end">
+            <button 
+                onClick={handleExportPDF} 
+                disabled={isExporting}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-2 border border-slate-200"
+            >
+                {isExporting ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>}
+                PDF IZVJEŠTAJ
+            </button>
 
-        {/* Goals Section */}
-        <div className="space-y-8 mb-12">
-            <h3 className="text-lg font-black text-slate-800 uppercase border-b pb-2 flex items-center gap-2">
-                <Target size={20} className="text-[#1a3826]"/> Ciljevi i Rezultati
-            </h3>
+            {canEmployeeEdit && (
+                <>
+                    <button onClick={handleSave} disabled={loading} className="px-5 py-2.5 rounded-xl bg-white border border-slate-300 font-bold text-slate-600 hover:bg-slate-50 text-xs flex items-center gap-2">
+                        <Save size={16}/> SPREMI
+                    </button>
+                    <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#1a3826] text-white font-bold hover:bg-[#142e1e] text-xs flex items-center gap-2 shadow-lg">
+                        <Send size={16}/> POŠALJI
+                    </button>
+                </>
+            )}
 
-            {goals.map((goal, idx) => (
-                <div key={idx} className="border border-slate-200 rounded-lg p-6 hover:border-[#1a3826]/30 transition-colors">
-                    <div className="flex flex-col md:flex-row gap-6 justify-between">
-                        <div className="flex-1">
-                            <h4 className="text-lg font-bold text-slate-800 mb-3">{goal.title}</h4>
-                            <div className="bg-slate-50 rounded-lg p-3 inline-block">
-                                <table className="text-xs">
-                                    <thead>
-                                        <tr className="text-slate-400 border-b border-slate-200">
-                                            <th className="pb-1 pr-4 text-left font-bold">Rezultat od</th>
-                                            <th className="pb-1 pr-4 text-left font-bold">Rezultat do</th>
-                                            <th className="pb-1 text-right font-bold">Bodovi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="text-slate-600">
-                                        {goal.scoringRules.map((r, ri) => (
-                                            <tr key={ri}>
-                                                <td className="pt-1">{r.from}</td>
-                                                <td className="pt-1">{r.to}</td>
-                                                <td className="pt-1 text-right font-bold text-[#1a3826]">{r.pts}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div className="w-full md:w-48 bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-center">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1">Ostvareni Rezultat</label>
-                            <input 
-                                type="number"
-                                value={goal.result || ''}
-                                onChange={(e) => handleResultChange(idx, e.target.value)}
-                                disabled={!canEmployeeEdit}
-                                placeholder="0"
-                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-lg font-bold text-slate-800 focus:border-[#1a3826] focus:ring-1 focus:ring-[#1a3826] outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400"
-                            />
-                            <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center">
-                                <span className="text-xs font-bold text-slate-500">Bodovi:</span>
-                                <span className="text-xl font-black text-[#1a3826]">{goal.points || 0}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ))}
-
-            {goals.length === 0 && (
-                <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                    <AlertCircle className="mx-auto text-slate-300 mb-2" size={32}/>
-                    <p className="text-slate-500 font-medium">Nema definisanih ciljeva za ovu evaluaciju.</p>
-                </div>
+            {isManager && (
+                <>
+                    {(isSubmitted || isCompleted) && (
+                        <button onClick={handleReturn} disabled={loading} className="px-5 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-100 font-bold hover:bg-red-100 text-xs flex items-center gap-2">
+                            <Undo2 size={16}/> VRATI NA DORADU
+                        </button>
+                    )}
+                    {isSubmitted && (
+                        <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#FFC72C] text-[#1a3826] font-bold hover:bg-[#e6b225] text-xs flex items-center gap-2 shadow-lg">
+                            <Check size={16}/> ODOBRI
+                        </button>
+                    )}
+                </>
             )}
         </div>
+      </div>
 
-        {/* Comments & Signatures */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 page-break-inside-avoid">
-            {/* Employee Side */}
-            <div className="flex flex-col h-full">
-                <h3 className="text-sm font-black text-slate-800 uppercase border-b pb-2 mb-4">Zaposlenik</h3>
-                <div className="bg-slate-50 rounded-lg p-4 flex-1 mb-4 border border-slate-200">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Komentar</label>
-                    <textarea 
-                        value={comments.employee}
-                        onChange={e => setComments({...comments, employee: e.target.value})}
-                        disabled={!canEmployeeEdit}
-                        className="w-full h-32 bg-transparent resize-none outline-none text-sm text-slate-700 disabled:text-slate-500"
-                        placeholder="Unesite komentar..."
-                    />
+      {/* --- HIDDEN PDF TEMPLATE (Pure Inline CSS - No Tailwind) --- */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <div ref={reportRef} style={pdfStyles.container}>
+            <div style={pdfStyles.header}>
+                <div>
+                    <div style={pdfStyles.sub}>PDS EVALUACIJA • {pds.year}</div>
+                    <h1 style={pdfStyles.h1}>{pds.user.name}</h1>
+                    <div style={pdfStyles.sub}>{pds.user.email} • {pds.user.role}</div>
                 </div>
-                <div className="mt-auto">
-                    <SignaturePad 
-                        label="Potpis Zaposlenika" 
-                        value={signatures.employee} 
-                        onChange={v => setSignatures({...signatures, employee: v})} 
-                        disabled={!canEmployeeEdit} 
-                    />
+                <div style={pdfStyles.scoreBox}>
+                    <div style={pdfStyles.sub}>UKUPNI BODOVI</div>
+                    <div style={pdfStyles.scoreVal}>{totalScore}</div>
                 </div>
             </div>
 
-            {/* Manager Side */}
-            <div className="flex flex-col h-full">
-                <h3 className="text-sm font-black text-slate-800 uppercase border-b pb-2 mb-4">Manager</h3>
-                <div className="bg-slate-50 rounded-lg p-4 flex-1 mb-4 border border-slate-200">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Komentar / Zaključak</label>
-                    <textarea 
-                        value={comments.manager}
-                        onChange={e => setComments({...comments, manager: e.target.value})}
-                        disabled={!canManagerEdit}
-                        className="w-full h-32 bg-transparent resize-none outline-none text-sm text-slate-700 disabled:text-slate-500"
-                        placeholder="Unesite komentar..."
-                    />
+            <div>
+                {goals.map((goal, i) => (
+                    <div key={i} style={pdfStyles.goalItem}>
+                        <div style={pdfStyles.goalTop}>
+                            <div style={pdfStyles.goalTitle}>{goal.title}</div>
+                            <div style={pdfStyles.goalPts}>{goal.points} pts</div>
+                        </div>
+                        <div style={pdfStyles.resultBox}>
+                            {/* Prikaz rezultata u PDFu */}
+                            Rezultat: <b>{goal.type === 'BOOLEAN' ? (goal.result ? 'DA' : 'NE') : goal.result || 0}</b>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div style={pdfStyles.commentSection}>
+                <div>
+                    <strong style={{ fontSize: '12px', textTransform: 'uppercase' }}>Zaposlenik</strong>
+                    <div style={pdfStyles.commentBox}>{employeeComment || '/'}</div>
+                    <div style={{ marginTop: '10px' }}>
+                        <div style={{ fontSize: '10px', marginBottom: '5px' }}>POTPIS:</div>
+                        {employeeSignature ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={employeeSignature} alt="Potpis" style={pdfStyles.sigImg} />
+                        ) : <div style={{height: '40px', borderBottom: '1px dashed #ccc'}}></div>}
+                    </div>
                 </div>
-                <div className="mt-auto">
-                    <SignaturePad 
-                        label="Potpis Managera" 
-                        value={signatures.manager} 
-                        onChange={v => setSignatures({...signatures, manager: v})} 
-                        disabled={!canManagerEdit} 
-                    />
+                <div>
+                    <strong style={{ fontSize: '12px', textTransform: 'uppercase' }}>Manager</strong>
+                    <div style={pdfStyles.commentBox}>{managerComment || '/'}</div>
+                    <div style={{ marginTop: '10px' }}>
+                        <div style={{ fontSize: '10px', marginBottom: '5px' }}>POTPIS:</div>
+                        {managerSignature ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={managerSignature} alt="Potpis" style={pdfStyles.sigImg} />
+                        ) : <div style={{height: '40px', borderBottom: '1px dashed #ccc'}}></div>}
+                    </div>
                 </div>
+            </div>
+            
+            <div style={{ textAlign: 'center', marginTop: '40px', fontSize: '10px', color: '#ccc' }}>
+                Generirano: {new Date().toLocaleDateString()}
             </div>
         </div>
       </div>
+
+      {/* --- FORM FOR USER INTERACTION (VIDLJIVA FORMA) --- */}
+      <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+         <div className="flex justify-between items-start border-b-2 border-slate-100 pb-8 mb-8">
+             <div>
+                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">PDS EVALUACIJA • {pds.year}</div>
+                 <h2 className="text-3xl font-black text-[#1a3826] uppercase mb-1">{pds.user.name}</h2>
+                 <p className="text-sm font-medium text-slate-500">{pds.user.email} • {pds.user.role}</p>
+             </div>
+             <div className="text-right bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">UKUPNI BODOVI</div>
+                 <div className="text-5xl font-black text-[#1a3826]">{totalScore}</div>
+             </div>
+         </div>
+
+         <div className="space-y-6 mb-10">
+            {goals.map((goal, i) => (
+                <div key={i} className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
+                    <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-lg font-bold text-slate-800 w-3/4 leading-tight">{goal.title}</h3>
+                        <div className="px-3 py-1 rounded-lg bg-white border border-slate-200 shadow-sm">
+                            <span className="text-[10px] font-black text-slate-400 uppercase mr-2">OSTVARENO</span>
+                            <span className="text-lg font-black text-[#1a3826]">{goal.points}</span>
+                        </div>
+                    </div>
+
+                    {goal.type === 'BOOLEAN' ? (
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => canEmployeeEdit && handleGoalChange(i, true)}
+                                disabled={!canEmployeeEdit}
+                                className={`flex-1 py-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                                    goal.result === true 
+                                    ? 'bg-[#1a3826] border-[#1a3826] text-white font-bold' 
+                                    : 'bg-white border-slate-200 text-slate-300'
+                                }`}
+                            >
+                                <Check size={18} strokeWidth={3} /> DA 
+                                {/* SKRIVENO OD RADNIKA: Bodovi */}
+                                {isManager && <span className="text-[10px] opacity-70 ml-1">({goal.yesPoints} pts)</span>}
+                            </button>
+
+                            <button 
+                                onClick={() => canEmployeeEdit && handleGoalChange(i, false)}
+                                disabled={!canEmployeeEdit}
+                                className={`flex-1 py-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                                    goal.result === false 
+                                    ? 'bg-red-500 border-red-500 text-white font-bold' 
+                                    : 'bg-white border-slate-200 text-slate-300'
+                                }`}
+                            >
+                                <X size={18} strokeWidth={3} /> NE
+                                {/* SKRIVENO OD RADNIKA: Bodovi */}
+                                {isManager && <span className="text-[10px] opacity-70 ml-1">({goal.noPoints} pts)</span>}
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="bg-white p-4 rounded-xl border border-slate-200">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">Uneseni Rezultat</label>
+                                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">Numerički</span>
+                            </div>
+                            <input 
+                                type="number" 
+                                disabled={!canEmployeeEdit}
+                                value={goal.result as string}
+                                onChange={(e) => handleGoalChange(i, e.target.value)}
+                                className="w-full text-2xl font-black text-slate-800 bg-transparent border-b-2 border-slate-100 focus:border-[#1a3826] outline-none py-1 disabled:bg-transparent"
+                                placeholder="0"
+                            />
+                            {/* SKRIVENO OD RADNIKA: Skala bodovanja */}
+                            {isManager && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {goal.scoringRules?.map((r: PDSScoringRule, ri: number) => (
+                                        <span key={ri} className={`text-[10px] px-2 py-1 rounded border ${
+                                            parseFloat(goal.result as string) >= r.from && parseFloat(goal.result as string) <= r.to
+                                            ? 'bg-[#1a3826] text-white border-[#1a3826]'
+                                            : 'bg-slate-100 text-slate-400 border-slate-200'
+                                        }`}>
+                                            {r.from}-{r.to} = <b>{r.pts}</b>
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            ))}
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-2 border-slate-100 pt-8">
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">1</div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase">Zaposlenik</h3>
+                </div>
+                
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[120px]">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Komentar</label>
+                    <textarea 
+                        disabled={!canEmployeeEdit}
+                        value={employeeComment}
+                        onChange={(e) => setEmployeeComment(e.target.value)}
+                        className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none resize-none h-full disabled:cursor-not-allowed"
+                        placeholder="Nema komentara..."
+                    />
+                </div>
+
+                <SignaturePad 
+                    label="Potpis Zaposlenika"
+                    value={employeeSignature} 
+                    onChange={setEmployeeSignature} 
+                    disabled={!canEmployeeEdit}
+                />
+            </div>
+
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 rounded-full bg-[#1a3826] flex items-center justify-center text-white font-bold text-xs">2</div>
+                    <h3 className="text-sm font-black text-slate-800 uppercase">Manager</h3>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[120px]">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Komentar</label>
+                    <textarea 
+                        disabled={!canManagerEdit}
+                        value={managerComment}
+                        onChange={(e) => setManagerComment(e.target.value)}
+                        className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none resize-none h-full disabled:cursor-not-allowed"
+                        placeholder="Nema komentara..."
+                    />
+                </div>
+
+                <SignaturePad 
+                    label="Potpis Managera"
+                    value={managerSignature} 
+                    onChange={setManagerSignature} 
+                    disabled={!canManagerEdit}
+                />
+            </div>
+         </div>
+      </div>
     </div>
   );
-}
-
-function Target({ size, className }: { size?: number, className?: string }) {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-    )
 }

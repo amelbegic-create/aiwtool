@@ -1,27 +1,66 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Providers } from "./providers";
-import TopNavbar from "@/components/TopNavbar";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
+import TopNavbar from "@/components/TopNavbar"; 
+import prisma from "@/lib/prisma";
+import { cookies } from "next/headers";
+import AuthProvider from "@/components/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AIWTool Enterprise",
+  title: "AIW Services",
+  description: "Enterprise Management System",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const session = await getServerSession(authOptions);
+  
+  // FIX: Umjesto 'any[]', definiramo točan tip da maknemo crvenu liniju
+  let userRestaurants: { id: string; name: string | null; code: string }[] = [];
+  let activeRestaurantId: string | undefined = undefined;
+
+  if (session?.user) {
+     const cookieStore = await cookies();
+     activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
+
+     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     const userId = (session.user as any).id;
+     
+     const relations = await prisma.restaurantUser.findMany({
+         where: { userId },
+         include: { restaurant: true }
+     });
+
+     userRestaurants = relations.map(rel => ({
+         id: rel.restaurant.id,
+         name: rel.restaurant.name,
+         code: rel.restaurant.code
+     }));
+
+     if (!activeRestaurantId && userRestaurants.length > 0) {
+         activeRestaurantId = userRestaurants[0].id;
+     }
+  }
+
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-white text-slate-900`}>
-        <Providers>
-          <div className="flex flex-col h-screen overflow-hidden">
-            <TopNavbar />
-            <main className="flex-1 overflow-y-auto bg-white">
-              {children}
-            </main>
-          </div>
-        </Providers>
+      <body className={inter.className}>
+        <AuthProvider>
+            {session?.user && (
+                <TopNavbar 
+                    restaurants={userRestaurants} 
+                    activeRestaurantId={activeRestaurantId} 
+                />
+            )}
+            {children}
+        </AuthProvider>
       </body>
     </html>
   );

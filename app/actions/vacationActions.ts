@@ -7,22 +7,32 @@ import { revalidatePath } from "next/cache";
 import { SYSTEM_PERMISSIONS } from "@/lib/constants";
 import { Role } from "@prisma/client";
 
-// Helper za permisije
+// --- POBOLJŠANI HELPER ZA PERMISIJE ---
+// Sada čita rolu direktno iz baze, kao što smo popravili u adminActions
 async function checkPermission(permission: string) {
     const session = await getServerSession(authOptions);
-    if (!session?.user) throw new Error("Niste prijavljeni.");
+    if (!session?.user?.email) throw new Error("Niste prijavljeni.");
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const user = session.user as any; 
-    const role = user.role as Role;
+    // Dohvaćamo svježe podatke iz baze da budemo 100% sigurni u rolu
+    const dbUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { role: true, permissions: true }
+    });
+
+    if (!dbUser) throw new Error("Korisnik ne postoji.");
+
+    const role = dbUser.role;
+    const permissions = dbUser.permissions;
     
-    const bosses: Role[] = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+    const bosses: Role[] = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER];
+    
+    // 1. Ako je šef, pusti ga
     if (bosses.includes(role)) return true;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((user as any).permissions && (user as any).permissions.includes(permission)) return true;
+    // 2. Ako ima specifičnu permisiju, pusti ga
+    if (permissions && permissions.includes(permission)) return true;
 
-    throw new Error("Nemate permisiju.");
+    throw new Error("Nemate permisiju za ovu radnju.");
 }
 
 // --- BLOKIRANI DANI ---
@@ -30,31 +40,30 @@ async function checkPermission(permission: string) {
 export async function addBlockedDay(date: string, reason: string) {
     await checkPermission(SYSTEM_PERMISSIONS.SETTINGS_MANAGE);
     
+    // Uzimamo prvi restoran kao default ako user nema restoran (fallback)
     const session = await getServerSession(authOptions);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sessionUserId = (session?.user as any).id;
+    const userEmail = session?.user?.email;
+
+    if (!userEmail) throw new Error("Greška u sesiji.");
 
     const user = await prisma.user.findUnique({
-        where: { id: sessionUserId },
+        where: { email: userEmail },
         include: { restaurants: true }
     });
 
-    // Uzmi prvi restoran kojem ovaj admin pripada
     const targetRestaurantId = user?.restaurants[0]?.restaurantId;
+    let finalRestaurantId = targetRestaurantId;
 
-    if (!targetRestaurantId) {
-        // Fallback za System Architecta ako nema dodijeljen restoran
+    if (!finalRestaurantId) {
         const firstRest = await prisma.restaurant.findFirst();
         if(!firstRest) throw new Error("Nema restorana u sistemu.");
-        
-        await prisma.blockedDay.create({
-            data: { date, reason, restaurantId: firstRest.id }
-        });
-    } else {
-        await prisma.blockedDay.create({
-            data: { date, reason, restaurantId: targetRestaurantId }
-        });
-    }
+        finalRestaurantId = firstRest.id;
+    } 
+
+    await prisma.blockedDay.create({
+        data: { date, reason, restaurantId: finalRestaurantId! }
+    });
+    
     revalidatePath("/tools/vacations");
 }
 
@@ -64,74 +73,127 @@ export async function removeBlockedDay(id: string) {
     revalidatePath("/tools/vacations");
 }
 
-// --- KREIRANJE ZAHTJEVA ---
+// --- UPRAVLJANJE ZAHTJEVIMA ---
 
-export async function createVacationRequest(data: { start: string, end: string }) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) throw new Error("Niste prijavljeni.");
+// Helper za izračun dana
+async function calculateVacationDays(start: string, end: string) {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userId = (session.user as any).id;
-
-    const startDate = new Date(data.start);
-    const endDate = new Date(data.end);
-    
-    // Dohvati praznike
     const blockedDays = await prisma.blockedDay.findMany();
     const blockedDates = blockedDays.map(b => b.date); 
 
     let totalDays = 0;
-    // FIX: Koristimo const jer objekt (Date) mutiramo, ne reasiramo varijablu
     const currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
         const dayOfWeek = currentDate.getDay(); 
         const dateString = currentDate.toISOString().split('T')[0];
 
-        // Ako nije vikend I nije praznik
+        // 0 = Nedjelja, 6 = Subota. Brojimo samo radne dane koji nisu blokirani.
         if (dayOfWeek !== 0 && dayOfWeek !== 6 && !blockedDates.includes(dateString)) {
             totalDays++;
         }
-        
         currentDate.setDate(currentDate.getDate() + 1);
     }
+    return totalDays;
+}
 
+export async function createVacationRequest(data: { start: string, end: string }) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) throw new Error("Niste prijavljeni.");
+    
+    // Sigurniji dohvat ID-a preko emaila
+    const user = await prisma.user.findUnique({ where: { email: session.user.email }});
+    if (!user) throw new Error("Korisnik nije pronađen.");
+
+    const totalDays = await calculateVacationDays(data.start, data.end);
     if (totalDays === 0) throw new Error("Odabrani period nema radnih dana.");
 
     await prisma.vacationRequest.create({
         data: {
-            userId: userId,
+            userId: user.id,
             start: data.start,
             end: data.end,
             days: totalDays,
-            // FIX: Uklonjen realDays jer ne postoji u šemi
             status: "PENDING"
         }
     });
     revalidatePath("/tools/vacations");
 }
 
-export async function updateVacationStatus(requestId: string, status: "APPROVED" | "REJECTED") {
+// Funkcija za radnika da ažurira zahtjev (ako je bio RETURNED)
+export async function updateVacationRequest(id: string, data: { start: string, end: string }) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) throw new Error("Niste prijavljeni.");
+
+    const user = await prisma.user.findUnique({ where: { email: session.user.email }});
+    if (!user) throw new Error("Greška.");
+
+    const request = await prisma.vacationRequest.findUnique({ where: { id } });
+    if (!request) throw new Error("Zahtjev nije pronađen.");
+    if (request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
+
+    const totalDays = await calculateVacationDays(data.start, data.end);
+    if (totalDays === 0) throw new Error("Odabrani period nema radnih dana.");
+
+    await prisma.vacationRequest.update({
+        where: { id },
+        data: {
+            start: data.start,
+            end: data.end,
+            days: totalDays,
+            status: "PENDING" // Vraća se u pending za admina
+        }
+    });
+    revalidatePath("/tools/vacations");
+}
+
+// Admin mijenja status (APPROVED, REJECTED, RETURNED)
+export async function updateVacationStatus(requestId: string, status: string) {
     await checkPermission(SYSTEM_PERMISSIONS.VACATION_APPROVE);
     await prisma.vacationRequest.update({ where: { id: requestId }, data: { status } });
     revalidatePath("/tools/vacations");
 }
 
-export async function deleteVacationRequest(requestId: string) {
+// Radnik otkazuje odobreni zahtjev
+export async function cancelVacationRequest(requestId: string) {
     const session = await getServerSession(authOptions);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userId = (session?.user as any).id;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const role = (session?.user as any).role as Role;
+    if (!session?.user?.email) throw new Error("Niste prijavljeni.");
+
+    const user = await prisma.user.findUnique({ where: { email: session.user.email }});
+    if (!user) throw new Error("Greška.");
 
     const request = await prisma.vacationRequest.findUnique({ where: { id: requestId } });
-    
+    if (!request) throw new Error("Zahtjev nije pronađen.");
+    if (request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
+
+    // Može se otkazati samo ako je APPROVED ili PENDING
+    if (request.status !== "APPROVED" && request.status !== "PENDING") {
+        throw new Error("Ne možete otkazati ovaj zahtjev.");
+    }
+
+    await prisma.vacationRequest.update({
+        where: { id: requestId },
+        data: { status: "CANCELLED" }
+    });
+    revalidatePath("/tools/vacations");
+}
+
+export async function deleteVacationRequest(requestId: string) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) throw new Error("Niste prijavljeni.");
+
+    const user = await prisma.user.findUnique({ where: { email: session.user.email }});
+    if (!user) throw new Error("Greška.");
+
+    const request = await prisma.vacationRequest.findUnique({ where: { id: requestId } });
     if (!request) throw new Error("Zahtjev ne postoji.");
     
-    const bosses: Role[] = [Role.ADMIN, Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN];
-    const isAdmin = bosses.includes(role);
+    const bosses: Role[] = [Role.ADMIN, Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.MANAGER];
+    const isAdmin = bosses.includes(user.role);
     
-    if (!isAdmin && request.userId !== userId) throw new Error("Nije vaš zahtjev.");
+    if (!isAdmin && request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
 
     await prisma.vacationRequest.delete({ where: { id: requestId } });
     revalidatePath("/tools/vacations");
