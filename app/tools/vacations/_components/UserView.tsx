@@ -58,6 +58,17 @@ interface UserViewProps {
   selectedYear: number;
 }
 
+// Helper funkcija za formatiranje datuma (dd.MM.yyyy)
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  return new Intl.DateTimeFormat("bs-BA", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+};
+
 export default function UserView({
   userData,
   myRequests,
@@ -102,7 +113,7 @@ export default function UserView({
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(255, 199, 44); 
-        doc.text(`Generirano: ${new Date().toLocaleDateString("bs-BA")}`, 14, 32);
+        doc.text(`Generirano: ${formatDate(new Date().toISOString())}`, 14, 32);
 
         // PODACI O KORISNIKU
         doc.setTextColor(0, 0, 0);
@@ -150,12 +161,13 @@ export default function UserView({
 
         // TABLICA
         const tableBody = myRequests.map(req => [
-            `${new Date(req.start).toLocaleDateString("bs-BA")} - ${new Date(req.end).toLocaleDateString("bs-BA")}`,
+            `${formatDate(req.start)} - ${formatDate(req.end)}`,
             req.days,
             req.status === 'APPROVED' ? 'ODOBRENO' : 
             req.status === 'REJECTED' ? 'ODBIJENO' : 
             req.status === 'PENDING' ? 'NA CEKANJU' : 
-            req.status === 'RETURNED' ? 'VRACENO' : 'PONISTENO'
+            req.status === 'RETURNED' ? 'VRACENO' : 
+            req.status === 'CANCEL_PENDING' ? 'CEKA PONISTENJE' : 'PONISTENO'
         ]);
 
         autoTable(doc, {
@@ -171,7 +183,6 @@ export default function UserView({
                 2: { cellWidth: 60, halign: 'center' }
             },
             alternateRowStyles: { fillColor: [248, 250, 252] },
-            // FIX: Removed 'noData' property which caused error
         });
 
         const pageCount = (doc as any).internal.getNumberOfPages();
@@ -226,7 +237,7 @@ export default function UserView({
   };
 
   const handleCancel = async (id: string) => {
-      if (confirm("Jeste li sigurni da želite poništiti ovaj odobreni godišnji odmor?")) {
+      if (confirm("Jeste li sigurni da želite poništiti ovaj odobreni godišnji odmor? Admin mora odobriti poništenje.")) {
           try {
               await cancelVacationRequest(id);
               router.refresh();
@@ -283,7 +294,7 @@ export default function UserView({
           
           <div className="lg:col-span-2 space-y-6">
             
-            {/* KARTICE */}
+            {/* KARTICE STATISTIKE */}
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center">
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
@@ -311,7 +322,7 @@ export default function UserView({
               </div>
             </div>
 
-            {/* FORMA */}
+            {/* FORMA ZA SLANJE */}
             <div className={`bg-white p-8 rounded-3xl shadow-sm border transition-all ${editingId ? 'border-orange-300 ring-4 ring-orange-50' : 'border-slate-200'}`}>
               <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-lg">
                 {editingId ? (
@@ -390,7 +401,7 @@ export default function UserView({
                       {day.reason}
                     </span>
                     <span className="text-[10px] font-mono text-red-500 bg-red-50 px-1.5 rounded">
-                      {new Date(day.date).toLocaleDateString("bs-BA")}
+                      {formatDate(day.date)}
                     </span>
                   </div>
                 ))}
@@ -403,7 +414,7 @@ export default function UserView({
             </div>
           </div>
 
-          {/* HISTORIJA */}
+          {/* MOJA HISTORIJA (DESNO) */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 h-fit">
             <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
               <Clock className="text-[#1a3826]" /> Moja Historija
@@ -415,6 +426,7 @@ export default function UserView({
                   key={req.id}
                   className={`p-4 rounded-2xl border transition-colors group relative ${
                       req.status === 'RETURNED' ? 'bg-orange-50 border-orange-200' : 
+                      req.status === 'CANCEL_PENDING' ? 'bg-red-50 border-red-200 animate-pulse' :
                       req.status === 'CANCELLED' ? 'bg-gray-50 border-gray-200 opacity-75' :
                       'bg-slate-50 border-slate-100 hover:border-slate-200'
                   }`}
@@ -428,12 +440,15 @@ export default function UserView({
                           ? "bg-red-100 text-red-700 border-red-200"
                           : req.status === "RETURNED"
                           ? "bg-orange-100 text-orange-700 border-orange-200"
+                          : req.status === "CANCEL_PENDING"
+                          ? "bg-red-100 text-red-700 border-red-200"
                           : req.status === "CANCELLED"
                           ? "bg-gray-200 text-gray-600 border-gray-300"
                           : "bg-blue-100 text-blue-700 border-blue-200"
                       }`}
                     >
                       {req.status === "RETURNED" ? "VRAĆENO NA DORADU" : 
+                       req.status === "CANCEL_PENDING" ? "ČEKA PONIŠTENJE" :
                        req.status === "CANCELLED" ? "PONIŠTENO" : req.status}
                     </span>
                     
@@ -475,7 +490,7 @@ export default function UserView({
                   
                   <div className="text-xs font-mono text-slate-500 mb-2 flex items-center gap-1">
                     <Calendar size={12} />
-                    {req.start} <span className="text-slate-300">➜</span> {req.end}
+                    {formatDate(req.start)} <span className="text-slate-300">➜</span> {formatDate(req.end)}
                   </div>
                   
                   <div className="flex items-center gap-1 text-sm font-bold text-slate-800">
@@ -508,7 +523,6 @@ export default function UserView({
               )}
             </div>
           </div>
-
         </div>
       </div>
     </div>

@@ -6,13 +6,12 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import UserView from "./_components/UserView";
 import AdminView from "./_components/AdminView";
-import { cookies } from "next/headers"; // Import za kolačiće
+import { cookies } from "next/headers";
 
 export default async function VacationPage(props: { searchParams: Promise<{ year?: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
-  // 1. DOHVATI AKTIVNI RESTORAN IZ KOLAČIĆA
   const cookieStore = await cookies();
   const activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
 
@@ -45,9 +44,12 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         start: { gte: startOfYear, lte: endOfYear }
     };
 
-    // 2. FILTRIRANJE PREMA ODABRANOM RESTORANU (ILI DOZVOLAMA)
+    // LOGIKA FILTRIRANJA
+    // Ako je 'all', ne filtriramo po restaurantId (znači uzimamo sve),
+    // OSIM ako user nije GodMode - onda uzimamo sve njegove dodijeljene restorane.
+    
     if (activeRestaurantId && activeRestaurantId !== 'all') {
-        // Ako je odabran specifičan restoran
+        // Specifičan restoran
         userWhereClause = { 
             ...userWhereClause, 
             restaurants: { some: { restaurantId: activeRestaurantId } } 
@@ -57,7 +59,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
             user: { restaurants: { some: { restaurantId: activeRestaurantId } } } 
         };
     } else if (!isGodMode) {
-        // Ako je "Svi restorani", ali user nije GodMode, daj mu samo njegove restorane
+        // "Svi restorani" ali samo oni koje manager vidi
         const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
         userWhereClause = { 
             ...userWhereClause, 
@@ -68,8 +70,8 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
             user: { restaurants: { some: { restaurantId: { in: myRestaurantIds } } } } 
         };
     }
+    // Ako je GodMode i 'all', ne dodajemo nikakav filter = SVI podaci iz baze
 
-    // 3. DOHVAT PODATAKA (Već filtrirano)
     const allRequestsRaw = await prisma.vacationRequest.findMany({
       where: requestWhereClause,
       include: {
@@ -85,7 +87,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       days: req.days,
       status: req.status,
       user: {
-        id: req.user.id, // Bitno za povezivanje u PDF-u
+        id: req.user.id,
         name: req.user.name,
         email: req.user.email,
         mainRestaurant: req.user.restaurants[0]?.restaurant.name || "N/A",
@@ -133,7 +135,6 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
   }
 
   // --- RADNIK POGLED ---
-  // (Ostaje isti kod za radnika kao prije)
   const myRequestsRaw = await prisma.vacationRequest.findMany({
     where: { 
         userId: user.id,

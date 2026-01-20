@@ -4,13 +4,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, Store, User, Menu, X } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X } from "lucide-react"; // Uklonjen 'Store'
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
+import RestaurantSwitcher from "./RestaurantSwitcher";
 
-// FIX: Putanja je sada lokalna jer su u istom folderu
-import RestaurantSwitcher from "./RestaurantSwitcher"; 
+// Definiramo tip za Usera koji ima rolu, da izbjegnemo 'any'
+interface UserWithRole {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  role?: string;
+}
 
 const brandFont = Kanit({ subsets: ["latin"], weight: ["600", "800", "900"] });
 
@@ -33,6 +39,16 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
 
   const closeMenu = () => setMobileMenuOpen(false);
 
+  // Sigurna provjera role bez 'any'
+  const user = session?.user as UserWithRole | undefined;
+  const role = user?.role;
+
+  const canSeeAllRestaurants = 
+    role === 'SYSTEM_ARCHITECT' || 
+    role === 'SUPER_ADMIN' || 
+    role === 'ADMIN' || 
+    role === 'MANAGER';
+
   if (pathname === "/login" || pathname === "/select-restaurant") return null;
 
   return (
@@ -41,16 +57,19 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
         
         <div className="flex items-center gap-6">
             <Link href="/dashboard" onClick={closeMenu} className={`flex items-baseline gap-2 hover:opacity-80 transition-all select-none ${brandFont.className}`}>
-                <h1 className="font-[900] text-2xl tracking-tighter text-white uppercase font-black">AIW</h1>
-                <p className="text-sm text-[#FFC72C] font-[700] tracking-[0.1em] uppercase font-extrabold">Services</p>
+                {/* Uklonjen font-[900] jer je font-black isti (900) */}
+                <h1 className="text-2xl tracking-tighter text-white uppercase font-black">AIW</h1>
+                {/* Uklonjen font-[700] jer je font-extrabold (800) bolji kontrast */}
+                <p className="text-sm text-[#FFC72C] tracking-[0.1em] uppercase font-extrabold">Services</p>
             </Link>
 
-            {restaurants.length > 0 && (
+            {(restaurants.length > 0 || canSeeAllRestaurants) && (
                 <div className="hidden md:flex items-center gap-4">
                     <div className="h-8 w-px bg-white/10"></div>
                     <RestaurantSwitcher 
                         restaurants={restaurants} 
                         activeRestaurantId={activeRestaurantId} 
+                        showAllOption={canSeeAllRestaurants} 
                     />
                 </div>
             )}
@@ -67,7 +86,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
               <div key={category.id} className="relative group h-full flex items-center">
                 <Link 
                   href={isGeneral ? "/dashboard" : `/tools/categories/${category.id}`}
-                  className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest font-black ${isActiveCategory ? 'bg-white/10 text-[#FFC72C]' : 'hover:bg-white/5 text-emerald-100/60 hover:text-white'}`}
+                  className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${isActiveCategory ? 'bg-white/10 text-[#FFC72C]' : 'hover:bg-white/5 text-emerald-100/60 hover:text-white'}`}
                 >
                   {isGeneral && <LayoutGrid size={14} />}
                   {displayLabel}
@@ -82,7 +101,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
                           <span className="p-1.5 bg-slate-100 rounded-md text-slate-400 group-hover/tool:bg-[#1a3826] group-hover/tool:text-[#FFC72C] transition-all">
                             <tool.icon size={14} />
                           </span>
-                          <span className="text-xs font-bold text-slate-700 tracking-tight font-bold">{tool.name}</span>
+                          <span className="text-xs font-bold text-slate-700 tracking-tight">{tool.name}</span>
                         </Link>
                       ))}
                     </div>
@@ -95,8 +114,8 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
 
         <div className="hidden md:flex items-center gap-4">
           <div className="flex flex-col items-end leading-none border-r border-white/10 pr-4 font-bold">
-            <span className="text-[10px] font-black text-white uppercase tracking-tight font-black">{session?.user?.name || "Korisnik"}</span>
-            <span className="text-[9px] font-bold text-[#FFC72C] uppercase tracking-widest mt-1 opacity-80 font-bold">
+            <span className="text-[10px] font-black text-white uppercase tracking-tight">{session?.user?.name || "Korisnik"}</span>
+            <span className="text-[9px] font-bold text-[#FFC72C] uppercase tracking-widest mt-1 opacity-80">
                 Online
             </span>
           </div>
@@ -120,10 +139,14 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
         <div className="md:hidden absolute top-16 left-0 w-full bg-[#1a3826] border-t border-white/5 shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-y-auto max-h-[80vh]">
             <div className="p-4 space-y-4 pb-10">
                 
-                {restaurants.length > 0 && (
+                {(restaurants.length > 0 || canSeeAllRestaurants) && (
                   <div className="bg-white/5 p-3 rounded-lg border border-white/10">
                       <p className="text-[10px] text-slate-400 uppercase font-black mb-2 tracking-widest">Odaberi Restoran</p>
-                      <RestaurantSwitcher restaurants={restaurants} activeRestaurantId={activeRestaurantId} />
+                      <RestaurantSwitcher 
+                        restaurants={restaurants} 
+                        activeRestaurantId={activeRestaurantId}
+                        showAllOption={canSeeAllRestaurants}
+                      />
                   </div>
                 )}
 
