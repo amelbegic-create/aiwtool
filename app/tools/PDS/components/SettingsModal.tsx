@@ -2,7 +2,7 @@
 'use client';
 import { useState } from 'react';
 import { X, Save, Target, BarChart4, ChevronRight, Hash, ToggleLeft, Trash2, Store } from 'lucide-react';
-import { savePDSTemplate } from '../actions';
+import { savePDSTemplate } from '../../../actions/pdsActions';
 import { PDSGoal, PDSScaleLevel, PDSScoringRule } from '../types';
 import { useSession } from 'next-auth/react';
 

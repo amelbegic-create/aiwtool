@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, Play } from 'lucide-react';
-// Koristimo apsolutnu putanju (@) da izbjegnemo greške sa tačkicama (../../)
+// 👇 SADA OVO GAĐA TAČNU PUTANJU (ako si uradio Korak 1)
 import { createBulkPDS, deleteAllPDSForYear } from '@/app/actions/pdsActions'; 
 
 interface Props {
@@ -19,7 +19,6 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleGenerate = async () => {
-    // 1. Validacija
     if (!template || !template.goals || template.goals.length === 0) {
       return alert('Prvo morate definisati pravila (Ciljeve i Skalu)!');
     }
@@ -27,10 +26,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
     setIsGenerating(true);
 
     try {
-      // 2. FIX: Prisilno pretvaramo u broj (Number) da zadovoljimo TypeScript
       const yearAsNumber = Number(selectedYear);
-      
-      // 3. Pozivamo akciju
       const res = await createBulkPDS(yearAsNumber, currentUserId);
 
       if (res?.success) {
@@ -40,8 +36,8 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
         alert(res?.error || 'Greška pri generisanju.');
       }
     } catch (error) {
-      console.error("Greška pri generisanju:", error);
-      alert('Došlo je do greške.');
+      console.error(error);
+      alert('Greška.');
     } finally {
       setIsGenerating(false);
     }
@@ -53,15 +49,12 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
 
     setIsDeleting(true);
     try {
-        // FIX: I ovdje pretvaramo u broj za svaki slučaj
         const yearAsNumber = Number(selectedYear);
-        
         await deleteAllPDSForYear(yearAsNumber);
-        
         router.refresh();
         alert("Uspješno obrisano.");
     } catch (error) {
-        console.error("Greška pri brisanju:", error);
+        console.error(error);
         alert("Greška pri brisanju.");
     } finally {
         setIsDeleting(false);

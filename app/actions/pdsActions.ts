@@ -4,7 +4,7 @@
 import prisma from '@/lib/prisma';
 import { PDSStatus } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
-import { PDSGoal, PDSScaleLevel } from './types';
+import { PDSGoal, PDSScaleLevel } from '../tools/PDS/types';
 import { cookies } from 'next/headers';
 
 const db = prisma as any;

@@ -4,7 +4,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 // FIX: Ispravne putanje
-import { updatePDSContent, changePDSStatus, returnPDS } from '../actions';
+import { updatePDSContent, changePDSStatus, returnPDS } from '../../../actions/pdsActions';
 import SignaturePad from '../components/SignaturePad';
 import { Save, Send, ChevronLeft, Check, X, Undo2, FileDown, Loader2 } from 'lucide-react';
 import { PDSGoal, PDSScoringRule } from '../types';
