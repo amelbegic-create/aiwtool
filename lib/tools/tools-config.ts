@@ -1,6 +1,7 @@
 import { 
   Users, LayoutDashboard, ShieldCheck, PlaneTakeoff, 
-  Briefcase, Settings, ClipboardList, Clock, TrendingUp 
+  Briefcase, Settings, ClipboardList, Clock, TrendingUp,
+  BookOpen // Dodana ikona za pravila
 } from "lucide-react";
 
 export const TOOL_CATEGORIES = [
@@ -16,6 +17,7 @@ export const APP_TOOLS = [
   { id: 'PDS', name: 'PDS', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
   
   // OPERACIJE
+  { id: 'rules', name: 'Pravila & Procedure', href: '/tools/rules', icon: BookOpen, category: 'operations' }, // NOVO
   { id: 'labor-planner', name: 'Labor Planner', href: '/tools/labor-planner', icon: Clock, category: 'operations' },
   { id: 'productivity', name: 'Produktivnost', href: '/tools/productivity', icon: TrendingUp, category: 'operations' },
   

@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")  // Pooled connection (za brzi rad aplikacije)
+  directUrl = env("DIRECT_URL")    // Direct connection (OBAVEZNO za 'prisma db push')
 }
 
 // --- ENUMS ---
@@ -22,7 +23,20 @@ enum PDSStatus {
   SUBMITTED
   COMPLETED
   ARCHIVED
-  RETURNED // <--- NOVO: Dodan status za vraćanje na doradu
+  RETURNED
+}
+
+// ENUMI ZA PRAVILA
+enum RulePriority {
+  INFORMATION
+  MANDATORY
+  URGENT
+}
+
+enum RuleStatus {
+  ACTIVE
+  ARCHIVED
+  DRAFT
 }
 
 // --- USERS & AUTH ---
@@ -46,6 +60,12 @@ model User {
   pdsList             PDS[]
   accounts            Account[]
   sessions            Session[]
+
+  // RELACIJE ZA PRAVILA
+  readRules           RuleReadReceipt[]
+
+  // ✅ NOVO: state snapshotovi za alate (Vercel Blob pointeri)
+  toolStates          ToolState[]
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -85,52 +105,44 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// --- PDS (AŽURIRANO) ---
+// --- PDS ---
 model PDSTemplate {
   id           String     @id @default(cuid())
   year         Int
-  
-  // NOVO: Template je sada vezan za restoran
-  restaurantId String     
+  restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  
   goals        Json
   scale        Json
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  // NOVO: Jedinstveno po godini I restoranu (svaki restoran ima svoj template)
-  @@unique([year, restaurantId]) 
+  @@unique([year, restaurantId])
 }
 
 model PDS {
-  id                String     @id @default(cuid())
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
-  
+  id                String      @id @default(cuid())
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
   userId            String
-  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // NOVO: PDS vežemo i za restoran (opcionalno ali korisno za filtriranje)
-  restaurantId      String?    
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId      String?
   restaurant        Restaurant? @relation(fields: [restaurantId], references: [id])
-
   managerId         String
   year              Int
   templateId        String?
   goals             Json
   scale             Json
-  employeeComment   String?    @db.Text
-  managerComment    String?    @db.Text
-  employeeSignature String?    @db.Text
-  managerSignature  String?    @db.Text
-  totalScore        Int        @default(0)
-  status            PDSStatus  @default(DRAFT)
+  employeeComment   String?     @db.Text
+  managerComment    String?     @db.Text
+  employeeSignature String?     @db.Text
+  managerSignature  String?     @db.Text
+  totalScore        Int         @default(0)
+  status            PDSStatus   @default(DRAFT)
 
   @@unique([userId, year])
 }
 
-// --- RESTAURANTS (AŽURIRANO) ---
+// --- RESTAURANTS ---
 model Restaurant {
   id                  String               @id @default(cuid())
   code                String               @unique
@@ -140,14 +152,15 @@ model Restaurant {
   isActive            Boolean              @default(true)
   openingHours        Json?                @default("{}")
   users               RestaurantUser[]
+
+  // Relacija na pravila
   rules               RuleRestaurant[]
+
   evaluations         EvaluationSubmission[]
   blockedDays         BlockedDay[]
   productivityReports ProductivityReport[]
   laborReports        LaborReport[]
   vacationRequests    VacationRequest[]
-  
-  // NOVE RELACIJE ZA PDS
   pdsTemplates        PDSTemplate[]
   pdsList             PDS[]
 
@@ -166,17 +179,16 @@ model RestaurantUser {
   @@unique([userId, restaurantId])
 }
 
-// --- TOOLS (OSTALO ISTO) ---
+// --- TOOLS ---
 model ProductivityReport {
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  date         String     
+  date         String
   data         Json       @default("{}")
   targetProd   Float?     @default(120)
   netCoeff     Float?     @default(1.17)
   hourlyData   Json?
-  
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -256,26 +268,102 @@ model EvaluationSubmission {
   createdAt    DateTime           @default(now())
 }
 
+// --- MODULE: PRAVILA (NOVO - CMS VERZIJA) ---
+
+// 1. Kategorije
+model RuleCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  rules     Rule[]
+  createdAt DateTime @default(now())
+}
+
+// 2. Slike (Galerija)
+model RuleImage {
+  id        String   @id @default(cuid())
+  url       String
+  ruleId    String
+  rule      Rule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+}
+
+// 3. Glavni Rule model
 model Rule {
-  id          String           @id @default(cuid())
-  title       String
-  slug        String           @unique
-  content     String
-  category    String
-  isGlobal    Boolean          @default(true)
-  published   Boolean          @default(false)
-  authorId    String
-  restaurants RuleRestaurant[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  title         String
+  content       String?          @db.Text
+
+  // Relacija na kategoriju
+  categoryId    String
+  category      RuleCategory     @relation(fields: [categoryId], references: [id])
+
+  priority      RulePriority     @default(INFORMATION)
+
+  // Status: Aktivan/Neaktivan
+  isActive      Boolean          @default(true)
+  status        RuleStatus       @default(ACTIVE) // Zadržano radi kompatibilnosti
+
+  // Media
+  videoUrl      String?
+
+  // OVO JE KLJUČNO: Niz stringova za podršku više PDF-ova
+  pdfUrls       String[]         @default([])
+
+  imageUrl      String?          // Opcionalno za thumbnail
+
+  // Relacija na slike (One-to-Many)
+  images        RuleImage[]
+
+  // Vidljivost
+  isGlobal      Boolean          @default(true)
+
+  authorId      String
+
+  // Relacije
+  restaurants   RuleRestaurant[]
+  readReceipts  RuleReadReceipt[]
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([isActive])
 }
 
 model RuleRestaurant {
   id           String     @id @default(cuid())
   ruleId       String
   restaurantId String
-  rule         Rule       @relation(fields: [ruleId], references: [id])
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  rule         Rule       @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@unique([ruleId, restaurantId])
+}
+
+model RuleReadReceipt {
+  id        String   @id @default(cuid())
+  ruleId    String
+  rule      Rule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt    DateTime @default(now())
+
+  @@unique([ruleId, userId])
+}
+
+//
+// ✅ NOVO: TOOL STATE (Vercel Blob pointer per user + toolKey)
+//
+model ToolState {
+  id        String   @id @default(cuid())
+  toolKey   String
+  blobUrl   String
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@unique([userId, toolKey])
+  @@index([toolKey])
 }

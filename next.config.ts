@@ -9,6 +9,21 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // OBAVEZNO: Konfiguracija za slike (Vercel Blob)
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'public.blob.vercel-storage.com',
+        port: '',
+      },
+      // Dodajemo i placeholder servise ako zatrebaju
+      {
+        protocol: 'https',
+        hostname: 'via.placeholder.com',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

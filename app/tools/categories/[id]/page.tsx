@@ -1,85 +1,218 @@
-"use client";
-
-import { useParams } from "next/navigation";
-import { TOOL_CATEGORIES, APP_TOOLS } from "@/lib/tools/tools-config";
+// app/tools/categories/[id]/page.tsx
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getDbUserForAccess } from "@/lib/access";
+import { GOD_MODE_ROLES } from "@/lib/permissions";
+import {
+  ArrowRight,
+  Users,
+  Settings2,
+  Layers,
+  Palmtree,
+  ClipboardCheck,
+  Gift,
+  BarChart3,
+  CalendarClock,
+  BookOpenText,
+} from "lucide-react";
 
-export default function CategoryPage() {
-  const params = useParams();
-  const categoryId = params.id as string;
+export const dynamic = "force-dynamic";
 
-  const category = TOOL_CATEGORIES.find((c) => c.id === categoryId);
-  
-  if (!category) return notFound();
+type CategoryId = "staff" | "operations" | "other";
 
-  const tools = APP_TOOLS.filter((t) => t.category === categoryId);
-  const CategoryIcon = category.icon;
+const CATEGORY_META: Record<
+  CategoryId,
+  { title: string; subtitle: string; icon: any }
+> = {
+  staff: {
+    title: "OSOBLJE",
+    subtitle: "SISTEMSKI MODULI / STAFF",
+    icon: Users,
+  },
+  operations: {
+    title: "OPERATIONS",
+    subtitle: "SISTEMSKI MODULI / OPERATIONS",
+    icon: Settings2,
+  },
+  other: {
+    title: "OTHER",
+    subtitle: "SISTEMSKI MODULI / OTHER",
+    icon: Layers,
+  },
+};
 
+function Card({
+  href,
+  title,
+  description,
+  icon: Icon,
+  badge,
+}: {
+  href: string;
+  title: string;
+  description: string;
+  icon: any;
+  badge?: string;
+}) {
   return (
-    <div className="p-10 bg-white min-h-full animate-in fade-in duration-500">
-      {/* Smanjen i prefinjen Header */}
-      <div className="mb-10 border-b border-slate-50 pb-8">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-slate-50 text-[#1a3826] rounded-xl border border-slate-100">
-            {/* Smanjena ikona kategorije sa 40 na 24 */}
-            <CategoryIcon size={24} />
+    <Link
+      href={href}
+      className="group bg-white rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
+    >
+      <div className="p-8 h-full flex flex-col justify-between">
+        <div className="flex items-start justify-between">
+          <div className="h-14 w-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center">
+            <Icon className="text-[#1a3826]" />
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-[#1a3826] uppercase tracking-tight leading-none">
-              {category.label}
-            </h1>
-            <p className="text-slate-400 text-[9px] font-bold uppercase tracking-[0.2em] mt-2">
-              Sistemski moduli / {category.id}
-            </p>
+
+          {badge ? (
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+              {badge}
+            </span>
+          ) : (
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+              AKTIVNO
+            </span>
+          )}
+        </div>
+
+        <div className="mt-8">
+          <h3 className="text-xl font-black text-slate-900 group-hover:text-[#1a3826] transition-colors">
+            {title}
+          </h3>
+          <p className="mt-2 text-sm font-semibold text-slate-400">
+            {description}
+          </p>
+
+          <div className="mt-6 flex items-center justify-between">
+            <span className="text-xs font-black text-[#1a3826]">OTVORI</span>
+            <div className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-white transition-colors">
+              <ArrowRight
+                className="text-slate-400 group-hover:text-[#1a3826]"
+                size={18}
+              />
+            </div>
           </div>
         </div>
       </div>
+    </Link>
+  );
+}
 
-      {/* Grid sa kompaktnijim karticama */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {tools.length > 0 ? (
-          tools.map((tool) => (
-            <Link 
-              key={tool.id} 
-              href={tool.href} 
-              className="group bg-white p-6 rounded-[2rem] border border-slate-100 hover:border-[#1a3826]/20 hover:shadow-xl hover:shadow-slate-200/50 transition-all duration-300"
-            >
-              <div className="flex items-start justify-between mb-6">
-                <div className="p-3 bg-slate-50 rounded-xl text-slate-400 group-hover:bg-[#1a3826] group-hover:text-white transition-all duration-300 shadow-sm">
-                  {/* Smanjena ikona alata sa 32 na 20 */}
-                  <tool.icon size={20} />
-                </div>
-                <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest group-hover:text-[#1a3826] transition-colors">
-                  Aktivno
-                </div>
-              </div>
-              
-              <h3 className="text-sm font-black text-[#1a3826] uppercase tracking-tight mb-1">
-                {tool.name}
-              </h3>
-              <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-                Pokretanje modula za {tool.name.toLowerCase()} u restoranu.
-              </p>
-              
-              <div className="mt-6 pt-4 border-t border-slate-50 flex items-center justify-between">
-                <span className="text-[9px] font-black uppercase tracking-widest text-[#1a3826] opacity-0 group-hover:opacity-100 transition-opacity">
-                  Otvori alat
-                </span>
-                <div className="h-6 w-6 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#FFC72C] group-hover:text-[#1a3826] transition-all">
-                  <span className="text-xs">→</span>
-                </div>
-              </div>
-            </Link>
-          ))
-        ) : (
-          <div className="col-span-full py-16 text-center border-2 border-dashed border-slate-100 rounded-[2.5rem]">
-            <p className="text-slate-300 font-bold uppercase tracking-widest text-[10px]">
-              Nema modula u ovoj sekciji
+export default async function ToolsCategoryPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  // zaštita: kategorije koje postoje
+  if (!["staff", "operations", "other"].includes(id)) notFound();
+
+  // session/db user
+  const dbUser = await getDbUserForAccess();
+  if (!dbUser?.id) redirect("/login");
+
+  const isAdmin = GOD_MODE_ROLES.has(String(dbUser.role));
+  const categoryId = id as CategoryId;
+  const meta = CATEGORY_META[categoryId];
+  const HeaderIcon = meta.icon;
+
+  // alati po kategorijama (based on tvoje stablo u /app/tools)
+  const tools: Array<{
+    href: string;
+    title: string;
+    description: string;
+    icon: any;
+    badge?: string;
+    show?: boolean;
+  }> = [];
+
+  if (categoryId === "staff") {
+    tools.push(
+      {
+        href: "/tools/vacations",
+        title: "GODIŠNJI ODMORI",
+        description: "Planer odsustva i odobrenja.",
+        icon: Palmtree,
+      },
+      {
+        href: "/tools/PDS",
+        title: "PDS",
+        description: "Evaluacija performansi.",
+        icon: ClipboardCheck,
+      },
+      {
+        href: "/tools/bonusi",
+        title: "BONUSI",
+        description: "Administracija bonusa.",
+        icon: Gift,
+        badge: "ADMIN",
+        show: isAdmin,
+      }
+    );
+  }
+
+  if (categoryId === "operations") {
+    tools.push(
+      {
+        href: "/tools/productivity",
+        title: "PRODUKTIVNOST",
+        description: "Izvještaji i praćenje performansi restorana.",
+        icon: BarChart3,
+      },
+      {
+        href: "/tools/labor-planner",
+        title: "LABOR PLANNER",
+        description: "Planiranje rada i smjena.",
+        icon: CalendarClock,
+      }
+    );
+  }
+
+  if (categoryId === "other") {
+    tools.push({
+      href: "/tools/rules",
+      title: "PRAVILA",
+      description: "Uputstva, pravila i procedure.",
+      icon: BookOpenText,
+    });
+  }
+
+  const visibleTools = tools.filter((t) => t.show !== false);
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+      <main className="max-w-[1600px] mx-auto w-full px-6 md:px-10 py-10">
+        {/* Header */}
+        <div className="flex items-center gap-5 pb-8 border-b border-slate-200">
+          <div className="h-14 w-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
+            <HeaderIcon className="text-[#1a3826]" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-900">
+              {meta.title}
+            </h1>
+            <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+              {meta.subtitle}
             </p>
           </div>
-        )}
-      </div>
+        </div>
+
+        {/* Cards */}
+        <div className="pt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {visibleTools.map((t) => (
+            <Card
+              key={t.href}
+              href={t.href}
+              title={t.title}
+              description={t.description}
+              icon={t.icon}
+              badge={t.badge}
+            />
+          ))}
+        </div>
+      </main>
     </div>
   );
 }

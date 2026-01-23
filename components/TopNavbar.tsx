@@ -4,13 +4,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X } from "lucide-react"; // Uklonjen 'Store'
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
 import RestaurantSwitcher from "./RestaurantSwitcher";
 
-// Definiramo tip za Usera koji ima rolu, da izbjegnemo 'any'
 interface UserWithRole {
   name?: string | null;
   email?: string | null;
@@ -39,30 +38,31 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
 
   const closeMenu = () => setMobileMenuOpen(false);
 
-  // Sigurna provjera role bez 'any'
   const user = session?.user as UserWithRole | undefined;
   const role = user?.role;
 
+  // Dozvole za admina
   const canSeeAllRestaurants = 
     role === 'SYSTEM_ARCHITECT' || 
     role === 'SUPER_ADMIN' || 
     role === 'ADMIN' || 
     role === 'MANAGER';
 
+  // Sakrij navbar na login stranici
   if (pathname === "/login" || pathname === "/select-restaurant") return null;
 
   return (
     <header className="bg-[#1a3826] text-white shadow-xl h-16 shrink-0 relative z-50 transition-all border-b border-white/5">
       <div className="h-full max-w-[1920px] mx-auto px-6 flex justify-between items-center">
         
+        {/* LIJEVA STRANA: LOGO + RESTORAN SWITCHER */}
         <div className="flex items-center gap-6">
             <Link href="/dashboard" onClick={closeMenu} className={`flex items-baseline gap-2 hover:opacity-80 transition-all select-none ${brandFont.className}`}>
-                {/* Uklonjen font-[900] jer je font-black isti (900) */}
                 <h1 className="text-2xl tracking-tighter text-white uppercase font-black">AIW</h1>
-                {/* Uklonjen font-[700] jer je font-extrabold (800) bolji kontrast */}
                 <p className="text-sm text-[#FFC72C] tracking-[0.1em] uppercase font-extrabold">Services</p>
             </Link>
 
+            {/* Prikaz Switchera samo ako ima restorana ili je admin */}
             {(restaurants.length > 0 || canSeeAllRestaurants) && (
                 <div className="hidden md:flex items-center gap-4">
                     <div className="h-8 w-px bg-white/10"></div>
@@ -75,6 +75,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
             )}
         </div>
 
+        {/* SREDINA: NAVIGACIJA */}
         <nav className="hidden md:flex h-full items-center gap-1">
           {TOOL_CATEGORIES.map((category) => {
             const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
@@ -93,6 +94,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
                   {!isGeneral && <ChevronDown size={12} className="opacity-40 group-hover:rotate-180 transition-transform" />}
                 </Link>
 
+                {/* Dropdown Menu */}
                 {!isGeneral && categoryTools.length > 0 && (
                   <div className="absolute top-[90%] left-0 w-64 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-1 group-hover:translate-y-0 z-50">
                     <div className="p-2 space-y-0.5 text-slate-900">
@@ -112,6 +114,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
           })}
         </nav>
 
+        {/* DESNA STRANA: USER PROFILE */}
         <div className="hidden md:flex items-center gap-4">
           <div className="flex flex-col items-end leading-none border-r border-white/10 pr-4 font-bold">
             <span className="text-[10px] font-black text-white uppercase tracking-tight">{session?.user?.name || "Korisnik"}</span>
@@ -127,6 +130,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
           </div>
         </div>
 
+        {/* MOBILE MENU TOGGLE */}
         <button 
           className="md:hidden p-2 text-white hover:bg-white/10 rounded-lg transition-colors" 
           onClick={() => setMobileMenuOpen(prev => !prev)}
@@ -135,6 +139,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
         </button>
       </div>
 
+      {/* MOBILE MENU */}
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 w-full bg-[#1a3826] border-t border-white/5 shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-y-auto max-h-[80vh]">
             <div className="p-4 space-y-4 pb-10">
@@ -144,8 +149,8 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
                       <p className="text-[10px] text-slate-400 uppercase font-black mb-2 tracking-widest">Odaberi Restoran</p>
                       <RestaurantSwitcher 
                         restaurants={restaurants} 
-                        activeRestaurantId={activeRestaurantId}
-                        showAllOption={canSeeAllRestaurants}
+                        activeRestaurantId={activeRestaurantId} 
+                        showAllOption={canSeeAllRestaurants} 
                       />
                   </div>
                 )}

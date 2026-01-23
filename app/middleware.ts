@@ -1,42 +1,45 @@
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 export async function middleware(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  const isAuth = !!token;
-  
-  const isAuthPage = req.nextUrl.pathname.startsWith("/login");
-  
-  // Definišemo koje su rute zaštićene (Dashboard I Admin panel)
-  const isProtectedRoute = 
-      req.nextUrl.pathname.startsWith("/dashboard") || 
-      req.nextUrl.pathname.startsWith("/admin");
+  const { pathname } = req.nextUrl;
 
-  // 1. Ako je korisnik na Login stranici, a VEĆ je ulogovan
-  if (isAuthPage) {
-    if (isAuth) {
-      // Ovdje ga šaljemo na select-restaurant (ako je to tvoja root ruta "/") ili dashboard
-      // Ako je tvoja "/" ruta Select Restaurant, onda ga šalji tamo:
-      return NextResponse.redirect(new URL("/", req.url)); 
-    }
-    return null;
+  // Ne diraj Next internals i auth endpoints
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/login")
+  ) {
+    return NextResponse.next();
   }
 
-  // 2. Ako NIJE ulogovan, a pokušava ući na zaštićene rute (Dashboard ili Admin)
-  if (!isAuth && isProtectedRoute) {
-    return NextResponse.redirect(new URL("/login", req.url));
-  }
-  
-  // 3. (Opcionalno) Ako je na "/" (Select Restaurant), a NIJE ulogovan -> Login
-  if (!isAuth && req.nextUrl.pathname === "/") {
-      return NextResponse.redirect(new URL("/login", req.url));
+  // Zaštićene zone (dodaj šta treba)
+  const isProtected =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/tools") ||
+    pathname.startsWith("/admin");
+
+  if (!isProtected) return NextResponse.next();
+
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  // Ako nema tokena -> login
+  if (!token?.email) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("from", pathname);
+    return NextResponse.redirect(url);
   }
 
+  // Ako ima token -> pusti dalje
   return NextResponse.next();
 }
 
-// KLJUČNO: Ovdje smo dodali "/admin/:path*" da middleware uopšte "vidi" tu rutu
 export const config = {
-  matcher: ["/", "/login", "/dashboard/:path*", "/admin/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

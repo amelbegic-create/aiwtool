@@ -1,0 +1,2614 @@
+<html lang="de"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bonus Tool – Stabil (Abteilungsziele)</title>
+<style>
+  :root{
+    --green:#0f3d2e;
+    --yellow:#f2c94c;
+    --white:#ffffff;
+    --black:#000000;
+    --muted: rgba(0,0,0,.65);
+    --border: rgba(0,0,0,.18);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial, sans-serif;background:var(--white);color:var(--black);}
+  header{background:var(--green);color:var(--white);padding:16px 18px;border-bottom:1px solid rgba(0,0,0,.25);}
+  .title{font-size:20px;font-weight:900;letter-spacing:.2px;}
+  .sub{margin-top:6px;font-size:12px;font-weight:800;color:rgba(255,255,255,.85);}
+  .sub b{color:var(--yellow);}
+  .tabs{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .tab{
+    padding:8px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.45);
+    background:rgba(255,255,255,.10);color:var(--white);
+    font-weight:900;font-size:12px;cursor:pointer;
+  }
+  .tab.active{background:var(--yellow);border-color:var(--yellow);color:var(--black);}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px 18px;}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .spacer{flex:1 1 auto}
+  .card{border:1px solid var(--border);border-radius:10px;background:var(--white);padding:14px;margin-bottom:14px;}
+  .card h2{margin:0 0 10px 0;font-size:14px;color:var(--green);font-weight:1000;}
+  label{display:block;margin-top:10px;font-weight:900;font-size:12px;}
+  input,select{
+    padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--white);
+    color:var(--black);font-weight:800;min-width:180px;
+  }
+  input.small{min-width:120px;width:120px;}
+  input.wide{min-width:280px;width:280px;}
+  button{
+    padding:9px 12px;border-radius:10px;border:1px solid var(--border);
+    background:var(--white);color:var(--black);font-weight:1000;cursor:pointer;
+  }
+  button.primary{background:var(--yellow);border-color:var(--yellow);}
+  button:hover{border-color:rgba(0,0,0,.35)}
+  .pill{
+    display:inline-block;border:1px solid var(--yellow);border-radius:999px;
+    padding:6px 10px;background:var(--white);color:var(--black);
+    font-weight:1000;font-size:12px;
+  }
+  .pill b{color:var(--green)}
+  .hint{margin-top:6px;font-size:12px;font-weight:800;color:var(--muted);line-height:1.35;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{padding:8px;border-bottom:1px solid rgba(0,0,0,.10);vertical-align:top;}
+  th{color:var(--green);font-weight:1000;text-align:left;}
+  .right{text-align:right;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media (max-width:900px){.grid2{grid-template-columns:1fr;}}
+  .toast{
+    position:fixed;left:50%;top:14px;transform:translateX(-50%);
+    background:var(--white);border:1px solid var(--border);border-radius:10px;
+    padding:10px 12px;font-weight:1000;font-size:12px;z-index:9999;
+  }
+  .sectionHead{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    padding:10px 12px;border-radius:10px;border:1px solid rgba(0,0,0,.10);
+    background:rgba(242,201,76,.18);
+    margin-bottom:10px;
+  }
+  .sectionHead .left{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .badge{
+    display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:1000;
+    border:1px solid rgba(0,0,0,.18);background:var(--white);
+  }
+  .badge.ok{border-color:rgba(0,0,0,.18)}
+  .badge.warn{border-color:rgba(0,0,0,.35)}
+
+/* --- UI Polish v6 --- */
+.sectionHead{
+  background: linear-gradient(0deg, rgba(242,201,76,.18), rgba(242,201,76,.18));
+  border-color: rgba(0,0,0,.12);
+}
+.pillar-title{
+  display:flex;align-items:center;gap:10px;
+  font-size:16px;font-weight:1000;color:var(--green);
+}
+.pillar-title input[type="checkbox"]{
+  width:18px;height:18px;accent-color: var(--green);
+}
+.pillar-meta{
+  display:flex;gap:8px;flex-wrap:wrap;margin-left:6px;
+}
+.pillar-meta .pill{
+  background:#fffbe6;border-color:var(--yellow);
+}
+.card table thead th{
+  background: rgba(0,0,0,.03);
+}
+.card table tbody tr:hover{
+  background: rgba(0,0,0,.03);
+}
+
+
+/* --- UI Polish v8 (pillar header controls) --- */
+.sectionHead{
+  justify-content:space-between;
+}
+.sectionHead .rightControls{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.pillarToggle{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,.15);
+  background: rgba(255,255,255,.75);
+  font-weight:1000;
+  font-size:12px;
+  color: var(--green);
+}
+.pillarToggle input[type="checkbox"]{
+  width:16px;
+  height:16px;
+  accent-color: var(--green);
+  margin:0;
+}
+.btnPill{
+  padding:7px 12px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:1000;
+}
+.pillarNameBig{
+  font-size:16px;
+  font-weight:1000;
+  color: var(--green);
+}
+.pillarMeta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-left:10px;
+}
+
+
+/* --- Subtle highlight for payout figures --- */
+.pill.payout{
+  border-color: var(--yellow);
+  background: rgba(242,201,76,.22);
+}
+.pill.payout b{
+  color: var(--green);
+}
+
+
+/* --- Clearable name input --- */
+.inputWrap{ position:relative; display:inline-block; }
+.inputWrap input{ padding-right:40px; }
+.clearBtn{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  width:26px; height:26px; border-radius:999px;
+  border:1px solid rgba(0,0,0,.20);
+  background:rgba(255,255,255,.9);
+  font-weight:1000; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.clearBtn:hover{ border-color: rgba(0,0,0,.35); }
+
+
+/* --- Stammdaten Subtab --- */
+.subtabs{display:flex;gap:8px;margin-bottom:10px}
+.subtab{
+  padding:6px 12px;border-radius:999px;border:1px solid var(--border);
+  background:var(--white);font-weight:900;font-size:12px;cursor:pointer;
+}
+.subtab.active{background:var(--yellow);border-color:var(--yellow)}
+
+</style>
+
+<style id="aiw-overview-css">
+  .ovTable{ width:100%; border-collapse:collapse; }
+  .ovTable th, .ovTable td{ padding:10px 10px; border-bottom:1px solid rgba(0,0,0,.10); vertical-align:middle; }
+  .ovTable thead th{ position:sticky; top:0; background:#fff; z-index:2; }
+  .ovTable input, .ovTable select{ width:100% !important; min-width:0 !important; }
+  .ovTable td.right{ text-align:right; }
+  .ovTable td.right input{ text-align:right; }
+</style>
+
+
+<style>
+:root{
+  --aiw-bg:#f6f7f9;
+  --aiw-card:#ffffff;
+  --aiw-text:#0b1220;
+  --aiw-border: rgba(11,18,32,.12);
+  --aiw-green:#0f3d2e;
+  --aiw-yellow:#f2c94c;
+}
+html,body{
+  background:var(--aiw-bg)!important;
+  color:var(--aiw-text)!important;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif!important;
+}
+input,select,textarea{
+  border-radius:12px!important;
+  border:1px solid var(--aiw-border)!important;
+  padding:10px 12px!important;
+}
+button{
+  border-radius:12px!important;
+  font-weight:800!important;
+}
+button.primary, .primary{
+  background:var(--aiw-yellow)!important;
+  border-color:var(--aiw-yellow)!important;
+}
+</style>
+
+
+<style id="aiw-layout-fixes">
+  /* --- Employee KPI cards --- */
+  .kpiGrid{ display:grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap:12px; margin:12px 0 14px; }
+  @media (max-width: 880px){ .kpiGrid{ grid-template-columns: repeat(2, minmax(160px, 1fr)); } }
+  @media (max-width: 520px){ .kpiGrid{ grid-template-columns: 1fr; } }
+  .kpiCard{ background: var(--aiw-card, #fff); border:1px solid var(--aiw-border, rgba(11,18,32,.12)); border-radius:14px; padding:12px; box-shadow: 0 10px 24px rgba(11,18,32,.06); }
+  .kpiLabel{ font-weight:900; font-size:12px; color: rgba(11,18,32,.65); }
+  .kpiValue{ font-weight:1000; font-size:20px; margin-top:2px; }
+  .kpiBar{ height:8px; border-radius:999px; background: rgba(11,18,32,.08); margin-top:8px; overflow:hidden; }
+  .kpiFill{ height:100%; width:0; background: var(--aiw-yellow, #f2c94c); border-radius:999px; }
+
+  /* --- Layout/Alignment fixes --- */
+  /* Form rows: align bottoms so fields sit on one line */
+  .row{ align-items:flex-end; }
+
+  /* Make each direct child behave like a consistent form-group */
+  .row > div{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    flex: 1 1 260px;
+    min-width: 220px;
+  }
+  /* Labels in form-groups shouldn't push content down unevenly */
+  .row > div > label{ margin-top:0; }
+
+  /* Prevent inputs from overflowing table cells */
+  table input, table select, table textarea{
+    min-width:0 !important;
+    width:100% !important;
+    max-width:100% !important;
+  }
+
+  /* Keep "small" inputs small even inside flex layouts */
+  input.small{ width:140px !important; min-width:140px !important; }
+  input.wide{ width:340px !important; min-width:340px !important; max-width:520px; }
+
+  /* Better table alignment */
+  table{ table-layout:fixed; }
+  th.right, td.right{ text-align:right; }
+  td.right input{ text-align:right; }
+
+  /* Cards that contain tables: give breathing room so rows look stacked */
+  .card table{ margin-top:10px; }
+
+  /* Pill / badge wrapping: keep consistent spacing */
+  .pillarMeta{ display:flex; flex-wrap:wrap; gap:8px; }
+</style>
+
+
+<style id="aiw-stammdaten-fix">
+  /* Stammdaten: Name / Abteilung sauber nebeneinander */
+  .stammdaten-row,
+  .row.stammdaten,
+  .row.emp-stammdaten{
+    align-items:flex-start !important;
+  }
+
+  /* Force equal columns */
+  .row.emp-stammdaten > div,
+  .row.stammdaten > div{
+    flex:1 1 50% !important;
+    min-width:260px;
+  }
+
+  /* Inputs should not overlap buttons */
+  .row.emp-stammdaten input,
+  .row.stammdaten input,
+  .row.emp-stammdaten select,
+  .row.stammdaten select{
+    width:100% !important;
+    max-width:100% !important;
+  }
+
+  /* Action buttons below fields, not inline */
+  .row.emp-stammdaten .actions,
+  .row.stammdaten .actions{
+    margin-top:12px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+</style>
+
+
+<style id="aiw-stammdaten-fix2">
+  /* Fix: Name schiebt Abteilung weg (inputWrap + wide/min-width) */
+  #empName{ width:100% !important; min-width:0 !important; }
+  .inputWrap{ display:block !important; width:100% !important; }
+  .inputWrap input{ width:100% !important; min-width:0 !important; }
+  /* Allow flex children to shrink */
+  .row > div{ min-width:0 !important; }
+  /* In Stammdaten row keep two columns without overlap */
+  .grid2 .card .row{ align-items:flex-end; }
+</style>
+
+
+<style id="aiw-drag-css">
+  .ovTable tr[data-emp-row]{ cursor: grab; }
+  .ovTable tr.dragging{ opacity: .55; }
+  .ovTable tr.drag-over{ outline: 2px dashed rgba(0,0,0,.25); outline-offset: -2px; }
+</style>
+
+
+<style id="aiw-trash-icon-css">
+  .btn-icon{
+    border:1px solid var(--border);
+    background: var(--white);
+    padding:6px 8px;
+    border-radius:10px;
+    cursor:pointer;
+    line-height:1;
+    font-weight:1000;
+  }
+  .btn-icon.trash{
+    border-color: rgba(198,40,40,.45);
+    color:#c62828;
+  }
+  .btn-icon.trash:hover{
+    border-color:#c62828;
+    background: rgba(198,40,40,.08);
+  }
+</style>
+
+
+<style id="aiw-actions-css">
+  .actionsCell{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:10px;
+    white-space:nowrap;
+  }
+  .btn-icon.trash{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:34px;
+    height:34px;
+    padding:0;
+  }
+  .btn-icon.trash svg{
+    width:18px;
+    height:18px;
+    display:block;
+  }
+</style>
+
+
+
+
+
+
+<style id="aiw-results-name-fix">
+  /* Ergebnisse & Export: Namen einzeilig + fett */
+  table.resultsTable td:first-child,
+  table.resultsTable th:first-child{
+    white-space: nowrap;
+    font-weight: 900;
+  }
+</style>
+
+
+
+<style id="aiw-results-colwidth-fix">
+  /* Ergebnisse & Export: feste Spaltenbreiten */
+  table.resultsTable{
+    table-layout: fixed;
+  }
+  table.resultsTable th:first-child,
+  table.resultsTable td:first-child{
+    width: 220px;          /* Name */
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 900;
+  }
+  table.resultsTable th:nth-child(2),
+  table.resultsTable td:nth-child(2){
+    width: 120px;          /* Gehalt */
+  }
+</style>
+
+
+
+
+
+<style id="aiw-overview-layout-fix3">
+  /* Übersicht – kompakte Zahlenfelder */
+  .ovTable{ table-layout: fixed; min-width: 980px; }
+  .ovTable th, .ovTable td{ vertical-align: middle; }
+  .ovTable td.right{ white-space: nowrap; }
+
+  /* Monatsgehalt */
+  .ovTable td[data-col="salary"] input,
+  .ovTable input[data-ov$="::salary"]{
+    width: 90px !important;
+    min-width: 90px !important;
+  }
+
+  /* Bonusbasis (Monate) – sehr schmal */
+  .ovTable input[data-ov$="::baseMonths"]{
+    width: 60px !important;
+    min-width: 60px !important;
+    text-align: center;
+  }
+
+  /* Faktoren */
+  .ovTable input[data-ov$="::tenure"],
+  .ovTable input[data-ov$="::size"],
+  .ovTable input[data-ov$="::office"]{
+    width: 70px !important;
+    min-width: 70px !important;
+  }
+</style>
+
+
+  <script id="portableState" type="application/json">{"settings":{"baseMonths":2,"capPct":120,"factorMode":"multiply","capFactor":true},"pillarsByDept":{"RL":{"fin":{"name":"Finanz","weight":0.5,"enabled":true,"goals":[{"name":"Netincome","w":100}]},"ops":{"name":"Operation","weight":0.3,"enabled":true,"goals":[{"name":"RGRV über 97%","w":30},{"name":"Foodsafety Audit über 95%","w":20},{"name":"Gästebeschwerden weniger als 1/15000 Gäste","w":20},{"name":"CFV über 95% Durchschnitt","w":20},{"name":"CSAT über 80 ","w":10}]},"ind":{"name":"Individuell","weight":0.2,"enabled":true,"goals":[{"name":"Urlaubabbau laut Ziel","w":40},{"name":"1 SF ausbilden","w":30},{"name":"Buchhaltung Termine rechtzeitig","w":30}]}},"AL":{"fin":{"name":"Finanz","weight":0.5,"enabled":true,"goals":[{"name":"Netincome","w":100}]},"ops":{"name":"Operation","weight":0.3,"enabled":true,"goals":[{"name":"RGRV über 95 % Durchschnitt","w":30},{"name":"FS Audit über 95 % Durchschnitt","w":20},{"name":"CFV über 90 % Durchschnitt","w":20},{"name":"Gästebeschwerden weniger als 1/15000 Gäste","w":20},{"name":"CSAT über 80","w":10}]},"ind":{"name":"Individuell","weight":0.2,"enabled":true,"goals":[{"name":"Urlaubabbau","w":40},{"name":"Projekte","w":30},{"name":"Entwicklung","w":30}]}},"Office":{"fin":{"name":"FINANZ","weight":0.5,"enabled":true,"goals":[{"name":"Office Ziel 1","w":100}]},"ops":{"name":"BUCHALTUNG","weight":0.3,"enabled":true,"goals":[{"name":"Buchhaltungsziel 1","w":20},{"name":"Buchhaltungsziel 2","w":20},{"name":"Buchhaltungsziel 3","w":20},{"name":"Buchhaltungsziel 4","w":20},{"name":"Buchhaltungsziel 5","w":20}]},"ind":{"name":"INDIVIDUELL","weight":0.2,"enabled":true,"goals":[{"name":"Individuell 1","w":40},{"name":"Individuell 1","w":30},{"name":"Individuell 1","w":30}]}}},"empGoalOverrides":{},"employees":[{"id":"RL02","name":"Mert Ahmet AYYILDIZ","dept":"RL","salary":3880,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,0,100,100,100],"ind":[100,100,100]}},{"id":"RL01","name":"Endre FODOR","dept":"RL","salary":3750,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL03","name":"Sumit SHARMA","dept":"RL","salary":4590,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL04","name":"Korab Bajraktari","dept":"RL","salary":4460,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL05","name":"Jarolim BENEDEK","dept":"RL","salary":4730,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL06","name":"Tarek BAYOUMI","dept":"RL","salary":4350,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL07","name":"Mila GVOZDENOVIC","dept":"RL","salary":4000,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL08","name":"Sinisa ARSENOVIC","dept":"RL","salary":4590,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL09","name":"Lalit SHARMA","dept":"RL","salary":4710,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL10","name":"Franziska SCHLEGELMILCH","dept":"RL","salary":5630,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL11","name":"Faruk Ali JASIM","dept":"RL","salary":3750,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL12","name":"Alexander REITER","dept":"RL","salary":5400,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL13","name":"Laura BEDÖ","dept":"RL","salary":3750,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL14","name":"Rajanbir Singh BAL","dept":"RL","salary":3750,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL15","name":"Murtadha AL SAEDI","dept":"RL","salary":3880,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL16","name":"Senay GÜNES-SAHIN","dept":"RL","salary":4900,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"RL17","name":"Gorica PAVLOVIC","dept":"RL","salary":4470,"baseMonths":3,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"260b1909cd58d8f23486671d781","name":"PAMER Andrea","dept":"Office","salary":5000,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"c33d42682de9d646537536b9c3","name":"MEIDL Eveline","dept":"Office","salary":5000,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"fb68cc96ec68847943c736ce3d8","name":"MÖRWALD Sandra","dept":"Finanz/Lohnbuchhaltung","salary":4500,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"d03493182d75f8e90eec3ef4e518","name":"VASILJKOVIC Katarina","dept":"Finanz/Lohnbuchhaltung","salary":2800,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"0cc24d985012383d97aff4347ee","name":"SKORNYAKOVA Lyudmilya","dept":"Finanz/Lohnbuchhaltung","salary":2500,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"3769220b1850249a5589ff7c3a","name":"DZONOV Marina","dept":"Finanz/Lohnbuchhaltung","salary":3200,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"ed85b7ae9cf024cca15724ed998","name":"FRANJKOVIC Alma","dept":"Finanz/Lohnbuchhaltung","salary":2500,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"9e773a43d887a8b370c547e7bc2","name":"Tomislava CUIC","dept":"AL","salary":7000,"baseMonths":6,"factors":{"tenure":1,"size":1.2,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"ef98833abe25a2f3cf1da32e3b8","name":"Lars HOFFMANN","dept":"AL","salary":9500,"baseMonths":6,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"b83700d1aa8de891779d90e89b98","name":"Zoran FRANJKOVIC","dept":"AL","salary":8750,"baseMonths":6,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}},{"id":"Eaac42010","name":"Philipp KAINDL","dept":"Office","salary":3750,"baseMonths":2,"factors":{"tenure":1,"size":1,"office":1},"fulfill":{"fin":[100],"ops":[100,100,100,100,100],"ind":[100,100,100]}}],"ui":{"tab":"employee","empView":"daten","goalsDept":"AL","goalsMode":"dept","goalsEmpId":"RL01","selectedEmpId":"RL02"}}</script>
+</head>
+<body>
+
+<header>
+  <div class="title">BONUS TOOL</div>
+  <div class="sub">Bonusbasis: <b><span id="hdrBaseMonths">2</span> Monatsgehälter</b> · Deckel: <b><span id="hdrCapPct">120</span>%</b> · Farben: <b>Grün/Weiß/Gelb</b></div>
+  <div class="tabs">
+    <div class="tab active" data-tab="employee">Mitarbeiter</div>
+    <div class="tab" data-tab="goals">Ziele</div>
+    <div class="tab" data-tab="overview">Mitarbeiter-Übersicht</div>
+    <div class="tab" data-tab="results">Ergebnisse &amp; Export</div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="row" style="margin-bottom:12px">
+    <button class="primary" id="btnSave">Speichern</button>
+    <button id="btnReset">Reset</button>
+    <span class="spacer"></span>
+    <button id="btnExportCSV">CSV Export</button>
+    <button id="btnExportJSON">JSON Export</button>
+    <button id="btnExportHTML">HTML Export (mit Daten)</button>
+    <button id="btnImportJSON">JSON Import</button>
+    <input id="fileJSON" type="file" accept="application/json" style="display:none">
+    <span class="badge ok" id="integrityBadge">OK</span>
+  </div>
+
+  <div id="panel">
+    <div class="card">
+      <h2>Mitarbeiter auswählen &amp; eingeben</h2>
+      <div class="subtabs">
+        <div class="subtab " id="tabStamm">Stammdaten</div>
+        <div class="subtab active" id="tabDaten">Bonusdaten</div>
+      </div>
+      <div class="row">
+        <select id="empSelect" class="wide" style="min-width:320px; flex:1 1 320px;">
+          <option value="RL02" selected="">AYYILDIZ Mert Ahmet (RL)</option><option value="RL01">FODOR Endre (RL)</option><option value="RL03">SHARMA Sumit (RL)</option><option value="RL04">BAJRAKTARI Korab (RL)</option><option value="RL05">BENEDEK Jarolim (RL)</option><option value="RL06">BAYOUMI Tarek (RL)</option><option value="RL07">GVOZDENOVIC Mila (RL)</option><option value="RL08">ARSENOVIC Sinisa (RL)</option><option value="RL09">SHARMA Lalit (RL)</option><option value="RL10">SCHLEGELMILCH Franziska (RL)</option><option value="RL11">JASIM Faruk Ali (RL)</option><option value="RL12">REITER Alexander (RL)</option><option value="RL13">BEDÖ Laura (RL)</option><option value="RL14">BAL Rajanbir Singh (RL)</option><option value="RL15">SAEDI Murtadha Al (RL)</option><option value="RL16">GÜNES-SAHIN Senay (RL)</option><option value="RL17">PAVLOVIC Gorica (RL)</option><option value="260b1909cd58d8f23486671d781">PAMER Andrea (Office)</option><option value="c33d42682de9d646537536b9c3">MEIDL Eveline (Office)</option><option value="fb68cc96ec68847943c736ce3d8">MÖRWALD Sandra (Finanz/Lohnbuchhaltung)</option><option value="d03493182d75f8e90eec3ef4e518">VASILJKOVIC Katarina (Finanz/Lohnbuchhaltung)</option><option value="0cc24d985012383d97aff4347ee">SKORNYAKOVA Lyudmilya (Finanz/Lohnbuchhaltung)</option><option value="3769220b1850249a5589ff7c3a">DZONOV Marina (Finanz/Lohnbuchhaltung)</option><option value="ed85b7ae9cf024cca15724ed998">FRANJKOVIC Alma (Finanz/Lohnbuchhaltung)</option><option value="9e773a43d887a8b370c547e7bc2">CUIC Tomislava (AL)</option><option value="ef98833abe25a2f3cf1da32e3b8">HOFFMANN Lars (AL)</option><option value="b83700d1aa8de891779d90e89b98">FRANJKOVIC Zoran (AL)</option><option value="Eaac42010">KAINDL Philipp (Office)</option>
+        </select>
+        <button id="btnAddEmp" class="primary">+ Mitarbeiter</button>
+        <button id="btnDelEmp">Löschen</button>
+        <span class="spacer"></span>
+        <span class="pill"><b>Basis</b>: €&nbsp;11.640,00</span>
+        <span class="pill"><b>Gesamt</b>: 94%</span>
+        <span class="pill"><b>Deckel</b>: €&nbsp;13.968,00</span>
+        <span class="pill payout"><b>Auszahlung</b>: €&nbsp;10.941,60</span>
+      </div>
+      <div class="hint">Ziele werden automatisch nach Abteilung geladen. (Aktuell: <b>RL</b>) · Ziele: <b>Abteilung</b></div>
+      </div>
+
+    
+    <div class="kpiGrid">
+      
+    <div class="kpiCard">
+      <div class="kpiTop">
+        <div class="kpiLabel">Finanz (50%)</div>
+      </div>
+      <div class="kpiValue">100%</div>
+      <div class="kpiBar"><div class="kpiFill" style="width:100%"></div></div>
+    </div>
+  
+      
+    <div class="kpiCard">
+      <div class="kpiTop">
+        <div class="kpiLabel">Operation (30%)</div>
+      </div>
+      <div class="kpiValue">80%</div>
+      <div class="kpiBar"><div class="kpiFill" style="width:80%"></div></div>
+    </div>
+  
+      
+    <div class="kpiCard">
+      <div class="kpiTop">
+        <div class="kpiLabel">Individuell (20%)</div>
+      </div>
+      <div class="kpiValue">100%</div>
+      <div class="kpiBar"><div class="kpiFill" style="width:100%"></div></div>
+    </div>
+  
+      
+    <div class="kpiCard">
+      <div class="kpiTop">
+        <div class="kpiLabel">Gesamt (100%)</div>
+      </div>
+      <div class="kpiValue">94%</div>
+      <div class="kpiBar"><div class="kpiFill" style="width:94%"></div></div>
+    </div>
+  
+    </div>
+  
+
+    <div class="grid2" style="display:none">
+      <div class="card">
+        <h2>Stammdaten</h2>
+        <div class="row">
+          <div>
+            <label>Name</label>
+            <span class="inputWrap"><input id="empName" class="wide" type="text" value="Mert Ahmet AYYILDIZ"><button type="button" class="clearBtn" id="btnClearName" title="Name löschen">×</button></span>
+          </div>
+          <div>
+            <label>Abteilung</label>
+            <select id="empDept">
+              <option value="RL" selected="">RL</option>
+              <option value="Office">Office</option>
+              <option value="Finanz/Lohnbuchhaltung">Finanz/Lohnbuchhaltung</option>
+              <option value="AL">AL</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Monatsgehalt (€)</label>
+            <input id="empSalary" class="small" type="number" min="0" step="1" value="3880">
+          </div>
+          <div>
+            <label>Faktor Zugehörigkeit (RL/AL)</label>
+            <input id="fTenure" class="small" type="number" min="0.8" max="1.2" step="0.01" value="1">
+          </div>
+          <div>
+            <label>Faktor Restaurantgröße (RL/AL)</label>
+            <input id="fSize" class="small" type="number" min="0.8" max="1.2" step="0.01" value="1">
+          </div>
+          <div>
+            <label>Office-Faktor (Office)</label>
+            <input id="fOffice" class="small" type="number" min="0.8" max="1.2" step="0.01" value="1" disabled="">
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Einstellungen (global)</h2>
+        <div class="row">
+          <div>
+            <label>Bonusbasis (Monate)</label>
+            <input id="setBaseMonths" class="small" type="number" min="0" step="0.5" value="2">
+          </div>
+          <div>
+            <label>Deckel (% der Basis)</label>
+            <input id="setCapPct" class="small" type="number" min="0" step="1" value="120">
+          </div>
+          <div>
+            <label>Faktor-Modus (RL/AL)</label>
+            <select id="setFactorMode">
+              <option value="multiply" selected="">multiply</option>
+              <option value="average">average</option>
+            </select>
+          </div>
+          <div>
+            <label>Faktor deckeln (0,8–1,2)</label>
+            <select id="setCapFactor">
+              <option value="1" selected="">AN</option>
+              <option value="0">AUS</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint">Erfüllung pro Ziel in % (0–120). 100 = erreicht, 120 = übererfüllt.</div>
+      </div>
+    </div>
+
+    
+    <div class="card">
+      <div class="sectionHead">
+        <div class="left">
+          <div style="font-weight:1000">Finanz (50%)</div>
+          <span class="pill"><b>Gewichte</b>: 100%</span></div>
+        </div>
+        <div class="hint" style="margin:0">Abteilung: <b>RL</b></div>
+      </div>
+      <table>
+        <thead><tr><th>Ziel</th><th class="right">Gewicht %</th><th class="right">Erfüllung %</th></tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>Netincome</td>
+              <td class="right">100%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="fin:0"></td>
+            </tr>
+          
+        </tbody>
+      </table>
+    
+  
+    
+    <div class="card">
+      <div class="sectionHead">
+        <div class="left">
+          <div style="font-weight:1000">Operation (30%)</div>
+          <span class="pill"><b>Gewichte</b>: 100%</span></div>
+        </div>
+        <div class="hint" style="margin:0">Abteilung: <b>RL</b></div>
+      </div>
+      <table>
+        <thead><tr><th>Ziel</th><th class="right">Gewicht %</th><th class="right">Erfüllung %</th></tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>RGRV Über 97%</td>
+              <td class="right">30%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="ops:0"></td>
+            </tr>
+          
+            <tr>
+              <td>95% Foodsafety Audit Über</td>
+              <td class="right">20%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="0" data-fulfill="ops:1"></td>
+            </tr>
+          
+            <tr>
+              <td>GÄSTE Gästebeschwerden Weniger Als 1/15000</td>
+              <td class="right">20%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="ops:2"></td>
+            </tr>
+          
+            <tr>
+              <td>CFV Über 95% Durchschnitt</td>
+              <td class="right">20%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="ops:3"></td>
+            </tr>
+          
+            <tr>
+              <td>CSAT Über 80</td>
+              <td class="right">10%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="ops:4"></td>
+            </tr>
+          
+        </tbody>
+      </table>
+    
+  
+    
+    <div class="card">
+      <div class="sectionHead">
+        <div class="left">
+          <div style="font-weight:1000">Individuell (20%)</div>
+          <span class="pill"><b>Gewichte</b>: 100%</span></div>
+        </div>
+        <div class="hint" style="margin:0">Abteilung: <b>RL</b></div>
+      </div>
+      <table>
+        <thead><tr><th>Ziel</th><th class="right">Gewicht %</th><th class="right">Erfüllung %</th></tr></thead>
+        <tbody>
+          
+            <tr>
+              <td>ZIEL Urlaubabbau Laut</td>
+              <td class="right">40%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="ind:0"></td>
+            </tr>
+          
+            <tr>
+              <td>AUSBILDEN 1 Sf</td>
+              <td class="right">30%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="ind:1"></td>
+            </tr>
+          
+            <tr>
+              <td>RECHTZEITIG Buchhaltung Termine</td>
+              <td class="right">30%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="100" data-fulfill="ind:2"></td>
+            </tr>
+          
+        </tbody>
+      </table>
+    
+  
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = "bonus_tool_ALL_DEPTS_2026_01_22";
+
+function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
+function num(v, d=0){ const n = Number(v); return Number.isFinite(n) ? n : d; }
+function clamp(v,a,b){ return Math.min(b, Math.max(a, v)); }
+function pct01(p){ return clamp(num(p,100)/100, 0, 1.2); }
+function fmtEUR(n){ return Number(n||0).toLocaleString("de-AT",{style:"currency",currency:"EUR"}); }
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+  function deptKey(d){ return d==="Finanz/Lohnbuchhaltung" ? "Office" : d; }
+
+
+  function splitName(raw){
+    const s = String(raw||"").trim();
+    if(!s) return {first:"", last:""};
+    if(s.includes(",")){
+      const parts = s.split(",");
+      return {last: (parts[0]||"").trim(), first: parts.slice(1).join(",").trim()};
+    }
+    const toks = s.split(/\s+/).filter(Boolean);
+    if(toks.length===1) return {first:toks[0], last:""};
+
+    const hasLower = (w)=> /[a-zäöüß]/.test(w);
+    const isAllCapsWord = (w)=> /^[A-ZÄÖÜß\-]+$/.test(w);
+
+    // If name starts with ALLCAPS token(s) and then a token with lowercase -> treat as "LAST First..."
+    if(isAllCapsWord(toks[0]) && toks[1] && hasLower(toks[1])){
+      let i=0;
+      const lastParts=[];
+      while(i<toks.length && isAllCapsWord(toks[i])){
+        lastParts.push(toks[i]); i++;
+      }
+      return {last:lastParts.join(" "), first:toks.slice(i).join(" ")};
+    }
+    // Default: "First ... Last"
+    return {first:toks.slice(0,-1).join(" "), last:toks[toks.length-1]};
+  }
+
+
+  function displayName(emp){
+  const titleCase = (s)=>{
+    return String(s||"").trim().split(/\s+/).filter(Boolean).map(w=>{
+      const lw = w.toLowerCase();
+      return lw.charAt(0).toUpperCase() + lw.slice(1);
+    }).join(" ");
+  };
+
+  // Preferred: explicit fields (Excel / getrennte Felder)
+  const ln0 = (emp && (emp.lastName || emp.last || emp.nachname)) ? String(emp.lastName || emp.last || emp.nachname).trim() : "";
+  const fn0 = (emp && (emp.firstName || emp.first || emp.vorname)) ? String(emp.firstName || emp.first || emp.vorname).trim() : "";
+  if(ln0 || fn0){
+    const ln = ln0 ? ln0.toUpperCase() : "";
+    const fn = fn0 ? titleCase(fn0) : "";
+    return (ln + (ln && fn ? " " : "") + fn).trim();
+  }
+
+  // Fallback: parse emp.name (unterstützt sowohl "Vorname Nachname" als auch "NACHNAME Vorname" und "Nachname, Vorname")
+  const raw = (emp && emp.name) ? String(emp.name).trim() : "";
+  if(!raw) return "";
+
+  const sp = splitName(raw);
+  const ln = (sp.last||"").trim().toUpperCase();
+  const fn = titleCase((sp.first||"").trim());
+
+  if(ln && fn) return ln + " " + fn;
+  return ln || fn || raw;
+}
+
+
+
+function kpiCard(label, weightPct, valuePct){
+  const wTxt = (label==="Gesamt") ? `${weightPct}%` : `${weightPct}%`;
+  const v = Math.round(valuePct*10)/10;
+  const fill = clamp(v, 0, 999);
+  return `
+    <div class="kpiCard">
+      <div class="kpiTop">
+        <div class="kpiLabel">${escapeHtml(label)} (${wTxt})</div>
+      </div>
+      <div class="kpiValue">${fill}%</div>
+      <div class="kpiBar"><div class="kpiFill" style="width:${Math.min(fill,100)}%"></div></div>
+    </div>
+  `;
+}
+function toast(msg){
+  const t = document.createElement("div");
+  t.className="toast"; t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 1400);
+}
+function download(filename, content, mime){
+  const blob = new Blob([content], {type:mime});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+function defaultPillars(){
+  return {
+    fin:{ name:"Finanz", weight:0.50, enabled:true, goals:[{name:"Umsatz",w:40},{name:"Kostenquote",w:30},{name:"Gewinn",w:30}] },
+    ops:{ name:"Operation", weight:0.30, enabled:true, goals:[{name:"Personalfluktuation",w:20},{name:"Krankheitsquote",w:15},{name:"Audit / Qualität",w:25},{name:"Gästezufriedenheit",w:40}] },
+    ind:{ name:"Individuell", weight:0.20, enabled:true, goals:[{name:"Führung",w:40},{name:"Projekte",w:30},{name:"Entwicklung",w:30}] },
+  };
+}
+function defaultState(){
+  const pillarsByDept = {
+    RL: defaultPillars(),
+    AL: defaultPillars(),
+    Office: {
+      fin:{ name:"Finanz", weight:0.50, enabled:true, goals:[{name:"Office Ziel 1", w:100}] },
+      ops:{ name:"Operation", weight:0.30, enabled:true, goals:[{name:"Office Ziel 2 (optional)", w:100}] },
+      ind:{ name:"Individuell", weight:0.20, enabled:true, goals:[{name:"Individuell", w:100}] },
+    }
+  };
+
+  const mkFulfill = (dept)=>{
+    const p = pillarsByDept[deptKey(dept)];
+    return {
+      fin: p.fin.goals.map(()=>100),
+      ops: p.ops.goals.map(()=>100),
+      ind: p.ind.goals.map(()=>100),
+    };
+  };
+    const employees = [
+  {
+          id:"RL01",
+          firstName:"Endre",
+          lastName:"FODOR",
+          name:"Endre FODOR",
+          dept:"RL",
+          salary:3750,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL02",
+          firstName:"Mert Ahmet",
+          lastName:"AYYILDIZ",
+          name:"Mert Ahmet AYYILDIZ",
+          dept:"RL",
+          salary:3880,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL03",
+          firstName:"Sumit",
+          lastName:"SHARMA",
+          name:"Sumit SHARMA",
+          dept:"RL",
+          salary:4590,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL04",
+          firstName:"Korab",
+          lastName:"Bajraktari",
+          name:"Korab Bajraktari",
+          dept:"RL",
+          salary:4460,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL05",
+          firstName:"Jarolim",
+          lastName:"BENEDEK",
+          name:"Jarolim BENEDEK",
+          dept:"RL",
+          salary:4730,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL06",
+          firstName:"Tarek",
+          lastName:"BAYOUMI",
+          name:"Tarek BAYOUMI",
+          dept:"RL",
+          salary:4350,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL07",
+          firstName:"Mila",
+          lastName:"GVOZDENOVIC",
+          name:"Mila GVOZDENOVIC",
+          dept:"RL",
+          salary:4000,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL08",
+          firstName:"Sinisa",
+          lastName:"ARSENOVIC",
+          name:"Sinisa ARSENOVIC",
+          dept:"RL",
+          salary:4590,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL09",
+          firstName:"Lalit",
+          lastName:"SHARMA",
+          name:"Lalit SHARMA",
+          dept:"RL",
+          salary:4710,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL10",
+          firstName:"Franziska",
+          lastName:"SCHLEGELMILCH",
+          name:"Franziska SCHLEGELMILCH",
+          dept:"RL",
+          salary:5630,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL11",
+          firstName:"Faruk Ali",
+          lastName:"JASIM",
+          name:"Faruk Ali JASIM",
+          dept:"RL",
+          salary:3750,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL12",
+          firstName:"Alexander",
+          lastName:"REITER",
+          name:"Alexander REITER",
+          dept:"RL",
+          salary:5400,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL13",
+          firstName:"Laura",
+          lastName:"Bedö",
+          name:"Laura Bedö",
+          dept:"RL",
+          salary:3750,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL14",
+          firstName:"Rajanbir Singh",
+          lastName:"BAL",
+          name:"Rajanbir Singh BAL",
+          dept:"RL",
+          salary:3750,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL15",
+          firstName:"Murtadha",
+          lastName:"AL SAEDI",
+          name:"Murtadha AL SAEDI",
+          dept:"RL",
+          salary:3880,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL16",
+          firstName:"Senay",
+          lastName:"GÜNES-SAHIN",
+          name:"Senay GÜNES-SAHIN",
+          dept:"RL",
+          salary:4900,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        },
+  {
+          id:"RL17",
+          firstName:"Gorica",
+          lastName:"PAVLOVIC",
+          name:"Gorica PAVLOVIC",
+          dept:"RL",
+          salary:4470,
+          factors:{
+            tenure:1.0,
+            size:1.0,
+            office:1.0
+          },
+          fulfill:{
+            fin:[
+  
+            ],
+            ops:[
+  
+            ],
+            ind:[
+  
+            ]
+          }
+        }
+      ];
+
+  // Default Office & AL Platzhalter (wie in der letzten stabilen Version)
+  for(let i=1;i<=10;i++){
+    employees.push({id:uid(), name:`Office ${String(i).padStart(2,"0")}`, dept:"Office", salary:2800,
+      factors:{tenure:1.0,size:1.0,office:1.0}, fulfill: mkFulfill("Office")});
+  }
+  for(let i=1;i<=3;i++){
+    employees.push({id:uid(), name:`AL ${String(i).padStart(2,"0")}`, dept:"AL", salary:3400,
+      factors:{tenure:1.0,size:1.0,office:1.0}, fulfill: mkFulfill("AL")});
+  }
+
+  return {
+    settings:{ baseMonths:3, capPct:120, factorMode:"multiply", capFactor:true },
+    pillarsByDept,
+    empGoalOverrides: {},
+    employees,
+    ui:{ tab:"employee", empView:"stammdaten", goalsDept:"RL", goalsMode:"dept", goalsEmpId: employees[0]?.id ?? null, selectedEmpId: employees[0]?.id ?? null }
+  };
+}
+
+function sanitize(state){
+  const def = defaultState();
+  if(!state || typeof state !== "object") return def;
+
+  state.settings = state.settings || def.settings;
+  state.settings = {
+    baseMonths: Math.max(0, num(state.settings.baseMonths, 3)),
+    capPct: Math.max(0, num(state.settings.capPct, 120)),
+    factorMode: (state.settings.factorMode==="average" ? "average" : "multiply"),
+    capFactor: !!state.settings.capFactor,
+  };
+
+  state.pillarsByDept = state.pillarsByDept || def.pillarsByDept;
+  for(const dept of ["RL","Office","AL"]){
+    if(!state.pillarsByDept[deptKey(dept)]) state.pillarsByDept[deptKey(dept)] = def.pillarsByDept[deptKey(dept)];
+    for(const k of ["fin","ops","ind"]){
+      const fallback = def.pillarsByDept[deptKey(dept)][k];
+      const p = state.pillarsByDept[deptKey(dept)][k] || fallback;
+      p.name = String(p.name ?? fallback.name);
+      p.enabled = (typeof p.enabled==="boolean") ? p.enabled : (fallback.enabled ?? true);
+      p.weight = clamp(num(p.weight, fallback.weight), 0, 1);
+      p.goals = Array.isArray(p.goals) ? p.goals : fallback.goals;
+      p.goals = p.goals.map(g=>({name:String(g.name??"Ziel"), w:clamp(num(g.w,0),0,100)}));
+      state.pillarsByDept[deptKey(dept)][k] = p;
+    }
+  }
+
+
+  // Mitarbeiter-spezifische Ziel-Overrides
+  state.empGoalOverrides = (state.empGoalOverrides && typeof state.empGoalOverrides==="object") ? state.empGoalOverrides : {};
+  // sanitize overrides against dept defaults of the employee at runtime later; here keep structure safe
+  for(const [empId, pov] of Object.entries(state.empGoalOverrides)){
+    if(!pov || typeof pov!=="object"){ delete state.empGoalOverrides[empId]; continue; }
+    // fallback uses RL defaults (will be corrected per employee in render/sync)
+    const fb = def.pillarsByDept.RL;
+    state.empGoalOverrides[empId] = sanitizePillarsObj(pov, fb);
+  }
+
+  state.employees = Array.isArray(state.employees) ? state.employees : def.employees;
+  state.employees = state.employees.map((e,i)=>{
+    const dept = (e.dept==="RL"||e.dept==="Office"||e.dept==="Finanz/Lohnbuchhaltung"||e.dept==="AL") ? e.dept : "RL";
+    return {
+      id: String(e.id ?? uid()),
+      name: String(e.name ?? `MA ${i+1}`),
+      dept,
+      salary: Math.max(0, num(e.salary,0)),
+      baseMonths: Math.max(0, num(e.baseMonths ?? state.settings.baseMonths, state.settings.baseMonths)),
+      factors:{
+        tenure: clamp(num(e.factors?.tenure,1.0),0.8,1.2),
+        size: clamp(num(e.factors?.size,1.0),0.8,1.2),
+        office: clamp(num(e.factors?.office,1.0),0.8,1.2),
+      },
+      fulfill: (e.fulfill && typeof e.fulfill==="object") ? e.fulfill : {fin:[],ops:[],ind:[]}
+    };
+  });
+
+  state.ui = state.ui || def.ui;
+  state.ui.tab = (state.ui.tab==="goals"||state.ui.tab==="results") ? state.ui.tab : "employee";
+  state.ui.empView = (state.ui.empView==="daten") ? "daten" : "stammdaten";
+  state.ui.goalsDept = (state.ui.goalsDept==="Office"||state.ui.goalsDept==="Finanz/Lohnbuchhaltung"||state.ui.goalsDept==="AL") ? state.ui.goalsDept : "RL";
+  state.ui.goalsMode = (state.ui.goalsMode==="emp") ? "emp" : "dept";
+  state.ui.goalsEmpId = state.ui.goalsEmpId ?? (state.employees[0]?.id ?? null);
+  state.ui.selectedEmpId = state.ui.selectedEmpId ?? (state.employees[0]?.id ?? null);
+
+  syncAll(state);
+  if(state.ui.selectedEmpId && !state.employees.some(x=>x.id===state.ui.selectedEmpId)){
+    state.ui.selectedEmpId = state.employees[0]?.id ?? null;
+  }
+  return state;
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    return sanitize(JSON.parse(raw));
+  }catch(_){
+    return defaultState();
+  }
+}
+
+function syncEmpFulfill(emp, state){
+  const p = getPillarsForEmp(emp, state);
+  for(const k of ["fin","ops","ind"]){
+    emp.fulfill[k] = Array.isArray(emp.fulfill[k]) ? emp.fulfill[k] : [];
+    while(emp.fulfill[k].length < p[k].goals.length) emp.fulfill[k].push(100);
+    if(emp.fulfill[k].length > p[k].goals.length) emp.fulfill[k] = emp.fulfill[k].slice(0, p[k].goals.length);
+  }
+}
+function syncAll(state){ for(const e of state.employees) syncEmpFulfill(e,state); }
+
+function deepClone(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+function sanitizePillarsObj(pillars, fallback){
+  const out = {};
+  for(const k of ["fin","ops","ind"]){
+    const fb = fallback[k];
+    const p = pillars?.[k] || fb;
+    out[k] = {
+      name: String(p.name ?? fb.name),
+      enabled: (typeof p.enabled==="boolean") ? p.enabled : (fb.enabled ?? true),
+      weight: clamp(num(p.weight, fb.weight), 0, 1),
+      goals: (Array.isArray(p.goals) ? p.goals : fb.goals).map(g=>({
+        name: String(g.name ?? "Ziel"),
+        w: clamp(num(g.w,0),0,100),
+      })),
+    };
+  }
+  return out;
+}
+
+function getPillarsForEmp(emp, state){
+  const ov = state.empGoalOverrides?.[emp.id];
+  if(ov && typeof ov === "object"){
+    return ov;
+  }
+  return state.pillarsByDept[deptKey(emp.dept)];
+}
+
+function setEmpOverride(empId, pillarsObj, state){
+  if(!state.empGoalOverrides) state.empGoalOverrides = {};
+  state.empGoalOverrides[empId] = pillarsObj;
+}
+
+function clearEmpOverride(empId, state){
+  if(state.empGoalOverrides && state.empGoalOverrides[empId]){
+    delete state.empGoalOverrides[empId];
+  }
+}
+
+function hasEmpOverride(empId, state){
+  return !!(state.empGoalOverrides && state.empGoalOverrides[empId]);
+}
+
+
+function factorFor(emp, state){
+  if(emp.dept === "Office" || emp.dept === "Finanz/Lohnbuchhaltung") return clamp(emp.factors.office, 0.8, 1.2);
+  const f1 = clamp(emp.factors.tenure, 0.8, 1.2);
+  const f2 = clamp(emp.factors.size, 0.8, 1.2);
+  let f = (state.settings.factorMode==="average") ? ((f1+f2)/2) : (f1*f2);
+  if(state.settings.capFactor) f = clamp(f, 0.8, 1.2);
+  return f;
+}
+function pillarScore(emp, key, state){
+  const p = getPillarsForEmp(emp, state)[key];
+  let sum = 0;
+  for(let i=0;i<p.goals.length;i++){
+    const w = num(p.goals[i].w,0)/100;
+    const a = pct01(emp.fulfill[key][i] ?? 100);
+    sum += w * a;
+  }
+  return clamp(sum,0,1.2);
+}
+function totalScore(emp, state){
+  const dept = emp.dept;
+  const eff = effectiveWeightsForDeptForPillars(getPillarsForEmp(emp,state));
+  const fin = pillarScore(emp,"fin",state);
+  const ops = pillarScore(emp,"ops",state);
+  const ind = pillarScore(emp,"ind",state);
+
+  // Redistribute pillar weights across enabled pillars
+  const total = clamp(fin*eff.fin + ops*eff.ops + ind*eff.ind, 0, 1.2);
+  return {fin,ops,ind,total, eff};
+}
+function payout(emp, state){
+  const s = totalScore(emp,state);
+  const base = emp.salary * (emp.baseMonths ?? state.settings.baseMonths);
+  const factor = factorFor(emp,state);
+  const raw = base * s.total * factor;
+  const cap = base * (state.settings.capPct/100);
+  const out = clamp(raw, 0, cap);
+  return {...s, base, factor, cap, payout:out, raw};
+}
+function weightSum(pillar){ return pillar.goals.reduce((a,g)=>a+num(g.w,0),0); }
+
+function effectiveWeightsForPillars(pb){
+  const enabledKeys = ["fin","ops","ind"].filter(k=>pb[k].enabled!==false);
+  const baseSum = enabledKeys.reduce((a,k)=>a + (pb[k].weight||0), 0);
+  const eff = {fin:0,ops:0,ind:0, baseSum};
+  if(baseSum <= 0){ return eff; }
+  for(const k of enabledKeys){
+    eff[k] = (pb[k].weight||0) / baseSum;
+  }
+  return eff;
+}
+function effectiveWeightsForDept(dept, state){
+  return effectiveWeightsForPillars(state.pillarsByDept[deptKey(dept)]);
+}
+function effectiveWeightsForDeptForPillars(pb){
+  return effectiveWeightsForPillars(pb);
+}
+
+
+function captureFocus(){
+  const a = document.activeElement;
+  if(!a) return null;
+  const info = { id: a.id || null };
+  const df = a.getAttribute("data-fulfill");
+  const dgn = a.getAttribute("data-goal-name");
+  const dgw = a.getAttribute("data-goal-w");
+  const dpn = a.getAttribute("data-pillar-name");
+  const kind = df ? "fulfill" : dgn ? "goalName" : dgw ? "goalW" : dpn ? "pillarName" : (info.id ? "id" : null);
+  info.kind = kind;
+  info.key = df || dgn || dgw || dpn || info.id || null;
+  if(a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement){
+    info.selStart = a.selectionStart;
+    info.selEnd = a.selectionEnd;
+  }
+  return info;
+}
+function restoreFocus(info){
+  if(!info || !info.kind || !info.key) return;
+  let el = null;
+  if(info.kind==="id") el = document.getElementById(info.key);
+  else if(info.kind==="fulfill") el = document.querySelector(`[data-fulfill="${CSS.escape(info.key)}"]`);
+  else if(info.kind==="goalName") el = document.querySelector(`[data-goal-name="${CSS.escape(info.key)}"]`);
+  else if(info.kind==="goalW") el = document.querySelector(`[data-goal-w="${CSS.escape(info.key)}"]`);
+  else if(info.kind==="pillarName") el = document.querySelector(`[data-pillar-name="${CSS.escape(info.key)}"]`);
+  if(!el) return;
+  if(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement){
+    el.focus({preventScroll:true});
+    const len = (el.value||"").length;
+    const s = Math.min(info.selStart ?? len, len);
+    const e = Math.min(info.selEnd ?? len, len);
+    try{ el.setSelectionRange(s,e); }catch(_){}
+  }else{
+    el.focus({preventScroll:true});
+  }
+}
+
+let state = loadState();
+  // Dept migration: Office -> Finanz/Lohnbuchhaltung (außer Eveline Meidl & Andrea Pamer bleiben Office)
+  (function migrateOfficeToOffice2(){
+    if(!state || !Array.isArray(state.employees)) return;
+    const isSpecial = (e)=>{
+      const n = String((e && e.name) || "").toLowerCase();
+      return (n.includes("eveline") && n.includes("meidl")) || (n.includes("andrea") && n.includes("pamer"));
+    };
+    state.employees.forEach(e=>{
+      if(e.dept === "Office" && !isSpecial(e)){
+        e.dept = "Finanz/Lohnbuchhaltung";
+      }else if(isSpecial(e)){
+        e.dept = "Office";
+      }
+    });
+  })();
+
+const panel = document.getElementById("panel");
+
+function setHeader(){
+  document.getElementById("hdrBaseMonths").textContent = state.settings.baseMonths;
+  document.getElementById("hdrCapPct").textContent = state.settings.capPct;
+}
+
+function updateIntegrityBadge(){
+  let issues = 0;
+  for(const dept of ["RL","Office","AL"]){
+    const eff = effectiveWeightsForDept(dept, state);
+    const pb = state.pillarsByDept[deptKey(dept)];
+    const enabledKeys = ["fin","ops","ind"].filter(k=>pb[k].enabled!==false);
+    if(enabledKeys.length>0 && eff.baseSum<=0) issues++; // active but weights all 0
+    // also check goal weight sums inside enabled pillars
+    for(const key of enabledKeys){
+      const sum = weightSum(pb[key]);
+      if(Math.abs(sum-100) > 0.01) issues++;
+    }
+  }
+  const b = document.getElementById("integrityBadge");
+  if(issues===0){ b.textContent="OK"; b.className="badge ok"; }
+  else { b.textContent = `${issues} Hinweis(e)`; b.className="badge warn"; }
+}
+
+function render(){
+  const focus = captureFocus();
+  syncAll(state);
+  setHeader();
+  updateIntegrityBadge();
+
+  if(state.ui.tab==="employee") renderEmployee();
+  else if(state.ui.tab==="goals") renderGoals();
+  else if(state.ui.tab==="overview") renderOverview();
+  else renderResults();
+
+  restoreFocus(focus);
+}
+
+function renderEmployee(){
+  const emp = state.employees.find(e=>e.id===state.ui.selectedEmpId) || state.employees[0];
+  if(!emp){ panel.innerHTML = `<div class="card"><h2>Keine Mitarbeiter</h2></div>`; return; }
+  state.ui.selectedEmpId = emp.id;
+
+  const p = payout(emp,state);
+  const deptPillars = getPillarsForEmp(emp, state);
+  const isInd = hasEmpOverride(emp.id, state);
+  const effW = effectiveWeightsForPillars(deptPillars);
+  const finS = clamp(pillarScore(emp,"fin",state)*100,0,999);
+  const opsS = clamp(pillarScore(emp,"ops",state)*100,0,999);
+  const indS = clamp(pillarScore(emp,"ind",state)*100,0,999);
+  const totS = clamp(totalScore(emp,state).total*100,0,999);
+  const finW = Math.round(effW.fin*100);
+  const opsW = Math.round(effW.ops*100);
+  const indW = Math.round(effW.ind*100);
+  const kpiHtml = `
+    <div class="kpiGrid">
+      ${kpiCard("Finanz", finW, finS)}
+      ${kpiCard("Operation", opsW, opsS)}
+      ${kpiCard("Individuell", indW, indS)}
+      ${kpiCard("Gesamt", 100, totS)}
+    </div>
+  `;
+
+  panel.innerHTML = `
+    <div class="card">
+      <h2>Mitarbeiter auswählen & eingeben</h2>
+      <div class="subtabs">
+        <div class="subtab ${state.ui.empView==="stammdaten"?"active":""}" id="tabStamm">Stammdaten</div>
+        <div class="subtab ${state.ui.empView==="daten"?"active":""}" id="tabDaten">Bonusdaten</div>
+      </div>
+      <div class="row">
+        <select id="empSelect" class="wide" style="min-width:320px; flex:1 1 320px;">
+          ${state.employees.map(e=>`<option value="${e.id}" ${e.id===emp.id?"selected":""}>${escapeHtml(displayName(e))} (${e.dept})</option>`).join("")}
+        </select>
+        <button id="btnAddEmp" class="primary">+ Mitarbeiter</button>
+        <button id="btnDelEmp">Löschen</button>
+        <span class="spacer"></span>
+        <span class="pill"><b>Basis</b>: ${fmtEUR(p.base)}</span>
+        <span class="pill"><b>Gesamt</b>: ${Math.round(p.total*100)}%</span>
+        <span class="pill"><b>Deckel</b>: ${fmtEUR(p.cap)}</span>
+        <span class="pill payout"><b>Auszahlung</b>: ${fmtEUR(p.payout)}</span>
+      </div>
+      <div class="hint">Ziele werden automatisch nach Abteilung geladen. (Aktuell: <b>${escapeHtml(emp.dept)}</b>) · Ziele: <b>${isInd ? "individuell" : "Abteilung"}</b></div>
+      </div>
+
+    ${kpiHtml}
+
+    ${state.ui.empView==="stammdaten" ? `<div class="grid2">` : `<div class="grid2" style="display:none">`}
+      <div class="card">
+        <h2>Stammdaten</h2>
+        <div class="row">
+          <div>
+            <label>Name</label>
+            <span class="inputWrap"><input id="empName" class="wide" type="text" value="${escapeHtml(emp.name)}" /><button type="button" class="clearBtn" id="btnClearName" title="Name löschen">×</button></span>
+          </div>
+          <div>
+            <label>Abteilung</label>
+            <select id="empDept">
+              <option value="RL" ${emp.dept==="RL"?"selected":""}>RL</option>
+              <option value="Office" ${emp.dept==="Office"?"selected":""}>Office</option>
+              <option value="Finanz/Lohnbuchhaltung" ${emp.dept==="Finanz/Lohnbuchhaltung"?"selected":""}>Finanz/Lohnbuchhaltung</option>
+              <option value="AL" ${emp.dept==="AL"?"selected":""}>AL</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Monatsgehalt (€)</label>
+            <input id="empSalary" class="small" type="number" min="0" step="1" value="${emp.salary}" />
+          </div>
+          <div>
+            <label>Faktor Zugehörigkeit (RL/AL)</label>
+            <input id="fTenure" class="small" type="number" min="0.8" max="1.2" step="0.01" value="${emp.factors.tenure}" ${emp.dept==="Office"?"disabled":""} />
+          </div>
+          <div>
+            <label>Faktor Restaurantgröße (RL/AL)</label>
+            <input id="fSize" class="small" type="number" min="0.8" max="1.2" step="0.01" value="${emp.factors.size}" ${emp.dept==="Office"?"disabled":""} />
+          </div>
+          <div>
+            <label>Office-Faktor (Office)</label>
+            <input id="fOffice" class="small" type="number" min="0.8" max="1.2" step="0.01" value="${emp.factors.office}" ${emp.dept!=="Office"?"disabled":""} />
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Einstellungen (global)</h2>
+        <div class="row">
+          <div>
+            <label>Bonusbasis (Monate)</label>
+            <input id="setBaseMonths" class="small" type="number" min="0" step="0.5" value="${state.settings.baseMonths}" />
+          </div>
+          <div>
+            <label>Deckel (% der Basis)</label>
+            <input id="setCapPct" class="small" type="number" min="0" step="1" value="${state.settings.capPct}" />
+          </div>
+          <div>
+            <label>Faktor-Modus (RL/AL)</label>
+            <select id="setFactorMode">
+              <option value="multiply" ${state.settings.factorMode==="multiply"?"selected":""}>multiply</option>
+              <option value="average" ${state.settings.factorMode==="average"?"selected":""}>average</option>
+            </select>
+          </div>
+          <div>
+            <label>Faktor deckeln (0,8–1,2)</label>
+            <select id="setCapFactor">
+              <option value="1" ${state.settings.capFactor?"selected":""}>AN</option>
+              <option value="0" ${!state.settings.capFactor?"selected":""}>AUS</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint">Erfüllung pro Ziel in % (0–120). 100 = erreicht, 120 = übererfüllt.</div>
+      </div>
+    </div>
+
+    ${state.ui.empView==="daten" && deptPillars.fin.enabled!==false ? renderFulfillSection(emp, "fin", deptPillars.fin, p.eff.fin) : ""}
+    ${state.ui.empView==="daten" && deptPillars.ops.enabled!==false ? renderFulfillSection(emp, "ops", deptPillars.ops, p.eff.ops) : ""}
+    ${state.ui.empView==="daten" && deptPillars.ind.enabled!==false ? renderFulfillSection(emp, "ind", deptPillars.ind, p.eff.ind) : ""}
+  `;
+
+  document.getElementById("empSelect").onchange = (e)=>{ state.ui.selectedEmpId = e.target.value; render(); };
+  document.getElementById("empName").oninput = (e)=>{ emp.name = e.target.value; };
+  document.getElementById("empName").onblur = ()=>{ render(); };
+  const clr = document.getElementById("btnClearName");
+  if(clr){
+    clr.onclick = ()=>{
+      emp.name = "";
+      const inp = document.getElementById("empName");
+      inp.value = "";
+      inp.focus({preventScroll:true});
+      render(); // update dropdown label immediately
+    };
+  }
+
+  document.getElementById("empDept").onchange = (e)=>{ emp.dept = e.target.value; if(hasEmpOverride(emp.id,state)) clearEmpOverride(emp.id,state); syncEmpFulfill(emp,state); render(); };
+  document.getElementById("empSalary").oninput = (e)=>{ emp.salary = Math.max(0, num(e.target.value,0)); };
+  document.getElementById("empSalary").onblur = ()=>{ render(); };
+
+  const t = document.getElementById("fTenure"); if(t) t.oninput = (e)=>{ emp.factors.tenure = clamp(num(e.target.value,1.0),0.8,1.2); };
+  t.onblur = ()=>{ render(); };
+  const s = document.getElementById("fSize"); if(s) s.oninput = (e)=>{ emp.factors.size = clamp(num(e.target.value,1.0),0.8,1.2); };
+  s.onblur = ()=>{ render(); };
+  const o = document.getElementById("fOffice"); if(o) o.oninput = (e)=>{ emp.factors.office = clamp(num(e.target.value,1.0),0.8,1.2); };
+  o.onblur = ()=>{ render(); };
+
+  document.getElementById("setBaseMonths").oninput = (e)=>{ state.settings.baseMonths = Math.max(0, num(e.target.value,3)); };
+  document.getElementById("setBaseMonths").onblur = ()=>{ render(); };
+  document.getElementById("setCapPct").oninput = (e)=>{ state.settings.capPct = Math.max(0, num(e.target.value,120)); };
+  document.getElementById("setCapPct").onblur = ()=>{ render(); };
+  document.getElementById("setFactorMode").onchange = (e)=>{ state.settings.factorMode = e.target.value; render(); };
+  document.getElementById("setCapFactor").onchange = (e)=>{ state.settings.capFactor = e.target.value==="1"; render(); };
+
+  
+  const btnAdd = document.getElementById("btnAddEmp");
+  const btnDel = document.getElementById("btnDelEmp");
+
+  btnAdd.onclick = ()=>{
+    const dept = emp.dept;
+    const ne = {
+      id: uid(),
+      name: "Neuer Mitarbeiter",
+      dept,
+      salary: emp.salary || 3000,
+      factors:{tenure:1.0,size:1.0,office:1.0},
+      fulfill:{fin:[],ops:[],ind:[]}
+    };
+    state.employees.push(ne);
+    syncEmpFulfill(ne,state);
+    state.ui.selectedEmpId = ne.id;
+    render();
+  };
+
+  btnDel.onclick = ()=>{
+    if(state.employees.length<=1){ alert("Mindestens 1 Mitarbeiter muss vorhanden sein."); return; }
+    if(!confirm("Mitarbeiter wirklich löschen?")) return;
+    const idx = state.employees.findIndex(x=>x.id===emp.id);
+    if(idx>-1) state.employees.splice(idx,1);
+    state.ui.selectedEmpId = state.employees[0]?.id ?? null;
+    render();
+  };
+
+
+  
+  const tS = document.getElementById("tabStamm");
+  const tD = document.getElementById("tabDaten");
+  if(tS && tD){
+    tS.onclick = ()=>{ state.ui.empView="stammdaten"; render(); };
+    tD.onclick = ()=>{ state.ui.empView="daten"; render(); };
+  }
+
+  document.querySelectorAll("[data-fulfill]").forEach(inp=>{
+    inp.oninput = (e)=>{
+      const [key, idx] = e.target.dataset.fulfill.split(":");
+      emp.fulfill[key][Number(idx)] = clamp(num(e.target.value,100),0,120);
+    };
+    inp.onblur = ()=>{ render(); };
+  });
+}
+
+function renderFulfillSection(emp, key, pillar, effWeight){
+  const sumW = weightSum(pillar);
+  const effPct = Math.round((effWeight||0)*100);
+  const title = `${escapeHtml(pillar.name)} (${effPct}%)`;
+  return `
+    <div class="card">
+      <div class="sectionHead">
+        <div class="left">
+          <div style="font-weight:1000">${title}</div>
+          <span class="pill"><b>Gewichte</b>: ${Math.round(sumW*100)/100}%</span></div>
+        </div>
+        <div class="hint" style="margin:0">Abteilung: <b>${escapeHtml(emp.dept)}</b></div>
+      </div>
+      <table>
+        <thead><tr><th>Ziel</th><th class="right">Gewicht %</th><th class="right">Erfüllung %</th></tr></thead>
+        <tbody>
+          ${pillar.goals.map((g,i)=>`
+            <tr>
+              <td>${escapeHtml(displayName(g))}</td>
+              <td class="right">${g.w}%</td>
+              <td class="right"><input class="small" type="number" min="0" max="120" step="1" value="${emp.fulfill[key][i] ?? 100}" data-fulfill="${key}:${i}" /></td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function parseScope(scope){
+  // scope: "dept:RL" | "emp:<id>"
+  const [type, id] = scope.split(":");
+  return {type, id};
+}
+
+function getScopePillars(scope, state){
+  const s = parseScope(scope);
+  if(s.type==="emp"){
+    const emp = state.employees.find(e=>e.id===s.id) || state.employees[0];
+    if(!emp) return {pillars: state.pillarsByDept.RL, label:"(kein Mitarbeiter)"};
+    const fb = state.pillarsByDept[deptKey(emp.dept)];
+    // ensure override exists if in emp mode and already toggled on
+    const pillars = hasEmpOverride(emp.id,state) ? getPillarsForEmp(emp,state) : fb;
+    return {pillars, label:`${displayName(emp)} (${emp.dept})`, emp};
+  }
+  // dept
+  const dept = (s.id==="Office"||s.id==="Finanz/Lohnbuchhaltung"||s.id==="AL") ? s.id : "RL";
+  return {pillars: state.pillarsByDept[deptKey(dept)], label: dept, dept};
+}
+
+function ensureEmpOverrideFromDept(emp, state){
+  const fb = state.pillarsByDept[deptKey(emp.dept)];
+  const cloned = deepClone(fb);
+  setEmpOverride(emp.id, cloned, state);
+  // align fulfill arrays to new goals
+  syncEmpFulfill(emp, state);
+}
+
+function renderGoals(){
+  // mode: dept (für alle in Abteilung) oder emp (individuell pro Mitarbeiter)
+  const mode = state.ui.goalsMode || "dept";
+  const dept = state.ui.goalsDept;
+  const currentEmp = state.employees.find(e=>e.id===state.ui.goalsEmpId) || state.employees[0] || null;
+  if(currentEmp) state.ui.goalsEmpId = currentEmp.id;
+
+  const scope = (mode==="emp" && currentEmp) ? `emp:${currentEmp.id}` : `dept:${dept}`;
+  const {pillars: pb} = getScopePillars(scope, state);
+  const eff = effectiveWeightsForPillars(pb);
+
+  const indActive = (mode==="emp" && currentEmp) ? hasEmpOverride(currentEmp.id, state) : false;
+
+  panel.innerHTML = `
+    <div class="card">
+      <h2>Ziele</h2>
+      <div class="row">
+        <div>
+          <label>Bearbeiten für</label>
+          <select id="goalsMode">
+            <option value="dept" ${mode==="dept"?"selected":""}>Für alle in Abteilung (gleich)</option>
+            <option value="emp" ${mode==="emp"?"selected":""}>Pro Mitarbeiter (individuell)</option>
+          </select>
+          <div class="hint">Du kannst Ziele global pro Abteilung setzen oder für einzelne Mitarbeiter überschreiben.</div>
+        </div>
+
+        <div id="deptBox" style="${mode==="dept"?"":"display:none"}">
+          <label>Abteilung</label>
+          <select id="goalsDept">
+            <option value="RL" ${dept==="RL"?"selected":""}>RL</option>
+            <option value="Office" ${dept==="Office"?"selected":""}>Office</option>
+            <option value="Finanz/Lohnbuchhaltung" ${dept==="Finanz/Lohnbuchhaltung"?"selected":""}>Finanz/Lohnbuchhaltung</option>
+            <option value="AL" ${dept==="AL"?"selected":""}>AL</option>
+          </select>
+        </div>
+
+        <div id="empBox" style="${mode==="emp"?"":"display:none"}">
+          <label>Mitarbeiter</label>
+          <select id="goalsEmp" class="wide" style="min-width:320px;max-width:520px">
+            ${state.employees.map(e=>`<option value="${e.id}" ${currentEmp && e.id===currentEmp.id ? "selected":""}>${escapeHtml(displayName(e))} (${e.dept})</option>`).join("")}
+          </select>
+          <div class="row" style="margin-top:10px">
+            <label class="pillarToggle" style="margin-top:0">
+              <input type="checkbox" id="empIndToggle" ${indActive?"checked":""} />
+              <span>Individuell aktiv</span>
+            </label>
+            <button id="btnEmpCopy" ${currentEmp ? "" : "disabled"}>Von Abteilung übernehmen</button>
+            <button id="btnEmpReset" ${indActive ? "" : "disabled"}>Individuell zurücksetzen</button>
+          </div>
+          <div class="hint">Wenn „Individuell aktiv“ AUS ist, verwendet der Mitarbeiter die Abteilungs-Ziele.</div>
+        </div>
+
+        <span class="spacer"></span>
+        <span class="pill"><b>Scope</b>: ${mode==="emp" && currentEmp ? escapeHtml(displayName(currentEmp)) : dept}</span>
+      </div>
+    </div>
+
+    ${renderGoalsPillar(scope,"fin",pb.fin, eff.fin)}
+    ${renderGoalsPillar(scope,"ops",pb.ops, eff.ops)}
+    ${renderGoalsPillar(scope,"ind",pb.ind, eff.ind)}
+  `;
+
+  // mode switch
+  document.getElementById("goalsMode").onchange = (e)=>{
+    state.ui.goalsMode = e.target.value;
+    render();
+  };
+
+  // dept picker
+  const gd = document.getElementById("goalsDept");
+  if(gd){
+    gd.onchange = (e)=>{ state.ui.goalsDept = e.target.value; render(); };
+  }
+
+  // employee picker
+  const ge = document.getElementById("goalsEmp");
+  if(ge){
+    ge.onchange = (e)=>{ state.ui.goalsEmpId = e.target.value; render(); };
+  }
+
+  // individual toggle
+  const it = document.getElementById("empIndToggle");
+  if(it && currentEmp){
+    it.onchange = (e)=>{
+      if(e.target.checked){
+        if(!hasEmpOverride(currentEmp.id,state)) ensureEmpOverrideFromDept(currentEmp,state);
+      }else{
+        clearEmpOverride(currentEmp.id,state);
+        syncEmpFulfill(currentEmp,state);
+      }
+      render();
+    };
+  }
+  const bc = document.getElementById("btnEmpCopy");
+  if(bc && currentEmp){
+    bc.onclick = ()=>{
+      ensureEmpOverrideFromDept(currentEmp,state);
+      render();
+    };
+  }
+  const br = document.getElementById("btnEmpReset");
+  if(br && currentEmp){
+    br.onclick = ()=>{
+      clearEmpOverride(currentEmp.id,state);
+      syncEmpFulfill(currentEmp,state);
+      render();
+    };
+  }
+
+  // Handlers for inputs with new "::" separators
+  const resolveTarget = (scopeStr)=>{
+    const s = parseScope(scopeStr);
+    if(s.type==="dept"){
+      const d = (s.id==="Office"||s.id==="AL") ? s.id : "RL";
+      return {type:"dept", obj: state.pillarsByDept[d], dept:d};
+    }else{
+      const emp = state.employees.find(e=>e.id===s.id);
+      if(!emp) return null;
+      if(!hasEmpOverride(emp.id,state)) ensureEmpOverrideFromDept(emp,state);
+      return {type:"emp", obj: state.empGoalOverrides[emp.id], emp};
+    }
+  };
+
+  document.querySelectorAll("[data-pillar-name]").forEach(inp=>{
+    inp.oninput = (e)=>{
+      const [scopeStr,key] = e.target.dataset.pillarName.split("::");
+      const t = resolveTarget(scopeStr); if(!t) return;
+      t.obj[key].name = e.target.value;
+      render();
+    };
+  });
+
+  document.querySelectorAll("[data-pillar-enabled]").forEach(chk=>{
+    chk.onchange = (e)=>{
+      const [scopeStr,key] = e.target.dataset.pillarEnabled.split("::");
+      const t = resolveTarget(scopeStr); if(!t) return;
+      t.obj[key].enabled = e.target.checked;
+      if(t.type==="dept"){
+        for(const emp of state.employees.filter(x=>x.dept===t.dept)) syncEmpFulfill(emp,state);
+      }else{
+        syncEmpFulfill(t.emp,state);
+      }
+      render();
+    };
+  });
+
+  document.querySelectorAll("[data-pillar-weight]").forEach(inp=>{
+    inp.oninput = (e)=>{
+      const [scopeStr,key] = e.target.dataset.pillarWeight.split("::");
+      const t = resolveTarget(scopeStr); if(!t) return;
+      const pct = clamp(num(e.target.value,0), 0, 100);
+      t.obj[key].weight = pct/100;
+    };
+    inp.onblur = ()=>{ render(); };
+  });
+
+  document.querySelectorAll("[data-goal-name]").forEach(inp=>{
+    inp.oninput = (e)=>{
+      const [scopeStr,key,idx] = e.target.dataset.goalName.split("::");
+      const t = resolveTarget(scopeStr); if(!t) return;
+      t.obj[key].goals[Number(idx)].name = e.target.value;
+      render();
+    };
+  });
+
+  document.querySelectorAll("[data-goal-w]").forEach(inp=>{
+    inp.oninput = (e)=>{
+      const [scopeStr,key,idx] = e.target.dataset.goalW.split("::");
+      const t = resolveTarget(scopeStr); if(!t) return;
+      t.obj[key].goals[Number(idx)].w = clamp(num(e.target.value,0),0,100);
+      if(t.type==="dept"){
+        for(const emp of state.employees.filter(x=>x.dept===t.dept)) syncEmpFulfill(emp,state);
+      }else{
+        syncEmpFulfill(t.emp,state);
+      }
+    };
+    inp.onblur = ()=>{ render(); };
+  });
+
+  document.querySelectorAll("[data-goal-add]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const [scopeStr,key] = btn.dataset.goalAdd.split("::");
+      const t = resolveTarget(scopeStr); if(!t) return;
+      t.obj[key].goals.push({name:"Neues Ziel", w:0});
+      if(t.type==="dept"){
+        for(const emp of state.employees.filter(x=>x.dept===t.dept)) syncEmpFulfill(emp,state);
+      }else{
+        syncEmpFulfill(t.emp,state);
+      }
+      render();
+    };
+  });
+
+  document.querySelectorAll("[data-goal-del]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const [scopeStr,key,idx] = btn.dataset.goalDel.split("::");
+      const t = resolveTarget(scopeStr); if(!t) return;
+      t.obj[key].goals.splice(Number(idx),1);
+      if(t.type==="dept"){
+        for(const emp of state.employees.filter(x=>x.dept===t.dept)) syncEmpFulfill(emp,state);
+      }else{
+        syncEmpFulfill(t.emp,state);
+      }
+      render();
+    };
+  });
+}
+
+
+function renderGoalsPillar(scope, key, pillar, effWeight){
+  const sumW = weightSum(pillar);
+  const enabled = (pillar.enabled!==false);
+  const basePct = Math.round((num(pillar.weight,0)*100)*10)/10;
+  const effPct = Math.round((num(effWeight,0)*100)*10)/10;
+
+  return `
+    <div class="card">
+      <div class="sectionHead">
+        <div class="left" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+          <span class="pillarNameBig">${escapeHtml(pillar.name)}</span>
+          <div class="pillarMeta">
+            <span class="pill">Basis ${basePct}%</span>
+            <span class="pill">Effektiv ${enabled ? effPct : 0}%</span>
+            <span class="pill">Ziel-Gewichte ${Math.round(sumW*100)/100}%</span>
+          </div>
+        </div>
+
+        <div class="rightControls">
+          <label class="pillarToggle" title="Säule aktiv/inaktiv">
+            <input type="checkbox" data-pillar-enabled="${scope}::${key}" ${enabled ? "checked" : ""} />
+            <span>${enabled ? "aktiv" : "inaktiv"}</span>
+          </label>
+          <button class="primary btnPill" data-goal-add="${scope}::${key}" ${enabled ? "" : "disabled"}>+ Ziel</button>
+        </div>
+      </div>
+
+      ${enabled ? `
+        <div class="row">
+          <div>
+            <label>Säulenname</label>
+            <input class="wide" type="text" value="${escapeHtml(pillar.name)}" data-pillar-name="${scope}::${key}" />
+          </div>
+          <div>
+            <label>Säulen-Gewicht (%)</label>
+            <input class="small" type="number" min="0" max="100" step="0.1" value="${basePct}" data-pillar-weight="${scope}::${key}" />
+            <div class="hint">Säulen-% frei setzen. Intern wird auf 100% normalisiert (nur aktive Säulen).</div>
+          </div>
+        </div>
+
+        <table style="margin-top:10px">
+          <thead><tr><th style="width:60%">Ziel</th><th class="right">Gewicht %</th><th class="right"></th></tr></thead>
+          <tbody>
+            ${pillar.goals.map((g,i)=>`
+              <tr>
+                <td><input class="wide" type="text" value="${escapeHtml(g.name)}" data-goal-name="${scope}::${key}::${i}" /></td>
+                <td class="right"><input class="small" type="number" min="0" max="100" step="0.1" value="${g.w}" data-goal-w="${scope}::${key}::${i}" /></td>
+                <td class="right"><button data-goal-del="${scope}::${key}::${i}">Löschen</button></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      ` : `<div class="hint">Diese Säule ist deaktiviert. Sie wird beim Mitarbeiter ausgeblendet und nicht gerechnet.</div>`}
+    </div>
+  `;
+}
+
+
+
+function renderOverview(){
+  const order = ["RL","Office","Finanz/Lohnbuchhaltung","AL"];
+  const title = (d)=> d==="RL" ? "RL" : (d==="Office" ? "Office" : (d==="Finanz/Lohnbuchhaltung" ? "Finanz/Lohnbuchhaltung" : "AL"));
+
+  const rowsForDept = (dept, q)=>{
+    const emps = state.employees.filter(e=>e.dept===dept).filter(e=>{
+      if(!q) return true;
+      const t = (e.name+" "+e.dept).toLowerCase();
+      return t.includes(q);
+    });
+    if(!emps.length) return "";
+    return `
+      <div class="card">
+        <div class="sectionHead">
+          <div class="left">
+            <div class="pillar-title">Abteilung: ${title(dept)} <span class="badge ok">${emps.length} Mitarbeiter</span></div>
+          </div>
+          <div class="rightControls">
+            <button class="primary" data-ov-add="${dept}">+ Mitarbeiter</button>
+          </div>
+        </div>
+
+        <div style="overflow:auto">
+          <table class="ovTable">
+            <thead>
+              <tr>
+                <th style="width:16%">Nachname</th><th style="width:12%">Vorname</th>
+                <th style="width:14%">Abteilung</th>
+                <th class="right" style="width:12%">Monatsgehalt</th>
+                <th class="right" style="width:10%">Bonusbasis<br>(Monate)</th>
+                <th class="right" style="width:12%">Faktor Zugeh.</th>
+                <th class="right" style="width:12%">Faktor Größe</th>
+                <th class="right" style="width:12%">Office-Faktor</th>
+                <th class="right" style="width:10%"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${emps.map(e=>`
+                <tr data-emp-row="${e.id}">
+                  <td><input type="text" value="${escapeHtml(e.lastName || splitName(e.name).last || '')}" data-ov="${e.id}::lastName" placeholder="Nachname" /></td><td><input type="text" value="${escapeHtml(e.firstName || splitName(e.name).first || '')}" data-ov="${e.id}::firstName" placeholder="Vorname" /></td>
+                  <td>
+                    <select data-ov="${e.id}::dept">
+                      <option value="RL" ${e.dept==="RL"?"selected":""}>RL</option>
+                      <option value="Office" ${e.dept==="Office"?"selected":""}>Office</option>
+                      <option value="Finanz/Lohnbuchhaltung" ${e.dept==="Finanz/Lohnbuchhaltung"?"selected":""}>Finanz/Lohnbuchhaltung</option>
+                      <option value="AL" ${e.dept==="AL"?"selected":""}>AL</option>
+                    </select>
+                  </td>
+                  <td class="right"><input class="small" type="number" min="0" step="1" value="${e.salary}" data-ov="${e.id}::salary" /></td>
+                  <td class="right"><input class="small" type="number" min="0" step="0.5" value="${e.baseMonths ?? state.settings.baseMonths}" data-ov="${e.id}::baseMonths" /></td>
+                  <td class="right"><input class="small" type="number" min="0.8" max="1.2" step="0.01" value="${e.factors.tenure}" data-ov="${e.id}::tenure" /></td>
+                  <td class="right"><input class="small" type="number" min="0.8" max="1.2" step="0.01" value="${e.factors.size}" data-ov="${e.id}::size" /></td>
+                  <td class="right"><input class="small" type="number" min="0.8" max="1.2" step="0.01" value="${e.factors.office}" data-ov="${e.id}::office" /></td>
+                  <td class="right"><div class="actionsCell"><button data-ov-open="${e.id}">Öffnen</button><button class="btn-icon trash" title="Löschen" aria-label="Löschen" data-ov-del="${e.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 7h2v9h-2v-9zm4 0h2v9h-2v-9zM6 8h12l-1 13H7L6 8z"/></svg></button></div></td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  };
+
+  const q = (state.ui.ovQuery||"").trim().toLowerCase();
+
+  panel.innerHTML = `
+    <div class="card">
+      <h2>Mitarbeiter-Übersicht</h2>
+      <div class="hint">Alle Mitarbeiter auf einer Seite bearbeiten. Tipp: Nach Änderungen oben auf <b>Speichern</b> klicken.</div>
+      <div class="row" style="margin-top:10px">
+        <input id="ovSearch" class="wide" type="text" placeholder="Suchen (Name oder Abteilung)..." value="${escapeHtml(state.ui.ovQuery||"")}" style="min-width:320px" />
+        <button id="ovSort">Sortieren (Abteilung, Name)</button>
+        <span class="spacer"></span>
+        <span class="pill"><b>Hinweis</b>: Änderungen werden sofort übernommen.</span>
+      </div>
+    </div>
+
+    ${order.map(d=>rowsForDept(d,q)).join("")}
+  `;
+
+  const s = document.getElementById("ovSearch");
+  if(s){
+    s.oninput = (e)=>{ state.ui.ovQuery = e.target.value; render(); };
+  }
+  const sortBtn = document.getElementById("ovSort");
+  if(sortBtn){
+    sortBtn.onclick = ()=>{
+      const ord = {RL:0, Office:1, AL:2};
+      state.employees.sort((a,b)=>{
+        const da = ord[a.dept] ?? 9, db = ord[b.dept] ?? 9;
+        if(da!==db) return da-db;
+        return a.name.localeCompare(b.name);
+      });
+      toast("Sortiert.");
+      render();
+    };
+  }
+
+  // Apply edits on blur (no extra button needed)
+  const applyOne = (el)=>{
+    const [id, field] = el.dataset.ov.split("::");
+    const emp = state.employees.find(x=>x.id===id);
+    if(!emp) return;
+
+    if(field==="name") emp.name = el.value;
+    else if(field==="dept"){
+      const newDept = el.value;
+      if(emp.dept !== newDept){
+        emp.dept = newDept;
+        // If employee had individual goal overrides, reset to avoid mismatch
+        if(hasEmpOverride(emp.id,state)) clearEmpOverride(emp.id,state);
+        syncEmpFulfill(emp,state);
+      }
+    }else if(field==="salary") emp.salary = Math.max(0, num(el.value,0));
+    else if(field==="baseMonths") emp.baseMonths = Math.max(0, num(el.value, state.settings.baseMonths));
+    else if(field==="tenure") emp.factors.tenure = clamp(num(el.value,1.0),0.8,1.2);
+    else if(field==="size") emp.factors.size = clamp(num(el.value,1.0),0.8,1.2);
+    else if(field==="office") emp.factors.office = clamp(num(el.value,1.0),0.8,1.2);
+  };
+
+  document.querySelectorAll("[data-ov]").forEach(el=>{
+    el.onblur = ()=>{ applyOne(el); };
+    el.onchange = ()=>{ applyOne(el); };
+  });
+
+  // Add employee in dept
+  document.querySelectorAll("[data-ov-add]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const dept = btn.dataset.ovAdd;
+      const newId = "E" + Math.random().toString(16).slice(2,10);
+      state.employees.push({
+        id:newId,
+        name:"Neuer Mitarbeiter",
+        dept:dept,
+        salary:2000,
+        factors:{tenure:1.0,size:1.0,office:1.0},
+        fulfill:{fin:[],ops:[],ind:[]},
+      });
+      syncEmpFulfill(state.employees[state.employees.length-1], state);
+      toast("Mitarbeiter hinzugefügt.");
+      render();
+    };
+  });
+
+  // Open in Mitarbeiter tab
+  document.querySelectorAll("[data-ov-open]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const id = btn.dataset.ovOpen;
+      state.ui.selectedEmpId = id;
+      state.ui.empView = "stammdaten";
+      state.ui.tab = "employee";
+      // set active tab highlight
+      document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active", x.dataset.tab==="employee"));
+      render();
+    };
+  });
+
+  // Delete employee
+  document.querySelectorAll("[data-ov-del]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const id = btn.dataset.ovDel;
+      if(!confirm("Mitarbeiter wirklich löschen?")) return;
+      state.employees = state.employees.filter(e=>e.id!==id);
+      if(state.empGoalOverrides && state.empGoalOverrides[id]) delete state.empGoalOverrides[id];
+      if(state.ui.selectedEmpId===id) state.ui.selectedEmpId = state.employees[0]?.id ?? null;
+      toast("Gelöscht.");
+      render();
+    };
+
+  // Drag & Drop Sortierung (nur innerhalb derselben Abteilung)
+  let dragId = null;
+
+  const deptOf = (empId)=>{
+    const e = state.employees.find(x=>x.id===empId);
+    return e ? e.dept : null;
+  };
+
+  const moveWithinDept = (dept, fromId, toId)=>{
+    if(fromId===toId) return;
+    const deptEmps = state.employees.filter(e=>e.dept===dept);
+    const others = state.employees.filter(e=>e.dept!==dept);
+
+    const fromIdx = deptEmps.findIndex(e=>e.id===fromId);
+    const toIdx = deptEmps.findIndex(e=>e.id===toId);
+    if(fromIdx<0 || toIdx<0) return;
+
+    const [item] = deptEmps.splice(fromIdx,1);
+    deptEmps.splice(toIdx,0,item);
+
+    // Keep overall array: RL/Office/AL blocks stay in same order, only internal order changes
+    const order = {RL:0, Office:1, AL:2};
+    const grouped = {};
+    for(const e of state.employees){
+      if(!grouped[e.dept]) grouped[e.dept]=[];
+      grouped[e.dept].push(e);
+    }
+    // Replace dept list with new order
+    grouped[dept] = deptEmps;
+
+    // Rebuild employees preserving dept block order by appearance in current array
+    const deptSequence = [];
+    for(const e of state.employees){
+      if(!deptSequence.includes(e.dept)) deptSequence.push(e.dept);
+    }
+    const rebuilt = [];
+    for(const d of deptSequence){
+      const list = grouped[d] || [];
+      rebuilt.push(...list);
+      delete grouped[d];
+    }
+    // any remaining depts (shouldn't) append
+    for(const d of Object.keys(grouped)){
+      rebuilt.push(...grouped[d]);
+    }
+    state.employees = rebuilt;
+  };
+
+  const wireDnD = ()=>{
+    document.querySelectorAll('.ovTable tr[data-emp-row]').forEach(tr=>{
+      tr.setAttribute("draggable","true");
+
+      tr.ondragstart = (e)=>{
+        dragId = tr.getAttribute("data-emp-row");
+        tr.classList.add("dragging");
+        try{ e.dataTransfer.setData("text/plain", dragId); }catch(_){}
+        e.dataTransfer.effectAllowed = "move";
+      };
+
+      tr.ondragend = ()=>{
+        dragId = null;
+        tr.classList.remove("dragging");
+        document.querySelectorAll(".ovTable tr.drag-over").forEach(x=>x.classList.remove("drag-over"));
+      };
+
+      tr.ondragover = (e)=>{
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if(!dragId) return;
+        const targetId = tr.getAttribute("data-emp-row");
+        if(targetId===dragId) return;
+
+        const d1 = deptOf(dragId);
+        const d2 = deptOf(targetId);
+        if(d1 && d2 && d1===d2){
+          tr.classList.add("drag-over");
+        }
+      };
+
+      tr.ondragleave = ()=> tr.classList.remove("drag-over");
+
+      tr.ondrop = (e)=>{
+        e.preventDefault();
+        tr.classList.remove("drag-over");
+        const targetId = tr.getAttribute("data-emp-row");
+        if(!dragId || !targetId || dragId===targetId) return;
+
+        const d1 = deptOf(dragId);
+        const d2 = deptOf(targetId);
+        if(!d1 || !d2 || d1!==d2){
+          toast("Verschieben nur innerhalb derselben Abteilung möglich.");
+          return;
+        }
+
+        moveWithinDept(d1, dragId, targetId);
+        toast("Reihenfolge geändert.");
+        render();
+      };
+    });
+  };
+
+
+  // Handle overview first/last name edits
+  const applyNameParts = (el)=>{
+    const [id, field] = el.dataset.ov.split("::");
+    const emp = state.employees.find(x=>x.id===id);
+    if(!emp) return;
+    if(field==="firstName"){
+      emp.firstName = el.value;
+    }else if(field==="lastName"){
+      emp.lastName = el.value;
+    }
+    if(emp.firstName || emp.lastName){
+      emp.name = ((emp.firstName||"") + (emp.firstName && emp.lastName ? " " : "") + (emp.lastName||"")).trim();
+    }
+  };
+  document.querySelectorAll('[data-ov$="::firstName"], [data-ov$="::lastName"]').forEach(el=>{
+    el.onblur = ()=>{ applyNameParts(el); };
+    el.onchange = ()=>{ applyNameParts(el); };
+  });
+
+  wireDnD();
+  });
+}
+
+
+function renderResults(){
+  const depts = ["RL","Office","Finanz/Lohnbuchhaltung","AL"];
+  const rowsByDept = {};
+  for(const d of depts) rowsByDept[d] = [];
+
+  for(const e of state.employees){
+    const p = payout(e,state);
+    rowsByDept[e.dept].push({e,p});
+  }
+
+  const grand = {salary:0, base:0, cap:0, payout:0};
+  for(const d of depts){
+    for(const r of rowsByDept[d]){
+      grand.salary += r.e.salary;
+      grand.base += r.p.base;
+      grand.cap += r.p.cap;
+      grand.payout += r.p.payout;
+    }
+  }
+
+  const deptBlock = (dept)=>{
+    const pb = state.pillarsByDept[deptKey(dept)];
+    const nameFin = escapeHtml(pb.fin.name);
+    const nameOps = escapeHtml(pb.ops.name);
+    const nameInd = escapeHtml(pb.ind.name);
+    const enFin = (pb.fin.enabled!==false);
+    const enOps = (pb.ops.enabled!==false);
+    const enInd = (pb.ind.enabled!==false);
+
+    const totals = rowsByDept[dept].reduce((a,r)=>{
+      a.salary += r.e.salary;
+      a.base += r.p.base;
+      a.cap += r.p.cap;
+      a.payout += r.p.payout;
+      return a;
+    }, {salary:0, base:0, cap:0, payout:0});
+
+    if(rowsByDept[dept].length===0){
+      return `<div class="card"><h2>${dept}</h2><div class="hint">Keine Mitarbeiter in dieser Abteilung.</div></div>`;
+    }
+
+    return `
+      <div class="card">
+        <h2>Abteilung: ${dept}</h2>
+        <div class="row">
+          <span class="pill"><b>MA</b>: ${rowsByDept[dept].length}</span>
+          <span class="pill"><b>Basis</b>: ${fmtEUR(totals.base)}</span>
+          <span class="pill"><b>Deckel</b>: ${fmtEUR(totals.cap)}</span>
+          <span class="pill payout"><b>Auszahlung</b>: ${fmtEUR(totals.payout)}</span>
+        </div>
+        <div class="hint">Spaltennamen kommen aus den Säulen-Namen dieser Abteilung (Ziele-Tab).</div>
+      </div>
+
+      <div class="card">
+        <h2>Liste – ${dept}</h2>
+        <table class="resultsTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th class="right">Monatsgehalt</th>
+              <th class="right">Basis</th>
+              <th class="right">${nameFin}</th>
+              <th class="right">${nameOps}</th>
+              <th class="right">${nameInd}</th>
+              <th class="right">Gesamt</th>
+              <th class="right">Faktor</th>
+              <th class="right">Deckel</th>
+              <th class="right">Auszahlung</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsByDept[dept].map(r=>`
+              <tr>
+                <td>${escapeHtml(displayName(r.e))}</td>
+                <td class="right">${fmtEUR(r.e.salary)}</td>
+                <td class="right">${fmtEUR(r.p.base)}</td>
+                <td class="right">${enFin ? (Math.round(r.p.fin*100)+"%") : "–"}</td>
+                <td class="right">${enOps ? (Math.round(r.p.ops*100)+"%") : "–"}</td>
+                <td class="right">${enInd ? (Math.round(r.p.ind*100)+"%") : "–"}</td>
+                <td class="right"><b>${Math.round(r.p.total*100)}%</b></td>
+                <td class="right">${r.p.factor.toFixed(3)}</td>
+                <td class="right">${fmtEUR(r.p.cap)}</td>
+                <td class="right"><b>${fmtEUR(r.p.payout)}</b></td>
+              </tr>
+            `).join("")}
+            <tr>
+              <th>SUMME</th>
+              <th class="right">${fmtEUR(totals.salary)}</th>
+              <th class="right">${fmtEUR(totals.base)}</th>
+              <th class="right">–</th>
+              <th class="right">–</th>
+              <th class="right">–</th>
+              <th class="right">–</th>
+              <th class="right">–</th>
+              <th class="right">${fmtEUR(totals.cap)}</th>
+              <th class="right"><b>${fmtEUR(totals.payout)}</b></th>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
+
+  panel.innerHTML = `
+    <div class="card">
+      <h2>Gesamtübersicht</h2>
+      <div class="row">
+        <span class="pill"><b>Mitarbeiter</b>: ${state.employees.length}</span>
+        <span class="pill"><b>Gesamt Basis</b>: ${fmtEUR(grand.base)}</span>
+        <span class="pill"><b>Gesamt Deckel</b>: ${fmtEUR(grand.cap)}</span>
+        <span class="pill payout"><b>Gesamt Auszahlung</b>: ${fmtEUR(grand.payout)}</span>
+      </div>
+      <div class="hint">Ergebnisse sind nach Abteilung getrennt, damit die Säulen-Namen korrekt angezeigt werden.</div>
+    </div>
+
+    ${depts.map(d=>deptBlock(d)).join("")}
+  `;
+}
+
+/* Top buttons */
+document.getElementById("btnSave").onclick = ()=>{
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  toast("Gespeichert.");
+};
+document.getElementById("btnReset").onclick = ()=>{
+  state = defaultState();
+  localStorage.removeItem(STORAGE_KEY);
+  toast("Reset.");
+  render();
+};
+
+document.getElementById("btnExportCSV").onclick = ()=>{
+  const rows = state.employees.map(e=>{
+    const p = payout(e,state);
+    return {
+      Name: e.name,
+      Abteilung: e.dept,
+      Monatsgehalt: e.salary,
+      Basis: p.base,
+      Finanz_pct: Math.round(p.fin*100),
+      Ops_pct: Math.round(p.ops*100),
+      Ind_pct: Math.round(p.ind*100),
+      Gesamt_pct: Math.round(p.total*100),
+      Faktor: Number(p.factor.toFixed(3)),
+      Deckel: p.cap,
+      Auszahlung: p.payout
+    };
+  });
+  const header = Object.keys(rows[0]||{});
+  const lines = [header.join(",")];
+  for(const r of rows){
+    lines.push(header.map(h=>{
+      const s = String(r[h] ?? "");
+      return /[",\n]/.test(s) ? `"${s.replaceAll('"','""')}"` : s;
+    }).join(","));
+  }
+  download("bonus_export.csv", lines.join("\n"), "text/csv;charset=utf-8");
+};
+
+document.getElementById("btnExportJSON").onclick = ()=>{
+  download("bonus_backup.json", JSON.stringify(state,null,2), "application/json");
+};
+
+document.getElementById("btnExportHTML").onclick = ()=>{
+  try{
+    const json = JSON.stringify(state);
+    const safeJson = json.replace(/</g,"\\u003c");
+    let doc = document.documentElement.outerHTML;
+
+    if(/<script id="portableState" type="application\/json">[\s\S]*?<\/script>/.test(doc)){
+      doc = doc.replace(/<script id="portableState" type="application\/json">[\s\S]*?<\/script>/,
+                        `<script id="portableState" type="application/json">${safeJson}<\/script>`);
+    }else{
+      doc = doc.replace(/<\/head>/, `<script id="portableState" type="application/json">${safeJson}<\/script>\n</head>`);
+    }
+
+    const ts = new Date();
+    const pad = (n)=> String(n).padStart(2,"0");
+    const name = `${pad(ts.getDate())}-${pad(ts.getMonth()+1)}-${ts.getFullYear()}-${pad(ts.getHours())}-${pad(ts.getMinutes())}_PORTABLE.html`;
+    download(name, doc, "text/html;charset=utf-8");
+  }catch(e){
+    alert("HTML Export fehlgeschlagen: " + (e && e.message ? e.message : e));
+  }
+};
+
+document.getElementById("btnImportJSON").onclick = ()=> document.getElementById("fileJSON").click();
+document.getElementById("fileJSON").addEventListener("change", async (e)=>{
+  const f = e.target.files?.[0];
+  if(!f) return;
+  try{
+    state = sanitize(JSON.parse(await f.text()));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    toast("JSON importiert.");
+    render();
+  }catch(_){
+    alert("Ungültige JSON-Datei.");
+  }finally{
+    e.target.value="";
+  }
+});
+
+/* Tabs */
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    state.ui.tab = t.dataset.tab;
+    render();
+  };
+});
+
+document.addEventListener("DOMContentLoaded", ()=>{
+
+  // Portable HTML: load embedded data (if present) before rendering
+  try{
+    const el = document.getElementById("portableState");
+    const txt = el ? (el.textContent||"").trim() : "";
+    if(txt){
+      const parsed = JSON.parse(txt);
+      if(parsed && Array.isArray(parsed.employees)){
+        state = parsed;
+      }
+    }
+  }catch(e){}
+  // Ensure Mitarbeiter view is visible immediately on first load
+  state.ui = state.ui || {};
+  state.ui.tab = "employee";
+  state.ui.empView = state.ui.empView || "stammdaten";
+  if(!state.ui.selectedEmpId && state.employees?.length) state.ui.selectedEmpId = state.employees[0].id;
+  if(!state.ui.goalsEmpId && state.employees?.length) state.ui.goalsEmpId = state.employees[0].id;
+  syncAll(state);
+  render();
+});
+</script>
+
+
+</body></html>

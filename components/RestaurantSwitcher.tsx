@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ChevronDown, Check, Store, Globe } from 'lucide-react';
+import { ChevronDown, Store, Globe, CheckCircle2 } from 'lucide-react';
 import { switchRestaurant } from '@/app/actions/restaurantContext';
 import { useRouter } from 'next/navigation';
 
@@ -14,7 +14,7 @@ interface Restaurant {
 interface Props {
   restaurants: Restaurant[];
   activeRestaurantId?: string;
-  showAllOption?: boolean; // NOVI PROP
+  showAllOption?: boolean;
 }
 
 export default function RestaurantSwitcher({ restaurants, activeRestaurantId, showAllOption = false }: Props) {
@@ -22,20 +22,13 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  // Logika za prikaz trenutno odabranog
+  // Logika za prikaz trenutnog
   let activeRest = restaurants.find(r => r.id === activeRestaurantId);
-  let displayName = activeRest?.name || activeRest?.code || "Odaberi";
-  let displayCode = activeRest?.code;
-
-  // Ako je odabrano "Svi restorani" (activeRestaurantId je 'all')
+  
+  // Prikazno ime (Samo broj)
+  let displayName = activeRest?.name || "Odaberi";
   if (activeRestaurantId === 'all') {
-      displayName = "Svi Restorani";
-      displayCode = "ALL";
-  } else if (!activeRest && restaurants.length > 0) {
-      // Fallback na prvi
-      activeRest = restaurants[0];
-      displayName = activeRest.name || "";
-      displayCode = activeRest.code;
+      displayName = "Svi";
   }
 
   const handleSelect = (restId: string) => {
@@ -44,7 +37,7 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
       return;
     }
     startTransition(async () => {
-      await switchRestaurant(restId); // Ovo server action mora podržati string 'all'
+      await switchRestaurant(restId);
       setIsOpen(false);
       router.refresh(); 
     });
@@ -55,96 +48,98 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
   return (
     <div className="relative">
       
-      {/* GUMB - Dizajniran za ZELENU pozadinu */}
+      {/* GLAVNI GUMB */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
         disabled={isPending}
         className={`
-            group flex items-center gap-3 pl-1 pr-3 py-1 rounded-lg border transition-all duration-200
+            group flex items-center gap-3 pl-1 pr-4 py-1.5 rounded-xl border transition-all duration-200
             ${isOpen 
-                ? 'bg-[#0d1f15] border-[#FFC72C]/50 shadow-lg' 
-                : 'bg-white/10 border-transparent hover:bg-white/20 hover:border-white/10'
+                ? 'bg-[#0d1f15] border-[#FFC72C]/30 shadow-lg text-white' 
+                : 'bg-white/5 border-transparent hover:bg-white/10 text-white/90'
             }
         `}
       >
-        {/* Ikonica */}
-        <div className="bg-[#FFC72C] h-7 w-7 rounded flex items-center justify-center text-[#1a3826] shadow-sm">
+        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shadow-sm transition-colors ${activeRestaurantId === 'all' ? 'bg-[#FFC72C] text-[#1a3826]' : 'bg-[#1a3826] border border-[#FFC72C]/50 text-[#FFC72C]'}`}>
            {isPending ? (
              <span className="animate-spin text-xs font-bold">↻</span>
            ) : (
-             activeRestaurantId === 'all' ? <Globe size={14} strokeWidth={3} /> : <Store size={14} strokeWidth={3} />
+             activeRestaurantId === 'all' ? <Globe size={16} strokeWidth={2.5} /> : <Store size={16} strokeWidth={2.5} />
            )}
         </div>
         
-        {/* Tekst */}
         <div className="text-left flex flex-col">
-            <span className="text-[8px] text-[#FFC72C] font-bold uppercase tracking-widest leading-none mb-0.5 opacity-90">
-                Restoran
+            <span className="text-[9px] font-bold text-[#FFC72C] uppercase tracking-widest leading-none mb-0.5 opacity-80">
+                {activeRestaurantId === 'all' ? 'Prikaz' : 'Store'}
             </span>
-            <span className="text-xs font-black text-white leading-none uppercase tracking-wide truncate max-w-[140px]">
+            <span className="text-sm font-black leading-none tracking-tight">
                 {displayName}
             </span>
         </div>
 
-        {/* Strelica */}
         <ChevronDown 
-            size={14} 
-            className={`text-white/60 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#FFC72C]' : ''}`} 
+            size={16} 
+            className={`ml-1 text-white/40 transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#FFC72C]' : ''}`} 
         />
       </button>
 
-      {/* DROPDOWN - Tamni */}
+      {/* PADAJUĆI MENI */}
       {isOpen && (
         <>
             <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-            <div className="absolute left-0 top-full mt-2 w-64 bg-[#1a3826] rounded-xl shadow-2xl border border-[#FFC72C]/20 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 ring-1 ring-black/20">
-                <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-1">
+            <div className="absolute left-0 top-full mt-2 w-72 bg-[#1a3826] rounded-2xl shadow-2xl border border-[#FFC72C]/20 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 ring-1 ring-black/40">
+                
+                {/* Header menija */}
+                <div className="bg-[#142e1e] px-4 py-2 border-b border-white/5 text-[10px] font-black text-white/40 uppercase tracking-widest">
+                    Promijeni Lokaciju
+                </div>
+
+                <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-2">
                     
-                    {/* OPCIJA: SVI RESTORANI (Samo ako je showAllOption=true) */}
+                    {/* OPCIJA: SVI RESTORANI */}
                     {showAllOption && (
-                        <button
-                            onClick={() => handleSelect('all')}
-                            className={`
-                                w-full text-left px-3 py-2.5 flex items-center justify-between group transition-all rounded-lg mb-0.5 border-b border-white/5
-                                ${activeRestaurantId === 'all' ? 'bg-[#FFC72C] text-[#1a3826]' : 'text-white hover:bg-white/10'}
-                            `}
+                        <button 
+                            onClick={() => handleSelect('all')} 
+                            className={`w-full text-left px-3 py-3 flex items-center justify-between group transition-all rounded-xl mb-2 border border-transparent
+                            ${activeRestaurantId === 'all' ? 'bg-[#FFC72C] text-[#1a3826] shadow-md font-bold' : 'text-white hover:bg-white/5 hover:border-white/10'}`}
                         >
                             <div className="flex items-center gap-3">
-                                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${activeRestaurantId === 'all' ? 'border-[#1a3826]/30' : 'border-white/20 text-white/50'}`}>
-                                    ALL
-                                </span>
-                                <span className="text-xs font-bold uppercase tracking-tight">
-                                    SVI RESTORANI
-                                </span>
+                                <Globe size={16} />
+                                <span className="text-xs font-bold uppercase tracking-wide">Svi Restorani</span>
                             </div>
-                            {activeRestaurantId === 'all' && <Check size={14} strokeWidth={3}/>}
+                            {activeRestaurantId === 'all' && <CheckCircle2 size={16} className="text-[#1a3826]"/>}
                         </button>
                     )}
 
-                    {/* LISTA RESTORANA */}
-                    {restaurants.map((rest) => {
-                        const isActive = activeRestaurantId === rest.id;
-                        return (
-                            <button
-                                key={rest.id}
-                                onClick={() => handleSelect(rest.id)}
-                                className={`
-                                    w-full text-left px-3 py-2.5 flex items-center justify-between group transition-all rounded-lg mb-0.5
-                                    ${isActive ? 'bg-[#FFC72C] text-[#1a3826]' : 'text-white hover:bg-white/10'}
-                                `}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border ${isActive ? 'border-[#1a3826]/30' : 'border-white/20 text-white/50'}`}>
-                                        {rest.code}
-                                    </span>
-                                    <span className="text-xs font-bold uppercase tracking-tight">
-                                        {rest.name}
-                                    </span>
-                                </div>
-                                {isActive && <Check size={14} strokeWidth={3}/>}
-                            </button>
-                        );
-                    })}
+                    {/* GRID RESTORANA */}
+                    <div className="grid grid-cols-2 gap-2">
+                        {restaurants.map((rest) => {
+                            const isActive = activeRestaurantId === rest.id;
+                            return (
+                                <button 
+                                    key={rest.id} 
+                                    onClick={() => handleSelect(rest.id)} 
+                                    className={`
+                                        relative flex items-center justify-center px-2 py-3 rounded-xl border transition-all duration-200 group
+                                        ${isActive 
+                                            ? 'bg-[#FFC72C] border-[#FFC72C] text-[#1a3826] shadow-md' 
+                                            : 'bg-white/5 border-white/5 text-white hover:bg-white/10 hover:border-white/20'
+                                        }
+                                    `}
+                                >
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className={`text-[10px] uppercase font-bold tracking-wider ${isActive ? 'text-[#1a3826]/70' : 'text-white/40'}`}>
+                                            STORE
+                                        </span>
+                                        <span className="text-lg font-black leading-none">
+                                            {rest.name}
+                                        </span>
+                                    </div>
+                                    {isActive && <div className="absolute top-1.5 right-1.5"><div className="h-1.5 w-1.5 bg-[#1a3826] rounded-full"></div></div>}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </>
