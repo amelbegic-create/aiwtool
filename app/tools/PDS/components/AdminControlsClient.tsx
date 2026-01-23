@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, Play } from 'lucide-react';
-// 👇 FIX: Koristimo relativnu putanju koja 100% radi
+
+// 👇 FIX: Relativna putanja koja sigurno radi (3 nivoa gore)
 import { createBulkPDS, deleteAllPDSForYear } from '../../../actions/pdsActions'; 
 
 interface Props {

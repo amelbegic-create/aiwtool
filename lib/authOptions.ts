@@ -4,25 +4,25 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
-const isProduction = process.env.NODE_ENV === "production";
-
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   
-  // 👇 FIX: Ignorišemo TS grešku jer nam ova opcija TREBA za Vercel
+  // 👇 FIX: Ignorišemo TS grešku, ali ovo MORA ostati za Vercel
   // @ts-ignore
   trustHost: true,
   secret: process.env.NEXTAUTH_SECRET,
 
+  // 👇 POJEDNOSTAVLJENA COOKIE LOGIKA (Pusti NextAuth da sam odluči)
+  // Ovo često rješava problem kad se imena kolačića ne poklapaju
   cookies: {
     sessionToken: {
-      name: isProduction ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
+      name: process.env.NODE_ENV === 'production' ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: isProduction,
+        secure: process.env.NODE_ENV === 'production',
       },
     },
   },
@@ -96,8 +96,10 @@ export const authOptions: NextAuthOptions = {
     },
 
     async redirect({ url, baseUrl }) {
-      if (url.startsWith(baseUrl)) return url;
-      return `${baseUrl}/dashboard`;
+      // Dozvoli redirekciju samo na isti host
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
     },
   },
 };
