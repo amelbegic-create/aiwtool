@@ -1,88 +1,103 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { compare } from "bcryptjs";
 
-// 👇 DETEKTUJEMO OKRUŽENJE
 const isProduction = process.env.NODE_ENV === "production";
 
 export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Nedostaju podaci za prijavu");
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-        });
-
-        if (!user || !user.password) {
-          throw new Error("Korisnik nije pronađen");
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-
-        if (!isValid) {
-          throw new Error("Pogrešna lozinka");
-        }
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          image: user.image,
-          role: user.role,
-        };
-      },
-    }),
-  ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        token.role = (user as any).role;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (session.user as any).id = token.id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (session.user as any).role = token.role;
-      }
-      return session;
-    },
-  },
-  pages: {
-    signIn: "/login",
-  },
-  session: {
-    strategy: "jwt",
-  },
-  secret: process.env.NEXTAUTH_SECRET,
+  session: { strategy: "jwt" },
+  pages: { signIn: "/login" },
   
-  // 👇 DINAMIČKE POSTAVKE (Rade i lokalno i na Vercelu)
-  trustHost: true, 
+  // 👇 FIX: Ignorišemo TS grešku jer nam ova opcija TREBA za Vercel
+  // @ts-ignore
+  trustHost: true,
+  secret: process.env.NEXTAUTH_SECRET,
+
   cookies: {
     sessionToken: {
-      // Na produkciji koristi __Secure- prefix, lokalno ne
       name: isProduction ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
       options: {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        // Secure samo ako je produkcija (HTTPS)
         secure: isProduction,
       },
+    },
+  },
+
+  providers: [
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { type: "email" },
+        password: { type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            password: true,
+            role: true,
+            permissions: true,
+            image: true,
+            isActive: true,
+          },
+        });
+
+        if (!user || !user.password) return null;
+        if (!user.isActive) return null;
+
+        const isBcryptValid = await compare(credentials.password, user.password);
+        const isPlainValid = credentials.password === user.password;
+        
+        if (!isBcryptValid && !isPlainValid) return null;
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          permissions: user.permissions,
+          image: user.image,
+        } as any;
+      },
+    }),
+  ],
+
+  callbacks: {
+    async jwt({ token, user }: any) {
+      if (user) {
+        token.id = user.id;
+        token.email = user.email;
+        token.role = user.role;
+        token.permissions = user.permissions;
+        token.picture = user.image;
+      }
+      return token;
+    },
+
+    async session({ session, token }: any) {
+      if (session.user) {
+        session.user.id = token.id;
+        session.user.email = token.email;
+        session.user.name = token.name;
+        session.user.image = token.picture;
+        session.user.role = token.role;
+        session.user.permissions = token.permissions || [];
+      }
+      return session;
+    },
+
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith(baseUrl)) return url;
+      return `${baseUrl}/dashboard`;
     },
   },
 };

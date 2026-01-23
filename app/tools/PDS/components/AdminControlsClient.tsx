@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, Play } from 'lucide-react';
-// 👇 SADA OVO GAĐA TAČNU PUTANJU (ako si uradio Korak 1)
-import { createBulkPDS, deleteAllPDSForYear } from '@/app/actions/pdsActions'; 
+// 👇 FIX: Koristimo relativnu putanju koja 100% radi
+import { createBulkPDS, deleteAllPDSForYear } from '../../../actions/pdsActions'; 
 
 interface Props {
   selectedYear: number;
