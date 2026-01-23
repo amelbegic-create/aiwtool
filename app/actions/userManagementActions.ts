@@ -2,127 +2,154 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { hash } from "bcrypt";
+import { Role } from "@prisma/client";
+import { hash } from "bcryptjs";
+
+type CreateSmartUserInput = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: Role;
+  department?: string | null;
+  vacationEntitlement?: number;
+  vacationCarryover?: number;
+  permissions?: string[];
+  restaurantIds?: string[];
+  primaryRestaurantId?: string | null;
+};
+
+type UpdateSmartUserInput = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password?: string; // optional
+  role: Role;
+  department?: string | null;
+  vacationEntitlement?: number;
+  vacationCarryover?: number;
+  permissions?: string[];
+  restaurantIds?: string[];
+  primaryRestaurantId?: string | null;
+};
+
+function buildName(firstName: string, lastName: string) {
+  return `${(firstName || "").trim()} ${(lastName || "").trim()}`.trim();
+}
+
+function normalizeRestaurants(
+  restaurantIds?: string[],
+  primaryRestaurantId?: string | null
+) {
+  const ids = Array.from(new Set((restaurantIds || []).filter(Boolean)));
+
+  // Ako je primary setovan a nije u listi, dodaj ga
+  if (primaryRestaurantId && !ids.includes(primaryRestaurantId)) {
+    ids.unshift(primaryRestaurantId);
+  }
+
+  // Ako nema primary, a ima restorana, prvi je primary
+  const primary =
+    primaryRestaurantId && ids.includes(primaryRestaurantId)
+      ? primaryRestaurantId
+      : ids[0] || null;
+
+  return { ids, primary };
+}
 
 // KREIRANJE KORISNIKA
-export async function createSmartUser(data: {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password?: string;
-  roleId: string; 
-  unitIds: string[];
-  supervisorId?: string;
-  vacationEntitlement: number;
-  vacationCarryover: number;
-}) {
-  try {
-    const hashedPassword = data.password ? await hash(data.password, 10) : undefined;
-    const fullName = `${data.firstName} ${data.lastName}`.trim();
+export async function createSmartUser(data: CreateSmartUserInput) {
+  const name = buildName(data.firstName, data.lastName);
 
-    const existing = await prisma.user.findUnique({ where: { email: data.email } });
-    if (existing) throw new Error("Korisnik s ovim emailom već postoji.");
-
-    // PRIPREMA SUPERVISOR ID-a (Fix za grešku 'incompatible types')
-    // Ako je prazan string, šaljemo undefined (ne null, jer Prisma nekad zeza s null u create)
-    const supervisorConnect = (data.supervisorId && data.supervisorId.trim() !== "") 
-      ? { connect: { id: data.supervisorId } } 
-      : undefined;
-
-    await prisma.user.create({
-      data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        name: fullName,
-        email: data.email,
-        password: hashedPassword,
-        
-        role: { connect: { id: data.roleId } }, 
-        
-        supervisor: supervisorConnect, // Ovako je sigurnije
-
-        vacationEntitlement: Number(data.vacationEntitlement) || 20,
-        vacationCarryover: Number(data.vacationCarryover) || 0,
-        
-        restaurants: {
-          create: data.unitIds.map((id, index) => ({
-            restaurantId: id,
-            isPrimary: index === 0
-          }))
-        }
-      }
-    });
-    revalidatePath("/admin/users");
-    return { success: true };
-  } catch (error: any) {
-    console.error("Create User Error:", error);
-    throw new Error(error.message || "Greška pri kreiranju korisnika.");
+  if (!data.firstName?.trim() || !data.lastName?.trim() || !data.email?.trim()) {
+    throw new Error("Ime, Prezime i Email su obavezni.");
   }
+  if (!data.password?.trim()) {
+    throw new Error("Lozinka je obavezna kod kreiranja.");
+  }
+
+  const email = data.email.trim().toLowerCase();
+  const hashed = await hash(data.password, 10);
+
+  const { ids, primary } = normalizeRestaurants(
+    data.restaurantIds,
+    data.primaryRestaurantId ?? null
+  );
+
+  await prisma.user.create({
+    data: {
+      name,
+      email,
+      password: hashed,
+      role: data.role, // ✅ ENUM, nema connect
+      department: data.department ?? "RL",
+      vacationEntitlement: data.vacationEntitlement ?? 20,
+      vacationCarryover: data.vacationCarryover ?? 0,
+      permissions: data.permissions ?? [],
+      restaurants: ids.length
+        ? {
+            create: ids.map((rid) => ({
+              restaurantId: rid,
+              isPrimary: primary === rid,
+            })),
+          }
+        : undefined,
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin");
 }
 
-// AŽURIRANJE KORISNIKA
-export async function updateSmartUser(userId: string, data: {
-  firstName: string;
-  lastName: string;
-  email: string;
-  roleId: string; 
-  unitIds: string[];
-  supervisorId?: string;
-  vacationEntitlement: number;
-  vacationCarryover: number;
-}) {
-  try {
-    const fullName = `${data.firstName} ${data.lastName}`.trim();
+// UPDATE KORISNIKA
+export async function updateSmartUser(data: UpdateSmartUserInput) {
+  const name = buildName(data.firstName, data.lastName);
 
-    // Logika za disconnect/connect supervisora
-    const supervisorUpdate = (data.supervisorId && data.supervisorId.trim() !== "")
-        ? { connect: { id: data.supervisorId } }
-        : { disconnect: true };
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        name: fullName,
-        email: data.email,
-        
-        role: { connect: { id: data.roleId } }, 
-        
-        supervisor: supervisorUpdate,
-        
-        vacationEntitlement: Number(data.vacationEntitlement),
-        vacationCarryover: Number(data.vacationCarryover),
-      }
-    });
-
-    // Ažuriranje restorana
-    await prisma.restaurantUser.deleteMany({ where: { userId } });
-    
-    if (data.unitIds.length > 0) {
-      await prisma.restaurantUser.createMany({
-        data: data.unitIds.map((id, index) => ({
-          userId,
-          restaurantId: id,
-          isPrimary: index === 0
-        }))
-      });
-    }
-
-    revalidatePath("/admin/users");
-    return { success: true };
-  } catch (error) {
-    console.error(error);
-    throw new Error("Greška pri ažuriranju.");
+  if (!data.id) throw new Error("Nedostaje ID korisnika.");
+  if (!data.firstName?.trim() || !data.lastName?.trim() || !data.email?.trim()) {
+    throw new Error("Ime, Prezime i Email su obavezni.");
   }
+
+  const email = data.email.trim().toLowerCase();
+
+  const { ids, primary } = normalizeRestaurants(
+    data.restaurantIds,
+    data.primaryRestaurantId ?? null
+  );
+
+  await prisma.user.update({
+    where: { id: data.id },
+    data: {
+      name,
+      email,
+      role: data.role, // ✅ ENUM, nema connect
+      department: data.department ?? "RL",
+      vacationEntitlement: data.vacationEntitlement ?? 20,
+      vacationCarryover: data.vacationCarryover ?? 0,
+      permissions: { set: data.permissions ?? [] }, // ✅ siguran update niza
+      password: data.password?.trim() ? await hash(data.password, 10) : undefined,
+
+      // Reset + re-create user->restaurants veza
+      restaurants: {
+        deleteMany: {}, // obriši sve prethodne veze
+        create: ids.map((rid) => ({
+          restaurantId: rid,
+          isPrimary: primary === rid,
+        })),
+      },
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin");
 }
 
-export async function deleteSmartUser(userId: string) {
-  try {
-    await prisma.user.delete({ where: { id: userId } });
-    revalidatePath("/admin/users");
-    return { success: true };
-  } catch (error) {
-    throw new Error("Greška pri brisanju korisnika.");
-  }
+// BRISANJE KORISNIKA
+export async function deleteSmartUser(id: string) {
+  if (!id) throw new Error("Nedostaje ID korisnika.");
+  await prisma.user.delete({ where: { id } });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin");
 }
