@@ -6,13 +6,21 @@ export const dynamic = "force-dynamic";
 function injectCss(html: string) {
   const css = `
     <style id="bonusi-fullscreen-override">
+      /* ✅ Allow scrolling inside iframe document */
       html, body {
         margin: 0 !important;
         padding: 0 !important;
         width: 100% !important;
-        height: 100% !important;
+
+        /* Nemoj zaključavati visinu; pusti dokument da raste */
+        height: auto !important;
+        min-height: 100% !important;
+
         background: #ffffff !important;
-        overflow: hidden !important;
+
+        /* ✅ Scroll ON */
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
       }
 
       /* Najčešći “AI portable app” wrapperi */

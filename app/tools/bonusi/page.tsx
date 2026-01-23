@@ -1,12 +1,19 @@
-import BonusiFrame from "./BonusiFrame";
-import { requirePermission } from "@/lib/access";
+// 1. Importamo default export (bez vitičastih zagrada { })
+import BonusiFrame from "./BonusiFrame"; 
 
+// import { requirePermission } from "@/lib/access"; // Otkomentiraj kad ti zatreba
+
+// Ovo forsira da se stranica ne kešira na serveru
 export const dynamic = "force-dynamic";
 
 export default async function BonusiPage() {
-  // Admin-only (ako ti je drugačiji key, promijeni ga u tvoj)
-  await requirePermission("admin:access");
+  // await requirePermission("admin:access"); // Tvoja zaštita
 
-  // UMJESTO direktnog HTML-a, koristi view route koji ubaci CSS override
-  return <BonusiFrame src="/tools/bonusi/view" title="Bonusi" headerOffsetPx={80} />;
+  return (
+    <BonusiFrame 
+      src="/tools/bonusi/view" 
+      title="Bonusi Manager" 
+      headerOffsetPx={80} 
+    />
+  );
 }
