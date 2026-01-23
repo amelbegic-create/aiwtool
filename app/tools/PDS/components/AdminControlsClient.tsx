@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, Play } from 'lucide-react';
-import { createBulkPDS, deleteAllPDSForYear } from '../actions'; // ✅ FIX: jedan nivo iznad
+// Koristimo apsolutnu putanju (@) da izbjegnemo greške sa tačkicama (../../)
+import { createBulkPDS, deleteAllPDSForYear } from '@/app/actions/pdsActions'; 
 
 interface Props {
   selectedYear: number;
@@ -18,34 +19,53 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleGenerate = async () => {
+    // 1. Validacija
     if (!template || !template.goals || template.goals.length === 0) {
       return alert('Prvo morate definisati pravila (Ciljeve i Skalu)!');
     }
 
     setIsGenerating(true);
 
-    // ✅ FIX: year (number) pa managerId (string)
-    const res = await createBulkPDS(selectedYear, currentUserId);
+    try {
+      // 2. FIX: Prisilno pretvaramo u broj (Number) da zadovoljimo TypeScript
+      const yearAsNumber = Number(selectedYear);
+      
+      // 3. Pozivamo akciju
+      const res = await createBulkPDS(yearAsNumber, currentUserId);
 
-    setIsGenerating(false);
-
-    if (res?.success) {
-      alert('Generisanje uspješno!');
-      router.refresh();
-    } else {
-      alert(res?.error || 'Greška pri generisanju.');
+      if (res?.success) {
+        alert('Generisanje uspješno!');
+        router.refresh();
+      } else {
+        alert(res?.error || 'Greška pri generisanju.');
+      }
+    } catch (error) {
+      console.error("Greška pri generisanju:", error);
+      alert('Došlo je do greške.');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   const handleDelete = async () => {
-    const ok = confirm('Jeste li sigurni da želite obrisati sve PDS-ove za ovu godinu u AKTIVNOM restoranu?');
+    const ok = confirm(`Jeste li sigurni da želite obrisati sve PDS-ove za ${selectedYear}. godinu?`);
     if (!ok) return;
 
     setIsDeleting(true);
-    await deleteAllPDSForYear(selectedYear);
-    setIsDeleting(false);
-
-    router.refresh();
+    try {
+        // FIX: I ovdje pretvaramo u broj za svaki slučaj
+        const yearAsNumber = Number(selectedYear);
+        
+        await deleteAllPDSForYear(yearAsNumber);
+        
+        router.refresh();
+        alert("Uspješno obrisano.");
+    } catch (error) {
+        console.error("Greška pri brisanju:", error);
+        alert("Greška pri brisanju.");
+    } finally {
+        setIsDeleting(false);
+    }
   };
 
   return (
@@ -53,7 +73,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
       <button
         onClick={handleGenerate}
         disabled={isGenerating}
-        className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-xl text-xs font-bold hover:bg-[#142e1e] disabled:opacity-60"
+        className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-xl text-xs font-bold hover:bg-[#142e1e] disabled:opacity-60 transition-colors shadow-sm"
       >
         {isGenerating ? <span className="animate-spin">↻</span> : <Play size={14} />}
         GENERIŠI
@@ -62,7 +82,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
       <button
         onClick={handleDelete}
         disabled={isDeleting}
-        className="flex items-center justify-center w-9 h-9 bg-white border border-red-100 rounded-xl text-red-500 hover:bg-red-50 disabled:opacity-60"
+        className="flex items-center justify-center w-9 h-9 bg-white border border-red-100 rounded-xl text-red-500 hover:bg-red-50 disabled:opacity-60 transition-colors shadow-sm"
         title="Obriši sve za ovu godinu"
       >
         {isDeleting ? <span className="animate-spin">↻</span> : <Trash2 size={14} />}
