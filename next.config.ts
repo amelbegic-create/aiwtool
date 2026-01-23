@@ -1,28 +1,35 @@
+// next.config.ts
 // MIČEMO import type { NextConfig } da izbjegnemo grešku tipova
 
 const nextConfig = {
-  // Ignoriraj TypeScript greške pri buildanju
+  // Vercel build-friendly
+  output: "standalone",
+
+  // Privremeno: da deploy prođe odmah (sutra vraćamo)
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Ignoriraj ESLint greške pri buildanju
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // OBAVEZNO: Konfiguracija za slike (Vercel Blob)
+
+  // (opciono) smanji dev-only "dupla render" čudnoće
+  reactStrictMode: false,
+
+  // Slike (Vercel Blob + fallback hostovi)
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'public.blob.vercel-storage.com',
-        port: '',
+        protocol: "https",
+        hostname: "public.blob.vercel-storage.com",
       },
-      // Dodajemo i placeholder servise ako zatrebaju
       {
-        protocol: 'https',
-        hostname: 'via.placeholder.com',
+        protocol: "https",
+        hostname: "via.placeholder.com",
       },
     ],
+    // fallback (nekad korisno)
+    domains: ["public.blob.vercel-storage.com", "via.placeholder.com"],
   },
 };
 
