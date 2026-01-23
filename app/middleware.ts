@@ -1,45 +1,30 @@
+import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 
-export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-
-  // Ne diraj Next internals i auth endpoints
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/login")
-  ) {
+export default withAuth(
+  function middleware(req) {
     return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: ({ token }) => {
+        // Vraća true ako token postoji (korisnik je ulogovan)
+        return !!token;
+      },
+    },
+    pages: {
+      signIn: "/login", // Gura na login ako nema tokena
+    },
   }
-
-  // Zaštićene zone (dodaj šta treba)
-  const isProtected =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/tools") ||
-    pathname.startsWith("/admin");
-
-  if (!isProtected) return NextResponse.next();
-
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
-  // Ako nema tokena -> login
-  if (!token?.email) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("from", pathname);
-    return NextResponse.redirect(url);
-  }
-
-  // Ako ima token -> pusti dalje
-  return NextResponse.next();
-}
+);
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Ovdje navedi SVE rute koje moraju biti zaštićene (gdje moraš biti ulogovan)
+  matcher: [
+    "/dashboard/:path*",
+    "/tools/:path*",
+    "/admin/:path*",
+    "/profile/:path*",
+    "/select-restaurant/:path*", // Dodao sam i ovo jer ti je tu pucalo
+  ],
 };
