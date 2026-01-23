@@ -5,28 +5,20 @@ import prisma from "@/lib/prisma";
 import { compare } from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
+  // 1. Strategija
   session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
   
-  // 👇 FIX: Ignorišemo TS grešku, ali ovo MORA ostati za Vercel
+  // 2. Stranice
+  pages: { signIn: "/login" },
+
+  // 3. Vercel Ključevi
+  secret: process.env.NEXTAUTH_SECRET,
+  
+  // FIX: Ovo mora ostati, ali bez ručnih kolačića!
   // @ts-ignore
   trustHost: true,
-  secret: process.env.NEXTAUTH_SECRET,
 
-  // 👇 POJEDNOSTAVLJENA COOKIE LOGIKA (Pusti NextAuth da sam odluči)
-  // Ovo često rješava problem kad se imena kolačića ne poklapaju
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === 'production' ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
-  },
-
+  // 4. Provideri
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -39,16 +31,6 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            password: true,
-            role: true,
-            permissions: true,
-            image: true,
-            isActive: true,
-          },
         });
 
         if (!user || !user.password) return null;
@@ -71,6 +53,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
 
+  // 5. Callbacks
   callbacks: {
     async jwt({ token, user }: any) {
       if (user) {
@@ -82,24 +65,21 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-
     async session({ session, token }: any) {
       if (session.user) {
         session.user.id = token.id;
         session.user.email = token.email;
-        session.user.name = token.name;
-        session.user.image = token.picture;
         session.user.role = token.role;
         session.user.permissions = token.permissions || [];
+        session.user.image = token.picture;
       }
       return session;
     },
-
+    // Važno: Dozvoli redirekciju samo na isti domen
     async redirect({ url, baseUrl }) {
-      // Dozvoli redirekciju samo na isti host
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       else if (new URL(url).origin === baseUrl) return url;
       return baseUrl;
-    },
+    }
   },
 };
