@@ -52,17 +52,26 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
   if (pathname === "/login" || pathname === "/select-restaurant") return null;
 
   return (
+    <>
     <header className="bg-[#1a3826] text-white shadow-xl h-16 shrink-0 relative z-50 transition-all border-b border-white/5">
-      <div className="h-full max-w-[1920px] mx-auto px-6 flex justify-between items-center">
+      <div className="h-full max-w-[1920px] mx-auto px-4 md:px-6 flex justify-between items-center">
         
-        {/* LIJEVA STRANA: LOGO + RESTORAN SWITCHER */}
-        <div className="flex items-center gap-6">
+        {/* LIJEVA: HAMBURGER (mobile) + LOGO */}
+        <div className="flex items-center gap-3 md:gap-6">
+            {/* Hamburger - samo na mobilnim */}
+            <button
+              className="md:hidden flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors -ml-1"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Otvori meni"
+            >
+              <Menu size={24} />
+            </button>
             <Link href="/dashboard" onClick={closeMenu} className={`flex items-baseline gap-2 hover:opacity-80 transition-all select-none ${brandFont.className}`}>
-                <h1 className="text-2xl tracking-tighter text-white uppercase font-black">AIW</h1>
-                <p className="text-sm text-[#FFC72C] tracking-[0.1em] uppercase font-extrabold">Services</p>
+                <h1 className="text-xl md:text-2xl tracking-tighter text-white uppercase font-black">AIW</h1>
+                <p className="text-xs md:text-sm text-[#FFC72C] tracking-[0.1em] uppercase font-extrabold">Services</p>
             </Link>
 
-            {/* Prikaz Switchera samo ako ima restorana ili je admin */}
+            {/* Prikaz Switchera samo ako ima restorana ili je admin - sakriveno na mobilnim */}
             {(restaurants.length > 0 || canSeeAllRestaurants) && (
                 <div className="hidden md:flex items-center gap-4">
                     <div className="h-8 w-px bg-white/10"></div>
@@ -75,7 +84,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
             )}
         </div>
 
-        {/* SREDINA: NAVIGACIJA */}
+        {/* SREDINA: NAVIGACIJA - samo desktop */}
         <nav className="hidden md:flex h-full items-center gap-1">
           {TOOL_CATEGORIES.map((category) => {
             const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
@@ -130,51 +139,102 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
           </div>
         </div>
 
-        {/* MOBILE MENU TOGGLE */}
-        <button 
-          className="md:hidden p-2 text-white hover:bg-white/10 rounded-lg transition-colors" 
-          onClick={() => setMobileMenuOpen(prev => !prev)}
-        >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
       </div>
-
-      {/* MOBILE MENU */}
-      {mobileMenuOpen && (
-        <div className="md:hidden absolute top-16 left-0 w-full bg-[#1a3826] border-t border-white/5 shadow-2xl animate-in slide-in-from-top-2 duration-200 overflow-y-auto max-h-[80vh]">
-            <div className="p-4 space-y-4 pb-10">
-                
-                {(restaurants.length > 0 || canSeeAllRestaurants) && (
-                  <div className="bg-white/5 p-3 rounded-lg border border-white/10">
-                      <p className="text-[10px] text-slate-400 uppercase font-black mb-2 tracking-widest">Odaberi Restoran</p>
-                      <RestaurantSwitcher 
-                        restaurants={restaurants} 
-                        activeRestaurantId={activeRestaurantId} 
-                        showAllOption={canSeeAllRestaurants} 
-                      />
-                  </div>
-                )}
-
-                <div className="space-y-1">
-                    {TOOL_CATEGORIES.map((category) => (
-                        <Link 
-                            key={category.id}
-                            href={category.id === 'general' ? "/dashboard" : `/tools/categories/${category.id}`}
-                            onClick={closeMenu}
-                            className="flex items-center justify-between px-4 py-3 rounded-lg text-sm font-bold text-white hover:bg-white/5 transition-colors"
-                        >
-                            <span className="uppercase tracking-widest text-xs font-black">{CATEGORY_LABELS[category.id] || category.label}</span>
-                        </Link>
-                    ))}
-                </div>
-                <div className="grid grid-cols-1 gap-2 pt-4 border-t border-white/5">
-                    <button onClick={() => signOut()} className="flex items-center justify-center gap-2 bg-red-500/10 text-red-400 p-3 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                        <LogOut size={14} /> Odjava
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
     </header>
+
+    {/* MOBILE SHEET DRAWER - izlazi sa lijeve strane */}
+    {mobileMenuOpen && (
+      <>
+        <div
+          className="md:hidden fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={closeMenu}
+          aria-hidden="true"
+        />
+        <div
+          className="md:hidden fixed inset-y-0 left-0 z-[101] w-[min(320px,85vw)] max-w-full bg-[#1a3826] shadow-2xl animate-in slide-in-from-left duration-300 overflow-y-auto"
+          role="dialog"
+          aria-label="Navigacijski meni"
+        >
+          <div className="flex flex-col min-h-full">
+            <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
+              <span className={`text-lg font-black text-white ${brandFont.className}`}>Meni</span>
+              <button
+                onClick={closeMenu}
+                className="flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors"
+                aria-label="Zatvori meni"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4 flex-1">
+              {(restaurants.length > 0 || canSeeAllRestaurants) && (
+                <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                  <p className="text-[10px] text-slate-400 uppercase font-black mb-3 tracking-widest">Odaberi Restoran</p>
+                  <RestaurantSwitcher 
+                    restaurants={restaurants} 
+                    activeRestaurantId={activeRestaurantId} 
+                    showAllOption={canSeeAllRestaurants} 
+                  />
+                </div>
+              )}
+
+              <nav className="space-y-1">
+                {TOOL_CATEGORIES.map((category) => {
+                  const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
+                  const isGeneral = category.id === 'general';
+                  return (
+                    <div key={category.id}>
+                      <Link
+                        href={isGeneral ? "/dashboard" : `/tools/categories/${category.id}`}
+                        onClick={closeMenu}
+                        className="flex items-center justify-between px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
+                      >
+                        <span className="uppercase tracking-widest text-xs font-black">
+                          {CATEGORY_LABELS[category.id] || category.label}
+                        </span>
+                        <ChevronDown size={16} className="text-white/40 rotate-[-90deg]" />
+                      </Link>
+                      {!isGeneral && categoryTools.length > 0 && (
+                        <div className="ml-4 mt-1 space-y-0.5 pl-4 border-l border-white/10">
+                          {categoryTools.map((tool) => (
+                            <Link
+                              key={tool.id}
+                              href={tool.href}
+                              onClick={closeMenu}
+                              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-emerald-100/90 hover:bg-white/5 hover:text-white transition-colors min-h-[44px]"
+                            >
+                              <tool.icon size={18} />
+                              {tool.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </nav>
+
+              <div className="pt-4 border-t border-white/10 space-y-2">
+                <Link
+                  href="/profile"
+                  onClick={closeMenu}
+                  className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
+                >
+                  <User size={18} />
+                  <span className="text-sm font-bold">Moj profil</span>
+                </Link>
+                <button
+                  onClick={() => { closeMenu(); signOut({ callbackUrl: "/login" }); }}
+                  className="w-full flex items-center justify-center gap-2 bg-red-500/20 text-red-300 hover:bg-red-500/30 py-3.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors min-h-[44px]"
+                >
+                  <LogOut size={18} /> Odjava
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    )}
+    </>
   );
 }

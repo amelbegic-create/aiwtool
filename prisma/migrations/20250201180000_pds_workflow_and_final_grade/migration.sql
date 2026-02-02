@@ -1,0 +1,6 @@
+-- AlterEnum: Add IN_PROGRESS and APPROVED to PDSStatus
+ALTER TYPE "PDSStatus" ADD VALUE 'IN_PROGRESS';
+ALTER TYPE "PDSStatus" ADD VALUE 'APPROVED';
+
+-- AlterTable: Add finalGrade to PDS
+ALTER TABLE "PDS" ADD COLUMN "finalGrade" TEXT;

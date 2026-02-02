@@ -1,9 +1,13 @@
 import prisma from "@/lib/prisma";
 import RestaurantClient from "./RestaurantClient";
-import { requirePermission } from "@/lib/access";
+import { tryRequirePermission } from "@/lib/access";
+import NoPermission from "@/components/NoPermission";
 
 export default async function RestaurantsPage() {
-  await requirePermission("restaurants:access");
+  const accessResult = await tryRequirePermission("restaurants:access");
+  if (!accessResult.ok) {
+    return <NoPermission moduleName="Restorani" />;
+  }
 
   const restaurants = await prisma.restaurant.findMany({
     orderBy: { name: "asc" },
@@ -16,5 +20,5 @@ export default async function RestaurantsPage() {
     address: r.address || "",
   }));
 
-  return <RestaurantClient restaurants={formatted as any} />;
+  return <RestaurantClient restaurants={formatted} />;
 }

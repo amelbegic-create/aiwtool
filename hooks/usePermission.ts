@@ -2,32 +2,23 @@
 
 import { useSession } from "next-auth/react";
 
+type SessionUser = { role?: string; permissions?: Record<string, string[]> };
+
 export function usePermission() {
   const { data: session } = useSession();
+  const user = session?.user as SessionUser | undefined;
 
   const can = (module: string, action: string) => {
-    
-    // Koristimo 'as any' da zaobiđemo TypeScript grešku
-    const user = session?.user as any;
-
-    // 1. SUPER_ADMIN uvijek može sve
     if (user?.role === "SUPER_ADMIN") return true;
-
-    // 2. Ako nema sesije ili permisija, zabrani
     if (!user?.permissions) return false;
-
-    // 3. Provjeri JSON iz baze
-    // permissions format: { "evaluations": ["view", "create"] }
     const modulePermissions = user.permissions[module];
-    
     if (!modulePermissions) return false;
-    
     return modulePermissions.includes(action);
   };
 
-  return { 
-    can, 
-    role: (session?.user as any)?.role,
-    user: session?.user 
+  return {
+    can,
+    role: user?.role,
+    user: session?.user,
   };
 }

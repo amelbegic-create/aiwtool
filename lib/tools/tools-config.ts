@@ -12,12 +12,12 @@ export const TOOL_CATEGORIES = [
 ];
 
 export const APP_TOOLS = [
-  // OSOBLJE
+  // OSOBLJE (Personal)
   { id: 'vacations', name: 'Godišnji Odmori', href: '/tools/vacations', icon: PlaneTakeoff, category: 'staff' },
   { id: 'PDS', name: 'PDS', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
+  { id: 'rules', name: 'Pravila & Procedure', href: '/tools/rules', icon: BookOpen, category: 'staff' },
   
   // OPERACIJE
-  { id: 'rules', name: 'Pravila & Procedure', href: '/tools/rules', icon: BookOpen, category: 'operations' }, // NOVO
   { id: 'labor-planner', name: 'Labor Planner', href: '/tools/labor-planner', icon: Clock, category: 'operations' },
   { id: 'productivity', name: 'Produktivnost', href: '/tools/productivity', icon: TrendingUp, category: 'operations' },
   

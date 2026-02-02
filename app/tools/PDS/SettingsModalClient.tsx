@@ -10,9 +10,18 @@ interface SettingsModalClientProps {
   year: number;
   initialGoals: PDSGoal[] | any;
   initialScale: PDSScaleLevel[] | any;
+  // NOVO: Ovi podaci su falili
+  restaurants: { id: string; name: string; code: string }[];
+  currentUserId: string;
 }
 
-export default function SettingsModalClient({ year, initialGoals, initialScale }: SettingsModalClientProps) {
+export default function SettingsModalClient({ 
+  year, 
+  initialGoals, 
+  initialScale,
+  restaurants,    // Primamo
+  currentUserId   // Primamo
+}: SettingsModalClientProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -29,6 +38,9 @@ export default function SettingsModalClient({ year, initialGoals, initialScale }
           year={year} 
           initialGoals={initialGoals as PDSGoal[]} 
           initialScale={initialScale as PDSScaleLevel[]} 
+          // NOVO: Šaljemo ih u Modal
+          restaurants={restaurants}
+          currentUserId={currentUserId}
           onClose={() => setIsOpen(false)} 
         />
       )}

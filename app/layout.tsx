@@ -3,10 +3,11 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
-import TopNavbar from "@/components/TopNavbar"; 
+import TopNavbar from "@/components/TopNavbar";
 import prisma from "@/lib/prisma";
 import { cookies } from "next/headers";
 import AuthProvider from "@/components/AuthProvider";
+import { switchRestaurant } from "@/app/actions/restaurantContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -70,7 +71,11 @@ export default async function RootLayout({
         return (a.name || "").localeCompare(b.name || "");
      });
 
-     if (!activeRestaurantId && userRestaurants.length > 0) {
+     // Ako korisnik ima samo jedan restoran, automatski postavi cookie da ne mora klikati u navu
+     if (userRestaurants.length === 1 && !activeRestaurantId) {
+         await switchRestaurant(userRestaurants[0].id);
+         activeRestaurantId = userRestaurants[0].id;
+     } else if (!activeRestaurantId && userRestaurants.length > 0) {
          activeRestaurantId = userRestaurants[0].id;
      }
   }
@@ -78,7 +83,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
+        <AuthProvider hasSession={!!session?.user}>
             {session?.user && (
                 <TopNavbar 
                     restaurants={userRestaurants} 

@@ -4,7 +4,8 @@ import prisma from "@/lib/prisma";
 import { getRules, getCategories } from "@/app/actions/ruleActions";
 import AdminView from "./_components/AdminView";
 import UserView from "./_components/UserView";
-import { Role } from "@prisma/client";
+import { tryRequirePermission } from "@/lib/access";
+import NoPermission from "@/components/NoPermission";
 
 // FIX: Await searchParams in Next.js 15
 export default async function RulesPage({ searchParams }: { searchParams: Promise<{ restaurantId?: string }> }) {
@@ -12,6 +13,11 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
   
   if (!session?.user?.email) {
       return <div className="min-h-screen flex items-center justify-center font-bold text-slate-500">Molimo prijavite se.</div>;
+  }
+
+  const accessResult = await tryRequirePermission("rules:access");
+  if (!accessResult.ok) {
+    return <NoPermission moduleName="Pravila i procedure" />;
   }
 
   const user = await prisma.user.findUnique({

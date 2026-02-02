@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { Role } from "@prisma/client";
 
 // 1. DOHVATI SVE KORISNIKE
 export async function getAllUsers() {
@@ -11,13 +12,14 @@ export async function getAllUsers() {
       include: { 
         restaurants: { 
           include: { restaurant: true } 
-        } 
+        },
+        department: true // Dodali smo ovo da vidis i odjel kad dovuces korisnike
       }
     });
     return users;
   } catch (error) {
     console.error("Greška getAllUsers:", error);
-    return []; // Vraća prazan niz ako pukne, da ne sruši aplikaciju
+    return []; 
   }
 }
 
@@ -27,8 +29,11 @@ export async function createUser(formData: FormData) {
     const name = formData.get("name") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
-    const role = formData.get("role") as any;
-    const department = formData.get("department") as string;
+    const role = formData.get("role") as Role;
+    
+    // Ovdje dobijamo ID odjela, ne ime
+    const departmentId = formData.get("department") as string; 
+    
     const restaurantIdsJson = formData.get("restaurantIds") as string;
     const restaurantIds: string[] = JSON.parse(restaurantIdsJson || "[]");
 
@@ -38,7 +43,10 @@ export async function createUser(formData: FormData) {
         email,
         password,
         role,
-        department, 
+        // FIX: Umjesto stringa, koristimo 'connect'
+        department: departmentId ? {
+          connect: { id: departmentId }
+        } : undefined, 
         restaurants: {
           create: restaurantIds.map((restId, index) => ({
             restaurantId: restId,
@@ -63,19 +71,39 @@ export async function updateUser(formData: FormData) {
     const name = formData.get("name") as string;
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
-    const role = formData.get("role") as any;
-    const department = formData.get("department") as string;
+    const role = formData.get("role") as Role;
+    
+    // Ovdje dobijamo ID odjela
+    const departmentId = formData.get("department") as string;
+    
     const restaurantIdsJson = formData.get("restaurantIds") as string;
     const restaurantIds: string[] = JSON.parse(restaurantIdsJson || "[]");
 
-    const updateData: any = { name, email, role, department };
+    // Priprema podataka za update
+    const updateData: any = { 
+      name, 
+      email, 
+      role,
+      // FIX: Update relacije
+      department: departmentId ? {
+        connect: { id: departmentId }
+      } : undefined
+    };
+
     if (password && password.trim() !== "") {
       updateData.password = password; 
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.user.update({ where: { id }, data: updateData });
+      // 1. Update osnovnih podataka i odjela
+      await tx.user.update({ 
+        where: { id }, 
+        data: updateData 
+      });
+
+      // 2. Reset restorana (brisanje starih, dodavanje novih)
       await tx.restaurantUser.deleteMany({ where: { userId: id } });
+      
       if (restaurantIds.length > 0) {
         await tx.restaurantUser.createMany({
           data: restaurantIds.map((restId, index) => ({
@@ -101,7 +129,7 @@ export async function deleteUser(userId: string) {
     await prisma.user.delete({ where: { id: userId } });
     revalidatePath("/admin/users");
     return { success: true };
-  } catch (error) {
+  } catch (_error) {
     return { success: false };
   }
 }

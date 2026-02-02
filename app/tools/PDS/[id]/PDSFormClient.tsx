@@ -1,15 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 // FIX: Ispravne putanje
-import { updatePDSContent, changePDSStatus, returnPDS } from '../../../actions/pdsActions';
+import { updatePDSContent, submitPDS, approvePDS, returnPDS, saveSignatureImage } from '../../../actions/pdsActions';
 import SignaturePad from '../components/SignaturePad';
 import { Save, Send, ChevronLeft, Check, X, Undo2, FileDown, Loader2 } from 'lucide-react';
 import { PDSGoal, PDSScoringRule } from '../types';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { formatDateDDMMGGGG } from '@/lib/dateUtils';
+
+function isCanvasSignature(val: string | null): boolean {
+  return typeof val === 'string' && val.startsWith('data:image');
+}
 
 interface Props {
   pds: any;
@@ -20,8 +24,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const reportRef = useRef<HTMLDivElement>(null);
-  
+
   const [goals, setGoals] = useState<PDSGoal[]>(pds.goals as PDSGoal[]);
   const [employeeComment, setEmployeeComment] = useState(pds.employeeComment || '');
   const [managerComment, setManagerComment] = useState(pds.managerComment || '');
@@ -29,62 +32,175 @@ export default function PDSFormClient({ pds, isManager }: Props) {
   const [managerSignature, setManagerSignature] = useState(pds.managerSignature || '');
 
   const totalScore = goals.reduce((acc, g) => acc + (g.points || 0), 0);
+  const finalGrade = pds.finalGrade ?? null;
 
-  // Logika statusa
   const isCompleted = pds.status === 'COMPLETED';
   const isSubmitted = pds.status === 'SUBMITTED';
+  const isApproved = pds.status === 'APPROVED';
   const isReturned = pds.status === 'RETURNED';
-  const isDraft = pds.status === 'DRAFT' || pds.status === 'OPEN';
-  
+  const isDraft = pds.status === 'DRAFT' || pds.status === 'OPEN' || pds.status === 'IN_PROGRESS';
+
   const canEmployeeEdit = !isManager && (isDraft || isReturned);
-  const canManagerEdit = isManager && isSubmitted;
+  const canManagerEdit = isManager && (isSubmitted || isApproved);
+  const canEmployeeSign = !isManager && (isSubmitted || isApproved) && !isCanvasSignature(pds.employeeSignature);
+  const canManagerSign = isManager && isApproved && !isCanvasSignature(pds.managerSignature);
 
-  // --- PDF EXPORT LOGIKA ---
+  // --- PDF EXPORT (kompaktan: ocjena istaknuta, ciljevi mali, komentari wrap) ---
   const handleExportPDF = async () => {
-    if (!reportRef.current) return;
     setIsExporting(true);
-
     try {
-        // Čekamo malo da se UI smiri
-        await new Promise(r => setTimeout(r, 500));
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const w = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      const maxTextWidth = w - 2 * margin;
+      let y = 18;
 
-        const canvas = await html2canvas(reportRef.current, {
-            scale: 2, // Visoka kvaliteta
-            backgroundColor: '#ffffff', // HEX boja obavezna!
-            useCORS: true,
-            logging: false,
-            // Mičemo elemente koji smetaju printu
-            ignoreElements: (element) => element.classList.contains('no-print')
+      doc.setFillColor(26, 56, 38);
+      doc.rect(0, 0, w, 22, 'F');
+      doc.setTextColor(255, 199, 44);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('AIW Services', margin, 10);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.text('PDS EVALUACIJA', margin, 17);
+      doc.setFontSize(8);
+      doc.setTextColor(255, 199, 44);
+      doc.text(`Godina: ${pds.year}`, margin, 21);
+
+      y = 30;
+      doc.setTextColor(15, 23, 42);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(pds.user?.name ?? 'Zaposlenik', margin, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${pds.user?.email ?? ''} • ${pds.user?.role ?? ''}`, margin, y);
+      y += 8;
+
+      // Ukupna ocjena istaknuta, ispod nje bodovi
+      const boxW = 42;
+      const boxH = 28;
+      doc.setFillColor(26, 56, 38);
+      doc.roundedRect(w - margin - boxW, 26, boxW, boxH, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 199, 44);
+      doc.text('UKUPNA OCJENA', w - margin - boxW + 4, 36);
+      doc.setFontSize(14);
+      doc.setTextColor(255, 255, 255);
+      doc.text(finalGrade ?? '–', w - margin - boxW + 4, 45);
+      doc.setFontSize(8);
+      doc.setTextColor(255, 199, 44);
+      doc.text(`Bodova: ${totalScore}`, w - margin - boxW + 4, 52);
+
+      y = 42;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(51, 65, 85);
+      doc.text('CILJEVI I REZULTATI', margin, y);
+      y += 7;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      const goalTextWidth = w - 2 * margin - 22;
+      const goalLineHeight = 4.5;
+      const scoreX = w - margin - 14;
+      goals.forEach((goal: PDSGoal, i: number) => {
+        if (y > 265) { doc.addPage(); y = 20; }
+        const title = goal.title ?? `Cilj ${i + 1}`;
+        const titleLines = doc.splitTextToSize(title, goalTextWidth);
+        const res = goal.type === 'BOOLEAN' ? (goal.result ? 'DA' : 'NE') : String(goal.result ?? '');
+        const blockTop = y;
+        const titleHeight = titleLines.length * goalLineHeight;
+        const resultY = blockTop + titleHeight + goalLineHeight;
+        const rowH = titleHeight + goalLineHeight * 2 + 4;
+        doc.setFillColor(249, 250, 251);
+        doc.rect(margin, blockTop - 2, w - 2 * margin, rowH, 'F');
+        doc.setFont('helvetica', 'bold');
+        titleLines.forEach((line: string, li: number) => {
+          doc.text(line, margin + 2, blockTop + 2 + (li + 1) * goalLineHeight);
         });
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Rez: ${res}`, margin + 2, resultY + 2);
+        doc.setTextColor(26, 56, 38);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${goal.points ?? 0} b`, scoreX, blockTop + 2 + goalLineHeight);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(15, 23, 42);
+        y = blockTop + rowH + 2;
+      });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        const ratio = pdfWidth / imgWidth;
-        const imgHeightScaled = imgHeight * ratio;
+      y += 5;
+      if (y > 250) { doc.addPage(); y = 20; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(51, 65, 85);
+      doc.text('KOMENTARI', margin, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      const commentWidth = maxTextWidth - 4;
+      const commentLineH = 5;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Zaposlenik:', margin, y);
+      y += commentLineH;
+      doc.setFont('helvetica', 'normal');
+      const empText = (employeeComment || '–').trim() || '–';
+      const empLines = doc.splitTextToSize(empText, commentWidth);
+      empLines.forEach((line: string) => { doc.text(line, margin, y); y += commentLineH; });
+      y += 4;
+      doc.setFont('helvetica', 'bold');
+      doc.text('Manager:', margin, y);
+      y += commentLineH;
+      doc.setFont('helvetica', 'normal');
+      const mgrText = (managerComment || '–').trim() || '–';
+      const mgrLines = doc.splitTextToSize(mgrText, commentWidth);
+      mgrLines.forEach((line: string) => { doc.text(line, margin, y); y += commentLineH; });
+      y += 10;
 
-        let heightLeft = imgHeightScaled;
-        let position = 0;
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('POTPISI', margin, y);
+      y += 7;
+      const sigImgW = 45;
+      const sigImgH = 22;
+      const empSigImg = typeof pds.employeeSignature === 'string' && pds.employeeSignature.startsWith('data:image') ? pds.employeeSignature : null;
+      const mgrSigImg = typeof pds.managerSignature === 'string' && pds.managerSignature.startsWith('data:image') ? pds.managerSignature : null;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Zaposlenik:', margin, y);
+      if (empSigImg) {
+        try { doc.addImage(empSigImg, 'PNG', margin, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', margin, y + 8); }
+        y += sigImgH + 6;
+      } else {
+        doc.text('________________', margin, y + 5);
+        y += 14;
+      }
+      doc.text('Manager:', margin, y);
+      if (mgrSigImg) {
+        try { doc.addImage(mgrSigImg, 'PNG', margin, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', margin, y + 8); }
+        y += sigImgH + 6;
+      } else {
+        doc.text('________________', margin, y + 5);
+        y += 14;
+      }
+      y += 4;
+      doc.setFontSize(7);
+      doc.text('Generirano: ' + formatDateDDMMGGGG(new Date()), margin, y + 5);
 
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeightScaled);
-        heightLeft -= pdfHeight;
-
-        while (heightLeft > 0) {
-            position = heightLeft - imgHeightScaled;
-            pdf.addPage();
-            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeightScaled);
-            heightLeft -= pdfHeight;
-        }
-
-        pdf.save(`PDS_${pds.user.name}_${pds.year}.pdf`);
+      doc.save(`PDS_${(pds.user?.name ?? 'Evaluacija').replace(/\s+/g, '_')}_${pds.year}.pdf`);
     } catch (error) {
-        console.error("Export Error:", error);
-        alert("Greška pri exportu PDF-a.");
+      console.error('Export PDF Error:', error);
+      alert('Greška pri exportu PDF-a.');
     } finally {
-        setIsExporting(false);
+      setIsExporting(false);
     }
   };
 
@@ -118,44 +234,44 @@ export default function PDSFormClient({ pds, isManager }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (confirm('Jeste li sigurni?')) {
-        setLoading(true);
-        await updatePDSContent(pds.id, {
-            goals, employeeComment, managerComment, employeeSignature, managerSignature
-        });
-        const nextStatus = isManager ? 'COMPLETED' : 'SUBMITTED';
-        await changePDSStatus(pds.id, nextStatus as any);
-        setLoading(false);
-        router.push('/tools/PDS');
+    if (!confirm('Jeste li sigurni?')) return;
+    setLoading(true);
+    await updatePDSContent(pds.id, {
+      goals,
+      employeeComment,
+      managerComment,
+      employeeSignature,
+      managerSignature,
+      scale: pds.scale
+    });
+    if (isManager) {
+      await approvePDS(pds.id);
+    } else {
+      await submitPDS(pds.id);
     }
+    setLoading(false);
+    router.refresh();
   };
 
   const handleReturn = async () => {
-      if(confirm("Vratiti radniku na doradu?")) {
-          setLoading(true);
-          await returnPDS(pds.id, managerComment);
-          setLoading(false);
-          router.push('/tools/PDS');
-      }
-  }
+    if (!confirm('Vratiti radniku na doradu?')) return;
+    setLoading(true);
+    await returnPDS(pds.id, managerComment);
+    setLoading(false);
+    router.refresh();
+  };
 
-  // --- STILOVI ZA PDF (HEX only - Rješava "lab" grešku) ---
-  const pdfStyles = {
-      container: { fontFamily: 'Arial, sans-serif', color: '#000000', backgroundColor: '#ffffff', padding: '40px', border: '1px solid #e5e7eb', borderRadius: '8px' },
-      header: { display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #f3f4f6', paddingBottom: '20px', marginBottom: '30px' },
-      h1: { fontSize: '24px', fontWeight: 'bold', margin: '0 0 5px 0', textTransform: 'uppercase' as const, color: '#1a3826' },
-      sub: { fontSize: '12px', color: '#6b7280', margin: 0 },
-      scoreBox: { textAlign: 'right' as const, background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0' },
-      scoreVal: { fontSize: '32px', fontWeight: 'bold', color: '#1a3826', lineHeight: 1 },
-      // FIX: breakInside umjesto pageBreakInside
-      goalItem: { background: '#f9fafb', border: '1px solid #e5e7eb', padding: '15px', marginBottom: '15px', borderRadius: '8px', breakInside: 'avoid' as const },
-      goalTop: { display: 'flex', justifyContent: 'space-between', marginBottom: '10px' },
-      goalTitle: { fontSize: '14px', fontWeight: 'bold', width: '80%' },
-      goalPts: { fontSize: '14px', fontWeight: 'bold', color: '#1a3826' },
-      resultBox: { background: '#fff', border: '1px solid #e5e7eb', padding: '10px', borderRadius: '6px', fontSize: '12px' },
-      commentSection: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '30px', borderTop: '2px solid #f3f4f6', paddingTop: '20px', breakInside: 'avoid' as const },
-      commentBox: { background: '#f8fafc', padding: '10px', border: '1px solid #e5e7eb', borderRadius: '6px', minHeight: '60px', fontSize: '11px', marginTop: '5px', marginBottom: '10px', whiteSpace: 'pre-wrap' as const },
-      sigImg: { maxHeight: '60px', maxWidth: '100%', border: '1px solid #eee', borderRadius: '8px' }
+  const handleConfirmSignature = async (role: 'employee' | 'manager') => {
+    const img = role === 'employee' ? employeeSignature : managerSignature;
+    if (!img || !img.startsWith('data:image')) {
+      alert('Prvo nacrtajte potpis u polju iznad.');
+      return;
+    }
+    setLoading(true);
+    const res = await saveSignatureImage(pds.id, role, img);
+    setLoading(false);
+    if (res?.success) router.refresh();
+    else alert(res?.error ?? 'Greška pri spremanju potpisa.');
   };
 
   return (
@@ -170,7 +286,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
             <div className="flex items-center gap-3">
                 <h1 className="text-xl md:text-2xl font-black text-[#1a3826] uppercase">{pds.user.name}</h1>
                 <span className="px-2 py-1 rounded text-[10px] font-bold uppercase border bg-slate-50 text-slate-500 border-slate-200">
-                    {pds.status === 'RETURNED' ? 'VRAĆENO' : pds.status}
+                    {pds.status === 'RETURNED' ? 'VRAĆENO' : pds.status === 'APPROVED' ? 'ODOBRENO' : pds.status}
                 </span>
             </div>
         </div>
@@ -198,12 +314,12 @@ export default function PDSFormClient({ pds, isManager }: Props) {
 
             {isManager && (
                 <>
-                    {(isSubmitted || isCompleted) && (
+                    {(isSubmitted || isApproved) && !isCompleted && (
                         <button onClick={handleReturn} disabled={loading} className="px-5 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-100 font-bold hover:bg-red-100 text-xs flex items-center gap-2">
                             <Undo2 size={16}/> VRATI NA DORADU
                         </button>
                     )}
-                    {isSubmitted && (
+                    {isSubmitted && !isApproved && (
                         <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#FFC72C] text-[#1a3826] font-bold hover:bg-[#e6b225] text-xs flex items-center gap-2 shadow-lg">
                             <Check size={16}/> ODOBRI
                         </button>
@@ -213,146 +329,80 @@ export default function PDSFormClient({ pds, isManager }: Props) {
         </div>
       </div>
 
-      {/* --- HIDDEN PDF TEMPLATE (Pure Inline CSS - No Tailwind) --- */}
-      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-        <div ref={reportRef} style={pdfStyles.container}>
-            <div style={pdfStyles.header}>
-                <div>
-                    <div style={pdfStyles.sub}>PDS EVALUACIJA • {pds.year}</div>
-                    <h1 style={pdfStyles.h1}>{pds.user.name}</h1>
-                    <div style={pdfStyles.sub}>{pds.user.email} • {pds.user.role}</div>
-                </div>
-                <div style={pdfStyles.scoreBox}>
-                    <div style={pdfStyles.sub}>UKUPNI BODOVI</div>
-                    <div style={pdfStyles.scoreVal}>{totalScore}</div>
-                </div>
-            </div>
-
-            <div>
-                {goals.map((goal, i) => (
-                    <div key={i} style={pdfStyles.goalItem}>
-                        <div style={pdfStyles.goalTop}>
-                            <div style={pdfStyles.goalTitle}>{goal.title}</div>
-                            <div style={pdfStyles.goalPts}>{goal.points} pts</div>
-                        </div>
-                        <div style={pdfStyles.resultBox}>
-                            {/* Prikaz rezultata u PDFu */}
-                            Rezultat: <b>{goal.type === 'BOOLEAN' ? (goal.result ? 'DA' : 'NE') : goal.result || 0}</b>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            <div style={pdfStyles.commentSection}>
-                <div>
-                    <strong style={{ fontSize: '12px', textTransform: 'uppercase' }}>Zaposlenik</strong>
-                    <div style={pdfStyles.commentBox}>{employeeComment || '/'}</div>
-                    <div style={{ marginTop: '10px' }}>
-                        <div style={{ fontSize: '10px', marginBottom: '5px' }}>POTPIS:</div>
-                        {employeeSignature ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={employeeSignature} alt="Potpis" style={pdfStyles.sigImg} />
-                        ) : <div style={{height: '40px', borderBottom: '1px dashed #ccc'}}></div>}
-                    </div>
-                </div>
-                <div>
-                    <strong style={{ fontSize: '12px', textTransform: 'uppercase' }}>Manager</strong>
-                    <div style={pdfStyles.commentBox}>{managerComment || '/'}</div>
-                    <div style={{ marginTop: '10px' }}>
-                        <div style={{ fontSize: '10px', marginBottom: '5px' }}>POTPIS:</div>
-                        {managerSignature ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={managerSignature} alt="Potpis" style={pdfStyles.sigImg} />
-                        ) : <div style={{height: '40px', borderBottom: '1px dashed #ccc'}}></div>}
-                    </div>
-                </div>
-            </div>
-            
-            <div style={{ textAlign: 'center', marginTop: '40px', fontSize: '10px', color: '#ccc' }}>
-                Generirano: {new Date().toLocaleDateString()}
-            </div>
-        </div>
-      </div>
-
-      {/* --- FORM FOR USER INTERACTION (VIDLJIVA FORMA) --- */}
-      <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
-         <div className="flex justify-between items-start border-b-2 border-slate-100 pb-8 mb-8">
+      {/* --- FORM (kompaktan, usklađen s ostalim alatima) --- */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto">
+         <div className="flex justify-between items-start border-b border-slate-200 pb-5 mb-5">
              <div>
-                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">PDS EVALUACIJA • {pds.year}</div>
-                 <h2 className="text-3xl font-black text-[#1a3826] uppercase mb-1">{pds.user.name}</h2>
-                 <p className="text-sm font-medium text-slate-500">{pds.user.email} • {pds.user.role}</p>
+                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">PDS EVALUACIJA • {pds.year}</div>
+                 <h2 className="text-xl font-black text-[#1a3826] uppercase">{pds.user.name}</h2>
+                 <p className="text-xs font-medium text-slate-500">{pds.user.email} • {pds.user.role}</p>
              </div>
-             <div className="text-right bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">UKUPNI BODOVI</div>
-                 <div className="text-5xl font-black text-[#1a3826]">{totalScore}</div>
+             <div className="text-right bg-[#1a3826] text-white p-4 rounded-xl min-w-[120px]">
+                 <div className="text-[10px] font-black text-[#FFC72C] uppercase tracking-widest mb-0.5">Ukupna ocjena</div>
+                 <div className="text-xl font-black">{finalGrade ?? '–'}</div>
+                 <div className="text-[10px] text-[#FFC72C] mt-1">Bodova: {totalScore}</div>
              </div>
          </div>
 
-         <div className="space-y-6 mb-10">
+         <div className="space-y-3 mb-8">
             {goals.map((goal, i) => (
-                <div key={i} className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                    <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-lg font-bold text-slate-800 w-3/4 leading-tight">{goal.title}</h3>
-                        <div className="px-3 py-1 rounded-lg bg-white border border-slate-200 shadow-sm">
-                            <span className="text-[10px] font-black text-slate-400 uppercase mr-2">OSTVARENO</span>
-                            <span className="text-lg font-black text-[#1a3826]">{goal.points}</span>
+                <div key={i} className="bg-slate-50/70 p-4 rounded-xl border border-slate-100">
+                    <div className="flex justify-between items-center gap-4 mb-3">
+                        <h3 className="text-sm font-bold text-slate-800 flex-1 min-w-0">{goal.title}</h3>
+                        <div className="px-2 py-0.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-[#1a3826] shrink-0">
+                            {goal.points} b
                         </div>
                     </div>
 
                     {goal.type === 'BOOLEAN' ? (
-                        <div className="flex gap-3">
+                        <div className="flex gap-2">
                             <button 
                                 onClick={() => canEmployeeEdit && handleGoalChange(i, true)}
                                 disabled={!canEmployeeEdit}
-                                className={`flex-1 py-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                                className={`flex-1 py-2 rounded-lg border flex items-center justify-center gap-1.5 text-sm font-bold transition-all ${
                                     goal.result === true 
-                                    ? 'bg-[#1a3826] border-[#1a3826] text-white font-bold' 
-                                    : 'bg-white border-slate-200 text-slate-300'
+                                    ? 'bg-[#1a3826] border-[#1a3826] text-white' 
+                                    : 'bg-white border-slate-200 text-slate-400'
                                 }`}
                             >
-                                <Check size={18} strokeWidth={3} /> DA 
-                                {/* SKRIVENO OD RADNIKA: Bodovi */}
-                                {isManager && <span className="text-[10px] opacity-70 ml-1">({goal.yesPoints} pts)</span>}
+                                <Check size={16} strokeWidth={3} /> DA
+                                {isManager && <span className="text-[9px] opacity-70">({goal.yesPoints})</span>}
                             </button>
-
                             <button 
                                 onClick={() => canEmployeeEdit && handleGoalChange(i, false)}
                                 disabled={!canEmployeeEdit}
-                                className={`flex-1 py-3 rounded-xl border flex items-center justify-center gap-2 transition-all ${
+                                className={`flex-1 py-2 rounded-lg border flex items-center justify-center gap-1.5 text-sm font-bold transition-all ${
                                     goal.result === false 
-                                    ? 'bg-red-500 border-red-500 text-white font-bold' 
-                                    : 'bg-white border-slate-200 text-slate-300'
+                                    ? 'bg-red-500 border-red-500 text-white' 
+                                    : 'bg-white border-slate-200 text-slate-400'
                                 }`}
                             >
-                                <X size={18} strokeWidth={3} /> NE
-                                {/* SKRIVENO OD RADNIKA: Bodovi */}
-                                {isManager && <span className="text-[10px] opacity-70 ml-1">({goal.noPoints} pts)</span>}
+                                <X size={16} strokeWidth={3} /> NE
+                                {isManager && <span className="text-[9px] opacity-70">({goal.noPoints})</span>}
                             </button>
                         </div>
                     ) : (
-                        <div className="bg-white p-4 rounded-xl border border-slate-200">
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase">Uneseni Rezultat</label>
-                                <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">Numerički</span>
+                        <div className="bg-white p-3 rounded-lg border border-slate-200">
+                            <div className="flex items-center justify-between gap-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">Rezultat</label>
+                                <input 
+                                    type="number" 
+                                    disabled={!canEmployeeEdit}
+                                    value={goal.result as string}
+                                    onChange={(e) => handleGoalChange(i, e.target.value)}
+                                    className="w-24 text-lg font-bold text-slate-800 bg-transparent border-b border-slate-200 focus:border-[#1a3826] outline-none py-0.5 text-right disabled:bg-transparent"
+                                    placeholder="0"
+                                />
                             </div>
-                            <input 
-                                type="number" 
-                                disabled={!canEmployeeEdit}
-                                value={goal.result as string}
-                                onChange={(e) => handleGoalChange(i, e.target.value)}
-                                className="w-full text-2xl font-black text-slate-800 bg-transparent border-b-2 border-slate-100 focus:border-[#1a3826] outline-none py-1 disabled:bg-transparent"
-                                placeholder="0"
-                            />
-                            {/* SKRIVENO OD RADNIKA: Skala bodovanja */}
-                            {isManager && (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {goal.scoringRules?.map((r: PDSScoringRule, ri: number) => (
-                                        <span key={ri} className={`text-[10px] px-2 py-1 rounded border ${
+                            {isManager && goal.scoringRules?.length && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {goal.scoringRules.map((r: PDSScoringRule, ri: number) => (
+                                        <span key={ri} className={`text-[9px] px-1.5 py-0.5 rounded border ${
                                             parseFloat(goal.result as string) >= r.from && parseFloat(goal.result as string) <= r.to
                                             ? 'bg-[#1a3826] text-white border-[#1a3826]'
                                             : 'bg-slate-100 text-slate-400 border-slate-200'
                                         }`}>
-                                            {r.from}-{r.to} = <b>{r.pts}</b>
+                                            {r.from}-{r.to}={r.pts}
                                         </span>
                                     ))}
                                 </div>
@@ -383,10 +433,15 @@ export default function PDSFormClient({ pds, isManager }: Props) {
 
                 <SignaturePad 
                     label="Potpis Zaposlenika"
-                    value={employeeSignature} 
+                    value={typeof employeeSignature === 'string' && employeeSignature.startsWith('data:') ? employeeSignature : ''} 
                     onChange={setEmployeeSignature} 
-                    disabled={!canEmployeeEdit}
+                    disabled={!canEmployeeEdit && !canEmployeeSign}
                 />
+                {canEmployeeSign && (
+                  <button type="button" onClick={() => handleConfirmSignature('employee')} disabled={loading || !employeeSignature?.startsWith('data:image')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1a3826] text-white text-xs font-bold hover:bg-[#142e1e] disabled:opacity-50">
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : null} Potvrdi potpis
+                  </button>
+                )}
             </div>
 
             <div className="space-y-4">
@@ -398,7 +453,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[120px]">
                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Komentar</label>
                     <textarea 
-                        disabled={!canManagerEdit}
+                        disabled={!canManagerEdit && !isApproved}
                         value={managerComment}
                         onChange={(e) => setManagerComment(e.target.value)}
                         className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none resize-none h-full disabled:cursor-not-allowed"
@@ -408,10 +463,15 @@ export default function PDSFormClient({ pds, isManager }: Props) {
 
                 <SignaturePad 
                     label="Potpis Managera"
-                    value={managerSignature} 
+                    value={typeof managerSignature === 'string' && managerSignature.startsWith('data:') ? managerSignature : ''} 
                     onChange={setManagerSignature} 
-                    disabled={!canManagerEdit}
+                    disabled={!canManagerEdit && !canManagerSign}
                 />
+                {canManagerSign && (
+                  <button type="button" onClick={() => handleConfirmSignature('manager')} disabled={loading || !managerSignature?.startsWith('data:image')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1a3826] text-white text-xs font-bold hover:bg-[#142e1e] disabled:opacity-50">
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : null} Potvrdi potpis
+                  </button>
+                )}
             </div>
          </div>
       </div>

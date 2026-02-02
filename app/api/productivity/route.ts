@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     });
 
     return NextResponse.json({ success: true, data: report?.data || null });
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: "Fetch error" }, { status: 500 });
   }
 }
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ success: true, data: report });
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: "Save error" }, { status: 500 });
   }
 }

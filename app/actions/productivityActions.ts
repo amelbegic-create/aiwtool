@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 // 1. DOHVATI IZVJEŠTAJ I KONFIGURACIJU
@@ -21,7 +22,7 @@ export async function getProductivityData(restaurantId: string, date: string) {
       report, 
       openingHours: restaurant?.openingHours ? JSON.parse(JSON.stringify(restaurant.openingHours)) : null 
     };
-  } catch (error) {
+  } catch (_error) {
     return { report: null, openingHours: null };
   }
 }
@@ -49,14 +50,14 @@ export async function saveProductivityReport(
 }
 
 // 3. SPASI RADNO VRIJEME (Globalno za restoran)
-export async function saveOpeningHours(restaurantId: string, hoursConfig: any) {
+export async function saveOpeningHours(restaurantId: string, hoursConfig: Record<string, unknown>) {
   try {
     await prisma.restaurant.update({
       where: { id: restaurantId },
-      data: { openingHours: hoursConfig }
+      data: { openingHours: hoursConfig as Prisma.InputJsonValue }
     });
     return { success: true };
-  } catch (error) {
+  } catch (_error) {
     return { success: false };
   }
 }

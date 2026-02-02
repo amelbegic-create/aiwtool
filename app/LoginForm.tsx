@@ -24,7 +24,7 @@ export default function LoginForm() {
         return;
       }
 
-      router.push("/tools/productivity");
+      router.push("/dashboard");
       router.refresh();
     } catch (err) {
       console.log(err);

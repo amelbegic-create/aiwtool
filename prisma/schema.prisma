@@ -19,11 +19,13 @@ enum Role {
 
 enum PDSStatus {
   DRAFT
+  IN_PROGRESS
   OPEN
   SUBMITTED
+  RETURNED
+  APPROVED
   COMPLETED
   ARCHIVED
-  RETURNED
 }
 
 // ENUMI ZA PRAVILA
@@ -39,6 +41,22 @@ enum RuleStatus {
   DRAFT
 }
 
+// --- DEPARTMENTS (Odjeli) ---
+model Department {
+  id           String   @id @default(cuid())
+  name         String
+  color        String   @default("#6b7280") // HEX npr. #ff0000
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+
+  users        User[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([restaurantId])
+}
+
 // --- USERS & AUTH ---
 model User {
   id                  String    @id @default(cuid())
@@ -46,7 +64,8 @@ model User {
   email               String?   @unique
   password            String?
   role                Role      @default(CREW)
-  department          String?   @default("RL")
+  departmentId        String?
+  department          Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   isActive            Boolean   @default(true)
   image               String?
   lastSeen            DateTime? @default(now())
@@ -54,9 +73,19 @@ model User {
   vacationEntitlement Int       @default(20)
   vacationCarryover   Int       @default(0)
 
+  // Nadređeni (self-relation)
+  supervisorId        String?
+  supervisor          User?     @relation("UserSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+  subordinates        User[]    @relation("UserSupervisor")
+
+  // Godišnji po godinama (VacationAllowance = dinamička lista godina)
+  vacationAllowances  VacationAllowance[]
+
   restaurants         RestaurantUser[]
   evaluations         EvaluationSubmission[]
-  vacations           VacationRequest[]
+  vacations           VacationRequest[]      // zahtjevi koje je korisnik kreirao
+  supervisedVacations VacationRequest[] @relation("VacationSupervisor") // ✅ NOVO: zahtjevi koji dolaze ovom korisniku na odobrenje
+
   pdsList             PDS[]
   accounts            Account[]
   sessions            Session[]
@@ -69,6 +98,21 @@ model User {
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+model VacationAllowance {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  year      Int
+  days      Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, year])
+  @@index([year])
 }
 
 model Account {
@@ -105,6 +149,18 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// --- ROLE PERMISSION PRESETS ---
+// Omogućava "preset" permisije po roli (npr. CREW), koje se automatski dodeljuju pri kreiranju korisnika.
+// Admin može menjati ove preset-e kroz UI.
+model RolePermissionPreset {
+  id             String   @id @default(cuid())
+  role           Role     @unique
+  permissionKeys String[] @default([])
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 // --- PDS ---
 model PDSTemplate {
   id           String     @id @default(cuid())
@@ -120,24 +176,25 @@ model PDSTemplate {
 }
 
 model PDS {
-  id                String      @id @default(cuid())
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  userId            String
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurantId      String?
-  restaurant        Restaurant? @relation(fields: [restaurantId], references: [id])
-  managerId         String
-  year              Int
-  templateId        String?
-  goals             Json
-  scale             Json
-  employeeComment   String?     @db.Text
-  managerComment    String?     @db.Text
-  employeeSignature String?     @db.Text
-  managerSignature  String?     @db.Text
-  totalScore        Int         @default(0)
-  status            PDSStatus   @default(DRAFT)
+  id                 String      @id @default(cuid())
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  userId             String
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId       String?
+  restaurant         Restaurant? @relation(fields: [restaurantId], references: [id])
+  managerId          String
+  year               Int
+  templateId         String?
+  goals              Json
+  scale              Json
+  employeeComment    String?     @db.Text
+  managerComment     String?     @db.Text
+  employeeSignature  String?     @db.Text
+  managerSignature   String?     @db.Text
+  totalScore         Int         @default(0)
+  finalGrade         String?
+  status             PDSStatus   @default(DRAFT)
 
   @@unique([userId, year])
 }
@@ -152,6 +209,7 @@ model Restaurant {
   isActive            Boolean              @default(true)
   openingHours        Json?                @default("{}")
   users               RestaurantUser[]
+  departments         Department[]
 
   // Relacija na pravila
   rules               RuleRestaurant[]
@@ -227,6 +285,11 @@ model VacationRequest {
   id           String      @id @default(cuid())
   userId       String
   user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ✅ NOVO: kome ide odobrenje (snapshot nadređeni u momentu slanja)
+  supervisorId String?
+  supervisor   User?       @relation("VacationSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+
   restaurantId String?
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
   start        String

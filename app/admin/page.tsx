@@ -1,25 +1,23 @@
-import { requirePermission } from "@/lib/access";
+import { tryRequirePermission } from "@/lib/access";
 import Link from "next/link";
 import { Users, Building2, ShieldCheck } from "lucide-react";
+import NoPermission from "@/components/NoPermission";
 
 export default async function AdminHome() {
-  // dovoljno je da admin zona traži bar jedan od pristupa
-  // (ili napravi posebnu permission "admin:access" kasnije)
-  // ovdje ćemo biti praktični: pusti SYSTEM/ADMIN kroz god-mode, a ostale kroz users/restaurants
-  try {
-    await requirePermission("users:access");
-  } catch {
-    // probaj restoran access kao fallback
-    await requirePermission("restaurants:access");
+  const usersAccess = await tryRequirePermission("users:access");
+  const restaurantsAccess = usersAccess.ok ? usersAccess : await tryRequirePermission("restaurants:access");
+
+  if (!restaurantsAccess.ok) {
+    return <NoPermission moduleName="Admin panel" />;
   }
 
   const cards = [
     {
-      title: "Korisnici",
-      desc: "Kreiranje korisnika, dodjela permisija, aktivacija/deaktivacija.",
+      title: "Korisnici & Timovi",
+      desc: "Lista korisnika, kreiranje, dodjela restorana i permisija, konfiguracija rola.",
       href: "/admin/users",
       icon: Users,
-      tag: "Users & Permissions",
+      tag: "Users & RBAC",
     },
     {
       title: "Restorani",
@@ -31,7 +29,7 @@ export default async function AdminHome() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans text-slate-900">
       <div className="max-w-[1600px] mx-auto space-y-8">
         <div className="flex items-end justify-between gap-4 border-b border-slate-200 pb-6">
           <div>

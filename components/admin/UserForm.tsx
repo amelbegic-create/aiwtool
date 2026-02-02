@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { upsertUser } from "@/app/actions/userActions";
-import { Save, User, Mail, Lock, Shield, Briefcase, Calendar, CheckSquare, Store, Check, X } from "lucide-react";
+import { User, Shield, CheckSquare, Store, Check, X } from "lucide-react";
 import { Kanit } from "next/font/google";
 
 const brandFont = Kanit({ subsets: ["latin"], weight: ["600", "800", "900"] });

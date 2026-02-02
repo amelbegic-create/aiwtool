@@ -2,8 +2,9 @@
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Lock, Mail, Loader2, Eye, EyeOff, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Lock, Mail, Loader2, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Kanit } from "next/font/google";
 
 const brandFont = Kanit({
@@ -11,19 +12,15 @@ const brandFont = Kanit({
   weight: ["600", "800", "900"],
 });
 
-// ✅ Postavi novi default landing nakon logina
-const DEFAULT_AFTER_LOGIN = "/dashboard"; // ili "/profile"
+const DEFAULT_AFTER_LOGIN = "/dashboard";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // UI-only (ne dira logiku)
   const [showPassword, setShowPassword] = useState(false);
 
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,174 +40,163 @@ export default function LoginPage() {
       return;
     }
 
-    // ✅ Uhvati callbackUrl ako postoji
-    const rawCb = searchParams.get("callbackUrl");
-    const decodedCb = rawCb ? decodeURIComponent(rawCb) : "";
-
-    // ✅ Ako je stari /select-restaurant (legacy), preusmjeri na novi landing
-    const target =
-      !decodedCb || decodedCb.startsWith("/select-restaurant")
-        ? DEFAULT_AFTER_LOGIN
-        : decodedCb;
-
-    // ✅ replace (bolje nego push) da ne ostane /login u historiji
-    router.replace(target);
+    router.replace(DEFAULT_AFTER_LOGIN);
     router.refresh();
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#0c1f15]">
-      {/* Background: soft gradients + subtle grid */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-emerald-500/15 blur-3xl" />
-        <div className="absolute -bottom-48 -right-48 h-[620px] w-[620px] rounded-full bg-yellow-400/12 blur-3xl" />
-        <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(to_right,#ffffff1a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff1a_1px,transparent_1px)] [background-size:48px_48px]" />
-      </div>
-
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-[460px]">
-          {/* Top brand badge */}
-          <div className="mb-4 flex items-center justify-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[11px] font-black uppercase tracking-[0.25em] text-emerald-50/80">
-              <Sparkles size={14} className="text-yellow-300/90" />
-              Secure Sign-In
-            </div>
+    <div className="min-h-screen flex bg-slate-50">
+      {/* Left panel – brand */}
+      <div
+        className="hidden md:flex md:w-[44%] lg:w-[42%] flex-col justify-between bg-[#1a3826] p-10 lg:p-14"
+        style={{
+          backgroundImage: `linear-gradient(135deg, #1a3826 0%, #0c1f15 100%)`,
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+        }}
+      >
+        <div>
+          <div className={`${brandFont.className} text-3xl font-black text-white tracking-tight`}>
+            AIW <span className="text-[#FFC72C]">Services</span>
           </div>
-
-          {/* Card */}
-          <div className="relative rounded-[2.5rem] border border-white/10 bg-white/7 backdrop-blur-xl shadow-[0_30px_90px_-35px_rgba(0,0,0,0.8)] overflow-hidden">
-            {/* Card shine */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute -top-24 left-1/2 h-48 w-[520px] -translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
-              <div className="absolute inset-0 opacity-[0.18] [background:radial-gradient(1200px_500px_at_20%_-10%,rgba(255,255,255,0.18),transparent_55%)]" />
-            </div>
-
-            <div className="relative z-10 p-8 md:p-10">
-              {/* Header */}
-              <div className="text-center mb-8">
-                <div className={`flex flex-col items-center leading-none select-none ${brandFont.className}`}>
-                  <h1 className="text-7xl md:text-7xl font-[900] tracking-tighter text-white drop-shadow-sm">
-                    AIW
-                  </h1>
-                  <p className="text-3xl md:text-[32px] text-[#FFC72C] font-[800] tracking-widest uppercase mt-0 drop-shadow-sm">
-                    Services
-                  </p>
-                </div>
-
-                <p className="mt-5 text-[11px] text-emerald-50/55 font-bold uppercase tracking-[0.35em]">
-                  Prijava na sistem
-                </p>
-              </div>
-
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Email */}
-                <div className="group relative">
-                  <div className="absolute inset-0 rounded-2xl bg-white/5 opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                  <Mail
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35 group-focus-within:text-[#FFC72C] transition-colors"
-                    size={20}
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email adresa"
-                    required
-                    disabled={loading}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="relative w-full pl-12 pr-4 py-4 rounded-2xl outline-none
-                               bg-white/5 border border-white/10
-                               text-white placeholder:text-white/35 font-bold
-                               focus:border-[#FFC72C]/70 focus:bg-white/7
-                               transition-all disabled:opacity-50"
-                  />
-                </div>
-
-                {/* Password */}
-                <div className="group relative">
-                  <div className="absolute inset-0 rounded-2xl bg-white/5 opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                  <Lock
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-white/35 group-focus-within:text-[#FFC72C] transition-colors"
-                    size={20}
-                  />
-
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Lozinka"
-                    required
-                    disabled={loading}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="relative w-full pl-12 pr-12 py-4 rounded-2xl outline-none
-                               bg-white/5 border border-white/10
-                               text-white placeholder:text-white/35 font-bold
-                               focus:border-[#FFC72C]/70 focus:bg-white/7
-                               transition-all disabled:opacity-50"
-                  />
-
-                  {/* show/hide (UI only) */}
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2
-                               h-10 w-10 rounded-xl border border-white/10
-                               bg-white/5 hover:bg-white/10 transition
-                               flex items-center justify-center
-                               text-white/60 hover:text-white"
-                    aria-label={showPassword ? "Sakrij lozinku" : "Prikaži lozinku"}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full relative overflow-hidden rounded-2xl py-4
-                             bg-[#FFC72C] text-[#0c1f15]
-                             font-black uppercase text-xs tracking-[0.18em]
-                             shadow-[0_14px_40px_-18px_rgba(255,199,44,0.85)]
-                             hover:shadow-[0_18px_60px_-20px_rgba(255,199,44,0.95)]
-                             hover:translate-y-[-1px] active:translate-y-[0px]
-                             transition-all disabled:opacity-60 disabled:cursor-not-allowed
-                             flex items-center justify-center gap-2"
-                >
-                  <span className="absolute inset-0 opacity-30 [background:linear-gradient(110deg,transparent,rgba(255,255,255,0.7),transparent)] translate-x-[-120%] hover:translate-x-[120%] transition-transform duration-700" />
-                  {loading ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      <span>Prijavljivanje…</span>
-                    </>
-                  ) : (
-                    "Prijavi se"
-                  )}
-                </button>
-
-                {/* Small helper */}
-                <div className="pt-2 text-center">
-                  <p className="text-[11px] text-white/40 font-semibold">
-                    Koristi službene pristupne podatke za pristup sistemu.
-                  </p>
-                </div>
-              </form>
-
-              {/* Footer */}
-              <div className="mt-8 text-center">
-                <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest">
-                  Powered by AIWTool Enterprise
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom tiny note */}
-          <div className="mt-5 text-center">
-            <p className="text-[10px] text-emerald-50/30 font-bold tracking-wide">
-              © {new Date().getFullYear()} AIW Services
+          <div className="mt-12 space-y-8">
+            <p className="text-emerald-100/90 text-lg font-medium leading-relaxed max-w-sm">
+              Enterprise Management System za McDonald&apos;s operacije.
+            </p>
+            <div className="h-px w-16 bg-[#FFC72C]/40 rounded-full" />
+            <p className="text-emerald-200/60 text-sm font-medium">
+              Prijavite se sa službenim pristupnim podacima.
             </p>
           </div>
+        </div>
+        <p className="text-emerald-200/40 text-xs font-medium">
+          © {new Date().getFullYear()} AIW Services
+        </p>
+      </div>
+
+      {/* Right panel – form */}
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10">
+        <div className="w-full max-w-[400px]">
+          {/* Mobile logo */}
+          <div className="md:hidden text-center mb-10">
+            <div className={`${brandFont.className} text-3xl font-black text-[#1a3826] tracking-tight`}>
+              AIW <span className="text-[#FFC72C]">Services</span>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              Dobrodošli
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Prijavite se na svoj račun
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="email" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                Email
+              </label>
+              <div className="relative">
+                <Mail
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  size={18}
+                  strokeWidth={2}
+                />
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="ime@mcdonalds.ba"
+                  required
+                  disabled={loading}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 min-h-[44px] rounded-lg
+                             bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400
+                             text-[15px] font-medium
+                             focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826]
+                             transition-shadow transition-colors duration-150
+                             disabled:opacity-50 disabled:cursor-not-allowed
+                             shadow-sm hover:border-slate-300"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                Lozinka
+              </label>
+              <div className="relative">
+                <Lock
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  size={18}
+                  strokeWidth={2}
+                />
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  required
+                  disabled={loading}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-12 py-3.5 min-h-[44px] rounded-lg
+                             bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400
+                             text-[15px] font-medium
+                             focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826]
+                             transition-shadow transition-colors duration-150
+                             disabled:opacity-50 disabled:cursor-not-allowed
+                             shadow-sm hover:border-slate-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-md
+                             text-slate-400 hover:text-slate-600 hover:bg-slate-100
+                             transition-colors"
+                  aria-label={showPassword ? "Sakrij lozinku" : "Prikaži lozinku"}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end">
+              <Link
+                href="/login/zaboravljena-lozinka"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#1a3826] transition-colors"
+              >
+                <KeyRound size={14} />
+                Zaboravljena lozinka?
+              </Link>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 min-h-[44px] rounded-lg
+                         bg-[#1a3826] text-white font-semibold text-[15px]
+                         hover:bg-[#0c1f15] active:scale-[0.99]
+                         focus:outline-none focus:ring-2 focus:ring-[#1a3826]/30 focus:ring-offset-2
+                         transition-all duration-150
+                         disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100
+                         shadow-md shadow-emerald-900/20 hover:shadow-lg hover:shadow-emerald-900/25"
+            >
+              {loading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 size={18} className="animate-spin" />
+                  Prijavljivanje…
+                </span>
+              ) : (
+                "Prijavi se"
+              )}
+            </button>
+          </form>
+
+          <p className="mt-10 text-xs text-slate-400 text-center">
+            Koristi službene pristupne podatke
+          </p>
         </div>
       </div>
     </div>

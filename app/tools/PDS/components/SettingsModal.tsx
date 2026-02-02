@@ -1,37 +1,57 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import { useState } from 'react';
-import { X, Save, Target, BarChart4, ChevronRight, Hash, ToggleLeft, Trash2, Store } from 'lucide-react';
-import { savePDSTemplate } from '../../../actions/pdsActions';
+import { X, Save, Target, BarChart4, ChevronRight, Hash, ToggleLeft, Trash2, Store, CheckSquare, Square } from 'lucide-react';
+import { createTemplate } from '../../../actions/pdsActions';
 import { PDSGoal, PDSScaleLevel, PDSScoringRule } from '../types';
-import { useSession } from 'next-auth/react';
+
+interface RestaurantOption {
+  id: string;
+  name: string;
+  code: string;
+}
 
 interface SettingsModalProps {
   year: number;
   initialGoals: PDSGoal[];
   initialScale: PDSScaleLevel[];
+  restaurants: RestaurantOption[];
+  currentUserId: string;
   onClose: () => void;
 }
 
-export default function SettingsModal({ year, initialGoals, initialScale, onClose }: SettingsModalProps) {
-  const { data: session } = useSession();
+export default function SettingsModal({ year, initialGoals, initialScale, restaurants, currentUserId, onClose }: SettingsModalProps) {
   const [goals, setGoals] = useState<PDSGoal[]>(initialGoals || []);
   const [scale, setScale] = useState<PDSScaleLevel[]>(initialScale || []);
-  const [activeTab, setActiveTab] = useState<'goals' | 'scale'>('goals');
+  const [activeTab, setActiveTab] = useState<'goals' | 'scale' | 'restaurants'>('goals');
   const [selectedGoalIndex, setSelectedGoalIndex] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [allRestaurants, setAllRestaurants] = useState(false);
+  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
 
   const handleSave = async () => {
-    // FIX: Maknut @ts-expect-error
-    const user = session?.user as any;
-    const managerId = user?.id;
-    
-    if(!managerId) return;
+    const restaurantIds = allRestaurants ? ['all'] : (selectedRestaurantIds.length > 0 ? selectedRestaurantIds : [restaurants[0]?.id].filter(Boolean));
+    if (restaurantIds.length === 0) {
+      alert('Odaberite barem jedan restoran.');
+      return;
+    }
+    if (goals.length === 0) {
+      alert('Dodajte barem jedan cilj.');
+      return;
+    }
+    if (scale.length === 0) {
+      alert('Dodajte barem jednu razinu skale.');
+      return;
+    }
 
     setIsSaving(true);
-    await savePDSTemplate(year, goals, scale, managerId);
+    const res = await createTemplate(year, restaurantIds, goals, scale, currentUserId);
     setIsSaving(false);
-    onClose();
+    if (res?.success) {
+      onClose();
+    } else {
+      alert(res?.error ?? 'Greška pri spremanju.');
+    }
   };
 
   const addGoal = () => {
@@ -97,10 +117,10 @@ export default function SettingsModal({ year, initialGoals, initialScale, onClos
           <div>
             <div className="flex items-center gap-2 mb-1">
                 <Store size={14} className="text-[#FFC72C]" />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UREĐIVANJE ZA AKTIVNI RESTORAN</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">TEMPLATE CREATOR</span>
             </div>
             <h2 className="text-xl font-bold text-slate-800 tracking-tight">KONFIGURACIJA PDS-a</h2>
-            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Godina: {year}</p>
+            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Godina: {year} (2025–2030)</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors">
             <X size={20} />
@@ -113,6 +133,9 @@ export default function SettingsModal({ year, initialGoals, initialScale, onClos
           {/* Sidebar */}
           <div className="w-64 bg-slate-50 border-r flex flex-col shrink-0">
             <div className="p-4 space-y-2">
+              <button onClick={() => setActiveTab('restaurants')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'restaurants' ? 'bg-[#1a3826] text-white shadow-md' : 'text-slate-600 hover:bg-slate-200'}`}>
+                <Store size={18} /> RESTORANI
+              </button>
               <button onClick={() => setActiveTab('goals')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeTab === 'goals' ? 'bg-[#1a3826] text-white shadow-md' : 'text-slate-600 hover:bg-slate-200'}`}>
                 <Target size={18} /> CILJEVI
               </button>
@@ -147,6 +170,42 @@ export default function SettingsModal({ year, initialGoals, initialScale, onClos
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto bg-white p-8">
             
+            {activeTab === 'restaurants' && (
+              <div className="space-y-6 max-w-2xl mx-auto">
+                <p className="text-sm text-slate-600">Odaberite na koji restoran(e) se template primjenjuje.</p>
+                <label className="flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 hover:border-[#1a3826]/50 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={allRestaurants}
+                    onChange={(e) => {
+                      setAllRestaurants(e.target.checked);
+                      if (e.target.checked) setSelectedRestaurantIds([]);
+                    }}
+                    className="rounded border-slate-300 text-[#1a3826] focus:ring-[#1a3826]"
+                  />
+                  <span className="font-bold text-slate-800">Svi restorani</span>
+                </label>
+                {!allRestaurants && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {restaurants.map((r) => (
+                      <label key={r.id} className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedRestaurantIds.includes(r.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedRestaurantIds((prev) => [...prev, r.id]);
+                            else setSelectedRestaurantIds((prev) => prev.filter((id) => id !== r.id));
+                          }}
+                          className="rounded border-slate-300 text-[#1a3826] focus:ring-[#1a3826]"
+                        />
+                        <span className="text-sm font-medium text-slate-700 truncate">{r.name || r.code}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'goals' && goals[selectedGoalIndex] && (
               <div className="space-y-8 max-w-3xl mx-auto animate-in slide-in-from-right-4 duration-300">
                   

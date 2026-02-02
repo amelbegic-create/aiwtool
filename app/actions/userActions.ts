@@ -29,7 +29,7 @@ export async function getUsersByRestaurant(restaurantId: string) {
 // 2. KREIRAJ ILI AŽURIRAJ KORISNIKA (MULTI-RESTORAN PODRŠKA)
 export async function upsertUser(data: any, restaurantIds: string[]) {
   try {
-    const { id, name, email, password, role, department, entitlement, carryover, permissions } = data;
+    const { id, name, email, password, role, departmentId, entitlement, carryover, permissions } = data;
 
     let hashedPassword = undefined;
     if (password && password.length > 0) {
@@ -50,20 +50,19 @@ export async function upsertUser(data: any, restaurantIds: string[]) {
       await prisma.user.update({
         where: { id },
         data: {
-          name, 
-          email, 
-          role, 
-          department,
+          name,
+          email,
+          role,
+          departmentId: departmentId || null,
           vacationEntitlement: Number(entitlement || 0),
           vacationCarryover: Number(carryover || 0),
           permissions: perms,
           ...(hashedPassword && { password: hashedPassword }),
-          // OVDJE JE MAGIJA: Brišemo stare veze i dodajemo nove odabrane
           restaurants: {
-            deleteMany: {}, 
-            create: restaurantConnections
-          }
-        }
+            deleteMany: {},
+            create: restaurantConnections,
+          },
+        },
       });
     } else {
       // --- CREATE ---
@@ -74,18 +73,18 @@ export async function upsertUser(data: any, restaurantIds: string[]) {
 
       await prisma.user.create({
         data: {
-          name, 
-          email, 
+          name,
+          email,
           password: hashedPassword,
-          role, 
-          department,
+          role,
+          departmentId: departmentId || null,
           vacationEntitlement: Number(entitlement || 20),
           vacationCarryover: Number(carryover || 0),
           permissions: perms,
           restaurants: {
-            create: restaurantConnections
-          }
-        }
+            create: restaurantConnections,
+          },
+        },
       });
     }
 
@@ -105,7 +104,7 @@ export async function deleteUserFromRestaurant(userId: string, restaurantId: str
         });
         revalidatePath("/admin/users");
         return { success: true };
-    } catch (error) {
+    } catch (_error) {
         return { success: false };
     }
 }

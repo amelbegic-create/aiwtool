@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ComponentType } from "react";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -6,17 +7,12 @@ import {
   LayoutDashboard,
   Store,
   BookOpen,
-  Clock,
   ShieldCheck,
   Settings,
-  FileBarChart,
-  Users,
   Search,
   Bell,
-  LogOut,
   ChevronRight,
   ArrowLeft,
-  FileText,
   Shield,
   Shirt,
   Smartphone,
@@ -34,7 +30,7 @@ export default async function GlobalRulesPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const userName = (session.user as any)?.name || "User";
+  const userName = session.user?.name ?? "User";
 
   // 10 Generalnih Pravila (Mock Data)
   const globalRules = [
@@ -154,4 +150,5 @@ export default async function GlobalRulesPage() {
 
 // Sub-components
 function NavHeader({ label }: { label: string }) { return <div className="px-3 mb-2 mt-6 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>; }
-function SideLink({ href, icon: Icon, label, active }: any) { return <Link href={href} className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium mb-0.5 ${active ? 'bg-[#FFC72C] text-[#0F172A] shadow-sm' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className={`w-4 h-4 ${active ? 'text-[#0F172A]' : 'text-slate-400'}`} /> {label}</Link> }
+type SideLinkProps = { href: string; icon: ComponentType<{ className?: string }>; label: string; active?: boolean };
+function SideLink({ href, icon: Icon, label, active }: SideLinkProps) { return <Link href={href} className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium mb-0.5 ${active ? 'bg-[#FFC72C] text-[#0F172A] shadow-sm' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className={`w-4 h-4 ${active ? 'text-[#0F172A]' : 'text-slate-400'}`} /> {label}</Link> }

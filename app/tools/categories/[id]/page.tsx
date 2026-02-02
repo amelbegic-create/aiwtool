@@ -1,4 +1,5 @@
 // app/tools/categories/[id]/page.tsx
+import type React from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getDbUserForAccess } from "@/lib/access";
@@ -22,7 +23,7 @@ type CategoryId = "staff" | "operations" | "other";
 
 const CATEGORY_META: Record<
   CategoryId,
-  { title: string; subtitle: string; icon: any }
+  { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }
 > = {
   staff: {
     title: "OSOBLJE",
@@ -51,7 +52,7 @@ function Card({
   href: string;
   title: string;
   description: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   badge?: string;
 }) {
   return (
@@ -123,7 +124,7 @@ export default async function ToolsCategoryPage({
     href: string;
     title: string;
     description: string;
-    icon: any;
+    icon: React.ComponentType<{ className?: string }>;
     badge?: string;
     show?: boolean;
   }> = [];
@@ -141,6 +142,12 @@ export default async function ToolsCategoryPage({
         title: "PDS",
         description: "Evaluacija performansi.",
         icon: ClipboardCheck,
+      },
+      {
+        href: "/tools/rules",
+        title: "PRAVILA",
+        description: "Uputstva, pravila i procedure.",
+        icon: BookOpenText,
       },
       {
         href: "/tools/bonusi",
@@ -168,15 +175,6 @@ export default async function ToolsCategoryPage({
         icon: CalendarClock,
       }
     );
-  }
-
-  if (categoryId === "other") {
-    tools.push({
-      href: "/tools/rules",
-      title: "PRAVILA",
-      description: "Uputstva, pravila i procedure.",
-      icon: BookOpenText,
-    });
   }
 
   const visibleTools = tools.filter((t) => t.show !== false);

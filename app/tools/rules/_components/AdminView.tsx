@@ -422,7 +422,7 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
   const router = useRouter();
 
   // (ne diram funkcionalnost; ostavljam state kako je bio)
-  const [rules, setRules] = useState(initialRules);
+  const [_rules, _setRules] = useState(initialRules);
 
   const [viewMode, setViewMode] = useState<"TABLE" | "GRID">("TABLE");
   const [searchQuery, setSearchQuery] = useState("");
@@ -580,8 +580,8 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
   const priorityLabel = (p: string) => (p === "URGENT" ? "HITNO" : p === "MANDATORY" ? "OBAVEZNO" : "INFO");
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
-      <div className="max-w-[1600px] mx-auto space-y-8">
+    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans text-slate-900">
+      <div className="max-w-[1600px] mx-auto space-y-6 md:space-y-8">
         {/* HEADER (isti “feel” kao tvoj vacation admin) */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-6 gap-5">
           <div>
@@ -634,7 +634,7 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
               ))}
             </select>
 
-            <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200">
+            <div className="hidden md:flex bg-slate-50 p-1 rounded-xl border border-slate-200">
               <button
                 onClick={() => setViewMode("TABLE")}
                 className={cn(
@@ -733,7 +733,7 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="hidden md:grid grid-cols-1 md:grid-cols-3 gap-4">
             {filteredData.map((rule) => (
               <div key={rule.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between gap-3">

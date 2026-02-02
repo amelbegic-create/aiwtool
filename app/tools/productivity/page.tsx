@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, Suspense } from "react";
@@ -7,7 +6,7 @@ import autoTable from "jspdf-autotable";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Settings, Save, FileText, Plus, Trash2, 
-  Calendar, Clock, AlertCircle, X, Check, Edit2, ChevronDown, Building2
+  Calendar, Clock, X, Check, Edit2, ChevronDown, Building2
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -27,12 +26,6 @@ interface Station {
 interface HourData {
   rev: string;
   [key: string]: string;
-}
-
-interface AutoTableHookData {
-  section: 'head' | 'body' | 'foot';
-  row: { index: number; raw: (string | number)[] };
-  cell: { styles: { fillColor?: number[]; textColor?: number[]; fontStyle?: string } };
 }
 
 const DEFAULT_STATIONS: Station[] = [
@@ -228,7 +221,7 @@ function ProductivityToolContent() {
       });
       if (res.ok) alert("✅ Podaci spremljeni.");
       else alert("❌ Greška kod spremanja.");
-    } catch (error) { alert("❌ Greška na serveru."); } finally { setLoading(false); }
+    } catch (_error) { alert("❌ Greška na serveru."); } finally { setLoading(false); }
   };
 
   const handleExportPDF = () => {

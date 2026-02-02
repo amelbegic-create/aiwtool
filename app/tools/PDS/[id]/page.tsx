@@ -1,12 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { PrismaClient } from '@prisma/client';
+import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from 'next/navigation';
 import PDSFormClient from './PDSFormClient';
-
-const prisma = new PrismaClient();
-const db = prisma as any;
 
 export default async function PDSDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -15,14 +12,14 @@ export default async function PDSDetailPage(props: { params: Promise<{ id: strin
 
   const currentUser = await prisma.user.findUnique({ where: { email: session.user.email } });
   
-  const pds = await db.pDS.findUnique({
+  const pds = await (prisma as any).pDS.findUnique({
     where: { id: params.id },
     include: { user: true }
   });
 
   if (!pds) return <div className="p-10 text-center font-bold text-slate-500 uppercase tracking-widest">PDS dokument nije pronađen.</div>;
 
-  const isManager = ['ADMIN', 'MANAGER', 'SUPER_ADMIN'].includes(currentUser?.role || '');
+  const isManager = ['ADMIN', 'MANAGER', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
   const safePds = JSON.parse(JSON.stringify(pds));
 
   // FIX: Ne šaljemo više currentUserEmail

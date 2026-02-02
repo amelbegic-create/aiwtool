@@ -22,17 +22,13 @@ import {
 import Link from "next/link";
 import { markRuleAsRead } from "@/app/actions/ruleActions";
 import { useRouter } from "next/navigation";
+import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-const fmtDate = (d: string | Date) =>
-  new Intl.DateTimeFormat("bs-BA", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  }).format(new Date(d));
+const fmtDate = (d: string | Date) => formatDateDDMMGGGG(d);
 
 function escapeHtml(s: string) {
   return s

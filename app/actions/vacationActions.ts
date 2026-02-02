@@ -5,10 +5,46 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/access";
+import { GOD_MODE_ROLES } from "@/lib/permissions";
+import { cookies } from "next/headers";
+import { Role } from "@prisma/client";
 
-// --- GLOBALNI EXPORT DATA (NOVO) ---
+/** Session user shape from next-auth (id from our callback). */
+type SessionUser = { id?: string };
+
+function yearFromISO(dateStr: string) {
+  const y = Number(String(dateStr).slice(0, 4));
+  return Number.isFinite(y) ? y : new Date().getFullYear();
+}
+
+function isGodModeRole(role: Role) {
+  return GOD_MODE_ROLES.has(String(role));
+}
+
+async function resolveRestaurantIdForSessionUser(sessionUserId: string) {
+  const cookieStore = await cookies();
+  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
+
+  if (activeRestaurantId && activeRestaurantId !== "all") return activeRestaurantId;
+
+  const user = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    include: { restaurants: true },
+  });
+
+  const primary = user?.restaurants.find((r) => r.isPrimary)?.restaurantId;
+  if (primary) return primary;
+
+  const first = user?.restaurants[0]?.restaurantId;
+  if (first) return first;
+
+  const anyRest = await prisma.restaurant.findFirst({ select: { id: true } });
+  if (!anyRest) throw new Error("Nema restorana u sistemu.");
+  return anyRest.id;
+}
+
+// --- GLOBALNI EXPORT DATA ---
 export async function getGlobalVacationStats(year: number) {
-  // Permisija za globalni export / globalni prikaz
   await requirePermission("vacation:export");
 
   const startOfYear = `${year}-01-01`;
@@ -17,12 +53,14 @@ export async function getGlobalVacationStats(year: number) {
   const allUsers = await prisma.user.findMany({
     where: { isActive: true },
     include: {
+      department: { select: { name: true, color: true } },
       vacations: {
         where: {
           status: "APPROVED",
           start: { gte: startOfYear, lte: endOfYear },
         },
       },
+      vacationAllowances: { where: { year }, select: { year: true, days: true } },
       restaurants: { include: { restaurant: true } },
     },
     orderBy: { name: "asc" },
@@ -39,13 +77,15 @@ export async function getGlobalVacationStats(year: number) {
   const usersStats = allUsers.map((u) => {
     const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
     const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Nepoznat");
-    const total = (u.vacationEntitlement || 0) + (u.vacationCarryover || 0);
+    const allowance = u.vacationAllowances?.[0]?.days ?? u.vacationEntitlement ?? 0;
+    const total = allowance + (u.vacationCarryover || 0);
 
     return {
       id: u.id,
       name: u.name,
       restaurantNames: restaurantNames,
-      department: u.department,
+      department: u.department?.name ?? null,
+      departmentColor: u.department?.color ?? null,
       total: total,
       used: used,
       remaining: total - used,
@@ -74,25 +114,13 @@ export async function addBlockedDay(date: string, reason: string) {
   await requirePermission("vacation:blocked_days");
 
   const session = await getServerSession(authOptions);
-  const userEmail = session?.user?.email;
-  if (!userEmail) throw new Error("Greška u sesiji.");
+  const sessionUserId = (session?.user as SessionUser)?.id;
+  if (!sessionUserId) throw new Error("Greška u sesiji.");
 
-  const user = await prisma.user.findUnique({
-    where: { email: userEmail },
-    include: { restaurants: true },
-  });
-
-  const targetRestaurantId = user?.restaurants[0]?.restaurantId;
-  let finalRestaurantId = targetRestaurantId;
-
-  if (!finalRestaurantId) {
-    const firstRest = await prisma.restaurant.findFirst();
-    if (!firstRest) throw new Error("Nema restorana u sistemu.");
-    finalRestaurantId = firstRest.id;
-  }
+  const restaurantId = await resolveRestaurantIdForSessionUser(sessionUserId);
 
   await prisma.blockedDay.create({
-    data: { date, reason, restaurantId: finalRestaurantId! },
+    data: { date, reason, restaurantId },
   });
 
   revalidatePath("/tools/vacations");
@@ -100,17 +128,18 @@ export async function addBlockedDay(date: string, reason: string) {
 
 export async function removeBlockedDay(id: string) {
   await requirePermission("vacation:blocked_days");
-
   await prisma.blockedDay.delete({ where: { id } });
   revalidatePath("/tools/vacations");
 }
 
 // --- UPRAVLJANJE ZAHTJEVIMA ---
-async function calculateVacationDays(start: string, end: string) {
+async function calculateVacationDays(start: string, end: string, restaurantId: string | null) {
   const startDate = new Date(start);
   const endDate = new Date(end);
 
-  const blockedDays = await prisma.blockedDay.findMany();
+  const blockedDays = restaurantId
+    ? await prisma.blockedDay.findMany({ where: { restaurantId } })
+    : [];
   const blockedDates = blockedDays.map((b) => b.date);
 
   let totalDays = 0;
@@ -123,26 +152,95 @@ async function calculateVacationDays(start: string, end: string) {
     if (dayOfWeek !== 0 && dayOfWeek !== 6 && !blockedDates.includes(dateString)) {
       totalDays++;
     }
-
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
   return totalDays;
 }
 
-export async function createVacationRequest(data: { start: string; end: string }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) throw new Error("Niste prijavljeni.");
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+async function getUserTotalForYear(userId: string, year: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      vacationEntitlement: true,
+      vacationCarryover: true,
+      vacationAllowances: { where: { year }, select: { days: true } },
+    },
+  });
   if (!user) throw new Error("Korisnik nije pronađen.");
 
-  const totalDays = await calculateVacationDays(data.start, data.end);
+  // Ako postoji eksplicitni unose za godinu u vacationAllowances, koristi ga. Inače vacationEntitlement.
+  const rawAllowance = user.vacationAllowances?.[0]?.days;
+  const allowance =
+    rawAllowance != null && Number.isFinite(Number(rawAllowance))
+      ? Math.max(0, Math.floor(Number(rawAllowance)))
+      : (user.vacationEntitlement ?? 20);
+  const carryover = Math.max(0, Math.floor(Number(user.vacationCarryover) || 0));
+  const total = allowance + carryover;
+
+  return { total, allowance, carryover };
+}
+
+async function getUsedApprovedDaysForYear(userId: string, year: number) {
+  const startOfYear = `${year}-01-01`;
+  const endOfYear = `${year}-12-31`;
+  const approved = await prisma.vacationRequest.findMany({
+    where: {
+      userId,
+      status: "APPROVED",
+      start: { gte: startOfYear, lte: endOfYear },
+    },
+    select: { days: true },
+  });
+  return approved.reduce((sum, r) => sum + r.days, 0);
+}
+
+export async function createVacationRequest(data: { start: string; end: string }) {
+  const session = await getServerSession(authOptions);
+  const sessionUserId = (session?.user as SessionUser)?.id;
+  if (!sessionUserId) throw new Error("Niste prijavljeni.");
+
+  const user = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    select: { id: true, supervisorId: true, isActive: true, role: true },
+  });
+  if (!user) throw new Error("Korisnik nije pronađen.");
+  if (user.isActive === false) throw new Error("Korisnik nije aktivan.");
+
+  // ✅ chain-of-command: za role 3-5 nadređeni mora postojati
+  if (!isGodModeRole(user.role as Role) && !user.supervisorId) {
+    throw new Error("Nadređeni nije postavljen za vaš profil. Obratite se administratoru.");
+  }
+
+  const restaurantId = await resolveRestaurantIdForSessionUser(sessionUserId);
+
+  // Zahtjev mora biti od sutra – ne može se uzeti od jučer ili danas
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const startDate = new Date(data.start);
+  startDate.setHours(0, 0, 0, 0);
+  if (startDate < tomorrow) {
+    throw new Error("Početni datum mora biti sutra ili kasnije. Ne možete poslati zahtjev za prošle dane.");
+  }
+
+  const totalDays = await calculateVacationDays(data.start, data.end, restaurantId);
   if (totalDays === 0) throw new Error("Odabrani period nema radnih dana.");
+
+  const year = yearFromISO(data.start);
+  const { total } = await getUserTotalForYear(user.id, year);
+  const used = await getUsedApprovedDaysForYear(user.id, year);
+  const remaining = total - used;
+
+  if (totalDays > remaining) {
+    throw new Error(`Nemate dovoljno dana godišnjeg. Preostalo: ${remaining} dana.`);
+  }
 
   await prisma.vacationRequest.create({
     data: {
       userId: user.id,
+      supervisorId: user.supervisorId || null,
+      restaurantId,
       start: data.start,
       end: data.end,
       days: totalDays,
@@ -155,17 +253,43 @@ export async function createVacationRequest(data: { start: string; end: string }
 
 export async function updateVacationRequest(id: string, data: { start: string; end: string }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) throw new Error("Niste prijavljeni.");
+  const sessionUserId = (session?.user as SessionUser)?.id;
+  if (!sessionUserId) throw new Error("Niste prijavljeni.");
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  const user = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    select: { id: true, supervisorId: true, role: true },
+  });
   if (!user) throw new Error("Greška.");
 
   const request = await prisma.vacationRequest.findUnique({ where: { id } });
   if (!request) throw new Error("Zahtjev nije pronađen.");
   if (request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
+  if (request.status !== "PENDING") throw new Error("Možete uređivati samo zahtjev u statusu PENDING.");
 
-  const totalDays = await calculateVacationDays(data.start, data.end);
+  // Zahtjev mora biti od sutra – ne može se uzeti od jučer ili danas
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const startDate = new Date(data.start);
+  startDate.setHours(0, 0, 0, 0);
+  if (startDate < tomorrow) {
+    throw new Error("Početni datum mora biti sutra ili kasnije. Ne možete poslati zahtjev za prošle dane.");
+  }
+
+  const restaurantId = request.restaurantId;
+
+  const totalDays = await calculateVacationDays(data.start, data.end, restaurantId);
   if (totalDays === 0) throw new Error("Odabrani period nema radnih dana.");
+
+  const year = yearFromISO(data.start);
+  const { total } = await getUserTotalForYear(user.id, year);
+  const used = await getUsedApprovedDaysForYear(user.id, year);
+  const remaining = total - used;
+
+  if (totalDays > remaining) {
+    throw new Error(`Nemate dovoljno dana godišnjeg. Preostalo: ${remaining} dana.`);
+  }
 
   await prisma.vacationRequest.update({
     where: { id },
@@ -174,6 +298,7 @@ export async function updateVacationRequest(id: string, data: { start: string; e
       end: data.end,
       days: totalDays,
       status: "PENDING",
+      supervisorId: user.supervisorId || null,
     },
   });
 
@@ -182,6 +307,28 @@ export async function updateVacationRequest(id: string, data: { start: string; e
 
 export async function updateVacationStatus(requestId: string, status: string) {
   await requirePermission("vacation:approve");
+
+  const session = await getServerSession(authOptions);
+  const sessionUserId = (session?.user as SessionUser)?.id;
+  if (!sessionUserId) throw new Error("Niste prijavljeni.");
+
+  const actingUser = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    select: { id: true, role: true },
+  });
+  if (!actingUser) throw new Error("Korisnik nije pronađen.");
+
+  const req = await prisma.vacationRequest.findUnique({
+    where: { id: requestId },
+    select: { supervisorId: true },
+  });
+  if (!req) throw new Error("Zahtjev nije pronađen.");
+
+  const god = isGodModeRole(actingUser.role);
+
+  if (!god && req.supervisorId !== actingUser.id) {
+    throw new Error("Nemate pravo odobriti ovaj zahtjev. Obratite se administratoru.");
+  }
 
   await prisma.vacationRequest.update({
     where: { id: requestId },
@@ -193,9 +340,10 @@ export async function updateVacationStatus(requestId: string, status: string) {
 
 export async function cancelVacationRequest(requestId: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) throw new Error("Niste prijavljeni.");
+  const sessionUserId = (session?.user as SessionUser)?.id;
+  if (!sessionUserId) throw new Error("Niste prijavljeni.");
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
   if (!user) throw new Error("Greška.");
 
   const request = await prisma.vacationRequest.findUnique({ where: { id: requestId } });
@@ -218,18 +366,16 @@ export async function cancelVacationRequest(requestId: string) {
 
 export async function deleteVacationRequest(requestId: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) throw new Error("Niste prijavljeni.");
+  const sessionUserId = (session?.user as SessionUser)?.id;
+  if (!sessionUserId) throw new Error("Niste prijavljeni.");
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
   if (!user) throw new Error("Greška.");
 
   const request = await prisma.vacationRequest.findUnique({ where: { id: requestId } });
   if (!request) throw new Error("Zahtjev ne postoji.");
 
-  // Ostavljam tvoju logiku: admini/manageri mogu brisati tuđe (kao prije)
-  // Ako želiš strogo po permisijama kasnije: ovdje se doda requirePermission("vacation:approve") ili "vacation:access"
   const isAdminLike = ["ADMIN", "SYSTEM_ARCHITECT", "SUPER_ADMIN", "MANAGER"].includes(String(user.role));
-
   if (!isAdminLike && request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
 
   await prisma.vacationRequest.delete({ where: { id: requestId } });

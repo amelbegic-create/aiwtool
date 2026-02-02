@@ -45,3 +45,16 @@ export async function requirePermission(required: string) {
 
   return dbUser;
 }
+
+/**
+ * Provjerava permisiju. Ako korisnik nema pristup, vraća null (za prikaz NoPermission stranice).
+ * Ako ima pristup, vraća dbUser.
+ */
+export async function tryRequirePermission(required: string): Promise<{ ok: true; user: Awaited<ReturnType<typeof getDbUserForAccess>> } | { ok: false }> {
+  try {
+    const dbUser = await requirePermission(required);
+    return { ok: true, user: dbUser };
+  } catch {
+    return { ok: false };
+  }
+}

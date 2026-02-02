@@ -15,6 +15,7 @@ import {
   Dot,
 } from "lucide-react";
 import Link from "next/link";
+import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 
 interface UserViewProps {
   initialRules: any[];
@@ -73,7 +74,7 @@ export default function UserView({ initialRules, categories }: UserViewProps) {
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 pb-24">
       {/* HEADER */}
       <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200 shadow-sm">
-        <div className="max-w-[1600px] mx-auto px-6 md:px-10 py-6">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-10 py-4 md:py-6">
           <div className="flex flex-col lg:flex-row gap-5 lg:items-end lg:justify-between">
             {/* Left: Brand */}
             <div className="flex items-start gap-4">
@@ -113,12 +114,12 @@ export default function UserView({ initialRules, categories }: UserViewProps) {
 
             {/* Right: Search */}
             <div className="w-full lg:w-[520px]">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3 flex items-center gap-3">
-                <Search size={18} className="text-slate-400" />
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3 flex items-center gap-3 min-h-[44px] md:min-h-0">
+                <Search size={18} className="text-slate-400 shrink-0" />
                 <input
                   type="text"
                   placeholder="Pretraži po naslovu…"
-                  className="w-full bg-transparent outline-none text-base font-bold text-slate-700 placeholder:text-slate-400"
+                  className="w-full bg-transparent outline-none text-base font-bold text-slate-700 placeholder:text-slate-400 min-h-[36px]"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -171,7 +172,7 @@ export default function UserView({ initialRules, categories }: UserViewProps) {
       </div>
 
       {/* CONTENT */}
-      <div className="max-w-[1600px] mx-auto px-6 md:px-10 pt-10">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-10 pt-6 md:pt-10">
         {/* Empty state */}
         {filteredRules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-300">
@@ -300,7 +301,7 @@ export default function UserView({ initialRules, categories }: UserViewProps) {
                           <div className="mt-1 text-xs font-medium text-slate-500 flex items-center gap-2">
                             <Calendar size={14} className="text-slate-400" />
                             <span className="font-mono">
-                              {new Date(rule.createdAt).toLocaleDateString("bs-BA")}
+                              {formatDateDDMMGGGG(rule.createdAt)}
                             </span>
                           </div>
                         </div>

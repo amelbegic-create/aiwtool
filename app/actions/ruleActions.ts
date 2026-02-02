@@ -174,7 +174,7 @@ export async function markRuleAsRead(ruleId: string) {
     try {
         await prisma.ruleReadReceipt.create({ data: { ruleId, userId: user.id } });
         revalidatePath('/tools/rules');
-    } catch (e) {} 
+    } catch (_e) {} 
 }
 
 export async function uploadFile(formData: FormData) {

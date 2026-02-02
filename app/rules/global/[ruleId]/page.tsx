@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ComponentType } from "react";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -7,17 +8,8 @@ import {
   Store,
   BookOpen,
   Settings,
-  Search,
-  Bell,
-  LogOut,
-  ChevronRight,
   ArrowLeft,
   Printer,
-  ShieldCheck,
-  FileBarChart,
-  Clock,
-  CheckCircle2,
-  FileText
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +49,6 @@ export default async function GlobalRuleDetailsPage(props: PageProps) {
 
   const params = await props.params;
   const ruleId = params.ruleId;
-  const userName = (session.user as any)?.name || "User";
 
   // Dohvati pravilo ili default ako ne postoji (da ne pukne aplikacija dok ne uneseš svih 10)
   const rule = GLOBAL_RULES[ruleId] || { ...GLOBAL_RULES["default"], title: `Pravilo: ${ruleId}` };
@@ -127,4 +118,5 @@ export default async function GlobalRuleDetailsPage(props: PageProps) {
 
 // Sub-components
 function NavHeader({ label }: { label: string }) { return <div className="px-3 mb-2 mt-6 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</div>; }
-function SideLink({ href, icon: Icon, label, active }: any) { return <Link href={href} className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium mb-0.5 ${active ? 'bg-[#FFC72C] text-[#0F172A] shadow-sm' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className={`w-4 h-4 ${active ? 'text-[#0F172A]' : 'text-slate-400'}`} /> {label}</Link> }
+type SideLinkProps = { href: string; icon: ComponentType<{ className?: string }>; label: string; active?: boolean };
+function SideLink({ href, icon: Icon, label, active }: SideLinkProps) { return <Link href={href} className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium mb-0.5 ${active ? 'bg-[#FFC72C] text-[#0F172A] shadow-sm' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}><Icon className={`w-4 h-4 ${active ? 'text-[#0F172A]' : 'text-slate-400'}`} /> {label}</Link> }

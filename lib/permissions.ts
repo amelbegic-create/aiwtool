@@ -1,18 +1,24 @@
-// lib/permissions.ts
-export type PermissionKey = string;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { Role } from "@prisma/client";
 
-export type PermissionItem = {
-  key: PermissionKey;
-  label: string;
-  description?: string;
-};
+export type PermissionKey = string;
 
 export type PermissionGroup = {
   id: string;
   title: string;
   subtitle?: string;
-  items: PermissionItem[];
+  items: Array<{
+    key: PermissionKey;
+    label: string;
+  }>;
 };
+
+/**
+ * ✅ VAŽNO:
+ * - GOD MODE role imaju sve permisije automatski (bypass).
+ * - Ostale role (ADMIN/MANAGER/CREW) moraju imati eksplicitno dodijeljene permisije.
+ */
+export const GOD_MODE_ROLES = new Set(["SYSTEM_ARCHITECT", "SUPER_ADMIN"]);
 
 export const PERMISSIONS: PermissionGroup[] = [
   {
@@ -24,113 +30,80 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: "rules:create", label: "Kreiranje pravila" },
       { key: "rules:edit", label: "Uređivanje pravila" },
       { key: "rules:delete", label: "Brisanje pravila" },
-      { key: "rules:toggle", label: "Aktivacija/Deaktivacija pravila" },
+      { key: "rules:publish", label: "Objava pravila" },
       { key: "rules:categories", label: "Upravljanje kategorijama" },
-      { key: "rules:media", label: "Upload medija (slike/video/pdf)" },
+      { key: "rules:uploads", label: "Upload fajlova" },
     ],
   },
-
+  {
+    id: "pds",
+    title: "PDS sistem",
+    subtitle: "Evaluacije učinka i razvoja",
+    items: [{ key: "pds:access", label: "Pristup PDS modulu" }],
+  },
   {
     id: "vacation",
     title: "Godišnji odmor",
-    subtitle: "Zahtjevi, odobrenja, statistika i praznici",
+    subtitle: "Zahtjevi, odobrenja, blokirani dani i export",
     items: [
-      { key: "vacation:access", label: "Pristup modulu" },
-      { key: "vacation:view_all", label: "Pregled svih zahtjeva" },
-      { key: "vacation:approve", label: "Odobravanje/Odbijanje zahtjeva" },
-      { key: "vacation:blocked_days", label: "Upravljanje praznicima" },
-      { key: "vacation:export", label: "Export PDF/Excel" },
+      { key: "vacation:access", label: "Pristup modulu godišnjih" },
+      { key: "vacation:create", label: "Kreiranje zahtjeva" },
+      { key: "vacation:edit", label: "Uređivanje zahtjeva" },
+      { key: "vacation:cancel", label: "Otkazivanje zahtjeva" },
+      { key: "vacation:approve", label: "Odobravanje/odbijanje zahtjeva" },
+      { key: "vacation:blocked_days", label: "Upravljanje blokiranim danima" },
+      { key: "vacation:export", label: "Export (PDF/CSV)" },
     ],
   },
-
-  // ✅ PDS modul
   {
-    id: "pds",
-    title: "PDS",
-    subtitle: "Evaluacije performansi i PDS ciklusi",
+    id: "labor",
+    title: "Labor planner",
+    subtitle: "Budžet i planiranje rada",
     items: [
-      { key: "pds:access", label: "Pristup PDS modulu" },
-      { key: "pds:edit", label: "Uređivanje PDS-a" },
-      { key: "pds:submit", label: "Slanje/zaključavanje PDS-a" },
-      { key: "pds:templates", label: "Upravljanje PDS template-ima" },
-      { key: "pds:admin", label: "Admin pristup PDS-u" },
+      { key: "labor:access", label: "Pristup Labor modulu" },
+      { key: "labor:edit", label: "Uređivanje plana" },
     ],
   },
-
-  // ✅ Produktivnost modul
   {
     id: "productivity",
     title: "Produktivnost",
-    subtitle: "Izvještaji i KPI produktivnosti",
+    subtitle: "CL izvještaji i produktivnost",
     items: [
-      { key: "productivity:access", label: "Pristup modulu" },
-      { key: "productivity:edit", label: "Unos/Uređivanje izvještaja" },
-      { key: "productivity:export", label: "Export PDF/Excel" },
-      { key: "productivity:admin", label: "Admin pristup" },
+      { key: "productivity:access", label: "Pristup modulu produktivnosti" },
+      { key: "productivity:edit", label: "Uređivanje izvještaja" },
     ],
   },
-
-  // ✅ Labor planer / labor report modul
   {
-    id: "labor",
-    title: "Labor planer",
-    subtitle: "Planiranje smjena i labor izvještaji",
+    id: "admin",
+    title: "Admin",
+    subtitle: "Korisnici, restorani, permisije i sistem",
     items: [
-      { key: "labor:access", label: "Pristup modulu" },
-      { key: "labor:plan", label: "Uređivanje planova" },
-      { key: "labor:report", label: "Uređivanje izvještaja" },
-      { key: "labor:export", label: "Export PDF/Excel" },
-      { key: "labor:admin", label: "Admin pristup" },
+      { key: "users:access", label: "Pristup listi korisnika" },
+      { key: "users:manage", label: "Upravljanje korisnicima" },
+      { key: "restaurants:access", label: "Pristup listi restorana" },
+      { key: "restaurants:manage", label: "Upravljanje restoranima" },
+      { key: "users:permissions", label: "Preset permisije po roli" },
     ],
   },
-
   {
-    id: "users",
-    title: "Korisnici",
-    subtitle: "Kreiranje korisnika i dodjela prava",
+    id: "inventory",
+    title: "Inventar",
+    subtitle: "Zalihe i inventar",
     items: [
-      { key: "users:access", label: "Pristup korisnicima" },
-      { key: "users:create", label: "Kreiranje korisnika" },
-      { key: "users:edit", label: "Uređivanje korisnika" },
-      { key: "users:delete", label: "Brisanje korisnika" },
-      { key: "users:permissions", label: "Dodjela permisija" },
-    ],
-  },
-
-  {
-    id: "restaurants",
-    title: "Restorani",
-    subtitle: "Lokacije i dodjela korisnika restoranima",
-    items: [
-      { key: "restaurants:access", label: "Pristup restoranima" },
-      { key: "restaurants:create", label: "Kreiranje restorana" },
-      { key: "restaurants:edit", label: "Uređivanje restorana" },
-      { key: "restaurants:delete", label: "Brisanje restorana" },
-      { key: "restaurants:toggle", label: "Aktivacija/Deaktivacija restorana" },
-    ],
-  },
-
-  // ✅ BONANSI — Admin-only alat
-  {
-    id: "bonusi",
-    title: "Bonusi",
-    subtitle: "Admin alat za obračun i evidenciju bonusa",
-    items: [
-      { key: "bonusi:access", label: "Pristup alatu Bonusi" },
-      { key: "bonusi:edit", label: "Uređivanje / spremanje podataka" },
-      { key: "bonusi:export", label: "Export podataka" },
+      { key: "inventory:access", label: "Pristup inventaru" },
+      { key: "inventory:edit", label: "Uređivanje zaliha" },
     ],
   },
 ];
 
-export const ALL_PERMISSION_KEYS: PermissionKey[] = PERMISSIONS.flatMap((g) =>
-  g.items.map((i) => i.key)
-);
+export const ALL_PERMISSION_KEYS: PermissionKey[] = PERMISSIONS.flatMap((g) => g.items.map((i) => i.key));
 
-// “God-mode” role: dobije sve automatski
-export const GOD_MODE_ROLES = new Set(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN"]);
+export function hasPermission(user: any, key: PermissionKey) {
+  if (!user) return false;
+  if (GOD_MODE_ROLES.has(String(user.role))) return true;
+  return Array.isArray(user.permissions) && user.permissions.includes(key);
+}
 
-// Helper: map label by key
-export const PERMISSION_LABEL: Record<string, string> = Object.fromEntries(
-  PERMISSIONS.flatMap((g) => g.items.map((i) => [i.key, i.label]))
-);
+export function isGodModeRole(role: Role) {
+  return GOD_MODE_ROLES.has(String(role));
+}

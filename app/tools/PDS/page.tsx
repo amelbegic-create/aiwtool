@@ -7,15 +7,22 @@ import Link from 'next/link';
 import AdminControlsClient from './components/AdminControlsClient';
 import PDSListClient from './components/PDSListClient'; // <--- Import novog fajla
 import { cookies } from 'next/headers';
+import { tryRequirePermission } from "@/lib/access";
+import NoPermission from "@/components/NoPermission";
 
 const prisma = new PrismaClient();
 const db = prisma as any;
 
-const YEARS = [2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035];
+const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
 export default async function PDSDashboard(props: { searchParams: Promise<{ year?: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return redirect("/");
+
+  const accessResult = await tryRequirePermission("pds:access");
+  if (!accessResult.ok) {
+    return <NoPermission moduleName="PDS sistem" />;
+  }
 
   const cookieStore = await cookies();
   const activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
@@ -29,6 +36,12 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
 
   const currentUser = await prisma.user.findUnique({ where: { email: session.user.email } });
   const isManager = ['ADMIN', 'MANAGER', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
+
+  const restaurants = await prisma.restaurant.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, code: true },
+    orderBy: { name: 'asc' }
+  });
 
   const template = await db.pDSTemplate.findUnique({ 
       where: { year_restaurantId: { year: selectedYear, restaurantId: activeRestaurantId } } 
@@ -80,7 +93,9 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
               <AdminControlsClient 
                 selectedYear={selectedYear} 
                 template={safeTemplate} 
-                currentUserId={currentUser!.id} 
+                currentUserId={currentUser!.id}
+                restaurants={restaurants.map((r) => ({ id: r.id, name: r.name ?? r.code, code: r.code }))}
+                pdsList={safePdsList}
               />
             )}
           </div>

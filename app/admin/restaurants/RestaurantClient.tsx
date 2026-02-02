@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useMemo, useState } from "react";
@@ -11,7 +10,8 @@ import {
 } from "@/app/actions/restaurantAdminActions";
 import { useRouter } from "next/navigation";
 
-export default function RestaurantClient({ restaurants }: { restaurants: any[] }) {
+type RestaurantRow = { id: string; code: string; name: string; city: string; address: string; isActive: boolean };
+export default function RestaurantClient({ restaurants }: { restaurants: RestaurantRow[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
 
@@ -42,7 +42,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: any[] }
     setOpen(true);
   };
 
-  const openEdit = (r: any) => {
+  const openEdit = (r: RestaurantRow) => {
     setEditing(true);
     setForm({
       id: r.id,

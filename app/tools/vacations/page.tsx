@@ -7,18 +7,29 @@ import { Role } from "@prisma/client";
 import UserView from "./_components/UserView";
 import AdminView from "./_components/AdminView";
 import { cookies } from "next/headers";
+import { tryRequirePermission } from "@/lib/access";
+import NoPermission from "@/components/NoPermission";
 
 export default async function VacationPage(props: { searchParams: Promise<{ year?: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
+  const accessResult = await tryRequirePermission("vacation:access");
+  if (!accessResult.ok) {
+    return <NoPermission moduleName="Godišnji odmori" />;
+  }
+
   const cookieStore = await cookies();
-  const activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
+  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
 
   const sessionUserId = (session.user as any).id;
+
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    include: { restaurants: { include: { restaurant: true } } },
+    include: {
+      restaurants: { include: { restaurant: true } },
+      vacationAllowances: true,
+    },
   });
 
   if (!user) return <div className="p-10 text-red-500">Korisnik nije pronađen.</div>;
@@ -26,56 +37,76 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
   const searchParams = await props.searchParams;
   const currentYear = new Date().getFullYear();
   const selectedYear = searchParams.year ? parseInt(searchParams.year) : currentYear;
-  
+
   const startOfYear = `${selectedYear}-01-01`;
   const endOfYear = `${selectedYear}-12-31`;
 
   const isGodMode = user.role === Role.SYSTEM_ARCHITECT || user.role === Role.SUPER_ADMIN;
-  const isManager = user.role === Role.ADMIN || user.role === Role.MANAGER;
+  const isAdmin = user.role === Role.ADMIN;
+  const isRestaurantManager = user.role === Role.MANAGER;
+  const isManagerView = isGodMode || isAdmin || isRestaurantManager;
 
-  // Praznici
-  const blockedDaysRaw = await prisma.blockedDay.findMany({ orderBy: { date: "asc" } });
+  const blockedDaysRaw = await prisma.blockedDay.findMany({
+    where:
+      activeRestaurantId && activeRestaurantId !== "all"
+        ? { restaurantId: activeRestaurantId }
+        : undefined,
+    orderBy: { date: "asc" },
+  });
+
   const blockedDays = blockedDaysRaw.map((d) => ({ id: d.id, date: d.date, reason: d.reason }));
 
-  // --- ADMIN / MANAGER POGLED ---
-  if (isGodMode || isManager) {
+  const myAllowanceRow = user.vacationAllowances?.find((x) => x.year === selectedYear);
+  const myAllowanceForYear = myAllowanceRow?.days ?? user.vacationEntitlement ?? 0;
+  const myTotalForYear = myAllowanceForYear + (user.vacationCarryover ?? 0);
+
+  if (isManagerView) {
     let userWhereClause: any = { isActive: true };
     let requestWhereClause: any = {
-        start: { gte: startOfYear, lte: endOfYear }
+      start: { gte: startOfYear, lte: endOfYear },
     };
 
-    // LOGIKA FILTRIRANJA
-    // Ako je 'all', ne filtriramo po restaurantId (znači uzimamo sve),
-    // OSIM ako user nije GodMode - onda uzimamo sve njegove dodijeljene restorane.
-    
-    if (activeRestaurantId && activeRestaurantId !== 'all') {
-        // Specifičan restoran
-        userWhereClause = { 
-            ...userWhereClause, 
-            restaurants: { some: { restaurantId: activeRestaurantId } } 
-        };
-        requestWhereClause = { 
-            ...requestWhereClause,
-            user: { restaurants: { some: { restaurantId: activeRestaurantId } } } 
-        };
-    } else if (!isGodMode) {
-        // "Svi restorani" ali samo oni koje manager vidi
-        const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
-        userWhereClause = { 
-            ...userWhereClause, 
-            restaurants: { some: { restaurantId: { in: myRestaurantIds } } } 
-        };
-        requestWhereClause = { 
-            ...requestWhereClause,
-            user: { restaurants: { some: { restaurantId: { in: myRestaurantIds } } } } 
-        };
+    // ✅ Supervisor filter samo za MANAGER (Restaurant Manager) – ne za ADMIN
+    if (!isGodMode && isRestaurantManager) {
+      requestWhereClause = {
+        ...requestWhereClause,
+        supervisorId: user.id,
+      };
     }
-    // Ako je GodMode i 'all', ne dodajemo nikakav filter = SVI podaci iz baze
+
+    if (activeRestaurantId && activeRestaurantId !== "all") {
+      userWhereClause = {
+        ...userWhereClause,
+        restaurants: { some: { restaurantId: activeRestaurantId } },
+      };
+
+      requestWhereClause = {
+        ...requestWhereClause,
+        user: { restaurants: { some: { restaurantId: activeRestaurantId } } },
+      };
+    } else if (!isGodMode) {
+      const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
+
+      userWhereClause = {
+        ...userWhereClause,
+        restaurants: { some: { restaurantId: { in: myRestaurantIds } } },
+      };
+
+      requestWhereClause = {
+        ...requestWhereClause,
+        user: { restaurants: { some: { restaurantId: { in: myRestaurantIds } } } },
+      };
+    }
 
     const allRequestsRaw = await prisma.vacationRequest.findMany({
       where: requestWhereClause,
       include: {
-        user: { include: { restaurants: { include: { restaurant: true } } } },
+        user: {
+          include: {
+            restaurants: { include: { restaurant: true } },
+            vacationAllowances: { where: { year: selectedYear }, select: { days: true, year: true } },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -97,13 +128,15 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     const allUsers = await prisma.user.findMany({
       where: userWhereClause,
       include: {
-        vacations: { 
-            where: { 
-                status: "APPROVED",
-                start: { gte: startOfYear, lte: endOfYear }
-            } 
+        department: { select: { name: true, color: true } },
+        vacations: {
+          where: {
+            status: "APPROVED",
+            start: { gte: startOfYear, lte: endOfYear },
+          },
         },
         restaurants: { include: { restaurant: true } },
+        vacationAllowances: { where: { year: selectedYear }, select: { year: true, days: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -111,18 +144,29 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     const usersStats = allUsers.map((u) => {
       const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
       const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Nepoznat");
-      const total = (u.vacationEntitlement || 0) + (u.vacationCarryover || 0);
+
+      const allowance = u.vacationAllowances?.[0]?.days ?? u.vacationEntitlement ?? 0;
+      const total = allowance + (u.vacationCarryover || 0);
 
       return {
         id: u.id,
         name: u.name,
-        restaurantNames: restaurantNames,
-        department: u.department,
-        total: total,
-        used: used,
+        restaurantNames,
+        department: u.department?.name ?? null,
+        departmentColor: u.department?.color ?? null,
+        total,
+        used,
         remaining: total - used,
       };
     });
+
+    const reportRestaurantLabel =
+      activeRestaurantId && activeRestaurantId !== "all"
+        ? (await prisma.restaurant.findUnique({
+            where: { id: activeRestaurantId },
+            select: { name: true },
+          }))?.name ?? `Restoran ${activeRestaurantId}`
+        : "Svi restorani";
 
     return (
       <AdminView
@@ -130,15 +174,15 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         blockedDays={blockedDays}
         usersStats={usersStats}
         selectedYear={selectedYear}
+        reportRestaurantLabel={reportRestaurantLabel}
       />
     );
   }
 
-  // --- RADNIK POGLED ---
   const myRequestsRaw = await prisma.vacationRequest.findMany({
-    where: { 
-        userId: user.id,
-        start: { gte: startOfYear, lte: endOfYear }
+    where: {
+      userId: user.id,
+      start: { gte: startOfYear, lte: endOfYear },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -152,12 +196,17 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
   }));
 
   const usedThisYear = myRequests
-    .filter(r => r.status === "APPROVED")
+    .filter((r) => r.status === "APPROVED")
     .reduce((acc, curr) => acc + curr.days, 0);
 
+  const remaining = myTotalForYear - usedThisYear;
+
   const serializedUser = {
-      ...JSON.parse(JSON.stringify(user)),
-      usedThisYear 
+    ...JSON.parse(JSON.stringify(user)),
+    usedThisYear,
+    selectedYearTotal: myTotalForYear,
+    selectedYearAllowance: myAllowanceForYear,
+    selectedYearRemaining: remaining,
   };
 
   return (

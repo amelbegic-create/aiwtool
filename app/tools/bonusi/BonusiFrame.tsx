@@ -14,8 +14,7 @@ export default function BonusiFrame({
   headerOffsetPx = 80,
 }: Props) {
   
-  // Ovo sprječava scrollanje glavne ("parent") stranice dok gledaš iframe,
-  // tako da scrollaš samo sadržaj unutar iframe-a.
+  // Zaključava scroll glavne stranice
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -25,7 +24,7 @@ export default function BonusiFrame({
 
   return (
     <div
-      className="fixed left-0 right-0 bottom-0 z-[60] bg-white"
+      className="fixed left-0 right-0 bottom-0 z-[1] bg-white"
       style={{ top: `${headerOffsetPx}px` }}
     >
       <iframe
@@ -33,10 +32,9 @@ export default function BonusiFrame({
         src={src}
         className="block w-full border-0"
         style={{
-          height: "100%", // Iframe popunjava container
+          height: "100%",
           width: "100%",
         }}
-        // Ovi atributi su bitni za mobilne uređaje
         allow="clipboard-read; clipboard-write; fullscreen"
       />
     </div>

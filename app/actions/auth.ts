@@ -11,8 +11,9 @@ export async function loginUser(formData: FormData) {
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
+        department: { select: { name: true } },
         restaurants: {
-          include: { restaurant: true } // Uključi podatke o restoranima
+          include: { restaurant: true }
         }
       }
     });
@@ -34,7 +35,7 @@ export async function loginUser(formData: FormData) {
         name: user.name,
         email: user.email,
         role: user.role, // ADMIN, WORKER, MANAGER...
-        department: user.department,
+        department: user.department?.name ?? null,
         // Vraćamo listu ID-eva restorana kojima ima pristup
         allowedRestaurants: user.restaurants.map(ur => ur.restaurantId)
       }

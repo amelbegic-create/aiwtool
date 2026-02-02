@@ -26,6 +26,7 @@ import {
 import { Role } from "@prisma/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 
 interface VacationRequest {
   id: string;
@@ -43,6 +44,8 @@ interface UserData {
   vacationCarryover: number;
   role: Role;
   usedThisYear: number;
+  selectedYearTotal?: number;
+  selectedYearRemaining?: number;
 }
 
 interface BlockedDay {
@@ -58,16 +61,7 @@ interface UserViewProps {
   selectedYear: number;
 }
 
-// Helper funkcija za formatiranje datuma (dd.MM.yyyy)
-const formatDate = (dateStr: string) => {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  return new Intl.DateTimeFormat("bs-BA", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
-};
+const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
 
 export default function UserView({
   userData,
@@ -84,9 +78,16 @@ export default function UserView({
 
   const years = Array.from({ length: 7 }, (_, i) => 2024 + i);
 
+  const tomorrow = (() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return t.toISOString().split("T")[0];
+  })();
+
+  // Koristimo vrijednosti iz page.tsx koje pravilno računaju vacationAllowances po godini
   const used = userData.usedThisYear;
-  const total = (userData.vacationEntitlement || 0) + (userData.vacationCarryover || 0);
-  const remaining = total - used;
+  const total = userData.selectedYearTotal ?? (userData.vacationEntitlement || 0) + (userData.vacationCarryover || 0);
+  const remaining = userData.selectedYearRemaining ?? total - used;
 
   const generateUserPDF = async () => {
     setIsExporting(true);
@@ -204,6 +205,15 @@ export default function UserView({
 
   const handleSubmit = async () => {
     if (!start || !end) return alert("Molimo odaberite početni i krajnji datum.");
+
+    const startDate = new Date(start);
+    startDate.setHours(0, 0, 0, 0);
+    const tomorrowDate = new Date();
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    tomorrowDate.setHours(0, 0, 0, 0);
+    if (startDate < tomorrowDate) {
+      return alert("Početni datum mora biti sutra ili kasnije. Ne možete poslati zahtjev za prošle dane.");
+    }
     
     if (new Date(start).getFullYear() !== selectedYear) {
         if(!confirm(`Upozorenje: Odabrali ste datume koji nisu u trenutno prikazanoj godini (${selectedYear}). Želite li nastaviti?`)) return;
@@ -335,12 +345,13 @@ export default function UserView({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">
-                    Datum Od
+                    Datum Od (samo od sutra)
                   </label>
                   <input
                     type="date"
                     value={start}
                     onChange={(e) => setStart(e.target.value)}
+                    min={tomorrow}
                     className="w-full border border-slate-200 p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-slate-700 bg-slate-50 focus:bg-white transition-colors"
                   />
                 </div>
@@ -352,6 +363,7 @@ export default function UserView({
                     type="date"
                     value={end}
                     onChange={(e) => setEnd(e.target.value)}
+                    min={start || undefined}
                     className="w-full border border-slate-200 p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-slate-700 bg-slate-50 focus:bg-white transition-colors"
                   />
                 </div>

@@ -1,22 +1,16 @@
-// next.config.ts
-// MIČEMO import type { NextConfig } da izbjegnemo grešku tipova
+import type { NextConfig } from "next";
 
-const nextConfig = {
-  // Vercel build-friendly
+const nextConfig: NextConfig = {
   output: "standalone",
 
-  // Privremeno: da deploy prođe odmah (sutra vraćamo)
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
+  // Keep server actions upload body size limit
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
   },
 
-  // (opciono) smanji dev-only "dupla render" čudnoće
-  reactStrictMode: false,
-
-  // Slike (Vercel Blob + fallback hostovi)
+  // Images (Vercel Blob + placeholder)
   images: {
     remotePatterns: [
       {
@@ -28,8 +22,6 @@ const nextConfig = {
         hostname: "via.placeholder.com",
       },
     ],
-    // fallback (nekad korisno)
-    domains: ["public.blob.vercel-storage.com", "via.placeholder.com"],
   },
 };
 

@@ -1,6 +1,5 @@
-import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { BookOpen, Search, FileText, ChevronRight, ArrowLeft } from "lucide-react";
+import { Search, FileText, ChevronRight, ArrowLeft } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";

@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Search, Filter, User } from 'lucide-react';
+import { Search, User } from 'lucide-react';
 
 interface Props {
   data: any[];
@@ -76,18 +76,20 @@ export default function PDSListClient({ data, year, isManager }: Props) {
               </div>
               <div className="col-span-2 text-center">
                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${
-                  pds.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
-                  pds.status === 'SUBMITTED' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
+                  pds.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                  pds.status === 'APPROVED' ? 'bg-green-50 text-green-600 border-green-100' :
+                  pds.status === 'SUBMITTED' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                   pds.status === 'RETURNED' ? 'bg-red-50 text-red-600 border-red-100' :
                   'bg-orange-50 text-orange-600 border-orange-100'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                    pds.status === 'COMPLETED' ? 'bg-emerald-500' : 
-                    pds.status === 'SUBMITTED' ? 'bg-blue-500' : 
+                    pds.status === 'COMPLETED' ? 'bg-emerald-500' :
+                    pds.status === 'APPROVED' ? 'bg-green-500' :
+                    pds.status === 'SUBMITTED' ? 'bg-blue-500' :
                     pds.status === 'RETURNED' ? 'bg-red-500' :
                     'bg-orange-500'
                   }`}></span>
-                  {pds.status === 'RETURNED' ? 'VRAĆENO' : pds.status}
+                  {pds.status === 'RETURNED' ? 'VRAĆENO' : pds.status === 'APPROVED' ? 'ODOBRENO' : pds.status}
                 </span>
               </div>
               <div className="col-span-2 text-center">

@@ -3,13 +3,17 @@ import prisma from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
+import { Role } from "@prisma/client";
 
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const role = (session?.user as any)?.role;
+    const role = session?.user?.role;
 
-    if (role !== "SUPER_ADMIN" && role !== "DIRECTOR" && role !== "ADMIN") {
+    const isAdmin =
+      role === Role.SYSTEM_ARCHITECT || role === Role.SUPER_ADMIN || role === Role.ADMIN;
+
+    if (!isAdmin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -32,7 +36,7 @@ export async function POST(req: Request) {
         password: hashedPassword,
         role: newRole,
         isActive: true,
-        permissions: permissions || {},
+        permissions: Array.isArray(permissions) ? permissions : [],
         // Magija za povezivanje restorana:
         restaurants: {
           create: restaurantIds?.map((id: string) => ({

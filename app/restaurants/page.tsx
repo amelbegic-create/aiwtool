@@ -11,6 +11,7 @@ import {
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
+import { Role } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -18,16 +19,19 @@ export default async function RestaurantsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const email = session.user?.email;
+  if (!email) redirect("/login");
+
   const user = await prisma.user.findUnique({
-    where: { email: session.user?.email! },
+    where: { email },
     include: {
       restaurants: { include: { restaurant: true } }
     }
   });
 
-  // "as string" rješava problem ako DIRECTOR nije definisan u bazi
-  const userRole = user?.role as string;
-  const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'DIRECTOR' || userRole === 'ADMIN';
+  const userRole = user?.role;
+  const isAdmin =
+    userRole === Role.SYSTEM_ARCHITECT || userRole === Role.SUPER_ADMIN || userRole === Role.ADMIN;
 
   let restaurants;
   if (isAdmin) {

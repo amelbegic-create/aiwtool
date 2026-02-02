@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { ChevronDown, Store, Globe, CheckCircle2 } from 'lucide-react';
 import { switchRestaurant } from '@/app/actions/restaurantContext';
 import { useRouter } from 'next/navigation';
@@ -22,8 +22,22 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
+  // ✅ FIX: ako korisnik ima samo 1 restoran i cookie nije postavljen,
+  // automatski postavi activeRestaurantId da moduli ne “zapnu” na "Odaberi"
+  useEffect(() => {
+    if ((!activeRestaurantId || activeRestaurantId === '') && restaurants && restaurants.length === 1) {
+      const onlyId = restaurants[0]?.id;
+      if (!onlyId) return;
+
+      startTransition(async () => {
+        await switchRestaurant(onlyId);
+        router.refresh();
+      });
+    }
+  }, [activeRestaurantId, restaurants, router]);
+
   // Logika za prikaz trenutnog
-  let activeRest = restaurants.find(r => r.id === activeRestaurantId);
+  const activeRest = restaurants.find(r => r.id === activeRestaurantId);
   
   // Prikazno ime (Samo broj)
   let displayName = activeRest?.name || "Odaberi";
