@@ -7,7 +7,7 @@ import TopNavbar from "@/components/TopNavbar";
 import prisma from "@/lib/prisma";
 import { cookies } from "next/headers";
 import AuthProvider from "@/components/AuthProvider";
-import { switchRestaurant } from "@/app/actions/restaurantContext";
+// UKLONIO SAM IMPORT switchRestaurant JER GA NE SMIJEMO KORISTITI OVDJE
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,57 +27,53 @@ export default async function RootLayout({
   let activeRestaurantId: string | undefined = undefined;
 
   if (session?.user) {
-     const cookieStore = await cookies();
-     activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
+      const cookieStore = await cookies();
+      activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
 
-     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-     const user = session.user as any;
-     const userId = user.id;
-     const role = user.role;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const user = session.user as any;
+      const userId = user.id;
+      const role = user.role;
 
-     const isBoss = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(role);
+      const isBoss = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(role);
 
-     if (isBoss) {
-         // Boss vidi sve
-         const allRests = await prisma.restaurant.findMany({
-             where: { isActive: true },
-             select: { id: true, name: true, code: true }
-         });
-         userRestaurants = allRests;
-     } else {
-         // Radnik vidi samo svoje
-         const relations = await prisma.restaurantUser.findMany({
-             where: { userId },
-             include: { restaurant: true }
-         });
-         userRestaurants = relations.map(rel => ({
-             id: rel.restaurant.id,
-             name: rel.restaurant.name,
-             code: rel.restaurant.code
-         }));
-     }
+      if (isBoss) {
+          // Boss vidi sve
+          const allRests = await prisma.restaurant.findMany({
+              where: { isActive: true },
+              select: { id: true, name: true, code: true }
+          });
+          userRestaurants = allRests;
+      } else {
+          // Radnik vidi samo svoje
+          const relations = await prisma.restaurantUser.findMany({
+              where: { userId },
+              include: { restaurant: true }
+          });
+          userRestaurants = relations.map(rel => ({
+              id: rel.restaurant.id,
+              name: rel.restaurant.name,
+              code: rel.restaurant.code
+          }));
+      }
 
-     // --- FIX: NUMERIČKO SORTIRANJE ---
-     // Ovo osigurava da "7" ide prije "10", a "10" prije "100"
-     userRestaurants.sort((a, b) => {
-        const numA = parseInt(a.name || "0");
-        const numB = parseInt(b.name || "0");
-        
-        // Ako su imena brojevi, sortiraj po brojevima
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return numA - numB;
-        }
-        // Inače sortiraj abecedno
-        return (a.name || "").localeCompare(b.name || "");
-     });
+      // --- NUMERIČKO SORTIRANJE ---
+      userRestaurants.sort((a, b) => {
+         const numA = parseInt(a.name || "0");
+         const numB = parseInt(b.name || "0");
+         
+         if (!isNaN(numA) && !isNaN(numB)) {
+             return numA - numB;
+         }
+         return (a.name || "").localeCompare(b.name || "");
+      });
 
-     // Ako korisnik ima samo jedan restoran, automatski postavi cookie da ne mora klikati u navu
-     if (userRestaurants.length === 1 && !activeRestaurantId) {
-         await switchRestaurant(userRestaurants[0].id);
-         activeRestaurantId = userRestaurants[0].id;
-     } else if (!activeRestaurantId && userRestaurants.length > 0) {
-         activeRestaurantId = userRestaurants[0].id;
-     }
+      // --- FIX: OBRISANO AUTOMATSKO SPAŠAVANJE KOLAČIĆA ---
+      // Ako nema odabranog restorana, samo vizuelno uzmi prvi,
+      // ali NE SMIJEMO zvati 'await switchRestaurant' ovdje jer to ruši build.
+      if (!activeRestaurantId && userRestaurants.length > 0) {
+          activeRestaurantId = userRestaurants[0].id;
+      }
   }
 
   return (
