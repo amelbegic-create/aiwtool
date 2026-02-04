@@ -430,3 +430,14 @@ model ToolState {
   @@unique([userId, toolKey])
   @@index([toolKey])
 }
+
+// Moduli označeni kao "dodani na dashboard" – prikazuju se u "Novi moduli"
+model DashboardHighlight {
+  id          String   @id @default(cuid())
+  moduleKey   String   @unique  // npr. "rules", "vacations", "PDS"
+  moduleLabel String   // npr. "Pravila & Procedure"
+  addedAt     DateTime @default(now())
+  order       Int      @default(0)  // manji = više gore
+
+  @@index([addedAt])
+}

@@ -1,13 +1,15 @@
 import { tryRequirePermission } from "@/lib/access";
 import Link from "next/link";
-import { Users, Building2, ShieldCheck } from "lucide-react";
+import { Users, Building2, ShieldCheck, BookOpen, LayoutDashboard } from "lucide-react";
 import NoPermission from "@/components/NoPermission";
 
 export default async function AdminHome() {
   const usersAccess = await tryRequirePermission("users:access");
   const restaurantsAccess = usersAccess.ok ? usersAccess : await tryRequirePermission("restaurants:access");
+  const rulesAccess = await tryRequirePermission("rules:access");
 
-  if (!restaurantsAccess.ok) {
+  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok;
+  if (!hasAnyAdminAccess) {
     return <NoPermission moduleName="Admin panel" />;
   }
 
@@ -26,6 +28,28 @@ export default async function AdminHome() {
       icon: Building2,
       tag: "Locations",
     },
+    ...(usersAccess.ok
+      ? [
+          {
+            title: "Moduli na dashboardu",
+            desc: "Označite koje module prikazati korisnicima u sekciji „Novi moduli“ na početnoj stranici.",
+            href: "/admin/dashboard-modules",
+            icon: LayoutDashboard,
+            tag: "Dashboard",
+          },
+        ]
+      : []),
+    ...(rulesAccess.ok
+      ? [
+          {
+            title: "Pravila i procedure",
+            desc: "Upravljanje pravilima, kategorijama, statistika čitanja, uređivanje i brisanje.",
+            href: "/admin/rules",
+            icon: BookOpen,
+            tag: "Pravila",
+          },
+        ]
+      : []),
   ];
 
   return (

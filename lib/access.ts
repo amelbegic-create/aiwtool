@@ -31,8 +31,11 @@ export async function getDbUserForAccess() {
   return dbUser;
 }
 
+const ADMIN_RULES_ROLES = new Set<string>(["ADMIN", "MANAGER"]);
+
 export function hasPermission(role: string, permissions: string[], required: string) {
   if (GOD_MODE_ROLES.has(String(role))) return true;
+  if (required.startsWith("rules:") && ADMIN_RULES_ROLES.has(String(role))) return true;
   return Array.isArray(permissions) && permissions.includes(required);
 }
 

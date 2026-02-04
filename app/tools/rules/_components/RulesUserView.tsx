@@ -3,7 +3,7 @@
 import React from "react";
 import RulesGrid from "./RulesGrid";
 
-interface UserViewProps {
+interface RulesUserViewProps {
   initialRules: Array<{
     id: string;
     title: string;
@@ -16,10 +16,12 @@ interface UserViewProps {
     isRead?: boolean;
   }>;
   categories: Array<{ id: string; name: string }>;
-  userId: string;
 }
 
-export default function UserView({ initialRules, categories }: UserViewProps) {
+export default function RulesUserView({
+  initialRules,
+  categories,
+}: RulesUserViewProps) {
   return (
     <RulesGrid
       initialRules={initialRules}

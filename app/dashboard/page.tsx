@@ -1,309 +1,257 @@
-// app/dashboard/page.tsx
-import type React from "react";
-import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
+import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ClipboardCheck,
-  Palmtree,
-  ShieldCheck,
-  UserCog,
-  BookOpenCheck,
-  Clock,
-  Gift,
-  BarChart3,
-  LayoutGrid,
-  Activity,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react";
-import { Role } from "@prisma/client";
+import { Bell, ChevronRight, FileText, Sparkles, CalendarDays, ClipboardCheck } from "lucide-react";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
+import QuickActionsCard from "@/components/dashboard/QuickActionsCard";
+import LiveStatusCard from "@/components/dashboard/LiveStatusCard";
+import DashboardModuleIcons from "@/components/dashboard/DashboardModuleIcons";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAllowedQuickActions } from "@/lib/dashboard";
+import { getDashboardHighlights } from "@/app/actions/dashboardHighlightActions";
+import { APP_TOOLS } from "@/lib/tools/tools-config";
+import { hasPermission } from "@/lib/access";
+import { GOD_MODE_ROLES } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
-const formatDate = (date: Date) => formatDateDDMMGGGG(date);
-
-const ADMIN_ROLES = new Set<Role>([
-  Role.SUPER_ADMIN,
-  Role.ADMIN,
-  Role.SYSTEM_ARCHITECT,
-  Role.MANAGER,
-]);
-
-function canAccess(isAdmin: boolean, permissions: string[], required?: string) {
-  if (isAdmin) return true;
-  if (!required) return true;
-  return Array.isArray(permissions) && permissions.includes(required);
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "Dobro jutro";
+  if (h >= 12 && h < 18) return "Dobro dan";
+  return "Willkommen zurück"; // austrijski njemački: Dobro došli nazad
 }
 
-type ToolCategory = "staff" | "operations" | "other";
-
-type ToolDef = {
-  id: string;
-  title: string;
-  href: string;
-  category: ToolCategory;
-  permissionKey?: string;
-  badge?: (ctx: DashboardContext) => string | null;
-  icon: React.ComponentType<{ className?: string; size?: number; strokeWidth?: number }>;
-  adminOnly?: boolean;
-};
-
-type DashboardContext = {
-  isAdmin: boolean;
-  vacationLeft: number;
-  pendingMine: number;
-  totalPendingAdmin: number;
-  pdsScore: number;
-  pdsStatus: string;
-};
-
-const TOOLS: ToolDef[] = [
-  { id: "vacations", title: "Godišnji odmori", href: "/tools/vacations", category: "staff", permissionKey: "vacation:access", icon: Palmtree, badge: (c) => `${c.vacationLeft} dana` },
-  { id: "pds", title: "PDS sistem", href: "/tools/PDS", category: "staff", permissionKey: "pds:access", icon: ClipboardCheck, badge: (c) => `${c.pdsScore} bod` },
-  { id: "bonusi", title: "Bonusi", href: "/tools/bonusi", category: "staff", icon: Gift, adminOnly: true },
-  { id: "rules", title: "Pravila & procedure", href: "/tools/rules", category: "staff", permissionKey: "rules:access", icon: BookOpenCheck, badge: () => "CMS" },
-  { id: "productivity", title: "Produktivnost", href: "/tools/productivity", category: "operations", icon: BarChart3 },
-  { id: "labor", title: "Labor planner", href: "/tools/labor-planner", category: "operations", icon: Clock },
-  { id: "admin", title: "Admin panel", href: "/admin", category: "other", permissionKey: "users:access", icon: ShieldCheck, badge: (c) => (c.isAdmin && c.totalPendingAdmin > 0 ? `${c.totalPendingAdmin} pending` : null) },
-  { id: "profile", title: "Moj profil", href: "/profile", category: "other", icon: UserCog },
-];
-
-// Kockica – stat pločica unutar zelenog heroja (kao na slici)
-function Kockica({
-  label,
-  value,
-  sub,
-  valueYellow,
-  fullHighlight,
-  href,
-}: {
-  label: string;
-  value: string | number;
-  sub: string;
-  valueYellow?: boolean;
-  fullHighlight?: boolean;
-  href?: string;
-}) {
-  const box = (
-    <div
-      className={`flex min-w-[130px] flex-col items-center justify-center rounded-2xl px-5 py-4 text-center
-        ${href ? "cursor-pointer transition-all hover:bg-white/20" : ""}
-        ${fullHighlight ? "bg-[#FFC72C] text-[#1a3826] shadow-lg shadow-amber-500/20" : "bg-white/10 backdrop-blur-sm border border-white/10"}`}
-    >
-      <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${fullHighlight ? "opacity-70" : "text-emerald-100/70"}`}>
-        {label}
-      </span>
-      <span className={`text-2xl font-black ${valueYellow && !fullHighlight ? "text-[#FFC72C]" : fullHighlight ? "" : "text-white"}`}>
-        {value}
-      </span>
-      <span className={`text-xs font-bold mt-0.5 ${fullHighlight ? "opacity-80" : "text-emerald-200/90"}`}>{sub}</span>
-    </div>
-  );
-
-  if (href) {
-    return <Link href={href}>{box}</Link>;
+async function getRecentRules(): Promise<{ id: string; title: string; createdAt: Date }[]> {
+  try {
+    const rules = await prisma.rule.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: { id: true, title: true, createdAt: true },
+    });
+    return rules;
+  } catch {
+    return [];
   }
-  return box;
 }
 
-// Modul kartica – u stilu projekta (Admin, categories)
-function ToolCard({ tool, ctx }: { tool: ToolDef; ctx: DashboardContext }) {
-  const Icon = tool.icon;
-  const badgeText = tool.badge?.(ctx) ?? null;
-  const isAdminTool = tool.id === "admin";
-
-  return (
-    <Link
-      href={tool.href}
-      className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:-translate-y-0.5"
-    >
-      <div className="flex items-start justify-between">
-        <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-colors ${
-            isAdminTool ? "bg-[#1a3826]/10 text-[#1a3826]" : "bg-[#1a3826]/10 text-[#1a3826]"
-          } group-hover:bg-[#1a3826] group-hover:text-white`}
-        >
-          <Icon size={22} strokeWidth={2} />
-        </div>
-        {badgeText && (
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-600">
-            {badgeText}
-          </span>
-        )}
-      </div>
-      <h3 className="mt-5 text-lg font-black text-slate-900 group-hover:text-[#1a3826] transition-colors">
-        {tool.title}
-      </h3>
-      <div className="mt-4 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#1a3826]">
-        Otvori
-        <span className="h-8 w-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-[#1a3826]/5 group-hover:border-[#1a3826]/20 transition-colors">
-          <ArrowRight size={14} className="text-slate-400 group-hover:text-[#1a3826]" />
-        </span>
-      </div>
-    </Link>
-  );
+async function getVacationDaysSummary(userId: string) {
+  const year = new Date().getFullYear();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      vacationEntitlement: true,
+      vacationCarryover: true,
+      vacationAllowances: { where: { year }, select: { days: true } },
+    },
+  });
+  if (!user) return null;
+  const allowance = user.vacationAllowances?.[0]?.days ?? user.vacationEntitlement ?? 20;
+  const total = Math.max(0, allowance) + Math.max(0, user.vacationCarryover ?? 0);
+  const approved = await prisma.vacationRequest.findMany({
+    where: {
+      userId,
+      status: "APPROVED",
+      start: { gte: `${year}-01-01`, lte: `${year}-12-31` },
+    },
+    select: { days: true },
+  });
+  const used = approved.reduce((s, r) => s + r.days, 0);
+  return { total, used, remaining: Math.max(0, total - used) };
 }
 
-function ActivityItem({ label, date, status, dotColor }: { label: string; date?: string; status?: string; dotColor: string }) {
-  return (
-    <div className="flex gap-4">
-      <div className="flex flex-col items-center">
-        <div className={`h-2.5 w-2.5 rounded-full ${dotColor}`} />
-        <div className="my-1 w-px flex-1 bg-slate-200 min-h-[20px]" />
-      </div>
-      <div className="pb-5">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
-        {date && <p className="text-sm font-semibold text-slate-800">{date}</p>}
-        {status && (
-          <p
-            className={`text-xs font-black uppercase ${
-              status === "APPROVED" ? "text-green-600" : status === "REJECTED" ? "text-red-600" : "text-amber-600"
-            }`}
-          >
-            {status}
-          </p>
-        )}
-      </div>
-    </div>
-  );
+async function getPendingApprovalCount(userId: string, role: string, permissions: string[]) {
+  const canApproveAll = GOD_MODE_ROLES.has(role) || hasPermission(role, permissions, "vacation:approve");
+  if (canApproveAll) {
+    return prisma.vacationRequest.count({ where: { status: "PENDING" } });
+  }
+  return prisma.vacationRequest.count({
+    where: { supervisorId: userId, status: "PENDING" },
+  });
 }
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-
-  const userSession = session.user as { id?: string; role?: Role };
-  const userId = userSession.id;
-  if (!userId) redirect("/login");
+  if (!session?.user?.email) redirect("/login");
 
   const dbUser = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      vacations: { orderBy: { createdAt: "desc" }, take: 5 },
-      pdsList: { where: { year: new Date().getFullYear() + 1 }, take: 1 },
-    },
+    where: { email: session.user.email },
+    select: { id: true, name: true, role: true, permissions: true },
   });
-
   if (!dbUser) redirect("/login");
 
-  const effectiveRole = (userSession.role ?? dbUser.role) as Role;
-  const isAdmin = ADMIN_ROLES.has(effectiveRole);
-  const totalPendingAdmin = isAdmin ? await prisma.vacationRequest.count({ where: { status: "PENDING" } }) : 0;
-  const perms = dbUser.permissions || [];
+  const [recentRules, highlights, vacationSummary, pendingApprovalCount] = await Promise.all([
+    getRecentRules(),
+    getDashboardHighlights(),
+    getVacationDaysSummary(dbUser.id),
+    getPendingApprovalCount(dbUser.id, String(dbUser.role), dbUser.permissions ?? []),
+  ]);
 
-  const currentPDS = dbUser.pdsList?.[0];
-  const pdsScore = currentPDS?.totalScore ?? 0;
-  const pdsStatus = currentPDS?.status ?? "Nije započeto";
-
-  const totalVacation = (dbUser.vacationEntitlement || 0) + (dbUser.vacationCarryover || 0);
-  const usedVacation = (dbUser.vacations || []).filter((v) => v.status === "APPROVED").reduce((acc, v) => acc + v.days, 0);
-  const vacationLeft = totalVacation - usedVacation;
-  const pendingMine = (dbUser.vacations || []).filter((v) => v.status === "PENDING").length;
-
-  const ctx: DashboardContext = { isAdmin, vacationLeft, pendingMine, totalPendingAdmin, pdsScore, pdsStatus };
-
-  const visibleTools = TOOLS.filter((t) => {
-    if (t.adminOnly && !isAdmin) return false;
-    return canAccess(isAdmin, perms, t.permissionKey);
-  });
-
-  const userFirstName = (dbUser.name || "Korisnik").split(" ")[0];
-  const vacations = dbUser.vacations || [];
-  const hasPending = (isAdmin ? totalPendingAdmin : pendingMine) > 0;
+  const quickActions = getAllowedQuickActions(
+    String(dbUser.role),
+    dbUser.permissions ?? []
+  );
+  const greeting = getGreeting();
+  const firstName = (dbUser.name || (session.user as { name?: string }).name || "Korisnik").split(" ")[0];
+  const roleLabel = String(dbUser.role || "CREW");
+  const showApprovalCard = GOD_MODE_ROLES.has(String(dbUser.role)) ||
+    hasPermission(String(dbUser.role), dbUser.permissions ?? [], "vacation:approve") ||
+    pendingApprovalCount > 0;
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#F8FAFC] font-sans text-slate-800">
-      <main className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
-        {/* Hero – zelena kartica sa kockicama */}
-        <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#1a3826] p-5 md:p-10 shadow-2xl shadow-emerald-900/20">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-20 -mb-20" />
-
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-8">
-            <div className="max-w-xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-1.5 text-xs font-bold text-[#FFC72C] mb-4">
-                <Sparkles size={14} />
-                Sistem aktivan
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-800">
+      <header className="bg-[#1a3826] text-white">
+        <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
+          <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#1a3826]">
+            <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full blur-3xl -mr-24 -mt-24" />
+            <div className="absolute bottom-0 left-0 w-56 h-56 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-20 -mb-20" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6 pr-2">
+              <div className="min-w-0 pl-1">
+                <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white leading-tight">
+                  {greeting},{" "}
+                  <span className="text-[#FFC72C]">{firstName}</span>
+                  <span className="ml-3 inline-flex items-center align-middle">
+                    <span className="rounded-lg bg-[#FFC72C] px-3 py-1 text-sm font-bold text-[#1a3826] shadow-sm">
+                      {roleLabel}
+                    </span>
+                  </span>
+                </h1>
+                <p className="mt-3 text-base font-medium text-emerald-100/90 pl-4 md:pl-5">
+                  Operativni pregled i brzi pristup modulima.
+                </p>
               </div>
-
-              <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-tight">
-                Dobrodošao, <span className="text-[#FFC72C]">{userFirstName}</span>.
-              </h1>
-
-              <p className="mt-4 text-lg font-medium text-emerald-100/90">
-                Imate <strong className="text-white">{pendingMine}</strong> zahtjeva na čekanju i trenutni PDS skor{" "}
-                <strong className="text-white">{pdsScore}</strong>.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-4">
-              <Kockica label="Godišnji" value={vacationLeft} sub="Dana ostalo" />
-              <Kockica label="PDS Skor" value={pdsScore} sub={pdsStatus} valueYellow />
-              {isAdmin && (
-                <Kockica
-                  label="Zahtjevi"
-                  value={totalPendingAdmin}
-                  sub="Na čekanju"
-                  fullHighlight={totalPendingAdmin > 0}
-                  href="/dashboard/zahtjevi"
-                />
-              )}
-              {!isAdmin && hasPending && (
-                <Kockica label="Zahtjevi" value={pendingMine} sub="Na čekanju" href="/dashboard/zahtjevi" />
+              {showApprovalCard && (
+                <Link
+                  href="/tools/vacations"
+                  className={`shrink-0 flex items-center gap-3 rounded-xl px-4 py-3 border-2 transition-colors ${
+                    pendingApprovalCount > 0
+                      ? "bg-red-500/20 border-red-400 text-white hover:bg-red-500/30"
+                      : "bg-white/10 border-white/30 text-white hover:bg-white/20"
+                  }`}
+                >
+                  <ClipboardCheck size={22} className="shrink-0" />
+                  <div className="text-left">
+                    <p className="text-xs font-semibold opacity-90">Zahtjevi za odobravanje</p>
+                    <p className="text-sm font-bold">
+                      {pendingApprovalCount > 0
+                        ? `${pendingApprovalCount} zahtjev(a) čeka`
+                        : "Nema na čekanju"}
+                    </p>
+                  </div>
+                  {pendingApprovalCount > 0 && (
+                    <span className="rounded-full bg-white text-red-600 w-7 h-7 flex items-center justify-center text-sm font-black">
+                      {pendingApprovalCount}
+                    </span>
+                  )}
+                </Link>
               )}
             </div>
           </div>
-
-          {hasPending && (
-            <Link
-              href="/dashboard/zahtjevi"
-              className="relative z-10 mt-6 flex items-center justify-between rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-white/20"
-            >
-              <span>Pregledaj zahtjeve na čekanju</span>
-              <ChevronRight size={18} />
-            </Link>
-          )}
         </div>
+      </header>
 
-        {/* Moduli + Aktivnost */}
-        <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_300px]">
-          <div>
-            <h2 className="mb-5 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-600">
-              <LayoutGrid size={18} className="text-[#1a3826]" />
-              Moduli
-            </h2>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleTools.map((t) => (
-                <ToolCard key={t.id} tool={t} ctx={ctx} />
-              ))}
-            </div>
+      <main className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Godišnji odmor – gore, prva kartica */}
+          <div className="lg:col-span-4">
+            <Card className="border-slate-200 bg-white shadow-sm rounded-xl overflow-hidden h-full">
+              <CardHeader className="pb-2 px-6">
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <CalendarDays size={18} className="text-[#1a3826]" />
+                  Godišnji odmor
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-6 pb-6 pt-0">
+                {vacationSummary ? (
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                    <span className="text-2xl font-black text-[#1a3826] tabular-nums">
+                      {vacationSummary.remaining} <span className="text-sm font-semibold text-slate-600">dana preostalo</span>
+                    </span>
+                    <span className="text-sm text-slate-500">
+                      (ukupno {vacationSummary.total}, iskorišteno {vacationSummary.used})
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">Podaci nisu dostupni.</p>
+                )}
+                <Link
+                  href="/tools/vacations"
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#1a3826] hover:underline"
+                >
+                  Otvori godišnje <ChevronRight size={14} />
+                </Link>
+              </CardContent>
+            </Card>
           </div>
-
-          <div>
-            <h2 className="mb-5 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-slate-600">
-              <Activity size={18} className="text-[#1a3826]" />
-              Nedavna aktivnost
-            </h2>
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <ActivityItem label="PDS" date={pdsStatus} dotColor="bg-[#1a3826]" />
-              {vacations.map((v) => (
-                <ActivityItem
-                  key={v.id}
-                  label="Zahtjev za odmor"
-                  date={formatDate(new Date(v.start))}
-                  status={v.status}
-                  dotColor={
-                    v.status === "APPROVED" ? "bg-green-500" : v.status === "REJECTED" ? "bg-red-500" : "bg-amber-500"
-                  }
-                />
-              ))}
-              {vacations.length === 0 && <p className="text-xs font-semibold text-slate-500">Nema nedavne aktivnosti.</p>}
-            </div>
+          <div className="lg:col-span-8">
+            <QuickActionsCard actions={quickActions} />
+          </div>
+          <div className="lg:col-span-4">
+            <LiveStatusCard />
+          </div>
+          {/* Moduli dodani iz admin panela – kao ikonice (mjesto gdje su bili zahtjevi) */}
+          <div className="lg:col-span-8">
+            <Card className="border-slate-200 bg-white shadow-sm rounded-xl overflow-hidden">
+              <CardHeader className="pb-2 px-6">
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Sparkles size={18} className="text-[#FFC72C]" />
+                  Moduli na stranici
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-6 pb-6 pt-0">
+                {highlights.length > 0 ? (
+                  <DashboardModuleIcons highlights={highlights} />
+                ) : (
+                  <p className="text-sm text-slate-500 py-2">Nema dodanih modula. Admin ih može dodati u Admin panelu.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          <div className="lg:col-span-12">
+            <Card className="border-slate-200 bg-white shadow-sm rounded-xl overflow-hidden">
+              <CardHeader className="pb-2 px-6">
+                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Bell size={18} className="text-[#1a3826]" />
+                  Obavijesti / Pravila
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-6 pb-6 pt-0">
+                {recentRules.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                    <FileText size={40} className="text-slate-300 mb-3" />
+                    <p className="text-sm font-semibold text-slate-500">Nema novih obavijesti</p>
+                    <p className="text-xs text-slate-400 mt-1">Ovdje će se prikazivati zadnja pravila i obavijesti.</p>
+                    <Link
+                      href="/tools/rules"
+                      className="mt-4 text-sm font-bold text-[#1a3826] hover:underline inline-flex items-center gap-1"
+                    >
+                      Otvori Pravila <ChevronRight size={14} />
+                    </Link>
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {recentRules.map((rule) => (
+                      <li key={rule.id}>
+                        <Link
+                          href={`/tools/rules/${rule.id}`}
+                          className="flex items-center justify-between gap-4 p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-[#1a3826]/5 hover:border-[#1a3826]/20 transition-colors group"
+                        >
+                          <span className="text-sm font-semibold text-slate-800 group-hover:text-[#1a3826] truncate">
+                            {rule.title}
+                          </span>
+                          <span className="text-xs font-medium text-slate-500 shrink-0">
+                            {formatDateDDMMGGGG(rule.createdAt)}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>

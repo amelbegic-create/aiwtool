@@ -1,20 +1,20 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
-import IdleLogout from "./IdleLogout";
+import AutoLogout from "./AutoLogout";
 
 type Props = {
   children: React.ReactNode;
   hasSession?: boolean;
 };
 
-export default function AuthProvider({ children, hasSession }: Props) {
+export default function AuthProvider({ children }: Props) {
   return (
     <SessionProvider
       refetchInterval={5 * 60}
       refetchOnWindowFocus={false}
     >
-      {hasSession && <IdleLogout timeoutMs={10 * 60 * 1000} />}
+      <AutoLogout />
       {children}
     </SessionProvider>
   );

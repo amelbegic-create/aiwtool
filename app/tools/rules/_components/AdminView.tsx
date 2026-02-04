@@ -30,7 +30,9 @@ import {
   Code,
   Link as LinkIcon,
   SplitSquareVertical,
+  BarChart3,
 } from "lucide-react";
+import RuleStatsModal from "./RuleStatsModal";
 import {
   saveRule,
   deleteRule,
@@ -452,6 +454,7 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
   const [newPdfFiles, setNewPdfFiles] = useState<File[]>([]);
   const [existingPdfUrls, setExistingPdfUrls] = useState<string[]>([]);
   const [newCatName, setNewCatName] = useState("");
+  const [statsRule, setStatsRule] = useState<{ id: string; title: string } | null>(null);
 
   // --- HANDLERS (funkcionalnost ista) ---
   const handleEdit = (rule: any) => {
@@ -709,6 +712,13 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
                   <div className="col-span-2 text-right">
                     <div className="flex justify-end gap-2">
                       <button
+                        onClick={() => setStatsRule({ id: rule.id, title: rule.title })}
+                        className="p-2 bg-[#1a3826]/10 hover:bg-[#1a3826]/20 text-[#1a3826] rounded-lg transition-colors"
+                        title="Statistika čitanja"
+                      >
+                        <BarChart3 size={18} />
+                      </button>
+                      <button
                         onClick={() => handleEdit(rule)}
                         className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
                         title="Uredi"
@@ -757,7 +767,14 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
                   </button>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-slate-200 flex gap-2">
+                <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setStatsRule({ id: rule.id, title: rule.title })}
+                    className="flex items-center gap-2 bg-[#1a3826]/10 hover:bg-[#1a3826]/20 text-[#1a3826] py-2.5 px-4 rounded-xl text-xs font-black uppercase transition-colors"
+                    title="Statistika"
+                  >
+                    <BarChart3 size={16} /> Statistika
+                  </button>
                   <button
                     onClick={() => handleEdit(rule)}
                     className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-black uppercase transition-colors"
@@ -775,6 +792,15 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
               </div>
             ))}
           </div>
+        )}
+
+        {statsRule && (
+          <RuleStatsModal
+            ruleId={statsRule.id}
+            ruleTitle={statsRule.title}
+            open={true}
+            onClose={() => setStatsRule(null)}
+          />
         )}
 
         {/* --- RULE MODAL (VELIKI, MODERAN, JASAN) --- */}

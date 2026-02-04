@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use server";
 
 import prisma from "@/lib/prisma";
@@ -6,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { revalidatePath } from "next/cache";
 import { RulePriority, RuleStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { put } from "@vercel/blob";
 
 export interface RuleFormData {
@@ -16,8 +16,21 @@ export interface RuleFormData {
   content: string;
   videoUrl?: string;
   pdfUrls: string[];
+  imageUrl?: string | null;
   isGlobal: boolean;
   restaurantIds: string[];
+}
+
+export interface RuleStatsUser {
+  id: string;
+  name: string | null;
+  email: string | null;
+  readAt?: string;
+}
+
+export interface RuleStatsResult {
+  read: RuleStatsUser[];
+  unread: RuleStatsUser[];
 }
 
 async function checkAdmin() {
@@ -66,7 +79,7 @@ export async function getRules(restaurantId?: string) {
   const isBoss = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role as string);
 
   const statusFilter = isBoss ? {} : { isActive: true };
-  let whereClause: any = { ...statusFilter };
+  let whereClause: Prisma.RuleWhereInput = { ...statusFilter };
 
   if (!isBoss) {
     const userRestaurantIds = user.restaurants.map(r => r.restaurantId);
@@ -98,11 +111,14 @@ export async function getRules(restaurantId?: string) {
     orderBy: { createdAt: 'desc' }
   });
 
-  return rules.map((r: any) => ({
+  type RuleWithMeta = (typeof rules)[number] & { isRead: boolean };
+  return rules.map((r): RuleWithMeta => ({
     ...r,
-    isRead: r.readReceipts && r.readReceipts.length > 0
+    isRead: r.readReceipts != null && r.readReceipts.length > 0,
   }));
 }
+
+export type RuleListItem = Awaited<ReturnType<typeof getRules>>[number];
 
 export async function saveRule(data: RuleFormData, imageUrls: string[] = []) {
     const user = await checkAdmin();
@@ -113,6 +129,7 @@ export async function saveRule(data: RuleFormData, imageUrls: string[] = []) {
         priority: data.priority,
         videoUrl: data.videoUrl,
         pdfUrls: data.pdfUrls,
+        imageUrl: data.imageUrl ?? undefined,
         isGlobal: data.isGlobal,
         categoryId: data.categoryId,
     };
@@ -150,6 +167,7 @@ export async function saveRule(data: RuleFormData, imageUrls: string[] = []) {
         }
     }
     revalidatePath('/tools/rules');
+    revalidatePath('/admin/rules');
     return { success: true };
 }
 
@@ -157,12 +175,14 @@ export async function toggleRuleStatus(id: string, currentStatus: boolean) {
     await checkAdmin();
     await prisma.rule.update({ where: { id }, data: { isActive: !currentStatus } });
     revalidatePath('/tools/rules');
+    revalidatePath('/admin/rules');
 }
 
 export async function deleteRule(id: string) {
     await checkAdmin();
     await prisma.rule.delete({ where: { id } });
     revalidatePath('/tools/rules');
+    revalidatePath('/admin/rules');
 }
 
 export async function markRuleAsRead(ruleId: string) {
@@ -175,6 +195,51 @@ export async function markRuleAsRead(ruleId: string) {
         await prisma.ruleReadReceipt.create({ data: { ruleId, userId: user.id } });
         revalidatePath('/tools/rules');
     } catch (_e) {} 
+}
+
+export async function getRuleStats(ruleId: string): Promise<RuleStatsResult> {
+  await checkAdmin();
+  const rule = await prisma.rule.findUnique({
+    where: { id: ruleId },
+    include: { readReceipts: { include: { user: { select: { id: true, name: true, email: true } } } }, restaurants: true },
+  });
+  if (!rule) return { read: [], unread: [] };
+
+  const readUserIds = new Set(rule.readReceipts.map((r) => r.userId));
+  const read: RuleStatsUser[] = rule.readReceipts.map((r) => ({
+    id: r.user.id,
+    name: r.user.name,
+    email: r.user.email,
+    readAt: r.readAt.toISOString(),
+  }));
+
+  if (rule.isGlobal) {
+    const allUsers = await prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, email: true },
+    });
+    const unread = allUsers.filter((u) => !readUserIds.has(u.id)).map((u) => ({ id: u.id, name: u.name, email: u.email }));
+    return { read, unread };
+  }
+
+  const restaurantIds = rule.restaurants.map((rr) => rr.restaurantId);
+  const relations = await prisma.restaurantUser.findMany({
+    where: { restaurantId: { in: restaurantIds } },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+  const unreadUserIds = new Map<string, { id: string; name: string | null; email: string | null }>();
+  for (const r of relations) {
+    if (!readUserIds.has(r.userId)) unreadUserIds.set(r.userId, r.user);
+  }
+  const unread = Array.from(unreadUserIds.values());
+  return { read, unread };
+}
+
+export async function getRuleStatsSummary(ruleId: string): Promise<{ readCount: number; totalCount: number }> {
+  const result = await getRuleStats(ruleId);
+  const readCount = result.read.length;
+  const totalCount = result.read.length + result.unread.length;
+  return { readCount, totalCount };
 }
 
 export async function uploadFile(formData: FormData) {
