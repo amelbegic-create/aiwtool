@@ -180,16 +180,18 @@ model RolePermissionPreset {
 
 // --- PDS ---
 model PDSTemplate {
-  id           String     @id @default(cuid())
+  id           String       @id @default(cuid())
+  title        String       // Naziv PDS obrasca (npr. "PDS 2025")
   year         Int
-  restaurantId String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  goals        Json
-  scale        Json
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  isGlobal     Boolean      @default(false) // true = svi restorani
+  isActive     Boolean      @default(true)
+  goals        Json         // Pitanja/ciljevi (PDSGoal[])
+  scale        Json         // Skala ocjenjivanja (PDSScaleLevel[])
+  restaurants  Restaurant[] // Ciljani restorani (prazno ako isGlobal)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  @@unique([year, restaurantId])
+  @@index([year])
 }
 
 model PDS {
@@ -236,7 +238,7 @@ model Restaurant {
   productivityReports ProductivityReport[]
   laborReports        LaborReport[]
   vacationRequests    VacationRequest[]
-  pdsTemplates        PDSTemplate[]
+  pdsTemplates        PDSTemplate[] // Many-to-many: PDS obrasci koji ciljaju ovaj restoran
   pdsList             PDS[]
 
   createdAt           DateTime             @default(now())

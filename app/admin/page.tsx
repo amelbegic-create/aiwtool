@@ -1,14 +1,15 @@
 import { tryRequirePermission } from "@/lib/access";
 import Link from "next/link";
-import { Users, Building2, ShieldCheck, BookOpen, LayoutDashboard } from "lucide-react";
+import { Users, Building2, ShieldCheck, BookOpen, LayoutDashboard, ClipboardList } from "lucide-react";
 import NoPermission from "@/components/NoPermission";
 
 export default async function AdminHome() {
   const usersAccess = await tryRequirePermission("users:access");
   const restaurantsAccess = usersAccess.ok ? usersAccess : await tryRequirePermission("restaurants:access");
   const rulesAccess = await tryRequirePermission("rules:access");
+  const pdsAccess = await tryRequirePermission("pds:access");
 
-  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok;
+  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok || pdsAccess.ok;
   if (!hasAnyAdminAccess) {
     return <NoPermission moduleName="Admin panel" />;
   }
@@ -47,6 +48,17 @@ export default async function AdminHome() {
             href: "/admin/rules",
             icon: BookOpen,
             tag: "Pravila",
+          },
+        ]
+      : []),
+    ...(pdsAccess.ok
+      ? [
+          {
+            title: "PDS obrasci",
+            desc: "Kreiranje i upravljanje PDS obrascima za jedan, više ili sve restorane.",
+            href: "/admin/pds",
+            icon: ClipboardList,
+            tag: "PDS",
           },
         ]
       : []),

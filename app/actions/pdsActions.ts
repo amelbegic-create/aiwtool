@@ -2,7 +2,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { PDSStatus } from '@prisma/client';
+import { PDSStatus, Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
@@ -36,20 +36,59 @@ function getFinalGradeFromScale(totalScore: number, scale: PDSScaleLevel[] | nul
   return level ? level.label : null;
 }
 
-/** Kreiraj ili ažuriraj template za odabrane restorane; generiše PDS za zaposlenike. */
-export async function createTemplate(
-  year: number,
-  restaurantIds: string[],
-  goals: PDSGoal[],
-  scale: PDSScaleLevel[],
-  managerId: string
+type RestaurantSelect = { id: string; name: string | null; code: string };
+type TemplateWithRestaurants = { id: string; title: string; year: number; isGlobal: boolean; isActive: boolean; goals: Prisma.JsonValue; scale: Prisma.JsonValue; createdAt: Date; restaurants: RestaurantSelect[] };
+
+/** Lista svih PDS templatea za Admin (za listu u /admin/pds). */
+export async function listPDSTemplatesForAdmin() {
+  await requirePdsCreateRole();
+  const list = await db.pDSTemplate.findMany({
+    orderBy: [{ year: 'desc' }, { createdAt: 'desc' }],
+    include: { restaurants: { select: { id: true, name: true, code: true } } }
+  }) as TemplateWithRestaurants[];
+  return list.map((t) => ({
+    id: t.id,
+    title: t.title,
+    year: t.year,
+    isGlobal: t.isGlobal,
+    isActive: t.isActive,
+    goals: t.goals,
+    scale: t.scale,
+    restaurantIds: t.restaurants.map((r: RestaurantSelect) => r.id),
+    restaurantNames: t.restaurants.map((r: RestaurantSelect) => r.name || r.code || r.id),
+    createdAt: t.createdAt
+  }));
+}
+
+/** Jedan PDS template po ID (za edit formu). */
+export async function getPDSTemplateById(id: string) {
+  await requirePdsCreateRole();
+  const t = await prisma.pDSTemplate.findUnique({
+    where: { id },
+    include: { restaurants: { select: { id: true, name: true, code: true } } }
+  });
+  if (!t) return null;
+  return {
+    id: t.id,
+    title: t.title,
+    year: t.year,
+    isGlobal: t.isGlobal,
+    isActive: t.isActive,
+    goals: t.goals as PDSGoal[],
+    scale: t.scale as PDSScaleLevel[],
+    restaurantIds: t.restaurants.map((r) => r.id),
+    restaurantNames: t.restaurants.map((r) => r.name || r.code || r.id)
+  };
+}
+
+/** Ažuriraj postojeći PDS template (ciljani restorani + pitanja). */
+export async function updatePDSTemplate(
+  id: string,
+  params: { title: string; year: number; isGlobal: boolean; restaurantIds: string[]; goals: PDSGoal[]; scale: PDSScaleLevel[] }
 ) {
   try {
-    let targetRestaurantIds = restaurantIds;
-    if (targetRestaurantIds.length === 0 || targetRestaurantIds.includes('all')) {
-      const all = await prisma.restaurant.findMany({ where: { isActive: true }, select: { id: true } });
-      targetRestaurantIds = all.map((r) => r.id);
-    }
+    await requirePdsCreateRole();
+    const { title, year, isGlobal, restaurantIds, goals, scale } = params;
 
     const cleanGoals = goals.map((g) => ({
       ...g,
@@ -58,13 +97,110 @@ export async function createTemplate(
       points: 0
     }));
 
-    for (const restaurantId of targetRestaurantIds) {
-      await db.pDSTemplate.upsert({
-        where: { year_restaurantId: { year, restaurantId } },
-        update: { goals: cleanGoals, scale },
-        create: { year, restaurantId, goals: cleanGoals, scale }
-      });
+    let targetRestaurantIds: string[] = [];
+    if (isGlobal) {
+      const all = await prisma.restaurant.findMany({ where: { isActive: true }, select: { id: true } });
+      targetRestaurantIds = all.map((r) => r.id);
+    } else {
+      targetRestaurantIds = restaurantIds.filter(Boolean);
+      if (targetRestaurantIds.length === 0) {
+        return { success: false as const, error: 'Odaberite barem jedan restoran ili uključite "Svi restorani".' };
+      }
     }
+
+    await db.pDSTemplate.update({
+      where: { id },
+      data: {
+        title: title.trim() || `PDS ${year}`,
+        year,
+        isGlobal,
+        goals: cleanGoals as unknown as Prisma.InputJsonValue,
+        scale: scale as unknown as Prisma.InputJsonValue,
+        restaurants: { set: targetRestaurantIds.map((rid) => ({ id: rid })) }
+      }
+    });
+
+    revalidatePath('/admin/pds');
+    revalidatePath('/tools/PDS');
+    return { success: true as const };
+  } catch (error) {
+    console.error('updatePDSTemplate Error:', error);
+    return { success: false as const, error: 'Greška na serveru.' };
+  }
+}
+
+/** Obriši PDS template (ne briše postojeće PDS zapisnike). */
+export async function deletePDSTemplate(id: string) {
+  try {
+    await requirePdsCreateRole();
+    await db.pDSTemplate.delete({ where: { id } });
+    revalidatePath('/admin/pds');
+    revalidatePath('/tools/PDS');
+    return { success: true as const };
+  } catch {
+    return { success: false as const, error: 'Greška pri brisanju.' };
+  }
+}
+
+/** Dohvati template za restoran i godinu (za prikaz radniku): isGlobal ILI restoran u listi. */
+export async function getTemplateForRestaurantAndYear(restaurantId: string, year: number) {
+  const template = await db.pDSTemplate.findFirst({
+    where: {
+      year,
+      isActive: true,
+      OR: [
+        { isGlobal: true },
+        { restaurants: { some: { id: restaurantId } } }
+      ]
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+  return template;
+}
+
+/** Kreiraj novi PDS obrazac (jedan red) i generiši PDS za sve ciljane restorane. */
+export async function createPDSTemplate(params: {
+  title: string;
+  year: number;
+  isGlobal: boolean;
+  restaurantIds: string[];
+  goals: PDSGoal[];
+  scale: PDSScaleLevel[];
+  managerId: string;
+}) {
+  try {
+    await requirePdsCreateRole();
+    const { title, year, isGlobal, restaurantIds, goals, scale, managerId } = params;
+
+    const cleanGoals = goals.map((g) => ({
+      ...g,
+      type: g.type || 'NUMERIC',
+      result: g.type === 'BOOLEAN' ? false : '',
+      points: 0
+    }));
+
+    let targetRestaurantIds: string[] = [];
+    if (isGlobal) {
+      const all = await prisma.restaurant.findMany({ where: { isActive: true }, select: { id: true } });
+      targetRestaurantIds = all.map((r) => r.id);
+    } else {
+      targetRestaurantIds = restaurantIds.filter(Boolean);
+      if (targetRestaurantIds.length === 0) {
+        return { success: false as const, error: 'Odaberite barem jedan restoran ili uključite "Svi restorani".' };
+      }
+    }
+
+    const template = await db.pDSTemplate.create({
+      data: {
+        title: title.trim() || `PDS ${year}`,
+        year,
+        isGlobal,
+        isActive: true,
+        goals: cleanGoals as unknown as Prisma.InputJsonValue,
+        scale: scale as unknown as Prisma.InputJsonValue,
+        restaurants: { connect: targetRestaurantIds.map((id) => ({ id })) }
+      }
+    });
 
     const restaurantUsers = await prisma.restaurantUser.findMany({
       where: { restaurantId: { in: targetRestaurantIds }, user: { isActive: true } },
@@ -81,7 +217,7 @@ export async function createTemplate(
 
     let count = 0;
     for (const [userId, restaurantId] of userToRestaurant) {
-      const existingPDS = await db.pDS.findUnique({
+      const existingPDS = await prisma.pDS.findUnique({
         where: { userId_year: { userId, year } }
       });
 
@@ -92,26 +228,49 @@ export async function createTemplate(
             managerId,
             restaurantId,
             year,
+            templateId: template.id,
             status: 'DRAFT',
-            goals: cleanGoals,
-            scale
+            goals: cleanGoals as unknown as Prisma.InputJsonValue,
+            scale: scale as unknown as Prisma.InputJsonValue
           }
         });
         count++;
       } else if (['DRAFT', 'OPEN', 'RETURNED', 'IN_PROGRESS'].includes(existingPDS.status)) {
         await db.pDS.update({
           where: { id: existingPDS.id },
-          data: { goals: cleanGoals, scale, restaurantId }
+          data: { goals: cleanGoals as unknown as Prisma.InputJsonValue, scale: scale as unknown as Prisma.InputJsonValue, restaurantId, templateId: template.id }
         });
       }
     }
 
     revalidatePath('/tools/PDS');
-    return { success: true, count };
+    revalidatePath('/admin/pds');
+    return { success: true as const, templateId: template.id, count };
   } catch (error) {
-    console.error('createTemplate Error:', error);
-    return { success: false, error: 'Greška na serveru.' };
+    console.error('createPDSTemplate Error:', error);
+    return { success: false as const, error: 'Greška na serveru.' };
   }
+}
+
+/** Kreiraj ili ažuriraj template za odabrane restorane; generiše PDS za zaposlenike. (Legacy / iz SettingsModal.) */
+export async function createTemplate(
+  year: number,
+  restaurantIds: string[],
+  goals: PDSGoal[],
+  scale: PDSScaleLevel[],
+  managerId: string
+) {
+  const isGlobal = restaurantIds.length === 0 || restaurantIds.includes('all');
+  const list = await createPDSTemplate({
+    title: `PDS ${year}`,
+    year,
+    isGlobal,
+    restaurantIds: isGlobal ? [] : restaurantIds,
+    goals,
+    scale,
+    managerId
+  });
+  return list;
 }
 
 export async function savePDSTemplate(
@@ -137,14 +296,12 @@ export async function createBulkPDS(year: number, managerId: string) {
     const restaurantId = await getActiveRestaurantId();
     if (!restaurantId) return { success: false, error: 'Nije odabran restoran!' };
 
-    const tpl = await db.pDSTemplate.findUnique({
-      where: { year_restaurantId: { year, restaurantId } }
-    });
+    const tpl = await getTemplateForRestaurantAndYear(restaurantId, year);
 
     if (!tpl) return { success: false, error: 'Nema PDS template-a za ovu godinu i restoran.' };
 
-    const goals: PDSGoal[] = tpl.goals || [];
-    const scale: PDSScaleLevel[] = tpl.scale || [];
+    const goals: PDSGoal[] = (tpl.goals ?? []) as unknown as PDSGoal[];
+    const scale: PDSScaleLevel[] = (tpl.scale ?? []) as unknown as PDSScaleLevel[];
 
     const restaurantUsers = await prisma.restaurantUser.findMany({
       where: { restaurantId, user: { isActive: true } },
@@ -177,15 +334,15 @@ export async function createBulkPDS(year: number, managerId: string) {
             restaurantId,
             year,
             status: 'DRAFT',
-            goals: cleanGoals,
-            scale
+            goals: cleanGoals as unknown as Prisma.InputJsonValue,
+            scale: scale as unknown as Prisma.InputJsonValue
           }
         });
         count++;
       } else if (['DRAFT', 'OPEN', 'RETURNED', 'IN_PROGRESS'].includes(existingPDS.status)) {
         await db.pDS.update({
           where: { id: existingPDS.id },
-          data: { goals: cleanGoals, scale }
+          data: { goals: cleanGoals as unknown as Prisma.InputJsonValue, scale: scale as unknown as Prisma.InputJsonValue }
         });
       }
     }

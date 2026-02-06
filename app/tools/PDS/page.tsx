@@ -9,6 +9,7 @@ import PDSListClient from './components/PDSListClient';
 import { cookies } from 'next/headers';
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
+import { getTemplateForRestaurantAndYear } from '@/app/actions/pdsActions';
 
 const db = prisma as any;
 
@@ -55,9 +56,7 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
     orderBy: { name: 'asc' }
   });
 
-  const template = await db.pDSTemplate.findUnique({ 
-      where: { year_restaurantId: { year: selectedYear, restaurantId: allowedRestaurantId } } 
-  });
+  const template = await getTemplateForRestaurantAndYear(allowedRestaurantId, selectedYear);
   
   const pdsList = await db.pDS.findMany({
     where: isManagerView
