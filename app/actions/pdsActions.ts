@@ -74,8 +74,8 @@ export async function getPDSTemplateById(id: string) {
     year: t.year,
     isGlobal: t.isGlobal,
     isActive: t.isActive,
-    goals: t.goals as PDSGoal[],
-    scale: t.scale as PDSScaleLevel[],
+    goals: (t.goals ?? []) as unknown as PDSGoal[],
+    scale: (t.scale ?? []) as unknown as PDSScaleLevel[],
     restaurantIds: t.restaurants.map((r) => r.id),
     restaurantNames: t.restaurants.map((r) => r.name || r.code || r.id)
   };
