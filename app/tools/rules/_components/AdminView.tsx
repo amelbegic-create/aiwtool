@@ -424,7 +424,8 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
   const router = useRouter();
 
   // (ne diram funkcionalnost; ostavljam state kako je bio)
-  const [_rules, _setRules] = useState(initialRules);
+  const [rulesState] = useState(initialRules);
+  void rulesState;
 
   const [viewMode, setViewMode] = useState<"TABLE" | "GRID">("TABLE");
   const [searchQuery, setSearchQuery] = useState("");

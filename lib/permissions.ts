@@ -74,6 +74,15 @@ export const PERMISSIONS: PermissionGroup[] = [
     ],
   },
   {
+    id: "bonus",
+    title: "Bonusi",
+    subtitle: "Godišnji bonus obračun i podešavanja",
+    items: [
+      { key: "bonus:access", label: "Pristup bonus modulu" },
+      { key: "bonus:manage", label: "Upravljanje postavkama bonusa" },
+    ],
+  },
+  {
     id: "admin",
     title: "Admin",
     subtitle: "Korisnici, restorani, permisije i sistem",

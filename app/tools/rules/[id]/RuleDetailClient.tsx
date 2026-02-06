@@ -103,7 +103,7 @@ function toYoutubeEmbed(url: string) {
   }
 }
 
-export default function RuleDetailClient({ rule, userId }: { rule: RuleDetailRule; userId: string }) {
+export default function RuleDetailClient({ rule, userId: _userId }: { rule: RuleDetailRule; userId: string }) {
   const router = useRouter();
   const [isRead, setIsRead] = useState(rule.isRead);
   const [isMarking, setIsMarking] = useState(false);
@@ -166,23 +166,27 @@ export default function RuleDetailClient({ rule, userId }: { rule: RuleDetailRul
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 flex gap-6 flex-col lg:flex-row">
+      <div className="max-w-5xl mx-auto px-4 py-5 flex gap-6 flex-col lg:flex-row">
         {/* Glavni sadržaj */}
-        <div className="flex-1 min-w-0 space-y-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight">
+        <div className="flex-1 min-w-0 space-y-5">
+          {/* Naslov i meta na vrhu – čisto i uredno */}
+          <header className="border-b border-slate-200 pb-4">
+            <h1 className="text-xl md:text-2xl font-bold text-[#1a3826] leading-tight">
               {rule.title}
             </h1>
-            <p className="mt-2 text-sm text-slate-500 flex items-center gap-3 flex-wrap">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+              {rule.category?.name && (
+                <span className="font-medium text-slate-600">{rule.category.name}</span>
+              )}
               <span className="inline-flex items-center gap-1">
-                <Calendar size={14} />
+                <Calendar size={12} />
                 {fmtDate(rule.createdAt)}
               </span>
               {rule.updatedAt && (
-                <span className="text-slate-400">Ažurirano: {fmtDate(rule.updatedAt)}</span>
+                <span>Ažurirano: {fmtDate(rule.updatedAt)}</span>
               )}
-            </p>
-          </div>
+            </div>
+          </header>
 
           <div
             className="prose prose-slate max-w-none prose-p:text-slate-700 prose-p:text-sm prose-headings:text-slate-900 prose-headings:font-bold prose-a:text-[#1a3826] prose-strong:text-slate-900 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"

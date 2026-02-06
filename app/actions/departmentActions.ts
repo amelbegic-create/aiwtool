@@ -49,3 +49,47 @@ export async function createDepartment(input: CreateDepartmentInput) {
   revalidatePath("/admin/users/create");
   return { success: true as const, data: created };
 }
+
+type UpdateDepartmentInput = {
+  id: string;
+  name: string;
+  color: string;
+  restaurantId?: string | null;
+};
+
+/** Ažuriraj odjel. */
+export async function updateDepartment(input: UpdateDepartmentInput) {
+  await requirePermission("users:manage");
+
+  const name = (input.name || "").trim();
+  if (!name) throw new Error("Naziv odjela je obavezan.");
+
+  const color = (input.color || "#6b7280").trim();
+  if (!/^#[0-9A-Fa-f]{6}$/.test(color)) throw new Error("Boja mora biti HEX (npr. #ff0000).");
+
+  await prisma.department.update({
+    where: { id: input.id },
+    data: {
+      name,
+      color,
+      restaurantId: input.restaurantId ?? null,
+    },
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/users/create");
+  return { success: true as const };
+}
+
+/** Obriši odjel. Korisnici koji su bili na ovom odjelu ostaju bez departmentId. */
+export async function deleteDepartment(id: string) {
+  await requirePermission("users:manage");
+
+  await prisma.department.delete({
+    where: { id },
+  });
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/users/create");
+  return { success: true as const };
+}

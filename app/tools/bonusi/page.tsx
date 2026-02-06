@@ -1,13 +1,13 @@
-import BonusiFrame from "./BonusiFrame";
+import { loadLatestBonusSheet, syncEmployeesWithUsers } from "@/app/actions/bonusActions";
+import BonusToolClient from "./BonusToolClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function BonusiPage() {
+  const baseState = await loadLatestBonusSheet();
+  const initialState = await syncEmployeesWithUsers(baseState);
+
   return (
-    <BonusiFrame 
-      src="/tools/bonusi/view" 
-      title="Bonus Tool" 
-      headerOffsetPx={80} 
-    />
+    <BonusToolClient initialState={initialState} />
   );
 }

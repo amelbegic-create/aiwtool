@@ -118,6 +118,7 @@ function ProductivityToolContent() {
           router.replace(`?${params.toString()}`);
         }
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run once on mount
   }, []);
 
   // Sinhronizacija kad TopNav promijeni URL
@@ -221,7 +222,7 @@ function ProductivityToolContent() {
       });
       if (res.ok) alert("✅ Podaci spremljeni.");
       else alert("❌ Greška kod spremanja.");
-    } catch (_error) { alert("❌ Greška na serveru."); } finally { setLoading(false); }
+    } catch { alert("❌ Greška na serveru."); } finally { setLoading(false); }
   };
 
   const handleExportPDF = () => {

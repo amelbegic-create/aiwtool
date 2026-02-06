@@ -8,10 +8,7 @@ async function main() {
     where: { isActive: true },
   });
 
-  if (!restaurant) {
-    console.log("Nema nijednog restorana u bazi. Prvo pokreni glavni seed.");
-    return;
-  }
+  if (!restaurant) return;
 
   // Kategorije
   const hygiene = await prisma.ruleCategory.upsert({
@@ -85,7 +82,6 @@ async function main() {
     },
   });
 
-  console.log("Rules seed završen.");
 }
 
 main()

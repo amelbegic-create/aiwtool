@@ -43,8 +43,8 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
 
   const isGodMode = user.role === Role.SYSTEM_ARCHITECT || user.role === Role.SUPER_ADMIN;
   const isAdmin = user.role === Role.ADMIN;
-  const isRestaurantManager = user.role === Role.MANAGER;
-  const isManagerView = isGodMode || isAdmin || isRestaurantManager;
+  // Admin view (odobravanje, statistika, blokirani dani) samo za ADMIN i God. MANAGER i CREW vide User view (svoj godišnji).
+  const isManagerView = isGodMode || isAdmin;
 
   const blockedDaysRaw = await prisma.blockedDay.findMany({
     where:
@@ -65,14 +65,6 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     let requestWhereClause: any = {
       start: { gte: startOfYear, lte: endOfYear },
     };
-
-    // ✅ Supervisor filter samo za MANAGER (Restaurant Manager) – ne za ADMIN
-    if (!isGodMode && isRestaurantManager) {
-      requestWhereClause = {
-        ...requestWhereClause,
-        supervisorId: user.id,
-      };
-    }
 
     if (activeRestaurantId && activeRestaurantId !== "all") {
       userWhereClause = {
@@ -101,6 +93,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     const allRequestsRaw = await prisma.vacationRequest.findMany({
       where: requestWhereClause,
       include: {
+        restaurant: { select: { name: true } },
         user: {
           include: {
             restaurants: { include: { restaurant: true } },
@@ -117,11 +110,12 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       end: req.end,
       days: req.days,
       status: req.status,
+      restaurantName: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "N/A",
       user: {
         id: req.user.id,
         name: req.user.name,
         email: req.user.email,
-        mainRestaurant: req.user.restaurants[0]?.restaurant.name || "N/A",
+        mainRestaurant: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "N/A",
       },
     }));
 
@@ -168,6 +162,11 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
           }))?.name ?? `Restoran ${activeRestaurantId}`
         : "Svi restorani";
 
+    const canRegisterOwnVacation =
+      user.role === Role.SYSTEM_ARCHITECT ||
+      user.role === Role.SUPER_ADMIN ||
+      user.role === Role.ADMIN;
+
     return (
       <AdminView
         allRequests={allRequests}
@@ -175,6 +174,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         usersStats={usersStats}
         selectedYear={selectedYear}
         reportRestaurantLabel={reportRestaurantLabel}
+        canRegisterOwnVacation={canRegisterOwnVacation}
       />
     );
   }

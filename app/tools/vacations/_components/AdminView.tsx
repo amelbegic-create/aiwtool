@@ -2,11 +2,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   updateVacationStatus,
   addBlockedDay,
   removeBlockedDay,
   getGlobalVacationStats,
+  createVacationRequest,
 } from "@/app/actions/vacationActions";
 import {
   Check,
@@ -19,6 +21,8 @@ import {
   FileSpreadsheet,
   FileText,
   Globe,
+  CalendarPlus,
+  Loader2,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -51,6 +55,7 @@ interface RequestWithUser {
   end: string;
   days: number;
   status: string;
+  restaurantName?: string;
   user: {
     id: string;
     name: string | null;
@@ -65,6 +70,8 @@ interface AdminViewProps {
   usersStats: UserStat[];
   selectedYear: number;
   reportRestaurantLabel?: string;
+  /** Prikaži dugme "Registruj Moj Godišnji" (samo za SYSTEM_ARCHITECT, SUPER_ADMIN, ADMIN) */
+  canRegisterOwnVacation?: boolean;
 }
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
@@ -116,28 +123,6 @@ function resolveDeptRGB(user: { department?: string | null; departmentColor?: st
   return deptColor(user.department);
 }
 
-// Približan naziv boje na bosanskom (za legendu)
-function rgbToColorName(rgb: RGB): string {
-  const [r, g, b] = rgb;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  if (max - min < 40) {
-    if (max < 100) return "Siva";
-    return "Svijetlo siva";
-  }
-  if (r === max && r > 180 && g < 100 && b < 100) return "Crvena";
-  if (g === max && g > 180 && r < 100 && b < 100) return "Zelena";
-  if (b === max && b > 180 && r < 100 && g < 100) return "Plava";
-  if (r === max && b > g && r > 150) return "Ljubičasta";
-  if (r === max && g > b && r > 180) return "Narančasta";
-  if (r > 200 && g < 150 && b < 150) return "Roze";
-  if (g > r && g > b && b > r) return "Teal";
-  if (g === max) return "Zelena";
-  if (b === max) return "Plava";
-  if (r === max) return "Crvena";
-  return "Siva";
-}
-
 function statusLabel(s: string) {
   if (s === "APPROVED") return "ODOBRENO";
   if (s === "REJECTED") return "ODBIJENO";
@@ -149,9 +134,9 @@ function statusLabel(s: string) {
 }
 
 // ===============================
-// ✅ NOVO: Jedinstveni header za sve PDF exporte
+// Jedinstveni header za sve PDF exporte
 // ===============================
-function drawPdfHeader(doc: jsPDF, title: string, subtitle?: string) {
+function drawPdfHeader(doc: jsPDF, title: string, subtitle?: string, subtitleFontSize?: number) {
   doc.setFillColor(26, 56, 38);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 30, "F");
 
@@ -165,23 +150,11 @@ function drawPdfHeader(doc: jsPDF, title: string, subtitle?: string) {
   doc.text(title, 14, 22);
 
   if (subtitle) {
-    doc.setFontSize(10);
+    doc.setFontSize(subtitleFontSize ?? 10);
     doc.setTextColor(255, 199, 44);
     doc.setFont("helvetica", "normal");
     doc.text(subtitle, 14, 28);
   }
-}
-
-// Potpis na kraju dokumenta (za print)
-function drawSignatureLine(doc: jsPDF, y: number, label: string) {
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(51, 65, 85);
-  doc.text(label, 14, y);
-  doc.setDrawColor(100, 116, 139);
-  doc.setLineWidth(0.3);
-  const lineW = 60;
-  doc.line(14, y + 4, 14 + lineW, y + 4);
 }
 
 export default function AdminView({
@@ -190,14 +163,30 @@ export default function AdminView({
   usersStats,
   selectedYear,
   reportRestaurantLabel,
+  canRegisterOwnVacation = false,
 }: AdminViewProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("STATS");
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingGlobal, setLoadingGlobal] = useState(false);
+  const [deptExportModalOpen, setDeptExportModalOpen] = useState(false);
+  const [deptExportData, setDeptExportData] = useState<{
+    usersStats: UserStat[];
+    allRequests: RequestWithUser[];
+  } | null>(null);
+  const [loadingDeptExport, setLoadingDeptExport] = useState(false);
+  const [selectedDeptNamesForExport, setSelectedDeptNamesForExport] = useState<string[]>([]);
 
   // State za praznike
   const [newBlockedDate, setNewBlockedDate] = useState("");
   const [newBlockedReason, setNewBlockedReason] = useState("");
+
+  // Modal: Registruj Moj Godišnji (self-service za admine)
+  const [myVacationModalOpen, setMyVacationModalOpen] = useState(false);
+  const [myVacationStart, setMyVacationStart] = useState("");
+  const [myVacationEnd, setMyVacationEnd] = useState("");
+  const [myVacationNote, setMyVacationNote] = useState("");
+  const [myVacationSubmitting, setMyVacationSubmitting] = useState(false);
 
   // Provjera ima li zahtjeva na čekanju (za crvenu notifikaciju)
   const hasPendingRequests = useMemo(() => {
@@ -227,16 +216,18 @@ export default function AdminView({
   // --- AKCIJE ---
   const handleStatus = async (
     id: string,
-    status: "APPROVED" | "REJECTED" | "RETURNED" | "CANCELLED"
+    status: "APPROVED" | "REJECTED" | "RETURNED" | "CANCELLED" | "PENDING"
   ) => {
-    const messages: any = {
+    const messages: Record<string, string> = {
       APPROVED: "Odobriti ovaj zahtjev?",
       REJECTED: "Odbiti ovaj zahtjev?",
       RETURNED: "Vratiti zahtjev radniku na doradu?",
       CANCELLED: "Odobriti poništenje godišnjeg odmora? Ovo će osloboditi dane radniku.",
+      PENDING: "Vratiti zahtjev u status „Na čekanju”?",
     };
     if (confirm(messages[status])) {
       await updateVacationStatus(id, status);
+      router.refresh();
     }
   };
 
@@ -253,8 +244,6 @@ export default function AdminView({
   const exportIndividualReport = (user: UserStat) => {
     const doc = new jsPDF();
     const userRequests = allRequests.filter((r) => r.user.id === user.id);
-
-    const depRGB = resolveDeptRGB(user);
 
     drawPdfHeader(
       doc,
@@ -274,41 +263,47 @@ export default function AdminView({
     doc.text(`Email: ${user.email || "N/A"}`, 14, 52);
     doc.text(`Odjel: ${user.department || "N/A"}`, 14, 58);
 
-    // KPI boxovi
+    // KPI boxovi – smanjeni, svi brojevi crni, centrirani
     const startY = 66;
-    const boxW = 60;
-    const boxH = 22;
+    const boxW = 48;
+    const boxH = 18;
+    const boxGap = 5;
 
-    // Ukupno
-    doc.setFillColor(248, 250, 252);
+    const boxCenterX = (x: number) => x + boxW / 2;
+
+    // Ukupno – siva pozadina, crni broj
+    doc.setFillColor(241, 245, 249);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(14, startY, boxW, boxH, 3, 3, "FD");
+    doc.roundedRect(14, startY, boxW, boxH, 2, 2, "FD");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text("UKUPNO DANA", 18, startY + 7);
-    doc.setFontSize(16);
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text("UKUPNO DANA", boxCenterX(14), startY + 5.5, { align: "center" });
+    doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
-    doc.text(String(user.total), 18, startY + 17);
+    doc.text(String(user.total), boxCenterX(14), startY + 13, { align: "center" });
 
-    // Iskorišteno
-    doc.roundedRect(14 + boxW + 6, startY, boxW, boxH, 3, 3, "FD");
-    doc.setFontSize(8);
-    doc.setTextColor(22, 163, 74);
-    doc.text("ISKORIŠTENO", 18 + boxW + 6, startY + 7);
-    doc.setFontSize(16);
-    doc.setTextColor(21, 128, 61);
-    doc.text(String(user.used), 18 + boxW + 6, startY + 17);
+    // Iskorišteno – žuta (#FFC72C), crni broj
+    doc.setFillColor(255, 199, 44);
+    doc.setDrawColor(230, 180, 40);
+    doc.roundedRect(14 + boxW + boxGap, startY, boxW, boxH, 2, 2, "FD");
+    doc.setFontSize(7);
+    doc.setTextColor(26, 56, 38);
+    doc.text("ISKORIŠTENO", boxCenterX(14 + boxW + boxGap), startY + 5.5, { align: "center" });
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text(String(user.used), boxCenterX(14 + boxW + boxGap), startY + 13, { align: "center" });
 
-    // Preostalo (odjel boja)
-    doc.setFillColor(depRGB[0], depRGB[1], depRGB[2]);
-    doc.setDrawColor(depRGB[0], depRGB[1], depRGB[2]);
-    doc.roundedRect(14 + (boxW + 6) * 2, startY, boxW, boxH, 3, 3, "FD");
-    doc.setFontSize(8);
+    // Preostalo – zelena (#1a3826), crni broj
+    doc.setFillColor(26, 56, 38);
+    doc.setDrawColor(26, 56, 38);
+    doc.roundedRect(14 + (boxW + boxGap) * 2, startY, boxW, boxH, 2, 2, "FD");
+    doc.setFontSize(7);
     doc.setTextColor(255, 255, 255);
-    doc.text("PREOSTALO", 18 + (boxW + 6) * 2, startY + 7);
-    doc.setFontSize(16);
-    doc.text(String(user.remaining), 18 + (boxW + 6) * 2, startY + 17);
+    doc.text("PREOSTALO", boxCenterX(14 + (boxW + boxGap) * 2), startY + 5.5, { align: "center" });
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text(String(user.remaining), boxCenterX(14 + (boxW + boxGap) * 2), startY + 13, { align: "center" });
 
     const tableBody = userRequests.map((req) => [
       `${formatDate(req.start)} - ${formatDate(req.end)}`,
@@ -318,33 +313,28 @@ export default function AdminView({
 
     // Clean tabela: bez “teškog grida”
     autoTable(doc, {
-      startY: startY + 32,
+      startY: startY + 26,
       head: [["Period", "Dana", "Status"]],
       body: tableBody,
       theme: "plain",
       styles: {
         fontSize: 10,
-        cellPadding: 3,
+        cellPadding: 4,
         textColor: [15, 23, 42],
+        lineWidth: 0,
       },
       headStyles: {
         fillColor: [26, 56, 38],
         textColor: [255, 255, 255],
         fontStyle: "bold",
         halign: "center",
+        lineWidth: 0,
       },
+      bodyStyles: { lineWidth: 0 },
       columnStyles: {
         0: { halign: "left", cellWidth: 110 },
         1: { halign: "center", cellWidth: 20 },
         2: { halign: "center", cellWidth: 50 },
-      },
-      didDrawCell: (data) => {
-        // Lagana linija ispod svakog reda (clean)
-        if (data.section === "body") {
-          doc.setDrawColor(226, 232, 240);
-          doc.setLineWidth(0.2);
-          doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
-        }
       },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 14, right: 14 },
@@ -388,46 +378,33 @@ export default function AdminView({
         cellPadding: 4,
         textColor: [15, 23, 42],
         overflow: "linebreak",
+        lineWidth: 0,
       },
       headStyles: {
-        fillColor: false,
+        fillColor: [248, 250, 252],
         textColor: [15, 23, 42],
         fontStyle: "bold",
         halign: "center",
-        lineWidth: 0.2,
-        lineColor: [226, 232, 240],
-        fontSize: 8,
+        lineWidth: 0,
+        fontSize: 9,
+        overflow: "hidden",
       },
       bodyStyles: {
         fillColor: false,
         textColor: [15, 23, 42],
-        lineWidth: 0.2,
-        lineColor: [226, 232, 240],
+        lineWidth: 0,
       },
       columnStyles: {
         0: { halign: "left", fontStyle: "bold", cellWidth: 45 },
         1: { halign: "center", cellWidth: 22 },
-        2: { halign: "left", cellWidth: 50 },
+        2: { halign: "left", cellWidth: 40 },
         3: { halign: "center", cellWidth: 20 },
-        4: { halign: "center", cellWidth: 24 },
-        5: { halign: "center", cellWidth: 20 },
+        4: { halign: "center", cellWidth: 28 },
+        5: { halign: "center", cellWidth: 26 },
       },
-      didDrawCell: (draw) => {
-        // Linija ispod samo za redove s podacima (head i body)
-        if (draw.section === "head" || draw.section === "body") {
-          doc.setDrawColor(226, 232, 240);
-          doc.setLineWidth(0.2);
-          const xLeft = draw.table.settings.margin.left;
-          const xRight = 210 - draw.table.settings.margin.right;
-          doc.line(xLeft, draw.cell.y + draw.cell.height, xRight, draw.cell.y + draw.cell.height);
-        }
-      },
+      alternateRowStyles: { fillColor: [252, 253, 254] },
       margin: { left: 14, right: 14 },
     });
-
-    const tableEndY = (doc as any).lastAutoTable?.finalY ?? 38;
-    const sigY = Math.max(tableEndY + 20, 270);
-    drawSignatureLine(doc, sigY, "Potpis nadređene osobe:");
 
     doc.save(`Tabela_Godisnjih_${selectedYear}.pdf`);
   };
@@ -435,7 +412,11 @@ export default function AdminView({
   // =====================================================================
   // 3. VIZUALNI TIMELINE — CLEAN + boje po odjelu
   // =====================================================================
-  const exportTimelinePDF = (overrideStats?: UserStat[], overrideRequests?: RequestWithUser[]) => {
+  const exportTimelinePDF = (
+    overrideStats?: UserStat[],
+    overrideRequests?: RequestWithUser[],
+    filename?: string
+  ) => {
     const statsToUse = overrideStats || filteredStats;
     const requestsToUse = overrideRequests || allRequests;
 
@@ -452,11 +433,11 @@ export default function AdminView({
     const monthWidth = gridWidth / 12;
     const rowHeight = 9; // malo kompaktnije i “clean”
 
-    drawPdfHeader(doc, `GLOBALNI PLAN I RASPORED`, `Godina: ${selectedYear}`);
+    drawPdfHeader(doc, `GLOBALNI PLAN I RASPORED`, `Godina: ${selectedYear}`, 14);
 
     const months = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
-    // header za mjesece
+    // header za mjesece – bez linije ispod zelenog (clean)
     doc.setFillColor(248, 250, 252);
     doc.rect(marginLeft, marginTop - 10, gridWidth, 10, "F");
     doc.setTextColor(51, 65, 85);
@@ -467,22 +448,32 @@ export default function AdminView({
       const x = marginLeft + i * monthWidth;
       doc.text(m, x + monthWidth / 2, marginTop - 4, { align: "center" });
     });
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.35);
-    doc.line(marginLeft, marginTop, width - marginRight, marginTop);
+
+    const gridColor: [number, number, number] = [203, 213, 225];
+    const gridLineWidth = 0.25;
 
     let currentY = marginTop;
+    const nameColumnLeft = 10;
 
     const drawRowSeparator = (y: number) => {
-      doc.setDrawColor(180, 180, 180);
-      doc.setLineWidth(0.35);
-      doc.line(10, y, width - 10, y);
+      doc.setDrawColor(...gridColor);
+      doc.setLineWidth(gridLineWidth);
+      doc.line(nameColumnLeft, y, width - marginRight, y);
     };
 
-    statsToUse.forEach((user, index) => {
+    const drawVerticalGridLines = (rowTop: number, rowBottom: number) => {
+      doc.setDrawColor(...gridColor);
+      doc.setLineWidth(gridLineWidth);
+      for (let i = 0; i <= 12; i++) {
+        const x = marginLeft + i * monthWidth;
+        doc.line(x, rowTop, x, rowBottom);
+      }
+    };
+
+    statsToUse.forEach((user, _index) => {
       if (currentY > height - marginBottom) {
         doc.addPage();
-        drawPdfHeader(doc, `GLOBALNI PLAN I RASPORED`, `Godina: ${selectedYear}`);
+        drawPdfHeader(doc, `GLOBALNI PLAN I RASPORED`, `Godina: ${selectedYear}`, 14);
 
         // ponovi mjesec header na novoj stranici
         doc.setFillColor(248, 250, 252);
@@ -499,21 +490,19 @@ export default function AdminView({
         currentY = marginTop;
       }
 
-      // ime (bez zebra pozadine — prazno ispod korisnika)
+      doc.setDrawColor(...gridColor);
+      doc.setLineWidth(gridLineWidth);
+      doc.line(nameColumnLeft, currentY, nameColumnLeft, currentY + rowHeight);
+
+      // Ime zaposlenika (lijevo od mreže)
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(15, 23, 42);
       doc.text(user.name || "N/A", 12, currentY + 6);
 
-      // linije samo za ovaj red: horizontalna ispod + vertikalne za ovu visinu reda (čiste, oštre)
+      // Vertikalne linije za ovaj red (stupci mjeseci) – unutar okvira
+      drawVerticalGridLines(currentY, currentY + rowHeight);
       drawRowSeparator(currentY + rowHeight);
-      doc.setDrawColor(180, 180, 180);
-      doc.setLineWidth(0.35);
-      for (let i = 0; i <= 12; i++) {
-        const x = marginLeft + i * monthWidth;
-        doc.line(x, currentY, x, currentY + rowHeight);
-      }
-      doc.line(width - marginRight, currentY, width - marginRight, currentY + rowHeight);
 
       // --- GODIŠNJI BAROVI (odobreni) — pravougaonici, boja iz baze (odjel)
       const userRequests = requestsToUse.filter((r) => r.user.id === user.id && r.status === "APPROVED");
@@ -560,11 +549,6 @@ export default function AdminView({
       currentY += rowHeight;
     });
 
-    // Linije samo do zadnjeg reda: vertikalna lijeva granica (stupac imena)
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.35);
-    doc.line(marginLeft, marginTop - 10, marginLeft, currentY);
-
     // Legenda na dnu: jedinstveni odjeli s bojama (pravougaonik + "Boja – Naziv odjela")
     const deptMap = new Map<string, { name: string; rgb: RGB }>();
     statsToUse.forEach((u) => {
@@ -579,7 +563,7 @@ export default function AdminView({
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
-    doc.text("Boja – Odjel koji je. Crvena linija = praznik unutar godišnjeg.", 15, legendY);
+    doc.text("Crvena linija = praznik unutar godišnjeg.", 15, legendY);
 
     legendY += 10;
     const boxW = 5;
@@ -588,8 +572,7 @@ export default function AdminView({
     const itemGap = 28;
     let legendX = 15;
     deptLegendItems.forEach((item) => {
-      const colorName = rgbToColorName(item.rgb);
-      const label = `${colorName} – ${item.name}`;
+      const label = item.name;
       const labelW = doc.getTextWidth(label);
       if (legendX + boxW + gap + labelW > width - marginRight) {
         legendY += 6;
@@ -605,20 +588,7 @@ export default function AdminView({
       legendX += boxW + gap + labelW + itemGap;
     });
 
-    const sigY = legendY + 12;
-    if (sigY < height - marginBottom) {
-      drawSignatureLine(doc, sigY, "Potpis odgovorne osobe:");
-    } else {
-      doc.addPage();
-      drawPdfHeader(doc, `GLOBALNI PLAN I RASPORED`, `Godina: ${selectedYear}`);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(71, 85, 105);
-      doc.text("Boja – Odjel koji je. Crvena linija = praznik unutar godišnjeg.", 15, 40);
-      drawSignatureLine(doc, 54, "Potpis odgovorne osobe:");
-    }
-
-    doc.save(`Globalni_Plan_${selectedYear}.pdf`);
+    doc.save(filename ?? `Globalni_Plan_${selectedYear}.pdf`);
   };
 
   const handleGlobalExport = async () => {
@@ -633,51 +603,165 @@ export default function AdminView({
     }
   };
 
+  const handleOpenDeptExportModal = async () => {
+    setLoadingDeptExport(true);
+    setDeptExportModalOpen(false);
+    try {
+      const globalData = await getGlobalVacationStats(selectedYear);
+      setDeptExportData(globalData);
+      setSelectedDeptNamesForExport([]);
+      setDeptExportModalOpen(true);
+    } catch {
+      alert("Greška pri dohvatu podataka za export po odjelima.");
+    } finally {
+      setLoadingDeptExport(false);
+    }
+  };
+
+  const uniqueDeptNames = useMemo(() => {
+    if (!deptExportData?.usersStats) return [];
+    const names = new Set(
+      deptExportData.usersStats.map((u) => (u.department?.trim() || "N/A"))
+    );
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [deptExportData]);
+
+  const toggleDeptForExport = (name: string) => {
+    setSelectedDeptNamesForExport((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  };
+
+  const handleDeptExportPDF = () => {
+    if (!deptExportData || selectedDeptNamesForExport.length === 0) {
+      alert("Odaberite barem jedan odjel.");
+      return;
+    }
+    const deptSet = new Set(selectedDeptNamesForExport);
+    const filteredStats = deptExportData.usersStats.filter((u) =>
+      deptSet.has(u.department?.trim() || "N/A")
+    );
+    const filteredUserIds = new Set(filteredStats.map((u) => u.id));
+    const filteredRequests = deptExportData.allRequests.filter((r) =>
+      filteredUserIds.has(r.user.id)
+    );
+    const safeNames = selectedDeptNamesForExport.map((n) => n.replace(/\s+/g, "_"));
+    exportTimelinePDF(
+      filteredStats,
+      filteredRequests as any,
+      `Plan_${selectedYear}_${safeNames.join("_")}.pdf`
+    );
+    setDeptExportModalOpen(false);
+    setDeptExportData(null);
+  };
+
+  const handleSubmitMyVacation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const start = myVacationStart.trim();
+    const end = myVacationEnd.trim();
+    if (!start || !end) {
+      alert("Odaberite datum od i datum do.");
+      return;
+    }
+    if (new Date(end) < new Date(start)) {
+      alert("Datum do mora biti nakon datuma od.");
+      return;
+    }
+    setMyVacationSubmitting(true);
+    try {
+      await createVacationRequest({
+        start,
+        end,
+        note: myVacationNote.trim() || undefined,
+      });
+      setMyVacationModalOpen(false);
+      setMyVacationStart("");
+      setMyVacationEnd("");
+      setMyVacationNote("");
+      router.refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Greška pri registraciji godišnjeg.");
+    } finally {
+      setMyVacationSubmitting(false);
+    }
+  };
+
+  const years = Array.from({ length: 7 }, (_, i) => selectedYear - 3 + i);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
       <div className="max-w-[1600px] mx-auto space-y-8">
         {/* HEADER */}
-        <div className="flex justify-between items-end border-b border-slate-200 pb-6">
+        <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">
               ADMIN <span className="text-[#FFC72C]">GODIŠNJI</span>
             </h1>
-            <p className="text-slate-500 text-sm font-medium">Upravljanje odsustvima ({selectedYear})</p>
+            <p className="text-slate-500 text-sm font-medium">
+              Upravljanje odsustvima (<span className="font-bold text-slate-800">{selectedYear}.</span> godina)
+            </p>
+            <div className="mt-3 flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-x-auto max-w-full">
+              {years.map((y) => (
+                <button
+                  key={y}
+                  onClick={() => router.push(`/tools/vacations?year=${y}`)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                    selectedYear === y
+                      ? "bg-[#1a3826] text-white shadow-md"
+                      : "text-slate-500 hover:bg-slate-50"
+                  }`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-            <button
-              onClick={() => setActiveTab("STATS")}
-              className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "STATS" ? "bg-[#1a3826] text-white" : "text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              STATISTIKA
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+              <button
+                onClick={() => setActiveTab("STATS")}
+                className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                  activeTab === "STATS" ? "bg-[#FFC72C] text-[#1a3826]" : "text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                STATISTIKA
+              </button>
 
-            {/* DUGME ZAHTJEVI SA NOTIFIKACIJOM */}
-            <button
-              onClick={() => setActiveTab("REQUESTS")}
-              className={`relative px-5 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                activeTab === "REQUESTS" ? "bg-[#1a3826] text-white" : "text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              ZAHTJEVI
-              {hasPendingRequests && (
-                <span className="flex h-2.5 w-2.5 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                </span>
-              )}
-            </button>
+              <button
+                onClick={() => setActiveTab("REQUESTS")}
+                className={`relative px-5 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                  activeTab === "REQUESTS" ? "bg-[#1a3826] text-white" : "text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                ZAHTJEVI
+                {hasPendingRequests && (
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                  </span>
+                )}
+              </button>
 
-            <button
-              onClick={() => setActiveTab("BLOCKED")}
-              className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "BLOCKED" ? "bg-[#1a3826] text-white" : "text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              PRAZNICI
-            </button>
+              <button
+                onClick={() => setActiveTab("BLOCKED")}
+                className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                  activeTab === "BLOCKED" ? "bg-[#1a3826] text-white" : "text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                PRAZNICI
+              </button>
+            </div>
+
+            {canRegisterOwnVacation && (
+              <button
+                type="button"
+                onClick={() => setMyVacationModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm border border-emerald-700/30 transition-all"
+              >
+                <CalendarPlus size={16} />
+                Registruj Moj Godišnji
+              </button>
+            )}
           </div>
         </div>
 
@@ -718,8 +802,143 @@ export default function AdminView({
                 >
                   <Globe size={16} /> {loadingGlobal ? "UČITAVANJE..." : "GLOBALNI EXPORT"}
                 </button>
+
+                <button
+                  onClick={handleOpenDeptExportModal}
+                  disabled={loadingDeptExport}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg text-xs font-black transition-all hover:bg-slate-800 disabled:opacity-70"
+                >
+                  <FileBarChart size={16} />
+                  {loadingDeptExport ? "UČITAVANJE..." : "EXPORT PO ODJELIMA"}
+                </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Modal: Export po odjelima */}
+        {deptExportModalOpen && deptExportData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Export po odjelima</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                Odaberite odjele za godišnji plan ({selectedYear}). Preuzet će se PDF samo s tim odjelima.
+              </p>
+              <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+                {uniqueDeptNames.map((name) => (
+                  <label
+                    key={name}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedDeptNamesForExport.includes(name)}
+                      onChange={() => toggleDeptForExport(name)}
+                      className="h-4 w-4 rounded border-gray-300 text-[#1a3826] focus:ring-[#1a3826]"
+                    />
+                    <span className="text-sm font-medium text-slate-800">{name}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeptExportModalOpen(false);
+                    setDeptExportData(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-gray-100"
+                >
+                  Odustani
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeptExportPDF}
+                  disabled={selectedDeptNamesForExport.length === 0}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50"
+                >
+                  Preuzmi PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Registruj Moj Godišnji (self-service za admine) */}
+        {myVacationModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Registruj Moj Godišnji</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                Unesite period godišnjeg odmora. Zahtjev će biti automatski odobren (samo za administratore).
+              </p>
+              <form onSubmit={handleSubmitMyVacation} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Datum od
+                  </label>
+                  <input
+                    type="date"
+                    value={myVacationStart}
+                    onChange={(e) => setMyVacationStart(e.target.value)}
+                    required
+                    className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Datum do
+                  </label>
+                  <input
+                    type="date"
+                    value={myVacationEnd}
+                    onChange={(e) => setMyVacationEnd(e.target.value)}
+                    required
+                    className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Napomena (opcionalno)
+                  </label>
+                  <textarea
+                    value={myVacationNote}
+                    onChange={(e) => setMyVacationNote(e.target.value)}
+                    rows={3}
+                    placeholder="Dodatna napomena..."
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] resize-none"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMyVacationModalOpen(false);
+                      setMyVacationStart("");
+                      setMyVacationEnd("");
+                      setMyVacationNote("");
+                    }}
+                    className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-gray-100"
+                  >
+                    Odustani
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={myVacationSubmitting}
+                    className="flex-1 px-4 py-2.5 rounded-lg font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {myVacationSubmitting ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Šaljem…
+                      </>
+                    ) : (
+                      "Registruj"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 
@@ -790,6 +1009,7 @@ export default function AdminView({
               <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase">
                 <tr>
                   <th className="p-4 pl-6">Radnik</th>
+                  <th className="p-4">Restoran</th>
                   <th className="p-4">Period</th>
                   <th className="p-4 text-center">Dana</th>
                   <th className="p-4">Status</th>
@@ -806,7 +1026,12 @@ export default function AdminView({
                   >
                     <td className="p-4 pl-6">
                       <div className="font-bold text-sm text-slate-800">{req.user.name}</div>
-                      <div className="text-[10px] text-slate-400 uppercase">{req.user.mainRestaurant}</div>
+                      <div className="text-[10px] text-slate-400">{req.user.email}</div>
+                    </td>
+                    <td className="p-4">
+                      <span className="text-sm font-semibold text-[#1a3826]">
+                        {req.restaurantName ?? req.user.mainRestaurant}
+                      </span>
                     </td>
                     <td className="p-4 text-sm font-mono text-slate-600">
                       {formatDate(req.start)} <span className="text-slate-300">➜</span> {formatDate(req.end)}
@@ -826,44 +1051,56 @@ export default function AdminView({
                       >
                         {req.status === "CANCEL_PENDING"
                           ? "TRAŽI PONIŠTENJE"
-                          : req.status === "CANCELLED"
-                          ? "PONIŠTENO"
-                          : req.status === "RETURNED"
-                          ? "VRAĆENO"
-                          : req.status}
+                          : statusLabel(req.status)}
                       </span>
                     </td>
                     <td className="p-4 pr-6 text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 flex-wrap">
                         {req.status === "PENDING" && (
                           <>
                             <button
                               onClick={() => handleStatus(req.id, "APPROVED")}
-                              className="p-2 bg-green-50 hover:bg-green-100 text-green-600 rounded transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg text-xs font-bold transition-colors"
                             >
-                              <Check size={16} />
+                              <Check size={14} /> Odobri
                             </button>
                             <button
                               onClick={() => handleStatus(req.id, "RETURNED")}
-                              className="p-2 bg-orange-50 hover:bg-orange-100 text-orange-500 rounded transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-lg text-xs font-bold transition-colors"
                             >
-                              <RotateCcw size={16} />
+                              <RotateCcw size={14} /> Vrati
                             </button>
                             <button
                               onClick={() => handleStatus(req.id, "REJECTED")}
-                              className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded transition-colors"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
                             >
-                              <X size={16} />
+                              <X size={14} /> Odbij
                             </button>
                           </>
                         )}
-                        {req.status === "CANCEL_PENDING" && (
+                        {req.status === "REJECTED" && (
                           <button
-                            onClick={() => handleStatus(req.id, "CANCELLED")}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-red-700 shadow-md active:scale-95"
+                            onClick={() => handleStatus(req.id, "PENDING")}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
                           >
-                            <Trash2 size={14} /> ODOBRI PONIŠTENJE
+                            <RotateCcw size={14} /> Vrati na čekanju
                           </button>
+                        )}
+                        {req.status === "CANCEL_PENDING" && (
+                          <>
+                            <button
+                              onClick={() => handleStatus(req.id, "CANCELLED")}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-red-700 shadow-md active:scale-95"
+                            >
+                              <Trash2 size={14} /> Odobri poništenje
+                            </button>
+                            <button
+                              onClick={() => handleStatus(req.id, "APPROVED")}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold uppercase"
+                            >
+                              <RotateCcw size={14} /> Vrati (zadrži odobrenje)
+                            </button>
+                          </>
                         )}
                         {req.status === "CANCELLED" && (
                           <span className="text-[10px] font-bold text-slate-400">PONIŠTENO</span>

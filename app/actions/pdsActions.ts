@@ -4,10 +4,25 @@
 import prisma from '@/lib/prisma';
 import { PDSStatus } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
 import { PDSGoal, PDSScaleLevel } from '../tools/PDS/types';
 import { cookies } from 'next/headers';
 
 const db = prisma as any;
+
+/** Samo SYSTEM_ARCHITECT, SUPER_ADMIN i ADMIN smiju generisati (kreirati) PDS. Manageri samo popunjavaju. */
+const PDS_CREATE_ROLES = new Set(['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN']);
+
+async function requirePdsCreateRole() {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { id?: string })?.id;
+  if (!userId) throw new Error('Niste prijavljeni.');
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (!user || !PDS_CREATE_ROLES.has(String(user.role))) {
+    throw new Error('Neovlašteno: samo ADMIN (ili System Architect / Super Admin) mogu generisati PDS obrasce.');
+  }
+}
 
 async function getActiveRestaurantId() {
   const cookieStore = await cookies();
@@ -118,6 +133,7 @@ export async function savePDSTemplate(
 
 export async function createBulkPDS(year: number, managerId: string) {
   try {
+    await requirePdsCreateRole();
     const restaurantId = await getActiveRestaurantId();
     if (!restaurantId) return { success: false, error: 'Nije odabran restoran!' };
 
@@ -184,6 +200,7 @@ export async function createBulkPDS(year: number, managerId: string) {
 
 export async function deleteAllPDSForYear(year: number) {
   try {
+    await requirePdsCreateRole();
     const restaurantId = await getActiveRestaurantId();
     if (!restaurantId) return { success: false };
 
@@ -322,8 +339,20 @@ export interface PDSExportRow {
 }
 
 export async function getGlobalPDSForExport(year: number): Promise<PDSExportRow[]> {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { id?: string })?.id;
+  const where: { year: number; restaurantId?: { in: string[] } } = { year };
+  if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, restaurants: { select: { restaurantId: true } } },
+    });
+    if (user?.role === 'MANAGER' && user.restaurants?.length) {
+      where.restaurantId = { in: user.restaurants.map((r) => r.restaurantId) };
+    }
+  }
   const list = await prisma.pDS.findMany({
-    where: { year },
+    where,
     include: {
       user: { select: { name: true } },
       restaurant: { select: { name: true, code: true } }

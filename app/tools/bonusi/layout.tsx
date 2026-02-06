@@ -21,7 +21,7 @@ export default async function BonusiLayout({ children }: { children: React.React
   const perms = dbUser.permissions || [];
   const isGodMode = GOD_MODE_ROLES.has(role);
 
-  if (!isGodMode && !hasPermission(role, perms, "bonusi:access")) {
+  if (!isGodMode && !hasPermission(role, perms, "bonus:access")) {
     return <NoPermission moduleName="Bonusi" />;
   }
 

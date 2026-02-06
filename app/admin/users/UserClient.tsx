@@ -203,7 +203,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
     void applyRolePreset("CREW");
   };
 
-  const openEdit = (u: UserProps) => {
+  const _openEdit = (u: UserProps) => {
     setIsEditing(true);
 
     const full = (u.name || "").trim();
@@ -355,10 +355,6 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
   const activeKeys = activeModule?.items?.map((i) => i.key) || [];
   const activeSelected = activeKeys.filter((k) => formData.permissions.includes(k)).length;
-  const _activeAllOn = activeSelected === activeKeys.length && activeKeys.length > 0;
-  const _globalSelected = formData.permissions.length;
-  const _globalTotal = ALL_PERMISSION_KEYS.length;
-
   return (
     <div className={embedded ? "space-y-6" : "min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans text-slate-900"}>
       <div className={embedded ? "space-y-6" : "max-w-[1600px] mx-auto space-y-6 md:space-y-8"}>

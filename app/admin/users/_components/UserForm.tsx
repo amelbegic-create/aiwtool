@@ -8,11 +8,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createUser, updateUser } from "@/app/actions/adminActions";
 import { getRolePermissionPreset } from "@/app/actions/rolePresetActions";
-import { createDepartment } from "@/app/actions/departmentActions";
+import { createDepartment, updateDepartment, deleteDepartment } from "@/app/actions/departmentActions";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
 import { PERMISSIONS } from "@/lib/permissions";
 import { Role } from "@prisma/client";
-import { User, Shield, Settings, ChevronDown, ChevronRight, Loader2, Store, Plus, Trash2, CalendarDays } from "lucide-react";
+import { User, Shield, Settings, ChevronDown, ChevronRight, Loader2, Plus, Trash2, CalendarDays, Pencil, X } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   SYSTEM_ARCHITECT: "System Architect",
@@ -109,6 +109,11 @@ export default function UserForm({
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptColor, setNewDeptColor] = useState("#1a3826");
   const [isCreatingDept, setIsCreatingDept] = useState(false);
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
+  const [editDeptName, setEditDeptName] = useState("");
+  const [editDeptColor, setEditDeptColor] = useState("#1a3826");
+  const [isUpdatingDept, setIsUpdatingDept] = useState(false);
+  const [isDeletingDeptId, setIsDeletingDeptId] = useState<string | null>(null);
 
   const togglePermGroup = (id: string) => {
     setOpenPermGroups((prev) => {
@@ -144,11 +149,14 @@ export default function UserForm({
   const requiresRestaurant = roleRequiresRestaurant(role);
   const requiresSupervisor = roleRequiresSupervisor(role);
 
+  // MANAGER: samo SYSTEM_ARCHITECT, SUPER_ADMIN, ADMIN. CREW: + MANAGER.
+  const SUPERVISOR_ROLES_FOR_MANAGER: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN"];
+  const SUPERVISOR_ROLES_FOR_CREW: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER"];
   const eligibleSupervisors = supervisorCandidates.filter((s) => {
     if (isEdit && s.id === initialData?.id) return false;
-    const rank = ROLE_RANK[s.role] ?? 99;
-    const myRank = ROLE_RANK[role] ?? 99;
-    return rank < myRank;
+    if (role === "MANAGER") return SUPERVISOR_ROLES_FOR_MANAGER.includes(s.role as Role);
+    if (role === "CREW") return SUPERVISOR_ROLES_FOR_CREW.includes(s.role as Role);
+    return false;
   });
 
   useEffect(() => {
@@ -175,6 +183,7 @@ export default function UserForm({
         if (res.success) setPermissionKeys(res.data.keys);
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run only on isEdit change
   }, [isEdit]);
 
   const addVacationYear = () => {
@@ -205,6 +214,60 @@ export default function UserForm({
       alert("Greška pri kreiranju odjela.");
     }
     setIsCreatingDept(false);
+  };
+
+  const startEditDepartment = (d: DepartmentOption) => {
+    setEditingDeptId(d.id);
+    setEditDeptName(d.name);
+    setEditDeptColor(d.color);
+  };
+
+  const cancelEditDepartment = () => {
+    setEditingDeptId(null);
+    setEditDeptName("");
+    setEditDeptColor("#1a3826");
+  };
+
+  const handleUpdateDepartment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDeptId) return;
+    const name = editDeptName.trim();
+    if (!name) return;
+    setIsUpdatingDept(true);
+    try {
+      const dept = departmentsList.find((d) => d.id === editingDeptId);
+      const res = await updateDepartment({
+        id: editingDeptId,
+        name,
+        color: editDeptColor,
+        restaurantId: dept?.restaurantId ?? null,
+      });
+      if (res.success) {
+        setDepartmentsList((prev) =>
+          prev.map((d) => (d.id === editingDeptId ? { ...d, name, color: editDeptColor } : d))
+        );
+        cancelEditDepartment();
+      }
+    } catch {
+      alert("Greška pri ažuriranju odjela.");
+    }
+    setIsUpdatingDept(false);
+  };
+
+  const handleDeleteDepartment = async (id: string) => {
+    if (!confirm("Jeste li sigurni da želite obrisati ovaj odjel? Korisnici s ovim odjelom će ostati bez odjela.")) return;
+    setIsDeletingDeptId(id);
+    try {
+      const res = await deleteDepartment(id);
+      if (res.success) {
+        setDepartmentsList((prev) => prev.filter((d) => d.id !== id));
+        if (form.getValues("departmentId") === id) form.setValue("departmentId", null);
+        if (editingDeptId === id) cancelEditDepartment();
+      }
+    } catch {
+      alert("Greška pri brisanju odjela.");
+    }
+    setIsDeletingDeptId(null);
   };
 
   const onSubmit = async (data: FormValues) => {
@@ -663,61 +726,143 @@ export default function UserForm({
         </form>
       </div>
 
-      {/* Modal: Novi odjel */}
+      {/* Modal: Odjeli – lista, uređivanje, dodavanje */}
       {departmentModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-            <h3 className="text-lg font-bold text-slate-900 mb-4">Novi odjel</h3>
-            <form onSubmit={handleCreateDepartment} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Naziv</label>
-                <input
-                  value={newDeptName}
-                  onChange={(e) => setNewDeptName(e.target.value)}
-                  className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                  placeholder="npr. RL, Office"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Boja (HEX)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="color"
-                    value={newDeptColor}
-                    onChange={(e) => setNewDeptColor(e.target.value)}
-                    className="h-10 w-14 rounded border border-gray-300 cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={newDeptColor}
-                    onChange={(e) => setNewDeptColor(e.target.value)}
-                    className="flex-1 min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 font-mono text-sm focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                    placeholder="#1a3826"
-                  />
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-slate-900">Odjeli</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Uredi ili obriši odjel, ili dodaj novi.</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Lista odjela s Uredi / Obriši */}
+              {departmentsList.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Postojeći odjeli</h4>
+                  <ul className="space-y-2">
+                    {departmentsList.map((d) => (
+                      <li key={d.id} className="flex items-center gap-2 rounded-lg border border-gray-200 p-2">
+                        {editingDeptId === d.id ? (
+                          <form onSubmit={handleUpdateDepartment} className="flex-1 flex flex-wrap items-center gap-2">
+                            <input
+                              value={editDeptName}
+                              onChange={(e) => setEditDeptName(e.target.value)}
+                              className="flex-1 min-w-0 min-h-[36px] px-3 py-1.5 rounded border border-gray-300 text-sm focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                              placeholder="Naziv"
+                              required
+                            />
+                            <input
+                              type="color"
+                              value={editDeptColor}
+                              onChange={(e) => setEditDeptColor(e.target.value)}
+                              className="h-8 w-10 rounded border border-gray-300 cursor-pointer"
+                              title="Boja"
+                            />
+                            <button
+                              type="submit"
+                              disabled={isUpdatingDept}
+                              className="px-3 py-1.5 rounded-lg text-sm font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50"
+                            >
+                              {isUpdatingDept ? "…" : "Spremi"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditDepartment}
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-gray-100"
+                              title="Odustani"
+                            >
+                              <X size={18} />
+                            </button>
+                          </form>
+                        ) : (
+                          <>
+                            <span
+                              className="inline-block w-4 h-4 rounded flex-shrink-0"
+                              style={{ backgroundColor: d.color }}
+                              title={d.color}
+                            />
+                            <span className="flex-1 min-w-0 text-sm font-medium text-slate-800 truncate">{d.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => startEditDepartment(d)}
+                              className="p-2 rounded-lg text-slate-500 hover:bg-gray-100 hover:text-[#1a3826]"
+                              title="Uredi odjel"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDepartment(d.id)}
+                              disabled={isDeletingDeptId === d.id}
+                              className="p-2 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                              title="Obriši odjel"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
+              )}
+
+              {/* Forma za novi odjel */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Dodaj novi odjel</h4>
+                <form onSubmit={handleCreateDepartment} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Naziv</label>
+                    <input
+                      value={newDeptName}
+                      onChange={(e) => setNewDeptName(e.target.value)}
+                      className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                      placeholder="npr. RL, Office"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Boja (HEX)</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={newDeptColor}
+                        onChange={(e) => setNewDeptColor(e.target.value)}
+                        className="h-10 w-14 rounded border border-gray-300 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={newDeptColor}
+                        onChange={(e) => setNewDeptColor(e.target.value)}
+                        className="flex-1 min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 font-mono text-sm focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                        placeholder="#1a3826"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isCreatingDept}
+                    className="w-full px-4 py-2.5 rounded-lg font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50"
+                  >
+                    {isCreatingDept ? "Kreiranje…" : "Kreiraj odjel"}
+                  </button>
+                </form>
               </div>
-              <div className="flex gap-2 justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDepartmentModalOpen(false);
-                    setNewDeptName("");
-                    setNewDeptColor("#1a3826");
-                  }}
-                  className="px-4 py-2 rounded-lg font-medium text-slate-600 hover:bg-gray-100"
-                >
-                  Odustani
-                </button>
-                <button
-                  type="submit"
-                  disabled={isCreatingDept}
-                  className="px-4 py-2 rounded-lg font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50"
-                >
-                  {isCreatingDept ? "Kreiranje…" : "Kreiraj"}
-                </button>
-              </div>
-            </form>
+            </div>
+            <div className="p-4 border-t border-gray-200 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => {
+                  setDepartmentModalOpen(false);
+                  setNewDeptName("");
+                  setNewDeptColor("#1a3826");
+                  cancelEditDepartment();
+                }}
+                className="w-full px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-gray-200"
+              >
+                Zatvori
+              </button>
+            </div>
           </div>
         </div>
       )}

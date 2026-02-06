@@ -204,7 +204,15 @@ export const ALAT_1_FULL_HTML = `
 
 <script>
 (function() {
-    const daysOfWeek = ["Ponedjeljak", "Utorak", "Srijeda", "Četvrtak", "Petak", "Subota", "Nedjelja"];
+    function normalizeText(text) {
+        return (text || "")
+          .toString()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/đ/g, "dj")
+          .replace(/Đ/g, "Dj");
+    }
+    const daysOfWeek = ["Ponedjeljak", "Utorak", "Srijeda", "Cetvrtak", "Petak", "Subota", "Nedjelja"];
     
     function val(input) {
         if (!input || input.value === "") return 0;
@@ -355,14 +363,14 @@ export const ALAT_1_FULL_HTML = `
             const drawKpi = (x, title, val) => {
                 doc.setDrawColor(200); doc.setFillColor(248, 250, 252);
                 doc.roundedRect(x, 35, 50, 18, 2, 2, 'FD');
-                doc.setFontSize(8); doc.setTextColor(100); doc.text(title, x+5, 41);
-                doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.setFont(undefined, 'bold'); doc.text(val, x+5, 50);
+                doc.setFontSize(8); doc.setTextColor(100); doc.text(normalizeText(title), x+5, 41);
+                doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.setFont(undefined, 'bold'); doc.text(normalizeText(val), x+5, 50);
                 doc.setFont(undefined, 'normal');
             };
             
             drawKpi(14, "UKUPNI PROMET", document.getElementById('sumUmsatz').textContent);
             drawKpi(70, "UKUPNO SATI", document.getElementById('resTotalHours').textContent);
-            drawKpi(126, "TROŠAK RADA", document.getElementById('resTotalCost').textContent);
+            drawKpi(126, "TROSak RADA", document.getElementById('resTotalCost').textContent);
             drawKpi(182, "LABOR %", document.getElementById('resPercent').textContent);
 
             // Data Preparation
@@ -372,7 +380,7 @@ export const ALAT_1_FULL_HTML = `
                 const inputs = tr.querySelectorAll('input');
                 const rowData = [
                     (idx + 1).toString(),
-                    tds[1].innerText, // Dan
+                    normalizeText(tds[1].innerText), // Dan
                     inputs[0].value,  // Promet
                     inputs[1].value,  // Cilj
                     inputs[2].value,  // Prod Std
@@ -398,7 +406,7 @@ export const ALAT_1_FULL_HTML = `
 
             // Generate Table
             doc.autoTable({
-                head: [['#', 'Dan', 'Promet', 'Cilj', 'Prod. Std.', 'SF Sati', 'HM Sati', 'NZ', 'Extra']],
+                head: [[normalizeText('#'), normalizeText('Dan'), 'Promet', 'Cilj', 'Prod. Std.', 'SF Sati', 'HM Sati', 'NZ', 'Extra']],
                 body: rows,
                 startY: 65,
                 theme: 'grid',
@@ -417,15 +425,6 @@ export const ALAT_1_FULL_HTML = `
                     }
                 }
             });
-
-            // Signature Section
-            const fy = doc.lastAutoTable.finalY + 20;
-            if(fy < 190) {
-                doc.setDrawColor(100);
-                doc.line(14, fy, 80, fy);
-                doc.setFontSize(8);
-                doc.text("Odobrio (Menadžer)", 14, fy + 4);
-            }
 
             doc.save('LaborPlan.pdf');
         } catch(e) {

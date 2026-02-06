@@ -76,6 +76,7 @@ export function SearchableCombobox({
       <div
         role="combobox"
         aria-expanded={open}
+        aria-controls={open ? "combobox-listbox" : undefined}
         aria-haspopup="listbox"
         onClick={() => {
           if (disabled) return;

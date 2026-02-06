@@ -1,4 +1,4 @@
-// lib/prisma.ts
+// lib/prisma.ts – jedan singleton klijent (bitno za Neon/pool: ne stvarati new PrismaClient() u stranicama)
 import { PrismaClient } from "@prisma/client";
 
 declare global {

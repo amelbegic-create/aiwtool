@@ -1,16 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import AdminControlsClient from './components/AdminControlsClient';
-import PDSListClient from './components/PDSListClient'; // <--- Import novog fajla
+import PDSListClient from './components/PDSListClient';
 import { cookies } from 'next/headers';
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 
-const prisma = new PrismaClient();
 const db = prisma as any;
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
@@ -27,15 +26,28 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   const cookieStore = await cookies();
   const activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
 
-  if (!activeRestaurantId) {
-      return <div className="p-10 text-center">Molimo odaberite restoran.</div>;
+  const currentUser = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    include: { restaurants: { select: { restaurantId: true } } },
+  });
+  const isAdminOrGod = ['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
+  const isManager = currentUser?.role === 'MANAGER';
+  const isManagerView = isAdminOrGod || isManager;
+  const managerRestaurantIds = (currentUser?.restaurants ?? []).map((r) => r.restaurantId);
+
+  const allowedRestaurantId =
+    isManager && activeRestaurantId && managerRestaurantIds.includes(activeRestaurantId)
+      ? activeRestaurantId
+      : isManager && managerRestaurantIds.length > 0
+        ? managerRestaurantIds[0]
+        : activeRestaurantId;
+
+  if (!allowedRestaurantId) {
+    return <div className="p-10 text-center">Molimo odaberite restoran.</div>;
   }
 
   const searchParams = await props.searchParams;
   const selectedYear = searchParams.year ? parseInt(searchParams.year) : new Date().getFullYear();
-
-  const currentUser = await prisma.user.findUnique({ where: { email: session.user.email } });
-  const isManager = ['ADMIN', 'MANAGER', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
 
   const restaurants = await prisma.restaurant.findMany({
     where: { isActive: true },
@@ -44,12 +56,13 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   });
 
   const template = await db.pDSTemplate.findUnique({ 
-      where: { year_restaurantId: { year: selectedYear, restaurantId: activeRestaurantId } } 
+      where: { year_restaurantId: { year: selectedYear, restaurantId: allowedRestaurantId } } 
   });
   
   const pdsList = await db.pDS.findMany({
-    where: isManager ? { year: selectedYear, restaurantId: activeRestaurantId } 
-                     : { userId: currentUser?.id, year: selectedYear },
+    where: isManagerView
+      ? { year: selectedYear, restaurantId: allowedRestaurantId }
+      : { userId: currentUser?.id, year: selectedYear },
     include: { user: true },
     orderBy: { user: { name: 'asc' } }
   });
@@ -88,8 +101,8 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
               ))}
             </div>
             
-            {/* ADMIN KONTROLE */}
-            {isManager && (
+            {/* ADMIN KONTROLE – samo ADMIN/God mogu generisati PDS; Manager samo vidi i popunjava */}
+            {isAdminOrGod && (
               <AdminControlsClient 
                 selectedYear={selectedYear} 
                 template={safeTemplate} 
@@ -105,7 +118,7 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
         <PDSListClient 
             data={safePdsList} 
             year={selectedYear} 
-            isManager={isManager} 
+            isManager={isManagerView} 
         />
       </div>
     </div>

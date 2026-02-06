@@ -63,6 +63,15 @@ interface UserViewProps {
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
 
+// Normalizacija teksta za PDF (uklanja kvačice i specijalna slova)
+function normalizeText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "dj")
+    .replace(/Đ/g, "Dj");
+}
+
 export default function UserView({
   userData,
   myRequests,
@@ -104,26 +113,26 @@ export default function UserView({
         doc.setTextColor(255, 199, 44);
         doc.setFontSize(14);
         doc.setFont("helvetica", "bold");
-        doc.text("AIWServices", 14, 12); 
+        doc.text(normalizeText("AIWServices"), 14, 12); 
 
         // Glavni Naslov
         doc.setTextColor(255, 255, 255); 
         doc.setFontSize(22);
-        doc.text("IZVJEŠTAJ O GODIŠNJEM ODMORU", 14, 24); 
+        doc.text(normalizeText("IZVJESTAJ O GODISNJEM ODMORU"), 14, 24); 
         
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(255, 199, 44); 
-        doc.text(`Generirano: ${formatDate(new Date().toISOString())}`, 14, 32);
+        doc.text(normalizeText(`Generirano: ${formatDate(new Date().toISOString())}`), 14, 32);
 
         // PODACI O KORISNIKU
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
-        doc.text(`Zaposlenik: ${userData.name}`, 14, 55);
+        doc.text(normalizeText(`Zaposlenik: ${userData.name}`), 14, 55);
         doc.setFont("helvetica", "normal");
-        doc.text(`Email: ${userData.email}`, 14, 61);
-        doc.text(`Godina: ${selectedYear}`, 14, 67);
+        doc.text(normalizeText(`Email: ${userData.email}`), 14, 61);
+        doc.text(normalizeText(`Godina: ${selectedYear}`), 14, 67);
 
         // KARTICE STATISTIKE
         const startY = 80;
@@ -136,7 +145,7 @@ export default function UserView({
         doc.rect(14, startY, boxWidth, boxHeight, 'FD');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text("UKUPNO DANA", 19, startY + 8);
+            doc.text(normalizeText("UKUPNO DANA"), 19, startY + 8);
         doc.setFontSize(16);
         doc.setTextColor(30, 41, 59);
         doc.setFont("helvetica", "bold");
@@ -146,7 +155,7 @@ export default function UserView({
         doc.rect(14 + boxWidth + 10, startY, boxWidth, boxHeight, 'FD');
         doc.setFontSize(8);
         doc.setTextColor(22, 163, 74);
-        doc.text("ISKORIŠTENO", 14 + boxWidth + 15, startY + 8);
+        doc.text(normalizeText("ISKORISTENO"), 14 + boxWidth + 15, startY + 8);
         doc.setFontSize(16);
         doc.setTextColor(21, 128, 61);
         doc.text(`${used}`, 14 + boxWidth + 15, startY + 18);
@@ -156,34 +165,42 @@ export default function UserView({
         doc.rect(14 + (boxWidth + 10) * 2, startY, boxWidth, boxHeight, 'F');
         doc.setFontSize(8);
         doc.setTextColor(255, 199, 44);
-        doc.text("PREOSTALO", 14 + (boxWidth + 10) * 2 + 5, startY + 8);
+        doc.text(normalizeText("PREOSTALO"), 14 + (boxWidth + 10) * 2 + 5, startY + 8);
         doc.setFontSize(16);
         doc.text(`${remaining}`, 14 + (boxWidth + 10) * 2 + 5, startY + 18);
 
         // TABLICA
-        const tableBody = myRequests.map(req => [
-            `${formatDate(req.start)} - ${formatDate(req.end)}`,
-            req.days,
-            req.status === 'APPROVED' ? 'ODOBRENO' : 
-            req.status === 'REJECTED' ? 'ODBIJENO' : 
-            req.status === 'PENDING' ? 'NA CEKANJU' : 
-            req.status === 'RETURNED' ? 'VRACENO' : 
-            req.status === 'CANCEL_PENDING' ? 'CEKA PONISTENJE' : 'PONISTENO'
-        ]);
+        const tableBody = myRequests.map(req => {
+          const period = `${formatDate(req.start)} - ${formatDate(req.end)}`;
+          const statusText =
+            req.status === "APPROVED"
+              ? "ODOBRENO"
+              : req.status === "REJECTED"
+              ? "ODBIJENO"
+              : req.status === "PENDING"
+              ? "NA CEKANJU"
+              : req.status === "RETURNED"
+              ? "VRACENO"
+              : req.status === "CANCEL_PENDING"
+              ? "CEKA PONISTENJE"
+              : "PONISTENO";
+
+          return [normalizeText(period), req.days, normalizeText(statusText)];
+        });
 
         autoTable(doc, {
-            startY: startY + 40,
-            head: [['Period', 'Dana', 'Status']],
-            body: tableBody,
-            theme: 'grid',
-            headStyles: { fillColor: [26, 56, 38], textColor: [255, 255, 255], fontStyle: 'bold' },
-            styles: { fontSize: 10, cellPadding: 4 },
-            columnStyles: {
-                0: { cellWidth: 90 },
-                1: { cellWidth: 30, halign: 'center' },
-                2: { cellWidth: 60, halign: 'center' }
-            },
-            alternateRowStyles: { fillColor: [248, 250, 252] },
+          startY: startY + 40,
+          head: [[normalizeText("Period"), normalizeText("Dana"), normalizeText("Status")]],
+          body: tableBody,
+          theme: "grid",
+          headStyles: { fillColor: [26, 56, 38], textColor: [255, 255, 255], fontStyle: "bold" },
+          styles: { fontSize: 10, cellPadding: 4, halign: "left" },
+          columnStyles: {
+            0: { cellWidth: 90, halign: "left" },
+            1: { cellWidth: 30, halign: "right" },
+            2: { cellWidth: 60, halign: "left" },
+          },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
         });
 
         const pageCount = (doc as any).internal.getNumberOfPages();

@@ -22,7 +22,7 @@ export async function getProductivityData(restaurantId: string, date: string) {
       report, 
       openingHours: restaurant?.openingHours ? JSON.parse(JSON.stringify(restaurant.openingHours)) : null 
     };
-  } catch (_error) {
+  } catch {
     return { report: null, openingHours: null };
   }
 }
@@ -57,7 +57,7 @@ export async function saveOpeningHours(restaurantId: string, hoursConfig: Record
       data: { openingHours: hoursConfig as Prisma.InputJsonValue }
     });
     return { success: true };
-  } catch (_error) {
+  } catch {
     return { success: false };
   }
 }

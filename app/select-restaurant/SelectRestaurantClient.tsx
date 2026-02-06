@@ -22,7 +22,7 @@ export default function SelectRestaurantClient({ restaurants, userName }: Client
   
   // KLJUČNO: Ako imamo 1 restoran, loading je ODMAH true. Nema čekanja.
   // Ako imamo više restorana, loading je false i odmah prikazujemo listu.
-  const [loading, _setLoading] = useState(restaurants.length === 1);
+  const [loading] = useState(restaurants.length === 1);
 
   const selectRestaurant = useCallback((rest: Restaurant) => {
     // 1. Spasi podatke (mora na klijentu zbog LocalStorage)

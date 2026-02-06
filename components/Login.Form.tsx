@@ -32,7 +32,7 @@ export default function LoginForm() {
         router.refresh(); // Osvježi da povuče sesiju
         router.push("/dashboard");
       }
-    } catch (_err) {
+    } catch {
       setError("Greška prilikom prijave.");
       setLoading(false);
     }

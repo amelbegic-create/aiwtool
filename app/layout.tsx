@@ -7,6 +7,7 @@ import TopNavbar from "@/components/TopNavbar";
 import prisma from "@/lib/prisma";
 import { cookies } from "next/headers";
 import AuthProvider from "@/components/AuthProvider";
+import { Role } from "@prisma/client";
 // UKLONIO SAM IMPORT switchRestaurant JER GA NE SMIJEMO KORISTITI OVDJE
 
 const inter = Inter({ subsets: ["latin"] });
@@ -25,6 +26,7 @@ export default async function RootLayout({
   
   let userRestaurants: { id: string; name: string | null; code: string }[] = [];
   let activeRestaurantId: string | undefined = undefined;
+  let pendingNotifications = 0;
 
   if (session?.user) {
       const cookieStore = await cookies();
@@ -35,17 +37,16 @@ export default async function RootLayout({
       const userId = user.id;
       const role = user.role;
 
-      const isBoss = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(role);
+      // Samo SYSTEM_ARCHITECT, SUPER_ADMIN i ADMIN vide sve restorane. MANAGER i CREW samo svoje.
+      const canSeeAllRestaurants = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'].includes(role);
 
-      if (isBoss) {
-          // Boss vidi sve
+      if (canSeeAllRestaurants) {
           const allRests = await prisma.restaurant.findMany({
               where: { isActive: true },
               select: { id: true, name: true, code: true }
           });
           userRestaurants = allRests;
       } else {
-          // Radnik vidi samo svoje
           const relations = await prisma.restaurantUser.findMany({
               where: { userId },
               include: { restaurant: true }
@@ -74,6 +75,41 @@ export default async function RootLayout({
       if (!activeRestaurantId && userRestaurants.length > 0) {
           activeRestaurantId = userRestaurants[0].id;
       }
+
+      // --- NOTIFIKACIJE ZA TOPNAV (zahtjevi) ---
+      const ADMIN_ROLES = new Set<Role>([
+        Role.SUPER_ADMIN,
+        Role.ADMIN,
+        Role.SYSTEM_ARCHITECT,
+        Role.MANAGER,
+      ]);
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          vacations: { where: { status: "PENDING" } },
+          pdsList: {
+            where: {
+              year: new Date().getFullYear(),
+              status: { in: ["OPEN", "SUBMITTED", "RETURNED"] },
+            },
+          },
+        },
+      });
+
+      if (dbUser) {
+        const isAdmin = ADMIN_ROLES.has(dbUser.role as Role);
+        const pdsPending = dbUser.pdsList?.length ?? 0;
+
+        if (isAdmin) {
+          const totalPendingAdmin = await prisma.vacationRequest.count({
+            where: { status: "PENDING" },
+          });
+          pendingNotifications = totalPendingAdmin + pdsPending;
+        } else {
+          pendingNotifications = 0;
+        }
+      }
   }
 
   return (
@@ -83,7 +119,8 @@ export default async function RootLayout({
             {session?.user && (
                 <TopNavbar 
                     restaurants={userRestaurants} 
-                    activeRestaurantId={activeRestaurantId} 
+                    activeRestaurantId={activeRestaurantId}
+                    notificationCount={pendingNotifications}
                 />
             )}
             {children}

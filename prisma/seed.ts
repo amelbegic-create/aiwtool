@@ -4,8 +4,6 @@ import { hash } from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Pokrećem seeding baze...');
-
   // 1. Očisti postojeće usere (opcionalno, za clean start)
   // await prisma.user.deleteMany(); 
 
@@ -24,8 +22,6 @@ async function main() {
       isActive: true,
     },
   });
-
-  console.log(`✅ Kreiran Super Admin: ${admin.email} (Password: admin123)`);
 }
 
 main()

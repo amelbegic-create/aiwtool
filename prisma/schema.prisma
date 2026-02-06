@@ -4,7 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")  // Pooled connection (za brzi rad aplikacije)
+  // Za Neon/pool: u DATABASE_URL dodaj ?connection_limit=5 da ne iscrpiš pool (npr. Neon limit 10)
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")    // Direct connection (OBAVEZNO za 'prisma db push')
 }
 
@@ -39,6 +40,19 @@ enum RuleStatus {
   ACTIVE
   ARCHIVED
   DRAFT
+}
+
+// --- BONUS TOOL ENUMS ---
+enum BonusCycleStatus {
+  DRAFT      // Konfiguracija u toku
+  ACTIVE     // Trenutni obračunski ciklus
+  CLOSED     // Zaključan, ali vidljiv za izvještaje
+  ARCHIVED   // Arhiviran, read-only
+}
+
+enum BonusFactorMode {
+  MULTIPLY
+  AVERAGE
 }
 
 // --- DEPARTMENTS (Odjeli) ---
@@ -95,6 +109,9 @@ model User {
 
   // ✅ NOVO: state snapshotovi za alate (Vercel Blob pointeri)
   toolStates          ToolState[]
+
+  // BONUS TOOL: zapisi po bonus ciklusu
+  bonusEntries        BonusEntry[]
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -296,6 +313,7 @@ model VacationRequest {
   end          String
   days         Int
   status       String      @default("PENDING")
+  note         String?     // opcionalna napomena (npr. za self-service admina)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }
@@ -440,4 +458,130 @@ model DashboardHighlight {
   order       Int      @default(0)  // manji = više gore
 
   @@index([addedAt])
+}
+
+// --- BONUS TOOL MODELI ---
+
+model BonusCycle {
+  id          String            @id @default(cuid())
+  name        String                                // npr. "2025 Godišnji Bonus"
+  year        Int?
+  description String?
+
+  // Globalne postavke iz alata
+  baseMonths  Float             @default(2)        // settings.baseMonths
+  capPct      Int               @default(120)      // settings.capPct (0–120)
+  factorMode  BonusFactorMode   @default(MULTIPLY) // settings.factorMode
+  capFactor   Boolean           @default(true)     // settings.capFactor
+
+  status      BonusCycleStatus  @default(DRAFT)
+  isActive    Boolean           @default(false)    // brzi flag za "trenutni" ciklus
+
+  // Relacije
+  templates   BonusTemplate[]
+  entries     BonusEntry[]
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([year, status])
+  @@index([isActive])
+}
+
+// Definicija stubova/pillara i ciljeva po "odjelu" (RL, Office, AL)
+model BonusTemplate {
+  id          String      @id @default(cuid())
+  cycleId     String
+  cycle       BonusCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  // Logički odjel iz Bonus alata (RL, AL, Office ...)
+  deptKey     String
+
+  // Pillar ključ: "fin", "ops", "ind"
+  pillarKey   String
+  pillarName  String
+
+  // Težina stubova – čuva se kao 0–1 (npr. 0.5 = 50%)
+  pillarWeight Float     @default(0.0)
+
+  enabled     Boolean    @default(true)
+
+  // Relacija na pojedinačne ciljeve (goals)
+  goals       BonusGoal[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([cycleId, deptKey])
+  @@index([cycleId, deptKey, pillarKey])
+}
+
+model BonusGoal {
+  id          String         @id @default(cuid())
+  templateId  String
+  template    BonusTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  name        String
+  // Težina cilja u % (0–100), identično "w" iz HTML-a
+  weightPct   Float          @default(0)
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+// Snapshot za svakog zaposlenika u datom ciklusu
+model BonusEntry {
+  id            String        @id @default(cuid())
+
+  cycleId       String
+  cycle         BonusCycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Snapshot plate i postavki za taj ciklus (NE vezano za trenutni User profil)
+  salaryMonthly Float         @default(0)      // Monatsgehalt
+  baseMonths    Float         @default(0)      // može biti različito po korisniku
+
+  // Pojedinačni faktori (kao u HTML state.factors)
+  factorTenure  Float         @default(1.0)
+  factorSize    Float         @default(1.0)
+  factorOffice  Float         @default(1.0)
+
+  // Fleksibilno polje za buduće faktore (npr. dodatni koeficijenti)
+  factors       Json?         // { tenure, size, office, ... }
+
+  // Izračunate ocjene (0–1.2) po stubu i ukupno
+  scoreFin      Float         @default(0)
+  scoreOps      Float         @default(0)
+  scoreInd      Float         @default(0)
+  scoreTotal    Float         @default(0)
+
+  // Izračunata baza, limit i isplata
+  amountBase    Float         @default(0)      // salary * baseMonths
+  amountCap     Float         @default(0)      // base * capPct
+  factorCombined Float        @default(1.0)    // rezultat factorFor(...)
+  amountRaw     Float         @default(0)      // prije cap-a
+  finalPayout   Float         @default(0)      // nakon cap-a (payout)
+
+  // Snapshot ispunjenja ciljeva (fulfill.fin/ops/ind per-goal) za analitiku
+  fulfillment   Json?         // { fin: number[], ops: number[], ind: number[] } ili detljaniji objekt
+
+  isExcluded    Boolean       @default(false)  // npr. ako je zaposlenik izašao usred ciklusa
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([cycleId, userId])
+  @@index([cycleId])
+  @@index([userId])
+}
+
+// Snapshot kompletnog Bonus state objekta (preneseno direktno iz HTML alata)
+model BonusSheet {
+  id        String   @id @default(cuid())
+  name      String   // npr. "Obračun 2026 Q1"
+  data      Json     // kompletan 'state' objekat iz alata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

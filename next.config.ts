@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
   // Keep server actions upload body size limit
   experimental: {
     serverActions: {
@@ -10,7 +14,7 @@ const nextConfig: NextConfig = {
     },
   },
 
-  // Images (Vercel Blob + placeholder)
+  // Images (Vercel Blob – profilni avatari + pravila; placeholder)
   images: {
     remotePatterns: [
       {

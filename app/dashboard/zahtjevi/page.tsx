@@ -19,6 +19,7 @@ type PendingItem = {
   count: number;
   icon: typeof Palmtree;
   accent: "emerald" | "blue" | "amber";
+  vacationRows?: { restaurantName: string; userName: string }[];
 };
 
 export default async function ZahtjeviPage() {
@@ -45,6 +46,19 @@ export default async function ZahtjeviPage() {
 
   const isAdmin = ADMIN_ROLES.has(dbUser.role as Role);
   const totalPendingAdmin = isAdmin ? await prisma.vacationRequest.count({ where: { status: "PENDING" } }) : 0;
+
+  const pendingVacationRequests =
+    isAdmin && totalPendingAdmin > 0
+      ? await prisma.vacationRequest.findMany({
+          where: { status: "PENDING" },
+          include: {
+            user: { select: { name: true } },
+            restaurant: { select: { name: true } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        })
+      : [];
 
   const pendingMine = dbUser.vacations?.length ?? 0;
   const pdsPending = dbUser.pdsList?.length ?? 0;
@@ -84,6 +98,10 @@ export default async function ZahtjeviPage() {
       count: totalPendingAdmin,
       icon: ShieldCheck,
       accent: "amber",
+      vacationRows: pendingVacationRequests.map((r) => ({
+        restaurantName: r.restaurant?.name ?? "N/A",
+        userName: r.user?.name ?? "N/A",
+      })),
     });
   }
 
@@ -165,6 +183,18 @@ export default async function ZahtjeviPage() {
                     {item.title}
                   </h2>
                   <p className="mt-1 text-sm font-medium text-slate-600">{item.description}</p>
+                  {item.vacationRows && item.vacationRows.length > 0 && (
+                    <ul className="mt-3 space-y-1.5 max-h-32 overflow-y-auto">
+                      {item.vacationRows.map((row, i) => (
+                        <li key={i} className="text-xs font-semibold text-slate-700 truncate" title={`${row.restaurantName} – ${row.userName} – Novi zahtjev`}>
+                          <span className="text-[#1a3826]">{row.restaurantName}</span>
+                          <span className="text-slate-400 mx-1">–</span>
+                          <span>{row.userName}</span>
+                          <span className="text-slate-400 ml-1">– Novi zahtjev</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <div className="mt-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#1a3826]">
                     Otvori modul
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 transition-colors group-hover:bg-[#1a3826]/10">

@@ -194,7 +194,7 @@ export async function markRuleAsRead(ruleId: string) {
     try {
         await prisma.ruleReadReceipt.create({ data: { ruleId, userId: user.id } });
         revalidatePath('/tools/rules');
-    } catch (_e) {} 
+    } catch {} 
 }
 
 export async function getRuleStats(ruleId: string): Promise<RuleStatsResult> {

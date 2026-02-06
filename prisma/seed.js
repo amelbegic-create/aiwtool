@@ -45,7 +45,6 @@ async function main() {
     },
   });
 
-  console.log("✅ Seed gotov: admin + restoran ubačeni.");
 }
 
 main()

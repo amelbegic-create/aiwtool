@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { Bell, ChevronRight, FileText, Sparkles, CalendarDays, ClipboardCheck } from "lucide-react";
+import { Bell, ChevronRight, FileText, Sparkles, CalendarDays } from "lucide-react";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 import QuickActionsCard from "@/components/dashboard/QuickActionsCard";
 import LiveStatusCard from "@/components/dashboard/LiveStatusCard";
@@ -11,9 +11,6 @@ import DashboardModuleIcons from "@/components/dashboard/DashboardModuleIcons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAllowedQuickActions } from "@/lib/dashboard";
 import { getDashboardHighlights } from "@/app/actions/dashboardHighlightActions";
-import { APP_TOOLS } from "@/lib/tools/tools-config";
-import { hasPermission } from "@/lib/access";
-import { GOD_MODE_ROLES } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -63,16 +60,6 @@ async function getVacationDaysSummary(userId: string) {
   return { total, used, remaining: Math.max(0, total - used) };
 }
 
-async function getPendingApprovalCount(userId: string, role: string, permissions: string[]) {
-  const canApproveAll = GOD_MODE_ROLES.has(role) || hasPermission(role, permissions, "vacation:approve");
-  if (canApproveAll) {
-    return prisma.vacationRequest.count({ where: { status: "PENDING" } });
-  }
-  return prisma.vacationRequest.count({
-    where: { supervisorId: userId, status: "PENDING" },
-  });
-}
-
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/login");
@@ -83,11 +70,10 @@ export default async function DashboardPage() {
   });
   if (!dbUser) redirect("/login");
 
-  const [recentRules, highlights, vacationSummary, pendingApprovalCount] = await Promise.all([
+  const [recentRules, highlights, vacationSummary] = await Promise.all([
     getRecentRules(),
     getDashboardHighlights(),
     getVacationDaysSummary(dbUser.id),
-    getPendingApprovalCount(dbUser.id, String(dbUser.role), dbUser.permissions ?? []),
   ]);
 
   const quickActions = getAllowedQuickActions(
@@ -97,9 +83,6 @@ export default async function DashboardPage() {
   const greeting = getGreeting();
   const firstName = (dbUser.name || (session.user as { name?: string }).name || "Korisnik").split(" ")[0];
   const roleLabel = String(dbUser.role || "CREW");
-  const showApprovalCard = GOD_MODE_ROLES.has(String(dbUser.role)) ||
-    hasPermission(String(dbUser.role), dbUser.permissions ?? [], "vacation:approve") ||
-    pendingApprovalCount > 0;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-800">
@@ -108,7 +91,7 @@ export default async function DashboardPage() {
           <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#1a3826]">
             <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full blur-3xl -mr-24 -mt-24" />
             <div className="absolute bottom-0 left-0 w-56 h-56 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-20 -mb-20" />
-            <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6 pr-2">
+            <div className="relative z-10 flex flex-col gap-4 pr-2">
               <div className="min-w-0 pl-1">
                 <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white leading-tight">
                   {greeting},{" "}
@@ -123,31 +106,6 @@ export default async function DashboardPage() {
                   Operativni pregled i brzi pristup modulima.
                 </p>
               </div>
-              {showApprovalCard && (
-                <Link
-                  href="/tools/vacations"
-                  className={`shrink-0 flex items-center gap-3 rounded-xl px-4 py-3 border-2 transition-colors ${
-                    pendingApprovalCount > 0
-                      ? "bg-red-500/20 border-red-400 text-white hover:bg-red-500/30"
-                      : "bg-white/10 border-white/30 text-white hover:bg-white/20"
-                  }`}
-                >
-                  <ClipboardCheck size={22} className="shrink-0" />
-                  <div className="text-left">
-                    <p className="text-xs font-semibold opacity-90">Zahtjevi za odobravanje</p>
-                    <p className="text-sm font-bold">
-                      {pendingApprovalCount > 0
-                        ? `${pendingApprovalCount} zahtjev(a) čeka`
-                        : "Nema na čekanju"}
-                    </p>
-                  </div>
-                  {pendingApprovalCount > 0 && (
-                    <span className="rounded-full bg-white text-red-600 w-7 h-7 flex items-center justify-center text-sm font-black">
-                      {pendingApprovalCount}
-                    </span>
-                  )}
-                </Link>
-              )}
             </div>
           </div>
         </div>

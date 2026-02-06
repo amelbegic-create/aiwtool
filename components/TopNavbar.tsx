@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell } from "lucide-react";
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
@@ -29,9 +29,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 interface TopNavbarProps {
   restaurants: { id: string; name: string | null; code: string }[];
   activeRestaurantId?: string;
+  notificationCount?: number;
 }
 
-export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopNavbarProps) {
+export default function TopNavbar({ restaurants = [], activeRestaurantId, notificationCount = 0 }: TopNavbarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -123,7 +124,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
           })}
         </nav>
 
-        {/* DESNA STRANA: USER PROFILE */}
+        {/* DESNA STRANA: NOTIFIKACIJE + USER PROFILE */}
         <div className="hidden md:flex items-center gap-4">
           <div className="flex flex-col items-end leading-none border-r border-white/10 pr-4 font-bold">
             <span className="text-[10px] font-black text-white uppercase tracking-tight">{session?.user?.name || "Korisnik"}</span>
@@ -131,6 +132,19 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId }: TopN
                 Online
             </span>
           </div>
+          {/* Notifikacije – zvono sa badgeom, vodi na /dashboard/zahtjevi */}
+          <Link
+            href="/dashboard/zahtjevi"
+            className="relative h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
+            aria-label="Zahtjevi na čekanju"
+          >
+            <Bell size={16} />
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">
+                {notificationCount > 99 ? "99+" : notificationCount}
+              </span>
+            )}
+          </Link>
           <div className="flex items-center gap-1.5">
             <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10">
                {session?.user?.image ? <img src={session.user.image} alt="User" className="h-full w-full object-cover" /> : <User size={16} />}

@@ -195,7 +195,18 @@ async function getUsedApprovedDaysForYear(userId: string, year: number) {
   return approved.reduce((sum, r) => sum + r.days, 0);
 }
 
-export async function createVacationRequest(data: { start: string; end: string }) {
+/** Role koji mogu sami sebi odmah odobriti godišnji (self-service) – bez notifikacija. */
+const SELF_SERVICE_VACATION_ROLES = new Set<Role>([
+  Role.SYSTEM_ARCHITECT,
+  Role.SUPER_ADMIN,
+  Role.ADMIN,
+]);
+
+export async function createVacationRequest(data: {
+  start: string;
+  end: string;
+  note?: string | null;
+}) {
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as SessionUser)?.id;
   if (!sessionUserId) throw new Error("Niste prijavljeni.");
@@ -207,7 +218,7 @@ export async function createVacationRequest(data: { start: string; end: string }
   if (!user) throw new Error("Korisnik nije pronađen.");
   if (user.isActive === false) throw new Error("Korisnik nije aktivan.");
 
-  // ✅ chain-of-command: za role 3-5 nadređeni mora postojati
+  // ✅ chain-of-command: za role 3-5 nadređeni mora postojati (osim self-service admina)
   if (!isGodModeRole(user.role as Role) && !user.supervisorId) {
     throw new Error("Nadređeni nije postavljen za vaš profil. Obratite se administratoru.");
   }
@@ -236,6 +247,10 @@ export async function createVacationRequest(data: { start: string; end: string }
     throw new Error(`Nemate dovoljno dana godišnjeg. Preostalo: ${remaining} dana.`);
   }
 
+  // Self-service: SYSTEM_ARCHITECT / SUPER_ADMIN / ADMIN odmah APPROVED, bez notifikacija
+  const isSelfServiceAdmin = SELF_SERVICE_VACATION_ROLES.has(user.role as Role);
+  const status = isSelfServiceAdmin ? "APPROVED" : "PENDING";
+
   await prisma.vacationRequest.create({
     data: {
       userId: user.id,
@@ -244,7 +259,8 @@ export async function createVacationRequest(data: { start: string; end: string }
       start: data.start,
       end: data.end,
       days: totalDays,
-      status: "PENDING",
+      status,
+      note: data.note?.trim() || null,
     },
   });
 
@@ -305,6 +321,14 @@ export async function updateVacationRequest(id: string, data: { start: string; e
   revalidatePath("/tools/vacations");
 }
 
+const ALLOWED_STATUS_TRANSITIONS = new Set([
+  "APPROVED",
+  "REJECTED",
+  "RETURNED",
+  "CANCELLED",
+  "PENDING", // Poništi odbijanje: vrati zahtjev na čekanju
+]);
+
 export async function updateVacationStatus(requestId: string, status: string) {
   await requirePermission("vacation:approve");
 
@@ -314,20 +338,45 @@ export async function updateVacationStatus(requestId: string, status: string) {
 
   const actingUser = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    select: { id: true, role: true },
+    select: {
+      id: true,
+      role: true,
+      restaurants: { select: { restaurantId: true } },
+    },
   });
   if (!actingUser) throw new Error("Korisnik nije pronađen.");
 
   const req = await prisma.vacationRequest.findUnique({
     where: { id: requestId },
-    select: { supervisorId: true },
+    select: {
+      supervisorId: true,
+      restaurantId: true,
+      user: { select: { id: true, role: true } },
+    },
   });
   if (!req) throw new Error("Zahtjev nije pronađen.");
 
   const god = isGodModeRole(actingUser.role);
+  const isAdmin = actingUser.role === "ADMIN";
 
-  if (!god && req.supervisorId !== actingUser.id) {
-    throw new Error("Nemate pravo odobriti ovaj zahtjev. Obratite se administratoru.");
+  if (!god && !isAdmin) {
+    if (req.supervisorId !== actingUser.id) {
+      throw new Error("Nemate pravo odobriti ovaj zahtjev. Obratite se administratoru.");
+    }
+    if (actingUser.role === "MANAGER") {
+      const managerRestaurantIds = (actingUser.restaurants ?? []).map((r) => r.restaurantId);
+      const requestRestaurantId = req.restaurantId;
+      if (!requestRestaurantId || !managerRestaurantIds.includes(requestRestaurantId)) {
+        throw new Error("Pristup odbijen: zahtjev je iz drugog restorana.");
+      }
+      if (req.user?.role !== "CREW") {
+        throw new Error("Manager može odobravati samo zahtjeve radnika (Crew), ne drugih managera.");
+      }
+    }
+  }
+
+  if (!ALLOWED_STATUS_TRANSITIONS.has(status)) {
+    throw new Error(`Nedozvoljen status: ${status}`);
   }
 
   await prisma.vacationRequest.update({
@@ -336,6 +385,7 @@ export async function updateVacationStatus(requestId: string, status: string) {
   });
 
   revalidatePath("/tools/vacations");
+  revalidatePath("/");
 }
 
 export async function cancelVacationRequest(requestId: string) {
