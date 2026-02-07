@@ -5,15 +5,10 @@ import prisma from "@/lib/prisma";
 import { compare, hash } from "bcryptjs";
 import type { Role } from "@prisma/client";
 
-// URL za NextAuth (cookie i redirectovi). Obavezno na Vercelu za custom domenu (npr. aiw.services).
-if (typeof process !== "undefined") {
-  if (!process.env.NEXTAUTH_URL && process.env.NODE_ENV === "development") {
-    process.env.NEXTAUTH_URL = "http://localhost:3000";
-  }
-  // Vercel: ako NEXTAUTH_URL nije postavljen, koristi VERCEL_URL (*.vercel.app). Za custom domenu postavite NEXTAUTH_URL u Vercel env.
-  if (!process.env.NEXTAUTH_URL && process.env.VERCEL_URL) {
-    process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
-  }
+// URL za NextAuth. NE postavljati NEXTAUTH_URL iz VERCEL_URL kada korisnici dolaze s custom domene (npr. www.aiw.services),
+// inače cookie se postavlja za *.vercel.app i sljedeći zahtjev na www.aiw.services nema cookie → login loop.
+if (typeof process !== "undefined" && process.env.NODE_ENV === "development" && !process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = "http://localhost:3000";
 }
 
 /**
@@ -29,8 +24,9 @@ export const authOptions: NextAuthOptions = {
   pages: { signIn: "/login", error: "/login" },
   secret: process.env.NEXTAUTH_SECRET,
 
-  // Vercel + custom domena (npr. aiw.services): trustHost da cookie odgovara domeni.
-  // Na Vercelu postavite NEXTAUTH_URL na točan URL (npr. https://aiw.services).
+  // Vercel + custom domena: trustHost = true. NextAuth onda koristi request host (x-forwarded-host) za origin,
+  // pa cookie i redirect budu za domenu s koje korisnik dolazi (npr. www.aiw.services). Nemojte postaviti
+  // NEXTAUTH_URL na *.vercel.app ako korisnici ulaze preko custom domene.
   // @ts-expect-error - NextAuth v4 typing doesn't always include this flag
   trustHost: true,
 

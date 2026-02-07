@@ -40,9 +40,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Na HTTPS (Vercel) NextAuth koristi __Secure-next-auth.session-token; eksplicitno da middleware čita isti cookie.
+  const isSecure = req.nextUrl.protocol === "https:";
   const token = await getToken({
     req,
     secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: isSecure,
   });
 
   // 2. User on /login: if has session -> dashboard; else show login (nikad redirect u krug)

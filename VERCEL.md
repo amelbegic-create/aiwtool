@@ -1,19 +1,20 @@
 # Vercel – Login i env varijable
 
-Da bi **login radio na Vercelu** (posebno s custom domenom **aiw.services**), u Vercel projektu postavite:
+Da bi **login radio na Vercelu** (uključujući custom domenu **www.aiw.services**):
 
 ## Obavezno
 
 1. **Settings → Environment Variables**
 2. Dodajte:
-   - **`NEXTAUTH_URL`** = točan URL vaše stranice  
-     - Ako koristite **aiw.services**: `https://aiw.services` ili `https://www.aiw.services` (onako kako korisnici ulaze, **bez** `/` na kraju).
-     - Ako koristite samo Vercel URL (*.vercel.app), možete ostaviti prazno – aplikacija koristi `VERCEL_URL` kao fallback.
    - **`NEXTAUTH_SECRET`** = isti secret kao lokalno (npr. dugi random string, min. 32 znaka).
    - **`DATABASE_URL`** = connection string za bazu (Production).
+   - **`NEXTAUTH_URL`** (preporučeno za stabilnost): točan URL na koji korisnici ulaze  
+     - Za **www.aiw.services**: `https://www.aiw.services` (bez `/` na kraju).  
+     - Možete ga i **ne postavljati**: uz `trustHost: true`, NextAuth koristi host iz zahtjeva (x-forwarded-host), pa cookie i redirect budu za domenu s koje korisnik dolazi. To radi i za custom domenu.
 
 3. **Redeploy** nakon promjene env varijabli (Deployments → ... → Redeploy).
 
-## Zašto login ne radi bez ovoga?
+## Važno za custom domenu
 
-Ako **NEXTAUTH_URL** nije točan ili nedostaje za custom domenu, cookie sesije se postavlja za krivu domenu. Nakon prijave, sljedeći zahtjev (npr. na `/dashboard`) ne šalje cookie, pa middleware preusmjeri natrag na `/login`.
+- **Nemojte** postaviti `NEXTAUTH_URL` na `https://aiwtool.vercel.app` (ili drugi *.vercel.app) ako korisnici ulaze preko **www.aiw.services**. Inače se cookie postavlja za *.vercel.app, pa na www.aiw.services zahtjev nema cookie i nastaje login loop.
+- Ili postavite `NEXTAUTH_URL=https://www.aiw.services`, ili ostavite `NEXTAUTH_URL` prazan i oslonite se na `trustHost` (request host).
