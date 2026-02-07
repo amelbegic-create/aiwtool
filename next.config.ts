@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Ensures Vercel picks up latest commit (redeploy trigger)
 
   eslint: {
     ignoreDuringBuilds: true,
