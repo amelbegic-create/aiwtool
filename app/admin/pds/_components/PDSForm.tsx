@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createPDSTemplate, updatePDSTemplate } from "@/app/actions/pdsActions";
+import { toast } from "sonner";
 import type { PDSGoal, PDSScaleLevel, PDSScoringRule } from "@/app/tools/PDS/types";
 import { Target, BarChart4, ChevronRight, Hash, ToggleLeft, Trash2, Save } from "lucide-react";
 
@@ -89,6 +90,7 @@ export default function PDSForm({
           scale,
         });
         if (res.success) {
+          toast.success("PDS obrazac ažuriran.");
           router.push("/admin/pds");
           router.refresh();
         } else {
@@ -105,13 +107,14 @@ export default function PDSForm({
           managerId,
         });
         if (res.success) {
+          toast.success("PDS obrazac kreiran.");
           router.push("/admin/pds");
           router.refresh();
         } else {
           alert(res.error);
         }
       }
-    } catch (err) {
+    } catch {
       alert("Greška na serveru.");
     }
     setSaving(false);

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { createUser, deleteUser, updateUser } from "../../actions/adminActions";
+import { toast } from "sonner";
 import { getRolePermissionPreset } from "../../actions/rolePresetActions";
 import { PERMISSIONS, ALL_PERMISSION_KEYS, GOD_MODE_ROLES } from "@/lib/permissions";
 import { Role } from "@prisma/client";
@@ -203,6 +204,8 @@ export default function UserClient({ users = [], restaurants = [], departments =
     void applyRolePreset("CREW");
   };
 
+  // Kept for future use (e.g. edit from table row)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reserved for edit flow
   const _openEdit = (u: UserProps) => {
     setIsEditing(true);
 
@@ -311,6 +314,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
     try {
       setDeletingId(id);
       await deleteUser(id);
+      toast.success("Korisnik obrisan.");
       router.refresh();
     } catch (e: any) {
       alert(e.message || "Greška");

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useFormStatus } from "react-dom";
+import { toast } from "sonner";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import { updateProfile, changePassword } from "@/app/actions/profileActions";
 import {
@@ -75,6 +76,7 @@ export default function ProfilePage() {
     }
     const result = await changePassword(currentPassword, newPassword);
     if (result.success) {
+      toast.success("Lozinka promijenjena.");
       setPasswordMessage({ type: "success", text: "Lozinka promijenjena." });
     } else {
       setPasswordMessage({ type: "error", text: result.error });
@@ -103,25 +105,26 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        {/* Bento / Split layout */}
+        {/* Bento / Split layout – "Dosje zaposlenika": lijevo velika slika, desno podaci */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-          {/* Left: Avatar + identity card */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-8 flex flex-col items-center text-center">
+          {/* Left: velika kvadratna profilna slika (ID-style, spreman za Org Chart) */}
+          <div className="lg:col-span-4 flex flex-col items-center lg:items-start">
+            <div className="w-full max-w-sm md:max-w-[400px] aspect-square flex-shrink-0">
               <AvatarUpload
                 currentImageUrl={displayImage}
                 onUpdate={(url) => setAvatarUrlOverride(url)}
-                size={140}
-                className="mb-6"
+                className="w-full h-full"
               />
-              <h2 className="text-lg font-semibold text-slate-900 truncate w-full">
+            </div>
+            <div className="mt-6 w-full max-w-sm md:max-w-[400px] bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-6 text-center lg:text-left">
+              <h2 className="text-lg font-semibold text-slate-900 truncate">
                 {user?.name || "Korisnik"}
               </h2>
-              <p className="text-sm text-slate-500 truncate w-full mb-4">
+              <p className="text-sm text-slate-500 truncate mt-1">
                 {user?.email}
               </p>
-              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 border border-slate-100">
-                <ShieldCheck size={16} className="text-slate-500" />
+              <div className="flex items-center justify-center lg:justify-start gap-2 mt-4 px-4 py-2 rounded-xl bg-slate-50 border border-slate-100">
+                <ShieldCheck size={16} className="text-slate-500 shrink-0" />
                 <span className="text-xs font-medium text-slate-600 uppercase tracking-wide">
                   {roleLabel}
                 </span>

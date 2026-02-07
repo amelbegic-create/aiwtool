@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, UserCircle, Menu, X, Bell } from "lucide-react";
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
@@ -145,8 +145,18 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
               </span>
             )}
           </Link>
+          {/* Prečica za Moj Profil */}
+          <Link
+            href="/profile"
+            onClick={closeMenu}
+            className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
+            title="Moj Profil"
+            aria-label="Moj Profil"
+          >
+            <UserCircle size={18} />
+          </Link>
           <div className="flex items-center gap-1.5">
-            <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10">
+            <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10" title="Moj Profil">
                {session?.user?.image ? <img src={session.user.image} alt="User" className="h-full w-full object-cover" /> : <User size={16} />}
             </Link>
             <button onClick={() => signOut({ callbackUrl: "/login" })} className="h-8 w-8 flex items-center justify-center text-white/30 hover:text-red-400 transition-colors ml-1"><LogOut size={16} /></button>

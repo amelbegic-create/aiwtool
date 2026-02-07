@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";

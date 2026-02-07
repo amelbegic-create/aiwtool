@@ -9,6 +9,7 @@ import {
   cancelVacationRequest,
   deleteVacationRequest,
 } from "@/app/actions/vacationActions";
+import { toast } from "sonner";
 import {
   Calendar,
   Trash2,
@@ -85,7 +86,7 @@ export default function UserView({
   const [isExporting, setIsExporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const years = Array.from({ length: 7 }, (_, i) => 2024 + i);
+  const years = [2025, 2026, 2027, 2028, 2029, 2030];
 
   const tomorrow = (() => {
     const t = new Date();
@@ -240,11 +241,11 @@ export default function UserView({
     try {
       if (editingId) {
           await updateVacationRequest(editingId, { start, end });
-          alert("Zahtjev ažuriran i ponovno poslan!");
+          toast.success("Zahtjev ažuriran.");
           setEditingId(null);
       } else {
           await createVacationRequest({ start, end });
-          alert("Zahtjev uspješno poslan!");
+          toast.success("Zahtjev za godišnji poslan.");
       }
       setStart("");
       setEnd("");
@@ -267,6 +268,7 @@ export default function UserView({
       if (confirm("Jeste li sigurni da želite poništiti ovaj odobreni godišnji odmor? Admin mora odobriti poništenje.")) {
           try {
               await cancelVacationRequest(id);
+              toast.success("Zahtjev za godišnji otkazan.");
               router.refresh();
           } catch (e: any) {
               alert(e.message);

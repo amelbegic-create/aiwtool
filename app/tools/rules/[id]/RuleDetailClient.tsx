@@ -103,6 +103,7 @@ function toYoutubeEmbed(url: string) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- userId reserved for future scoped actions
 export default function RuleDetailClient({ rule, userId: _userId }: { rule: RuleDetailRule; userId: string }) {
   const router = useRouter();
   const [isRead, setIsRead] = useState(rule.isRead);

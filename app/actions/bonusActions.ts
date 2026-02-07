@@ -74,7 +74,7 @@ export async function syncEmployeesWithUsers(rawState: any): Promise<BonusState>
   const state = sanitize(rawState);
 
   const users = await prisma.user.findMany({
-    where: { isActive: true },
+    where: { isActive: true, role: { not: "SYSTEM_ARCHITECT" } },
     include: { department: true },
     orderBy: { name: "asc" },
   });

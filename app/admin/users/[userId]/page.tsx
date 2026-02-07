@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Role } from "@prisma/client";
 import { requirePermission } from "@/lib/access";
 import prisma from "@/lib/prisma";
 import { getDepartments } from "@/app/actions/departmentActions";
 import UserForm, { UserFormInitialData } from "../_components/UserForm";
+
+const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +41,7 @@ export default async function EditUserPage({ params }: PageProps) {
       select: { id: true, name: true, code: true },
     }),
     prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...STEALTH_ROLE_FILTER },
       select: { id: true, name: true, email: true, role: true },
     }),
     getDepartments(),

@@ -14,6 +14,7 @@ export const TOOL_CATEGORIES = [
 
 export const APP_TOOLS = [
   // OSOBLJE (Personal)
+  { id: 'team', name: 'Moj Tim', href: '/team', icon: Users, category: 'staff' },
   { id: 'vacations', name: 'Godišnji Odmori', href: '/tools/vacations', icon: PlaneTakeoff, category: 'staff' },
   { id: 'PDS', name: 'PDS', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
   { id: 'rules', name: 'Pravila & Procedure', href: '/tools/rules', icon: BookOpen, category: 'staff' },

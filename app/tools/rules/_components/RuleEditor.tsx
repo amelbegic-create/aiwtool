@@ -19,6 +19,7 @@ import {
   deleteCategory,
   type RuleFormData,
 } from "@/app/actions/ruleActions";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import type { RulePriority } from "@prisma/client";
 
@@ -148,6 +149,7 @@ export default function RuleEditor({
         restaurantIds: isGlobal ? [] : restaurantIds,
       };
       await saveRule(data);
+      toast.success(initialRule?.id ? "Pravilo ažurirano." : "Pravilo kreirano.");
       router.push(redirectTo);
       router.refresh();
     } catch (err) {

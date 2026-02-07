@@ -87,7 +87,7 @@ async function validateAndResolveSupervisorId(args: {
       where: {
         isActive: true,
         ...(selfId ? { id: { not: selfId } } : {}),
-        role: { in: ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "MANAGER", "ADMIN"] },
+        role: { in: ["SUPER_ADMIN", "MANAGER", "ADMIN"] },
       },
     });
     if (possibleSupervisors > 0) {
@@ -107,6 +107,7 @@ async function validateAndResolveSupervisorId(args: {
 
   if (!sup) throw new Error("Odabrani nadređeni ne postoji.");
   if (sup.isActive === false) throw new Error("Odabrani nadređeni nije aktivan.");
+  if (sup.role === "SYSTEM_ARCHITECT") throw new Error("Odabrani nadređeni nije dostupan.");
 
   const supRank = roleRank(sup.role);
   const meRank = roleRank(role);

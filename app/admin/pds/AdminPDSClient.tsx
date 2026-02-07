@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Pencil, Trash2 } from "lucide-react";
 import { deletePDSTemplate } from "@/app/actions/pdsActions";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export type PDSTemplateRow = {
   id: string;
@@ -24,8 +25,10 @@ export default function AdminPDSClient({
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Obrisati PDS obrazac "${title}"? Postojeći PDS zapisnici radnika neće biti obrisani.`)) return;
     const res = await deletePDSTemplate(id);
-    if (res.success) router.refresh();
-    else alert(res.error);
+    if (res.success) {
+      toast.success("PDS obrazac obrisan.");
+      router.refresh();
+    } else alert(res.error);
   };
 
   return (

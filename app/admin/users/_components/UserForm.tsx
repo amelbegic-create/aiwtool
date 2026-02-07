@@ -7,6 +7,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createUser, updateUser } from "@/app/actions/adminActions";
+import { toast } from "sonner";
 import { getRolePermissionPreset } from "@/app/actions/rolePresetActions";
 import { createDepartment, updateDepartment, deleteDepartment } from "@/app/actions/departmentActions";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
@@ -204,13 +205,14 @@ export default function UserForm({
     try {
       const res = await createDepartment({ name, color: newDeptColor });
       if (res.success && res.data) {
+        toast.success("Odjel kreiran.");
         setDepartmentsList((prev) => [...prev, res.data!]);
         form.setValue("departmentId", res.data.id);
         setDepartmentModalOpen(false);
         setNewDeptName("");
         setNewDeptColor("#1a3826");
       }
-    } catch (_e) {
+    } catch {
       alert("Greška pri kreiranju odjela.");
     }
     setIsCreatingDept(false);
@@ -260,6 +262,7 @@ export default function UserForm({
     try {
       const res = await deleteDepartment(id);
       if (res.success) {
+        toast.success("Odjel obrisan.");
         setDepartmentsList((prev) => prev.filter((d) => d.id !== id));
         if (form.getValues("departmentId") === id) form.setValue("departmentId", null);
         if (editingDeptId === id) cancelEditDepartment();
@@ -318,6 +321,7 @@ export default function UserForm({
           vacationAllowances,
         });
       }
+      toast.success(isEdit ? "Korisnik ažuriran." : "Korisnik kreiran.");
       router.push("/admin/users");
       router.refresh();
     } catch (e) {

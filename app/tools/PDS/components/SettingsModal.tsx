@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Save, Target, BarChart4, ChevronRight, Hash, ToggleLeft, Trash2, Store } from 'lucide-react';
 import { createTemplate } from '../../../actions/pdsActions';
+import { toast } from 'sonner';
 import { PDSGoal, PDSScaleLevel, PDSScoringRule } from '../types';
 
 interface RestaurantOption {
@@ -48,6 +49,7 @@ export default function SettingsModal({ year, initialGoals, initialScale, restau
     const res = await createTemplate(year, restaurantIds, goals, scale, currentUserId);
     setIsSaving(false);
     if (res?.success) {
+      toast.success("PDS obrazac spremljen.");
       onClose();
     } else {
       alert(res?.error ?? 'Greška pri spremanju.');

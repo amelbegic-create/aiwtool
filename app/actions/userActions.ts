@@ -3,13 +3,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import bcrypt from "bcryptjs"; 
+import bcrypt from "bcryptjs";
+import { Role } from "@prisma/client";
+
+/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u listama/tabelama/pretragama. */
+const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } as const };
 
 // 1. DOHVATI KORISNIKE ZA RESTORAN
 export async function getUsersByRestaurant(restaurantId: string) {
   try {
     const users = await prisma.user.findMany({
       where: {
+        ...STEALTH_ROLE_FILTER,
         restaurants: {
           some: { restaurantId: restaurantId }
         }

@@ -10,7 +10,7 @@ interface AvatarUploadProps {
   currentImageUrl: string | null | undefined;
   /** Poziva se nakon uspješnog uploada s novim URL-om (npr. za refresh sesije). */
   onUpdate?: (newUrl: string) => void;
-  /** Veličina avatara u px. */
+  /** Veličina avatara u px (za veliki ID-style koristi 400). */
   size?: number;
   /** Dodatna CSS klasa za wrapper. */
   className?: string;
@@ -19,7 +19,7 @@ interface AvatarUploadProps {
 export default function AvatarUpload({
   currentImageUrl,
   onUpdate,
-  size = 128,
+  size = 400,
   className = "",
 }: AvatarUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,13 +68,12 @@ export default function AvatarUpload({
   };
 
   return (
-    <div className={`relative inline-flex ${className}`}>
+    <div className={`relative inline-flex aspect-square w-full h-full min-w-0 min-h-0 ${className}`}>
       <button
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="relative rounded-full overflow-hidden bg-slate-100 border-2 border-slate-200 hover:border-[#1a3826]/30 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:ring-offset-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
-        style={{ width: size, height: size }}
+        className="relative w-full h-full rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-lg hover:border-[#1a3826]/30 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:ring-offset-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
         aria-label="Promijeni profilnu sliku"
       >
         {currentImageUrl ? (
@@ -88,17 +87,17 @@ export default function AvatarUpload({
           />
         ) : (
           <span className="w-full h-full flex items-center justify-center text-slate-400">
-            <User size={size * 0.45} strokeWidth={1.5} />
+            <User size={Math.min(size * 0.4, 120)} strokeWidth={1.5} />
           </span>
         )}
         {loading && (
           <span className="absolute inset-0 flex items-center justify-center bg-white/80">
-            <Loader2 size={size * 0.4} className="animate-spin text-[#1a3826]" />
+            <Loader2 size={40} className="animate-spin text-[#1a3826]" />
           </span>
         )}
         {!loading && (
-          <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/40 transition-colors">
-            <Camera className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" size={size * 0.25} />
+          <span className="absolute bottom-3 right-3 flex items-center justify-center w-10 h-10 rounded-xl bg-black/50 text-white opacity-90 group-hover:opacity-100 group-hover:bg-[#1a3826] transition-all shadow-md">
+            <Camera size={20} />
           </span>
         )}
       </button>

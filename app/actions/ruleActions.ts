@@ -215,7 +215,7 @@ export async function getRuleStats(ruleId: string): Promise<RuleStatsResult> {
 
   if (rule.isGlobal) {
     const allUsers = await prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, role: { not: "SYSTEM_ARCHITECT" } },
       select: { id: true, name: true, email: true },
     });
     const unread = allUsers.filter((u) => !readUserIds.has(u.id)).map((u) => ({ id: u.id, name: u.name, email: u.email }));

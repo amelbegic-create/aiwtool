@@ -3,10 +3,9 @@ import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { Bell, ChevronRight, FileText, Sparkles, CalendarDays } from "lucide-react";
+import { Bell, ChevronRight, FileText, Sparkles, CalendarDays, Users } from "lucide-react";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 import QuickActionsCard from "@/components/dashboard/QuickActionsCard";
-import LiveStatusCard from "@/components/dashboard/LiveStatusCard";
 import DashboardModuleIcons from "@/components/dashboard/DashboardModuleIcons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAllowedQuickActions } from "@/lib/dashboard";
@@ -148,7 +147,23 @@ export default async function DashboardPage() {
             <QuickActionsCard actions={quickActions} />
           </div>
           <div className="lg:col-span-4">
-            <LiveStatusCard />
+            <Link
+              href="/team"
+              className="block h-full rounded-xl border border-[#FFC72C]/30 bg-[#FFC72C]/10 hover:bg-[#FFC72C]/20 shadow-sm hover:shadow-md transition-all p-6 group"
+            >
+              <div className="flex flex-col items-center justify-center text-center min-h-[140px] gap-3">
+                <div className="h-14 w-14 rounded-2xl bg-[#FFC72C] text-[#1a3826] flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Users size={28} strokeWidth={2.5} />
+                </div>
+                <div>
+                  <p className="text-lg font-black text-[#1a3826] uppercase tracking-tight">Moj Tim</p>
+                  <p className="text-xs font-medium text-slate-600 mt-0.5">Lista zaposlenika pod mojim nadzorom</p>
+                </div>
+                <span className="text-sm font-bold text-[#1a3826] inline-flex items-center gap-1">
+                  Otvori <ChevronRight size={14} />
+                </span>
+              </div>
+            </Link>
           </div>
           {/* Moduli dodani iz admin panela – kao ikonice (mjesto gdje su bili zahtjevi) */}
           <div className="lg:col-span-8">

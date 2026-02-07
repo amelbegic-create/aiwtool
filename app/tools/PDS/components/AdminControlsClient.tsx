@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2, Play, Edit, Globe, Store } from 'lucide-react';
 import { createBulkPDS, deleteAllPDSForYear, getGlobalPDSForExport } from '../../../actions/pdsActions';
+import { toast } from 'sonner';
 import SettingsModal from './SettingsModal';
 import type { PDSGoal, PDSScaleLevel } from '../types';
 import jsPDF from 'jspdf';
@@ -50,7 +51,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
       const res = await createBulkPDS(yearAsNumber, currentUserId);
 
       if (res?.success) {
-        alert('Generisanje uspješno!');
+        toast.success('PDS zapisi generisani.');
         router.refresh();
       } else {
         alert(res?.error || 'Greška pri generisanju.');
@@ -71,8 +72,8 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
     try {
         const yearAsNumber = Number(selectedYear);
         await deleteAllPDSForYear(yearAsNumber);
+        toast.success("PDS zapisi obrisani.");
         router.refresh();
-        alert("Uspješno obrisano.");
     } catch (error) {
         console.error(error);
         alert("Greška pri brisanju.");

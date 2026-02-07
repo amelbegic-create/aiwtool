@@ -1,4 +1,4 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";

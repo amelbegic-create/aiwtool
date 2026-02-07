@@ -1,13 +1,18 @@
 import prisma from "@/lib/prisma";
+import { Role } from "@prisma/client";
 import UserClient from "./UserClient";
 import { requirePermission } from "@/lib/access";
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
+/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u Admin panelu. */
+const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
+
 export default async function UsersPage() {
   await requirePermission("users:access");
 
   const users = await prisma.user.findMany({
+    where: STEALTH_ROLE_FILTER,
     orderBy: { createdAt: "desc" },
     include: {
       restaurants: true,

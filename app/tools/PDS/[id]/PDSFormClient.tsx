@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 // FIX: Ispravne putanje
 import { updatePDSContent, submitPDS, approvePDS, returnPDS, saveSignatureImage } from '../../../actions/pdsActions';
+import { toast } from 'sonner';
 import SignaturePad from '../components/SignaturePad';
 import { Save, Send, ChevronLeft, Check, X, Undo2, FileDown, Loader2 } from 'lucide-react';
 import { PDSGoal, PDSScoringRule } from '../types';
@@ -250,6 +251,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       await submitPDS(pds.id);
     }
     setLoading(false);
+    toast.success(isManager ? "PDS odobren." : "Zahtjev poslan.");
     router.refresh();
   };
 
@@ -270,8 +272,10 @@ export default function PDSFormClient({ pds, isManager }: Props) {
     setLoading(true);
     const res = await saveSignatureImage(pds.id, role, img);
     setLoading(false);
-    if (res?.success) router.refresh();
-    else alert(res?.error ?? 'Greška pri spremanju potpisa.');
+    if (res?.success) {
+      toast.success("Potpis spremljen.");
+      router.refresh();
+    } else alert(res?.error ?? 'Greška pri spremanju potpisa.');
   };
 
   return (

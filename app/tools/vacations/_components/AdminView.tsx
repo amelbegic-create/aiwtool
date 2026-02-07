@@ -10,6 +10,7 @@ import {
   getGlobalVacationStats,
   createVacationRequest,
 } from "@/app/actions/vacationActions";
+import { toast } from "sonner";
 import {
   Check,
   X,
@@ -44,6 +45,8 @@ interface UserStat {
   restaurantNames: string[];
   department: string | null;
   departmentColor?: string | null;
+  allowance?: number;
+  carriedOver?: number;
   total: number;
   used: number;
   remaining: number;
@@ -134,26 +137,65 @@ function statusLabel(s: string) {
 }
 
 // ===============================
-// Jedinstveni header za sve PDF exporte
+// Jedinstveni header za sve PDF exporte (redizajn: godina ogromna žuta, naziv restorana velik, naslov siv)
 // ===============================
-function drawPdfHeader(doc: jsPDF, title: string, subtitle?: string, subtitleFontSize?: number) {
+function drawPdfHeader(
+  doc: jsPDF,
+  opts: {
+    title: string;
+    subtitle?: string;
+    restaurantName?: string;
+    year?: number;
+    headerHeight?: number;
+  }
+) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const headerHeight = opts.headerHeight ?? 38;
   doc.setFillColor(26, 56, 38);
-  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 30, "F");
+  doc.rect(0, 0, pageW, headerHeight, "F");
 
+  let y = 12;
   doc.setTextColor(255, 199, 44);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("AIW Services", 14, 12);
-
-  doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
-  doc.text(title, 14, 22);
+  doc.setFont("helvetica", "bold");
+  doc.text("AIW Services", 14, y);
+  y += 10;
 
-  if (subtitle) {
-    doc.setFontSize(subtitleFontSize ?? 10);
-    doc.setTextColor(255, 199, 44);
+  if (opts.restaurantName) {
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text(opts.restaurantName, 14, y);
+    y += 8;
+  }
+
+  doc.setFontSize(10);
+  doc.setTextColor(148, 163, 184);
+  doc.setFont("helvetica", "normal");
+  doc.text(typeof opts.title === "string" ? opts.title : "", 14, y);
+  y += 6;
+
+  if (opts.year != null) {
+    const yearStr = String(opts.year);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    const textW = doc.getTextWidth(yearStr);
+    const padding = 8;
+    const boxW = textW + padding * 2;
+    const boxH = 20;
+    const boxX = pageW - 14 - boxW;
+    const boxY = (headerHeight - boxH) / 2;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, "F");
+    doc.setTextColor(26, 56, 38);
+    doc.text(yearStr, boxX + boxW / 2, boxY + boxH / 2 + 3, { align: "center" });
+  }
+
+  if (opts.subtitle) {
+    doc.setFontSize(9);
+    doc.setTextColor(203, 213, 225);
     doc.setFont("helvetica", "normal");
-    doc.text(subtitle, 14, 28);
+    doc.text(opts.subtitle, 14, headerHeight - 4);
   }
 }
 
@@ -227,6 +269,15 @@ export default function AdminView({
     };
     if (confirm(messages[status])) {
       await updateVacationStatus(id, status);
+      toast.success(
+        status === "APPROVED"
+          ? "Zahtjev odobren."
+          : status === "REJECTED"
+            ? "Zahtjev odbijen."
+            : status === "CANCELLED"
+              ? "Poništenje odobreno."
+              : "Status ažuriran."
+      );
       router.refresh();
     }
   };
@@ -245,11 +296,12 @@ export default function AdminView({
     const doc = new jsPDF();
     const userRequests = allRequests.filter((r) => r.user.id === user.id);
 
-    drawPdfHeader(
-      doc,
-      "IZVJEŠTAJ O GODIŠNJEM ODMORU",
-      `Godina: ${selectedYear} • Generirano: ${formatDate(new Date().toISOString())}`
-    );
+    drawPdfHeader(doc, {
+      title: "Status godišnjih odmora",
+      subtitle: `Generirano: ${formatDate(new Date().toISOString())}`,
+      restaurantName: user.restaurantNames?.[0] ?? undefined,
+      year: selectedYear,
+    });
 
     // Card: zaposlenik
     doc.setTextColor(15, 23, 42);
@@ -321,16 +373,18 @@ export default function AdminView({
         fontSize: 10,
         cellPadding: 4,
         textColor: [15, 23, 42],
-        lineWidth: 0,
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0],
       },
       headStyles: {
         fillColor: [26, 56, 38],
         textColor: [255, 255, 255],
         fontStyle: "bold",
         halign: "center",
-        lineWidth: 0,
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0],
       },
-      bodyStyles: { lineWidth: 0 },
+      bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0] },
       columnStyles: {
         0: { halign: "left", cellWidth: 110 },
         1: { halign: "center", cellWidth: 20 },
@@ -351,10 +405,13 @@ export default function AdminView({
     const statsToUse = overrideStats || filteredStats;
 
     const doc = new jsPDF();
-    const headerSubtitle = reportRestaurantLabel
-      ? `Godina: ${selectedYear} • ${reportRestaurantLabel}`
-      : `Godina: ${selectedYear}`;
-    drawPdfHeader(doc, `STATUS GODIŠNJIH ODMORA`, headerSubtitle);
+    drawPdfHeader(doc, {
+      title: "Status godišnjih odmora",
+      subtitle: reportRestaurantLabel || undefined,
+      restaurantName: reportRestaurantLabel,
+      year: selectedYear,
+      headerHeight: 38,
+    });
 
     const restaurantDisplay = (names: string[]) =>
       names.length > 2 ? "Svi restorani" : names.join(", ");
@@ -363,47 +420,56 @@ export default function AdminView({
       u.name || "N/A",
       (u.department || "N/A").toString(),
       restaurantDisplay(u.restaurantNames),
+      u.carriedOver ?? 0,
       u.total,
       u.used,
       u.remaining,
     ]);
 
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    const tableWidth = pageWidth - margin * 2;
     autoTable(doc, {
-      startY: 38,
-      head: [["Ime i prezime", "Odjel", "Restorani", "Ukupno", "Iskorišteno", "Preostalo"]],
+      startY: 50,
+      head: [["Ime i prezime", "Odjel", "Restorani", "Preneseno", "Ukupno", "Iskorišteno", "Preostalo"]],
       body: data,
       theme: "plain",
       styles: {
-        fontSize: 9.5,
-        cellPadding: 4,
+        fontSize: 8,
+        cellPadding: 3,
         textColor: [15, 23, 42],
         overflow: "linebreak",
-        lineWidth: 0,
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0],
       },
       headStyles: {
         fillColor: [248, 250, 252],
         textColor: [15, 23, 42],
         fontStyle: "bold",
         halign: "center",
-        lineWidth: 0,
-        fontSize: 9,
-        overflow: "hidden",
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0],
+        fontSize: 8,
+        overflow: "linebreak",
+        cellPadding: 3,
       },
       bodyStyles: {
         fillColor: false,
         textColor: [15, 23, 42],
-        lineWidth: 0,
+        lineWidth: 0.1,
+        lineColor: [0, 0, 0],
       },
       columnStyles: {
-        0: { halign: "left", fontStyle: "bold", cellWidth: 45 },
-        1: { halign: "center", cellWidth: 22 },
-        2: { halign: "left", cellWidth: 40 },
-        3: { halign: "center", cellWidth: 20 },
-        4: { halign: "center", cellWidth: 28 },
-        5: { halign: "center", cellWidth: 26 },
+        0: { halign: "left", fontStyle: "bold", cellWidth: tableWidth * 0.22 },
+        1: { halign: "center", cellWidth: tableWidth * 0.12 },
+        2: { halign: "left", cellWidth: tableWidth * 0.18 },
+        3: { halign: "center", cellWidth: tableWidth * 0.13 },
+        4: { halign: "center", cellWidth: tableWidth * 0.09 },
+        5: { halign: "center", cellWidth: tableWidth * 0.14 },
+        6: { halign: "center", cellWidth: tableWidth * 0.12 },
       },
       alternateRowStyles: { fillColor: [252, 253, 254] },
-      margin: { left: 14, right: 14 },
+      margin: { left: margin, right: margin },
     });
 
     doc.save(`Tabela_Godisnjih_${selectedYear}.pdf`);
@@ -426,33 +492,38 @@ export default function AdminView({
 
     const marginLeft = 62;
     const marginRight = 14;
-    const marginTop = 40;
     const marginBottom = 18;
 
     const gridWidth = width - marginLeft - marginRight;
     const monthWidth = gridWidth / 12;
     const rowHeight = 9; // malo kompaktnije i “clean”
 
-    drawPdfHeader(doc, `GLOBALNI PLAN I RASPORED`, `Godina: ${selectedYear}`, 14);
+    drawPdfHeader(doc, {
+      title: "Globalni plan i raspored",
+      subtitle: reportRestaurantLabel || undefined,
+      year: selectedYear,
+      headerHeight: 42,
+    });
 
+    const contentStartY = 58;
     const months = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
 
-    // header za mjesece – bez linije ispod zelenog (clean)
+    // header za mjesece – ispod zelenog headera s razmakom
     doc.setFillColor(248, 250, 252);
-    doc.rect(marginLeft, marginTop - 10, gridWidth, 10, "F");
+    doc.rect(marginLeft, contentStartY - 12, gridWidth, 12, "F");
     doc.setTextColor(51, 65, 85);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
 
     months.forEach((m, i) => {
       const x = marginLeft + i * monthWidth;
-      doc.text(m, x + monthWidth / 2, marginTop - 4, { align: "center" });
+      doc.text(m, x + monthWidth / 2, contentStartY - 5, { align: "center" });
     });
 
     const gridColor: [number, number, number] = [203, 213, 225];
     const gridLineWidth = 0.25;
 
-    let currentY = marginTop;
+    let currentY = contentStartY;
     const nameColumnLeft = 10;
 
     const drawRowSeparator = (y: number) => {
@@ -470,24 +541,29 @@ export default function AdminView({
       }
     };
 
-    statsToUse.forEach((user, _index) => {
+    statsToUse.forEach((user) => {
       if (currentY > height - marginBottom) {
         doc.addPage();
-        drawPdfHeader(doc, `GLOBALNI PLAN I RASPORED`, `Godina: ${selectedYear}`, 14);
+        drawPdfHeader(doc, {
+          title: "Globalni plan i raspored",
+          subtitle: reportRestaurantLabel || undefined,
+          year: selectedYear,
+          headerHeight: 42,
+        });
 
         // ponovi mjesec header na novoj stranici
         doc.setFillColor(248, 250, 252);
-        doc.rect(marginLeft, marginTop - 10, gridWidth, 10, "F");
+        doc.rect(marginLeft, contentStartY - 12, gridWidth, 12, "F");
         doc.setTextColor(51, 65, 85);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
 
         months.forEach((m, i) => {
           const x = marginLeft + i * monthWidth;
-          doc.text(m, x + monthWidth / 2, marginTop - 4, { align: "center" });
+          doc.text(m, x + monthWidth / 2, contentStartY - 5, { align: "center" });
         });
 
-        currentY = marginTop;
+        currentY = contentStartY;
       }
 
       doc.setDrawColor(...gridColor);
@@ -674,6 +750,7 @@ export default function AdminView({
         end,
         note: myVacationNote.trim() || undefined,
       });
+      toast.success("Zahtjev za godišnji poslan i odobren.");
       setMyVacationModalOpen(false);
       setMyVacationStart("");
       setMyVacationEnd("");
@@ -686,7 +763,7 @@ export default function AdminView({
     }
   };
 
-  const years = Array.from({ length: 7 }, (_, i) => selectedYear - 3 + i);
+  const years = [2025, 2026, 2027, 2028, 2029, 2030];
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
@@ -948,7 +1025,8 @@ export default function AdminView({
             <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50/80 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase">
               <div className="col-span-3">Zaposlenik</div>
               <div className="col-span-3">Restorani</div>
-              <div className="col-span-4 grid grid-cols-3 text-center">
+              <div className="col-span-4 grid grid-cols-4 text-center">
+                <span>Preneseno</span>
                 <span>Ukupno</span>
                 <span>Iskorišteno</span>
                 <span>Preostalo</span>
@@ -982,7 +1060,8 @@ export default function AdminView({
                     ))}
                   </div>
 
-                  <div className="col-span-4 grid grid-cols-3 text-center font-bold text-sm">
+                  <div className="col-span-4 grid grid-cols-4 text-center font-bold text-sm">
+                    <span className="text-slate-500">{u.carriedOver ?? 0}</span>
                     <span className="text-slate-400">{u.total}</span>
                     <span className="text-green-600">{u.used}</span>
                     <span className="text-orange-500">{u.remaining}</span>
@@ -1161,8 +1240,12 @@ export default function AdminView({
                         <div className="text-xs text-red-500 font-mono mt-1">{formatDate(d.date)}</div>
                       </div>
                       <button
-                        onClick={() => {
-                          if (confirm("Obrisati?")) removeBlockedDay(d.id);
+                        onClick={async () => {
+                          if (confirm("Obrisati?")) {
+                            await removeBlockedDay(d.id);
+                            toast.success("Praznik uklonjen.");
+                            router.refresh();
+                          }
                         }}
                         className="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
                       >

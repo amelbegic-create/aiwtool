@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { deleteRule, toggleRuleStatus, getRuleStatsSummary } from "@/app/actions/ruleActions";
 import RuleStatsModal from "@/app/tools/rules/_components/RuleStatsModal";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 type RuleRow = {
@@ -78,11 +79,13 @@ export default function AdminRulesClient({
   const handleDelete = async (id: string) => {
     if (!confirm("Sigurno obrisati pravilo?")) return;
     await deleteRule(id);
+    toast.success("Pravilo obrisano.");
     router.refresh();
   };
 
   const handleToggleStatus = async (id: string, current: boolean) => {
     await toggleRuleStatus(id, current);
+    toast.success(current ? "Pravilo arhivirano." : "Pravilo aktivirano.");
     router.refresh();
   };
 
