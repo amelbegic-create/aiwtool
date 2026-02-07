@@ -1,7 +1,7 @@
 "use client";
 
-import { signIn } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { getCsrfToken } from "next-auth/react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail, Loader2, Eye, EyeOff, KeyRound } from "lucide-react";
@@ -19,6 +19,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const searchParams = useSearchParams();
 
   const callbackUrl = searchParams.get("callbackUrl");
@@ -28,32 +30,20 @@ export default function LoginPage() {
       : DEFAULT_AFTER_LOGIN;
 
   useEffect(() => {
+    getCsrfToken().then((token) => setCsrfToken(token ?? null));
+  }, []);
+
+  useEffect(() => {
     if (searchParams.get("error") === "CredentialsSignin") {
       alert("Neispravni podaci. Provjerite email i lozinku.");
     }
   }, [searchParams]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (loading) return;
-
+    if (loading || !csrfToken) return;
     setLoading(true);
-
-    const result = await signIn("credentials", {
-      email,
-      password,
-      callbackUrl: safeCallbackUrl,
-      redirect: false,
-    });
-
-    if (result?.error) {
-      alert("Neispravni podaci. Provjerite email i lozinku.");
-      setLoading(false);
-      return;
-    }
-
-    setLoading(false);
-    window.location.href = safeCallbackUrl;
+    formRef.current?.submit();
   };
 
   return (
@@ -104,7 +94,15 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form
+            ref={formRef}
+            action="/api/auth/callback/credentials"
+            method="post"
+            onSubmit={handleSubmit}
+            className="space-y-5"
+          >
+            <input type="hidden" name="csrfToken" value={csrfToken ?? ""} />
+            <input type="hidden" name="callbackUrl" value={safeCallbackUrl} />
             <div>
               <label htmlFor="email" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                 Email
@@ -117,6 +115,7 @@ export default function LoginPage() {
                 />
                 <input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="ime@mcdonalds.ba"
                   required
@@ -146,6 +145,7 @@ export default function LoginPage() {
                 />
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   required
@@ -186,7 +186,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !csrfToken}
               className="w-full py-3.5 min-h-[44px] rounded-lg
                          bg-[#1a3826] text-white font-semibold text-[15px]
                          hover:bg-[#0c1f15] active:scale-[0.99]

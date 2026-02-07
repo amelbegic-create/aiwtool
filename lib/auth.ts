@@ -20,7 +20,7 @@ if (typeof process !== "undefined" && !process.env.NEXTAUTH_URL && process.env.N
  */
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
-  pages: { signIn: "/login" },
+  pages: { signIn: "/login", error: "/login" },
   secret: process.env.NEXTAUTH_SECRET,
 
   // NextAuth on Vercel: trust request host so cookie domain matches (no 307 loop after login)
