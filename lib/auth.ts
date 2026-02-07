@@ -39,6 +39,7 @@ export const authOptions: NextAuthOptions = {
         const password = credentials?.password;
         if (!email || !password) return null;
 
+        // LOGIN: uvijek prisma direktno, BEZ filtera po roli (Stealth Mode ne smije blokirati System Architect)
         const user = await prisma.user.findUnique({
           where: { email },
           include: { department: { select: { name: true } } },

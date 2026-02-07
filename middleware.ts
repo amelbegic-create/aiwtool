@@ -45,7 +45,7 @@ export async function middleware(req: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // 2. User on /login: if has session -> dashboard; else show login (next)
+  // 2. User on /login: if has session -> dashboard; else show login (nikad redirect u krug)
   if (pathname === "/login") {
     if (token) {
       return NextResponse.redirect(new URL("/dashboard", req.url));

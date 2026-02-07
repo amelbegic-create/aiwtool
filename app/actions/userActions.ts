@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 
-/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u listama/tabelama/pretragama. */
+/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u listama/tabelama/pretragama. NE koristiti za login (auth koristi prisma direktno). */
 const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } as const };
 
 // 1. DOHVATI KORISNIKE ZA RESTORAN
