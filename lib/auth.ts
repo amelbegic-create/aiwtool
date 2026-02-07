@@ -5,9 +5,15 @@ import prisma from "@/lib/prisma";
 import { compare, hash } from "bcryptjs";
 import type { Role } from "@prisma/client";
 
-// Development fallback: avoid CLIENT_FETCH_ERROR when NEXTAUTH_URL is missing (client calls same origin, server uses this for redirects)
-if (typeof process !== "undefined" && !process.env.NEXTAUTH_URL && process.env.NODE_ENV === "development") {
-  process.env.NEXTAUTH_URL = "http://localhost:3000";
+// URL za NextAuth (cookie i redirectovi). Obavezno na Vercelu za custom domenu (npr. aiw.services).
+if (typeof process !== "undefined") {
+  if (!process.env.NEXTAUTH_URL && process.env.NODE_ENV === "development") {
+    process.env.NEXTAUTH_URL = "http://localhost:3000";
+  }
+  // Vercel: ako NEXTAUTH_URL nije postavljen, koristi VERCEL_URL (*.vercel.app). Za custom domenu postavite NEXTAUTH_URL u Vercel env.
+  if (!process.env.NEXTAUTH_URL && process.env.VERCEL_URL) {
+    process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
+  }
 }
 
 /**

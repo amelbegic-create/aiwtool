@@ -38,20 +38,16 @@ export default function LoginPage() {
     if (loading) return;
     setLoading(true);
     try {
-      const result = await signIn("credentials", {
+      // redirect: true = NextAuth šalje 302 + Set-Cookie u istom odgovoru (pouzdano na Vercelu)
+      await signIn("credentials", {
         email,
         password,
         callbackUrl: safeCallbackUrl,
-        redirect: false,
+        redirect: true,
       });
-      if (result?.error) {
-        alert("Neispravni podaci. Provjerite email i lozinku.");
-        setLoading(false);
-        return;
-      }
-      window.location.href = safeCallbackUrl;
     } catch {
       alert("Greška pri prijavi. Pokušajte ponovo.");
+    } finally {
       setLoading(false);
     }
   };
