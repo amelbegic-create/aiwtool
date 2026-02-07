@@ -1,8 +1,8 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail, Loader2, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Kanit } from "next/font/google";
@@ -19,8 +19,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const searchParams = useSearchParams();
 
-  const router = useRouter();
+  const callbackUrl = searchParams.get("callbackUrl");
+  const safeCallbackUrl =
+    callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+      ? callbackUrl
+      : DEFAULT_AFTER_LOGIN;
+
+  useEffect(() => {
+    if (searchParams.get("error") === "CredentialsSignin") {
+      alert("Neispravni podaci. Provjerite email i lozinku.");
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +51,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.replace(DEFAULT_AFTER_LOGIN);
-    router.refresh();
+    window.location.href = safeCallbackUrl;
   };
 
   return (
