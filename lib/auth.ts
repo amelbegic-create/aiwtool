@@ -23,7 +23,8 @@ export const authOptions: NextAuthOptions = {
   pages: { signIn: "/login", error: "/login" },
   secret: process.env.NEXTAUTH_SECRET,
 
-  // NextAuth on Vercel: trust request host so cookie domain matches (no 307 loop after login)
+  // Vercel + custom domena (npr. aiw.services): trustHost da cookie odgovara domeni.
+  // Na Vercelu postavite NEXTAUTH_URL na točan URL (npr. https://aiw.services).
   // @ts-expect-error - NextAuth v4 typing doesn't always include this flag
   trustHost: true,
 
