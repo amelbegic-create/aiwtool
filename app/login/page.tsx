@@ -39,19 +39,13 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    const result = await signIn("credentials", {
+    await signIn("credentials", {
       email,
       password,
-      redirect: false,
+      callbackUrl: safeCallbackUrl,
+      redirect: true,
     });
-
-    if (result?.error) {
-      alert("Neispravni podaci. Provjerite email i lozinku.");
-      setLoading(false);
-      return;
-    }
-
-    window.location.href = safeCallbackUrl;
+    setLoading(false);
   };
 
   return (

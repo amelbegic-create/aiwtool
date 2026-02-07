@@ -19,11 +19,11 @@ if (typeof process !== "undefined" && !process.env.NEXTAUTH_URL && process.env.N
  * - Normalizes session/JWT shape to match `types/next-auth.d.ts`.
  */
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   pages: { signIn: "/login" },
   secret: process.env.NEXTAUTH_SECRET,
 
-  // NextAuth on Vercel needs trustHost in some deployments.
+  // NextAuth on Vercel: trust request host so cookie domain matches (no 307 loop after login)
   // @ts-expect-error - NextAuth v4 typing doesn't always include this flag
   trustHost: true,
 
