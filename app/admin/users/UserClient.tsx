@@ -360,16 +360,16 @@ export default function UserClient({ users = [], restaurants = [], departments =
   const activeKeys = activeModule?.items?.map((i) => i.key) || [];
   const activeSelected = activeKeys.filter((k) => formData.permissions.includes(k)).length;
   return (
-    <div className={embedded ? "space-y-6" : "min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans text-slate-900"}>
+    <div className={embedded ? "space-y-6" : "min-h-screen bg-background p-4 md:p-10 font-sans text-foreground"}>
       <div className={embedded ? "space-y-6" : "max-w-[1600px] mx-auto space-y-6 md:space-y-8"}>
         {/* HEADER - sakriven kada embedded */}
         {!embedded && (
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-slate-200 pb-6">
+        <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
               ADMIN <span className="text-[#FFC72C]">KORISNICI</span>
             </h1>
-            <p className="text-slate-600 text-sm font-semibold">Kreiranje korisnika i dodjela permisija</p>
+            <p className="text-muted-foreground text-sm font-semibold">Kreiranje korisnika i dodjela permisija</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -391,7 +391,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
             <a
               href="/admin/restaurants"
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[44px] md:min-h-0 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-black uppercase shadow-sm border border-slate-200 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[44px] md:min-h-0 bg-white hover:bg-muted text-foreground rounded-xl text-xs font-black uppercase shadow-sm border border-border active:scale-95"
             >
               <Building2 size={16} className="text-[#1a3826]" /> Novi restoran
             </a>
@@ -400,14 +400,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
         )}
 
         {/* TOOLBAR */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 min-h-[44px]">
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-border flex flex-col sm:flex-row items-stretch sm:items-center gap-3 min-h-[44px]">
           <div className="flex-1 flex items-center gap-3 min-h-[44px]">
             <Search size={18} className="text-slate-400 shrink-0" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Traži korisnika..."
-              className="bg-transparent outline-none text-sm font-bold text-slate-700 w-full min-h-[36px]"
+              className="bg-transparent outline-none text-sm font-bold text-foreground w-full min-h-[36px]"
             />
           </div>
           <Link
@@ -423,13 +423,13 @@ export default function UserClient({ users = [], restaurants = [], departments =
           {filteredUsers.map((u) => (
             <div
               key={u.id}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow"
+              className="bg-white rounded-2xl border border-border shadow-sm p-5 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-base text-slate-800 truncate">{u.name}</h3>
-                  <p className="text-xs text-slate-500 font-mono truncate mt-0.5">{u.email}</p>
-                  <span className="inline-flex items-center gap-2 mt-3 px-2.5 py-1 rounded-lg bg-slate-100 text-[10px] font-black uppercase text-slate-600">
+                  <h3 className="font-bold text-base text-foreground truncate">{u.name}</h3>
+                  <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{u.email}</p>
+                  <span className="inline-flex items-center gap-2 mt-3 px-2.5 py-1 rounded-lg bg-muted text-[10px] font-black uppercase text-muted-foreground">
                     {isGodMode(u.role) && <ShieldCheck size={12} className="text-[#1a3826] shrink-0" />}
                     {ROLE_LABELS[u.role]}
                   </span>
@@ -438,7 +438,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                       {(u.restaurantIds || []).slice(0, 3).map((rid) => {
                         const r = restaurants.find((x) => x.id === rid);
                         return (
-                          <span key={rid} className="text-[9px] bg-slate-50 px-2 py-1 rounded border border-slate-200 text-slate-600">
+                          <span key={rid} className="text-[9px] bg-muted px-2 py-1 rounded border border-border text-muted-foreground">
                             {r?.name || "Restoran"}
                           </span>
                         );
@@ -452,7 +452,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                 <div className="flex gap-2 shrink-0">
                   <Link
                     href={`/admin/users/${u.id}`}
-                    className="flex h-11 w-11 items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                    className="flex h-11 w-11 items-center justify-center bg-muted hover:bg-accent text-foreground rounded-xl transition-colors"
                     title="Uredi"
                   >
                     <Pencil size={18} />
@@ -476,8 +476,8 @@ export default function UserClient({ users = [], restaurants = [], departments =
         </div>
 
         {/* DESKTOP TABLE */}
-        <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50/80 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase">
+        <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/50 border-b border-border text-[10px] font-black text-slate-400 uppercase">
             <div className="col-span-4">Korisnik</div>
             <div className="col-span-2">Rola</div>
             <div className="col-span-4">Restorani</div>
@@ -486,14 +486,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
           <div className="divide-y divide-slate-100">
             {filteredUsers.map((u) => (
-              <div key={u.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors">
+              <div key={u.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted transition-colors">
                 <div className="col-span-4">
-                  <div className="font-bold text-sm text-slate-800">{u.name}</div>
+                  <div className="font-bold text-sm text-foreground">{u.name}</div>
                   <div className="text-[10px] text-slate-400 font-mono">{u.email}</div>
                 </div>
 
                 <div className="col-span-2">
-                  <span className="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-100 text-[10px] font-black uppercase text-slate-600">
+                  <span className="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-muted text-[10px] font-black uppercase text-muted-foreground">
                     {isGodMode(u.role) && <ShieldCheck size={14} className="text-[#1a3826]" />}
                     {ROLE_LABELS[u.role]}
                   </span>
@@ -503,13 +503,13 @@ export default function UserClient({ users = [], restaurants = [], departments =
                   {(u.restaurantIds || []).slice(0, 4).map((rid) => {
                     const r = restaurants.find((x) => x.id === rid);
                     return (
-                      <span key={rid} className="text-[9px] bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                      <span key={rid} className="text-[9px] bg-muted px-2 py-1 rounded border border-border">
                         {r?.name || "Restoran"}
                       </span>
                     );
                   })}
                   {(u.restaurantIds || []).length > 4 && (
-                    <span className="text-[9px] bg-white px-2 py-1 rounded border border-slate-200 text-slate-500">
+                    <span className="text-[9px] bg-white px-2 py-1 rounded border border-border text-muted-foreground">
                       +{(u.restaurantIds || []).length - 4}
                     </span>
                   )}
@@ -518,7 +518,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                 <div className="col-span-2 flex justify-end gap-2">
                   <Link
                     href={`/admin/users/${u.id}`}
-                    className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors inline-flex"
+                    className="p-2 bg-muted hover:bg-accent text-foreground rounded-xl transition-colors inline-flex"
                     title="Uredi"
                   >
                     <Pencil size={16} />
@@ -547,14 +547,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
             <div className="min-h-full w-full flex items-start justify-center p-4 md:p-8 py-10">
               <div className="bg-white w-full max-w-[1200px] rounded-3xl shadow-2xl border border-white/30 overflow-hidden max-h-[92vh] flex flex-col">
                 {/* Header */}
-                <div className="shrink-0 p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <div className="shrink-0 p-6 bg-muted border-b border-border flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-black text-slate-900">{isEditing ? "Uredi korisnika" : "Novi korisnik"}</h2>
-                    <p className="text-xs text-slate-600 font-semibold">
+                    <h2 className="text-xl font-black text-foreground">{isEditing ? "Uredi korisnika" : "Novi korisnik"}</h2>
+                    <p className="text-xs text-muted-foreground font-semibold">
                       Globalne permisije • ADMIN/SYSTEM_ARCHITECT imaju sve automatski
                     </p>
                   </div>
-                  <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-xl hover:bg-white" aria-label="Zatvori">
+                  <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-xl hover:bg-accent" aria-label="Zatvori">
                     <X />
                   </button>
                 </div>
@@ -564,8 +564,8 @@ export default function UserClient({ users = [], restaurants = [], departments =
                   <div className="p-6 grid grid-cols-1 xl:grid-cols-12 gap-6">
                     {/* LEFT: Basic + Restaurants + Supervisor + Allowance */}
                     <div className="xl:col-span-4 space-y-4">
-                      <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-600 mb-4">Osnovno</h3>
+                      <div className="bg-white border border-border rounded-2xl p-5">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Osnovno</h3>
 
                         <div className="space-y-3">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -573,13 +573,13 @@ export default function UserClient({ users = [], restaurants = [], departments =
                               value={formData.firstName}
                               onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                               placeholder="Ime"
-                              className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                              className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             />
                             <input
                               value={formData.lastName}
                               onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                               placeholder="Prezime"
-                              className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                              className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             />
                           </div>
 
@@ -587,7 +587,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                             placeholder="Email"
-                            className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                            className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                           />
 
                           <input
@@ -595,7 +595,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                             placeholder={isEditing ? "Nova lozinka (opcionalno)" : "Lozinka"}
                             type="password"
-                            className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                            className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                           />
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -603,7 +603,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                               value={formData.role}
                               onChange={(e) => void applyRolePreset(e.target.value as Role)}
                               disabled={isRoleApplying || isSaving}
-                              className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                              className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             >
                               {roles.map((r) => (
                                 <option key={r} value={r}>
@@ -616,7 +616,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                               value={formData.departmentId}
                               onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
                               disabled={isSaving}
-                              className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                              className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             >
                               <option value="">— Nije odabrano —</option>
                               {departments.map((d) => (
@@ -629,14 +629,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
                           {/* ✅ NOVO: Nadređeni */}
                           <div className="space-y-2 pt-2">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-600 inline-flex items-center gap-2">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground inline-flex items-center gap-2">
                               <UserCog size={14} /> Nadređeni
                             </div>
                             <select
                               value={formData.supervisorId}
                               onChange={(e) => setFormData({ ...formData, supervisorId: e.target.value })}
                               disabled={isSaving}
-                              className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                              className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             >
                               <option value="">Bez nadređenog</option>
                               {supervisorOptions
@@ -650,7 +650,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                           </div>
 
                           {isRoleApplying && (
-                            <div className="text-[11px] font-bold text-slate-500 mt-2">
+                            <div className="text-[11px] font-bold text-muted-foreground mt-2">
                               Učitavam preset permisije za izabranu rolu...
                             </div>
                           )}
@@ -664,15 +664,15 @@ export default function UserClient({ users = [], restaurants = [], departments =
                       </div>
 
                       {/* ✅ NOVO: godišnji po godini */}
-                      <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-600 mb-4 inline-flex items-center gap-2">
+                      <div className="bg-white border border-border rounded-2xl p-5">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4 inline-flex items-center gap-2">
                           <CalendarDays size={14} /> Godišnji po godini (2025–2030)
                         </h3>
 
                         <div className="grid grid-cols-2 gap-3">
                           {YEARS.map((y) => (
                             <div key={y} className="space-y-1">
-                              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">{y}</div>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{y}</div>
                               <input
                                 inputMode="numeric"
                                 value={String(formData.vacationAllowances[y] ?? 0)}
@@ -684,20 +684,20 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                   }));
                                 }}
                                 disabled={isSaving}
-                                className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                                className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                                 placeholder="0"
                               />
                             </div>
                           ))}
                         </div>
 
-                        <p className="mt-3 text-[11px] text-slate-500 font-semibold leading-relaxed">
+                        <p className="mt-3 text-[11px] text-muted-foreground font-semibold leading-relaxed">
                           Ovo su “dani godišnjeg” za odabranu godinu. Modul godišnjih će ovo koristiti za računanje preostalog stanja.
                         </p>
                       </div>
 
-                      <div className="bg-white border border-slate-200 rounded-2xl p-5">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-600 mb-4">Restorani</h3>
+                      <div className="bg-white border border-border rounded-2xl p-5">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Restorani</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
                           {restaurants.map((r) => {
                             const checked = formData.restaurantIds.includes(r.id);
@@ -705,7 +705,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                               <label
                                 key={r.id}
                                 className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-bold cursor-pointer transition-colors ${
-                                  checked ? "border-[#1a3826] bg-[#1a3826]/5" : "border-slate-200 hover:bg-slate-50"
+                                  checked ? "border-[#1a3826] bg-[#1a3826]/5" : "border-border hover:bg-muted"
                                 }`}
                               >
                                 <input
@@ -728,14 +728,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
                     {/* RIGHT: Permissions – scalable UI */}
                     <div className="xl:col-span-8">
-                      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                      <div className="bg-white border border-border rounded-2xl overflow-hidden">
                         {/* Top bar */}
-                        <div className="p-5 bg-slate-50 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="p-5 bg-muted border-b border-border flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                           <div>
-                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-600 inline-flex items-center gap-2">
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground inline-flex items-center gap-2">
                               <Layers size={14} /> Permisije
                             </h3>
-                            <p className="text-xs text-slate-600 font-semibold mt-1">
+                            <p className="text-xs text-muted-foreground font-semibold mt-1">
                               Lijevo odaberi modul, desno označi permisije • {formData.permissions.length}/{ALL_PERMISSION_KEYS.length} ukupno
                             </p>
                           </div>
@@ -745,14 +745,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
                               <button
                                 onClick={() => setFormData({ ...formData, permissions: ALL_PERMISSION_KEYS })}
                                 disabled={isRoleApplying || isSaving}
-                                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[10px] font-black uppercase"
+                                className="px-3 py-2 rounded-xl bg-muted hover:bg-accent text-[10px] font-black uppercase"
                               >
                                 Select all
                               </button>
                               <button
                                 onClick={() => setFormData({ ...formData, permissions: [] })}
                                 disabled={isRoleApplying || isSaving}
-                                className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-[10px] font-black uppercase text-slate-700 inline-flex items-center gap-2"
+                                className="px-3 py-2 rounded-xl bg-white hover:bg-muted border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                               >
                                 <Eraser size={14} /> Clear all
                               </button>
@@ -769,14 +769,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
                         ) : (
                           <div className="grid grid-cols-1 lg:grid-cols-12">
                             {/* Module list */}
-                            <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-slate-200 p-5">
+                            <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-border p-5">
                               <div className="flex items-center gap-2 mb-3">
                                 <Search size={16} className="text-slate-400" />
                                 <input
                                   value={moduleQuery}
                                   onChange={(e) => setModuleQuery(e.target.value)}
                                   placeholder="Traži modul..."
-                                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                                  className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                                 />
                               </div>
 
@@ -790,13 +790,13 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                       key={g.id}
                                       onClick={() => setActiveModuleId(g.id)}
                                       className={`w-full text-left p-3 rounded-2xl border transition-colors flex items-center justify-between gap-3 ${
-                                        active ? "border-[#1a3826] bg-[#1a3826]/5" : "border-slate-200 hover:bg-slate-50"
+                                        active ? "border-[#1a3826] bg-[#1a3826]/5" : "border-border hover:bg-muted"
                                       }`}
                                     >
                                       <div className="min-w-0">
-                                        <div className="font-black text-slate-900 truncate">{g.title}</div>
-                                        {g.subtitle && <div className="text-xs text-slate-600 font-semibold truncate">{g.subtitle}</div>}
-                                        <div className="mt-2 text-[10px] font-black uppercase text-slate-500">
+                                        <div className="font-black text-foreground truncate">{g.title}</div>
+                                        {g.subtitle && <div className="text-xs text-muted-foreground font-semibold truncate">{g.subtitle}</div>}
+                                        <div className="mt-2 text-[10px] font-black uppercase text-muted-foreground">
                                           {stats.selected}/{stats.total} odabrano
                                         </div>
                                       </div>
@@ -805,7 +805,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                         className={`shrink-0 h-8 w-8 rounded-xl border flex items-center justify-center ${
                                           active
                                             ? "border-[#1a3826] text-[#1a3826] bg-white"
-                                            : "border-slate-200 text-slate-400 bg-white"
+                                            : "border-border text-slate-400 bg-white"
                                         }`}
                                       >
                                         <ChevronRight size={16} />
@@ -815,7 +815,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                 })}
 
                                 {modulesFiltered.length === 0 && (
-                                  <div className="p-6 rounded-2xl border border-slate-200 text-sm font-bold text-slate-500 bg-white">
+                                  <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
                                     Nema rezultata za ovaj upit.
                                   </div>
                                 )}
@@ -826,11 +826,11 @@ export default function UserClient({ users = [], restaurants = [], departments =
                             <div className="lg:col-span-7 p-5">
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                                 <div>
-                                  <div className="font-black text-slate-900">{activeModule?.title}</div>
+                                  <div className="font-black text-foreground">{activeModule?.title}</div>
                                   {activeModule?.subtitle && (
-                                    <div className="text-xs text-slate-600 font-semibold">{activeModule.subtitle}</div>
+                                    <div className="text-xs text-muted-foreground font-semibold">{activeModule.subtitle}</div>
                                   )}
-                                  <div className="text-[10px] font-black uppercase text-slate-500 mt-2">
+                                  <div className="text-[10px] font-black uppercase text-muted-foreground mt-2">
                                     {activeSelected}/{activeKeys.length} odabrano u ovom modulu
                                   </div>
                                 </div>
@@ -839,7 +839,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                   <button
                                     onClick={() => setMany(activeKeys, !(activeSelected === activeKeys.length && activeKeys.length > 0))}
                                     disabled={isRoleApplying || isSaving}
-                                    className="px-3 py-2 rounded-xl text-[10px] font-black uppercase border transition-colors bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                    className="px-3 py-2 rounded-xl text-[10px] font-black uppercase border transition-colors bg-white text-foreground border-border hover:bg-muted"
                                   >
                                     Označi sve
                                   </button>
@@ -847,7 +847,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                   <button
                                     onClick={() => setMany(activeKeys, false)}
                                     disabled={isRoleApplying || isSaving}
-                                    className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-[10px] font-black uppercase text-slate-700 inline-flex items-center gap-2"
+                                    className="px-3 py-2 rounded-xl bg-white hover:bg-muted border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                                   >
                                     <Eraser size={14} /> Clear
                                   </button>
@@ -860,7 +860,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                   value={permQuery}
                                   onChange={(e) => setPermQuery(e.target.value)}
                                   placeholder="Traži permisiju u ovom modulu..."
-                                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                                  className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                                 />
                               </div>
 
@@ -871,7 +871,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                     <label
                                       key={item.key}
                                       className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer text-sm font-bold transition-colors ${
-                                        checked ? "border-[#1a3826] bg-[#1a3826]/5" : "border-slate-200 hover:bg-slate-50"
+                                        checked ? "border-[#1a3826] bg-[#1a3826]/5" : "border-border hover:bg-muted"
                                       }`}
                                     >
                                       <input
@@ -881,7 +881,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                         onChange={() => togglePerm(item.key)}
                                       />
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-slate-900">{item.label}</div>
+                                        <div className="text-foreground">{item.label}</div>
                                         <div className="text-[10px] font-mono text-slate-400 truncate">{item.key}</div>
                                       </div>
                                     </label>
@@ -889,7 +889,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                 })}
 
                                 {activeItemsFiltered.length === 0 && (
-                                  <div className="p-6 rounded-2xl border border-slate-200 text-sm font-bold text-slate-500 bg-white">
+                                  <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
                                     Nema permisija za ovaj filter.
                                   </div>
                                 )}
@@ -903,11 +903,11 @@ export default function UserClient({ users = [], restaurants = [], departments =
                 </div>
 
                 {/* Footer */}
-                <div className="shrink-0 p-6 border-t border-slate-200 flex justify-end gap-3 bg-white">
+                <div className="shrink-0 p-6 border-t border-border flex justify-end gap-3 bg-white">
                   <button
                     onClick={() => setIsModalOpen(false)}
                     disabled={isSaving}
-                    className="px-5 py-3 rounded-xl border border-slate-200 text-xs font-black uppercase text-slate-700 hover:bg-slate-50"
+                    className="px-5 py-3 rounded-xl border border-border text-xs font-black uppercase text-foreground hover:bg-muted"
                   >
                     Odustani
                   </button>

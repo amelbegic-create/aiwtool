@@ -36,7 +36,7 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-4 md:p-10 font-sans text-foreground">
       <div className="max-w-[900px] mx-auto space-y-8">
         <div className="flex items-end justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
@@ -44,7 +44,7 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
               <LayoutDashboard size={28} />
               Moduli na dashboardu
             </h1>
-            <p className="text-slate-600 text-sm font-semibold mt-1">
+            <p className="text-muted-foreground text-sm font-semibold mt-1">
               Označite koje module želite prikazati korisnicima u sekciji &quot;Novi moduli na stranici&quot; na početnoj stranici.
             </p>
           </div>
@@ -57,20 +57,20 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">
+          <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">
             Trenutno označeni moduli (prikazuju se na dashboardu)
           </h2>
           {highlights.length === 0 ? (
-            <p className="text-sm text-slate-500 py-4">Nema označenih modula. Dodajte ih ispod.</p>
+            <p className="text-sm text-muted-foreground py-4">Nema označenih modula. Dodajte ih ispod.</p>
           ) : (
             <ul className="space-y-2">
               {highlights.map((h) => (
                 <li
                   key={h.id}
-                  className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white"
+                  className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-card"
                 >
-                  <span className="font-semibold text-slate-800">{h.moduleLabel}</span>
-                  <span className="text-xs text-slate-500">dodano {formatDateDDMMGGGG(h.addedAt)}</span>
+                  <span className="font-semibold text-foreground">{h.moduleLabel}</span>
+                  <span className="text-xs text-muted-foreground">dodano {formatDateDDMMGGGG(h.addedAt)}</span>
                   <button
                     type="button"
                     onClick={() => handleRemove(h.moduleKey)}
@@ -87,7 +87,7 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">
+          <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">
             Dostupni moduli – označi kao dodan na stranicu
           </h2>
           <ul className="grid gap-2">
@@ -97,9 +97,9 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
                   type="button"
                   onClick={() => handleAdd(tool)}
                   disabled={loading === tool.id}
-                  className="w-full flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white hover:bg-[#1a3826]/5 hover:border-[#1a3826]/30 transition-colors text-left disabled:opacity-50"
+                  className="w-full flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-card hover:bg-[#1a3826]/5 hover:border-[#1a3826]/30 transition-colors text-left disabled:opacity-50"
                 >
-                  <span className="font-semibold text-slate-800">{tool.name}</span>
+                  <span className="font-semibold text-foreground">{tool.name}</span>
                   <span className="inline-flex items-center gap-2 text-sm font-bold text-[#1a3826]">
                     <Plus size={18} />
                     Označi kao dodan
@@ -108,7 +108,7 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
               </li>
             ))}
             {APP_TOOLS.every((t) => highlightedKeys.has(t.id)) && (
-              <p className="text-sm text-slate-500 py-2">Svi moduli su već označeni.</p>
+              <p className="text-sm text-muted-foreground py-2">Svi moduli su već označeni.</p>
             )}
           </ul>
         </div>

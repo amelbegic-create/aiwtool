@@ -1,36 +1,35 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma"; 
+import { getLaborData, saveLaborData } from "@/app/actions/laborActions";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { year, month, restaurant, data } = body;
-
-    // Spremi ili Ažuriraj (Upsert)
-    // Koristimo restaurant ID kao string unutar modela LaborPlan
-    const plan = await prisma.laborPlan.upsert({
-      where: {
-        year_month_restaurant: {
-          year,
-          month,
-          restaurant: String(restaurant),
-        },
-      },
-      update: {
-        data: data, // Ažuriraj JSON sa novim inputima (uključujući taxAustria)
-      },
-      create: {
-        year,
-        month,
-        restaurant: String(restaurant),
-        data: data, // Kreiraj novi ako ne postoji
-      },
-    });
-
-    return NextResponse.json({ success: true, plan });
+    if (!year || !month || !restaurant) {
+      return NextResponse.json(
+        { success: false, error: "Parameter fehlen." },
+        { status: 400 }
+      );
+    }
+    const result = await saveLaborData(
+      String(restaurant),
+      Number(month),
+      Number(year),
+      data ?? { inputs: {}, rows: [] }
+    );
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Greška pri spremanju:", error);
-    return NextResponse.json({ success: false, error: "Failed to save" }, { status: 500 });
+    console.error("Labor POST:", error);
+    return NextResponse.json(
+      { success: false, error: "Fehler beim Speichern." },
+      { status: 500 }
+    );
   }
 }
 
@@ -41,24 +40,21 @@ export async function GET(req: Request) {
   const restaurant = searchParams.get("restaurant");
 
   if (!year || !month || !restaurant) {
-    return NextResponse.json({ success: false, error: "Missing params" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: "Parameter fehlen." },
+      { status: 400 }
+    );
   }
 
   try {
-    const plan = await prisma.laborPlan.findUnique({
-      where: {
-        year_month_restaurant: {
-          year,
-          month,
-          restaurant: String(restaurant),
-        },
-      },
-    });
-
-    // Ako nema plana, vraćamo null (frontend će znati da je prazno)
-    return NextResponse.json({ success: true, data: plan?.data || null });
+    const report = await getLaborData(restaurant, month, year);
+    const data = report?.data ?? null;
+    return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error("Greška pri učitavanju:", error);
-    return NextResponse.json({ success: false, error: "Failed to load" }, { status: 500 });
+    console.error("Labor GET:", error);
+    return NextResponse.json(
+      { success: false, error: "Fehler beim Laden." },
+      { status: 500 }
+    );
   }
 }

@@ -180,7 +180,7 @@ export default async function ToolsCategoryPage({
   const visibleTools = tools.filter((t) => t.show !== false);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+    <div className="min-h-screen bg-background font-sans text-foreground">
       <main className="max-w-[1600px] mx-auto w-full px-6 md:px-10 py-10">
         {/* Header */}
         <div className="flex items-center gap-5 pb-8 border-b border-slate-200">

@@ -39,12 +39,12 @@ export default function DashboardModuleIcons({ highlights }: Props) {
             key={h.id}
             href={href}
             title={h.moduleLabel}
-            className="flex flex-col items-center gap-1.5 p-4 rounded-xl border border-slate-200 bg-white hover:bg-[#1a3826]/5 hover:border-[#1a3826]/30 transition-colors min-w-[80px]"
+            className="flex flex-col items-center gap-1.5 p-4 rounded-xl border border-border bg-card hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10 hover:border-[#1a3826]/30 dark:hover:border-[#FFC72C]/30 transition-colors min-w-[80px]"
           >
-            <div className="h-10 w-10 rounded-lg bg-[#1a3826]/10 text-[#1a3826] flex items-center justify-center">
+            <div className="h-10 w-10 rounded-lg bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 text-[#1a3826] dark:text-[#FFC72C] flex items-center justify-center">
               <Icon size={22} />
             </div>
-            <span className="text-xs font-semibold text-slate-700 text-center leading-tight line-clamp-2">
+            <span className="text-xs font-semibold text-foreground text-center leading-tight line-clamp-2">
               {h.moduleLabel}
             </span>
           </Link>

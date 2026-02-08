@@ -15,9 +15,9 @@ export const dynamic = "force-dynamic";
 
 function getGreeting(): string {
   const h = new Date().getHours();
-  if (h >= 5 && h < 12) return "Dobro jutro";
-  if (h >= 12 && h < 18) return "Dobro dan";
-  return "Willkommen zurück"; // austrijski njemački: Dobro došli nazad
+  if (h >= 5 && h < 12) return "Guten Morgen";
+  if (h >= 12 && h < 18) return "Guten Tag";
+  return "Willkommen zurück";
 }
 
 async function getRecentRules(): Promise<{ id: string; title: string; createdAt: Date }[]> {
@@ -80,11 +80,11 @@ export default async function DashboardPage() {
     dbUser.permissions ?? []
   );
   const greeting = getGreeting();
-  const firstName = (dbUser.name || (session.user as { name?: string }).name || "Korisnik").split(" ")[0];
+  const firstName = (dbUser.name || (session.user as { name?: string }).name || "Benutzer").split(" ")[0];
   const roleLabel = String(dbUser.role || "CREW");
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-800">
+    <div className="min-h-screen bg-background font-sans text-foreground">
       <header className="bg-[#1a3826] text-white">
         <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
           <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#1a3826]">
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
                   </span>
                 </h1>
                 <p className="mt-3 text-base font-medium text-emerald-100/90 pl-4 md:pl-5">
-                  Operativni pregled i brzi pristup modulima.
+                  Operative Übersicht und Schnellzugriff auf Module.
                 </p>
               </div>
             </div>
@@ -114,31 +114,31 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Godišnji odmor – gore, prva kartica */}
           <div className="lg:col-span-4">
-            <Card className="border-slate-200 bg-white shadow-sm rounded-xl overflow-hidden h-full">
+            <Card className="border-border shadow-sm rounded-xl overflow-hidden h-full">
               <CardHeader className="pb-2 px-6">
-                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <CalendarDays size={18} className="text-[#1a3826]" />
-                  Godišnji odmor
+                <CardTitle className="text-base font-bold text-card-foreground flex items-center gap-2">
+                  <CalendarDays size={18} className="text-[#1a3826] dark:text-[#FFC72C]" />
+                  Urlaubsstatus
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-6 pb-6 pt-0">
                 {vacationSummary ? (
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <span className="text-2xl font-black text-[#1a3826] tabular-nums">
-                      {vacationSummary.remaining} <span className="text-sm font-semibold text-slate-600">dana preostalo</span>
+                    <span className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] tabular-nums">
+                      {vacationSummary.remaining} <span className="text-sm font-semibold text-muted-foreground">Resturlaub</span>
                     </span>
-                    <span className="text-sm text-slate-500">
-                      (ukupno {vacationSummary.total}, iskorišteno {vacationSummary.used})
+                    <span className="text-sm text-muted-foreground">
+                      (Gesamtanspruch {vacationSummary.total}, Verbraucht {vacationSummary.used})
                     </span>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-500">Podaci nisu dostupni.</p>
+                  <p className="text-sm text-muted-foreground">Daten nicht verfügbar.</p>
                 )}
                 <Link
                   href="/tools/vacations"
-                  className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#1a3826] hover:underline"
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
                 >
-                  Otvori godišnje <ChevronRight size={14} />
+                  Urlaub öffnen <ChevronRight size={14} />
                 </Link>
               </CardContent>
             </Card>
@@ -149,59 +149,59 @@ export default async function DashboardPage() {
           <div className="lg:col-span-4">
             <Link
               href="/team"
-              className="block h-full rounded-xl border border-[#FFC72C]/30 bg-[#FFC72C]/10 hover:bg-[#FFC72C]/20 shadow-sm hover:shadow-md transition-all p-6 group"
+              className="block h-full rounded-xl border border-[#FFC72C]/30 bg-[#FFC72C]/10 dark:bg-[#FFC72C]/15 hover:bg-[#FFC72C]/20 dark:hover:bg-[#FFC72C]/25 shadow-sm hover:shadow-md transition-all p-6 group"
             >
               <div className="flex flex-col items-center justify-center text-center min-h-[140px] gap-3">
                 <div className="h-14 w-14 rounded-2xl bg-[#FFC72C] text-[#1a3826] flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Users size={28} strokeWidth={2.5} />
                 </div>
                 <div>
-                  <p className="text-lg font-black text-[#1a3826] uppercase tracking-tight">Moj Tim</p>
-                  <p className="text-xs font-medium text-slate-600 mt-0.5">Lista zaposlenika pod mojim nadzorom</p>
+                  <p className="text-lg font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">Mein Team</p>
+                  <p className="text-xs font-medium text-muted-foreground mt-0.5">Mitarbeiter unter meiner Aufsicht</p>
                 </div>
-                <span className="text-sm font-bold text-[#1a3826] inline-flex items-center gap-1">
-                  Otvori <ChevronRight size={14} />
+                <span className="text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] inline-flex items-center gap-1">
+                  Öffnen <ChevronRight size={14} />
                 </span>
               </div>
             </Link>
           </div>
           {/* Moduli dodani iz admin panela – kao ikonice (mjesto gdje su bili zahtjevi) */}
           <div className="lg:col-span-8">
-            <Card className="border-slate-200 bg-white shadow-sm rounded-xl overflow-hidden">
+            <Card className="border-border shadow-sm rounded-xl overflow-hidden">
               <CardHeader className="pb-2 px-6">
-                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <CardTitle className="text-base font-bold text-card-foreground flex items-center gap-2">
                   <Sparkles size={18} className="text-[#FFC72C]" />
-                  Moduli na stranici
+                  Module auf der Startseite
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-6 pb-6 pt-0">
                 {highlights.length > 0 ? (
                   <DashboardModuleIcons highlights={highlights} />
                 ) : (
-                  <p className="text-sm text-slate-500 py-2">Nema dodanih modula. Admin ih može dodati u Admin panelu.</p>
+                  <p className="text-sm text-muted-foreground py-2">Keine Module hinzugefügt. Admin kann sie im Admin-Bereich hinzufügen.</p>
                 )}
               </CardContent>
             </Card>
           </div>
           <div className="lg:col-span-12">
-            <Card className="border-slate-200 bg-white shadow-sm rounded-xl overflow-hidden">
+            <Card className="border-border shadow-sm rounded-xl overflow-hidden">
               <CardHeader className="pb-2 px-6">
-                <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Bell size={18} className="text-[#1a3826]" />
-                  Obavijesti / Pravila
+                <CardTitle className="text-base font-bold text-card-foreground flex items-center gap-2">
+                  <Bell size={18} className="text-[#1a3826] dark:text-[#FFC72C]" />
+                  Benachrichtigungen / Richtlinien
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-6 pb-6 pt-0">
                 {recentRules.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
-                    <FileText size={40} className="text-slate-300 mb-3" />
-                    <p className="text-sm font-semibold text-slate-500">Nema novih obavijesti</p>
-                    <p className="text-xs text-slate-400 mt-1">Ovdje će se prikazivati zadnja pravila i obavijesti.</p>
+                  <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed border-border bg-muted/50">
+                    <FileText size={40} className="text-muted-foreground mb-3" />
+                    <p className="text-sm font-semibold text-muted-foreground">Keine neuen Benachrichtigungen</p>
+                    <p className="text-xs text-muted-foreground mt-1">Hier werden die neuesten Richtlinien und Benachrichtigungen angezeigt.</p>
                     <Link
                       href="/tools/rules"
-                      className="mt-4 text-sm font-bold text-[#1a3826] hover:underline inline-flex items-center gap-1"
+                      className="mt-4 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline inline-flex items-center gap-1"
                     >
-                      Otvori Pravila <ChevronRight size={14} />
+                      Richtlinien öffnen <ChevronRight size={14} />
                     </Link>
                   </div>
                 ) : (
@@ -210,12 +210,12 @@ export default async function DashboardPage() {
                       <li key={rule.id}>
                         <Link
                           href={`/tools/rules/${rule.id}`}
-                          className="flex items-center justify-between gap-4 p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-[#1a3826]/5 hover:border-[#1a3826]/20 transition-colors group"
+                          className="flex items-center justify-between gap-4 p-3 rounded-xl border border-border bg-muted/50 hover:bg-accent/50 hover:border-[#1a3826]/20 dark:hover:border-[#FFC72C]/30 transition-colors group"
                         >
-                          <span className="text-sm font-semibold text-slate-800 group-hover:text-[#1a3826] truncate">
+                          <span className="text-sm font-semibold text-foreground group-hover:text-[#1a3826] dark:group-hover:text-[#FFC72C] truncate">
                             {rule.title}
                           </span>
-                          <span className="text-xs font-medium text-slate-500 shrink-0">
+                          <span className="text-xs font-medium text-muted-foreground shrink-0">
                             {formatDateDDMMGGGG(rule.createdAt)}
                           </span>
                         </Link>

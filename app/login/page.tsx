@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail, Loader2, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Kanit } from "next/font/google";
-
 const brandFont = Kanit({
   subsets: ["latin"],
   weight: ["600", "800", "900"],
@@ -29,7 +28,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (searchParams.get("error") === "CredentialsSignin") {
-      alert("Neispravni podaci. Provjerite email i lozinku.");
+      alert("Ungültige Anmeldedaten. Bitte E-Mail und Passwort prüfen.");
     }
   }, [searchParams]);
 
@@ -46,14 +45,14 @@ export default function LoginPage() {
         redirect: true,
       });
     } catch {
-      alert("Greška pri prijavi. Pokušajte ponovo.");
+      alert("Fehler bei der Anmeldung. Bitte erneut versuchen.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-background">
       {/* Left panel – brand */}
       <div
         className="hidden md:flex md:w-[44%] lg:w-[42%] flex-col justify-between bg-[#1a3826] p-10 lg:p-14"
@@ -63,20 +62,23 @@ export default function LoginPage() {
         }}
       >
         <div>
-          <div className={`${brandFont.className} text-3xl font-black text-white tracking-tight`}>
+          <div
+            className={`${brandFont.className} text-3xl font-black text-white tracking-tight`}
+            suppressHydrationWarning
+          >
             AIW <span className="text-[#FFC72C]">Services</span>
           </div>
           <div className="mt-12 space-y-8">
             <p className="text-emerald-100/90 text-lg font-medium leading-relaxed max-w-sm">
-              Enterprise Management System za McDonald&apos;s operacije.
+              Enterprise-Managementsystem für McDonald&apos;s Österreich.
             </p>
             <div className="h-px w-16 bg-[#FFC72C]/40 rounded-full" />
             <p className="text-emerald-200/60 text-sm font-medium">
-              Prijavite se sa službenim pristupnim podacima.
+              Melden Sie sich mit Ihren offiziellen Zugangsdaten an.
             </p>
           </div>
         </div>
-        <p className="text-emerald-200/40 text-xs font-medium">
+        <p className="text-emerald-200/40 text-xs font-medium" suppressHydrationWarning>
           © {new Date().getFullYear()} AIW Services
         </p>
       </div>
@@ -85,29 +87,29 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-10">
         <div className="w-full max-w-[400px]">
           {/* Mobile logo */}
-          <div className="md:hidden text-center mb-10">
-            <div className={`${brandFont.className} text-3xl font-black text-[#1a3826] tracking-tight`}>
+          <div className="md:hidden text-center mb-10" suppressHydrationWarning>
+            <div className={`${brandFont.className} text-3xl font-black text-[#1a3826] dark:text-white tracking-tight`}>
               AIW <span className="text-[#FFC72C]">Services</span>
             </div>
           </div>
 
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Dobrodošli
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">
+              Anmelden
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Prijavite se na svoj račun
+            <p className="mt-1 text-sm text-muted-foreground">
+              Melden Sie sich bei Ihrem Konto an
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
-                Email
+              <label htmlFor="email" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                E-Mail-Adresse
               </label>
               <div className="relative">
                 <Mail
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
                   size={18}
                   strokeWidth={2}
                 />
@@ -120,23 +122,23 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-11 pr-4 py-3.5 min-h-[44px] rounded-lg
-                             bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400
+                             bg-card border border-border text-foreground placeholder:text-muted-foreground
                              text-[15px] font-medium
                              focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826]
                              transition-shadow transition-colors duration-150
                              disabled:opacity-50 disabled:cursor-not-allowed
-                             shadow-sm hover:border-slate-300"
+                             shadow-sm hover:border-border"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
-                Lozinka
+              <label htmlFor="password" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Passwort
               </label>
               <div className="relative">
                 <Lock
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
                   size={18}
                   strokeWidth={2}
                 />
@@ -149,18 +151,18 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-12 py-3.5 min-h-[44px] rounded-lg
-                             bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400
+                             bg-card border border-border text-foreground placeholder:text-muted-foreground
                              text-[15px] font-medium
                              focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826]
                              transition-shadow transition-colors duration-150
                              disabled:opacity-50 disabled:cursor-not-allowed
-                             shadow-sm hover:border-slate-300"
+                             shadow-sm hover:border-border"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-md
-                             text-slate-400 hover:text-slate-600 hover:bg-slate-100
+                             text-muted-foreground hover:text-foreground hover:bg-accent
                              transition-colors"
                   aria-label={showPassword ? "Sakrij lozinku" : "Prikaži lozinku"}
                   tabIndex={-1}
@@ -173,10 +175,10 @@ export default function LoginPage() {
             <div className="flex items-center justify-end">
               <Link
                 href="/login/zaboravljena-lozinka"
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#1a3826] transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
                 <KeyRound size={14} />
-                Zaboravljena lozinka?
+                Passwort vergessen?
               </Link>
             </div>
 
@@ -194,16 +196,16 @@ export default function LoginPage() {
               {loading ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 size={18} className="animate-spin" />
-                  Prijavljivanje…
+                  Laden…
                 </span>
               ) : (
-                "Prijavi se"
+                "Einloggen"
               )}
             </button>
           </form>
 
-          <p className="mt-10 text-xs text-slate-400 text-center">
-            Koristi službene pristupne podatke
+          <p className="mt-10 text-xs text-muted-foreground text-center">
+            Verwenden Sie Ihre offiziellen Zugangsdaten
           </p>
         </div>
       </div>

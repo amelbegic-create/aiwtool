@@ -124,7 +124,7 @@ export default async function ZahtjeviPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#F8FAFC] font-sans text-slate-800">
+    <div className="min-h-[calc(100vh-4rem)] bg-background font-sans text-foreground">
       <main className="mx-auto max-w-4xl px-4 py-6 md:py-10">
         <Link
           href="/dashboard"

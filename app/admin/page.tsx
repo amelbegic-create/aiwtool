@@ -65,21 +65,21 @@ export default async function AdminHome() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-4 md:p-10 font-sans text-foreground">
       <div className="max-w-[1600px] mx-auto space-y-8">
-        <div className="flex items-end justify-between gap-4 border-b border-slate-200 pb-6">
+        <div className="flex items-end justify-between gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter">
               ADMIN <span className="text-[#FFC72C]">PANEL</span>
             </h1>
-            <p className="text-slate-600 text-sm font-semibold">
+            <p className="text-muted-foreground text-sm font-semibold">
               Upravljanje korisnicima, restoranima i pristupima
             </p>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 text-xs font-black uppercase text-slate-500">
-            <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200">
-              <ShieldCheck size={16} className="text-[#1a3826]" />
+          <div className="hidden md:flex items-center gap-2 text-xs font-black uppercase text-muted-foreground">
+            <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-border">
+              <ShieldCheck size={16} className="text-[#1a3826] dark:text-[#FFC72C]" />
               Globalne permisije
             </span>
           </div>
@@ -92,27 +92,27 @@ export default async function AdminHome() {
               <Link
                 key={c.href}
                 href={c.href}
-                className="group bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-6"
+                className="group bg-card rounded-3xl border border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-6"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-[#1a3826]/10 text-[#1a3826] flex items-center justify-center">
+                  <div className="h-12 w-12 rounded-2xl bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 text-[#1a3826] dark:text-[#FFC72C] flex items-center justify-center">
                     <Icon size={22} />
                   </div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 border border-slate-200 px-3 py-2 rounded-full">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted border border-border px-3 py-2 rounded-full">
                     {c.tag}
                   </div>
                 </div>
 
                 <div className="mt-5">
-                  <h2 className="text-xl font-black text-slate-900 group-hover:text-[#1a3826] transition-colors">
+                  <h2 className="text-xl font-black text-card-foreground group-hover:text-[#1a3826] dark:group-hover:text-[#FFC72C] transition-colors">
                     {c.title}
                   </h2>
-                  <p className="text-sm text-slate-600 font-semibold mt-2 leading-relaxed">
+                  <p className="text-sm text-muted-foreground font-semibold mt-2 leading-relaxed">
                     {c.desc}
                   </p>
                 </div>
 
-                <div className="mt-6 text-xs font-black uppercase tracking-widest text-[#1a3826]">
+                <div className="mt-6 text-xs font-black uppercase tracking-widest text-[#1a3826] dark:text-[#FFC72C]">
                   Otvori →
                 </div>
               </Link>

@@ -32,23 +32,23 @@ export default function AdminPDSClient({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 border-b border-slate-200">
+        <thead className="bg-slate-50 border-b border-border">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Naziv
             </th>
-            <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Godina
             </th>
-            <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Ciljani restorani
             </th>
-            <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Status
             </th>
-            <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider w-28">
+            <th className="px-4 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider w-28">
               Akcije
             </th>
           </tr>
@@ -56,15 +56,15 @@ export default function AdminPDSClient({
         <tbody className="divide-y divide-slate-100">
           {templates.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-4 py-12 text-center text-slate-500">
+              <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
                 Nema PDS obrazaca. Kliknite &quot;Kreiraj Novi PDS&quot; za prvi obrazac.
               </td>
             </tr>
           ) : (
             templates.map((t) => (
-              <tr key={t.id} className="hover:bg-slate-50/50">
+              <tr key={t.id} className="hover:bg-muted/50">
                 <td className="px-4 py-3 font-semibold text-slate-900">{t.title}</td>
-                <td className="px-4 py-3 text-slate-600">{t.year}</td>
+                <td className="px-4 py-3 text-muted-foreground">{t.year}</td>
                 <td className="px-4 py-3 text-slate-700">
                   {t.isGlobal ? (
                     <span className="font-medium text-[#1a3826]">SVI RESTORANI</span>
@@ -77,7 +77,7 @@ export default function AdminPDSClient({
                 <td className="px-4 py-3">
                   <span
                     className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      t.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
+                      t.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-muted-foreground"
                     }`}
                   >
                     {t.isActive ? "Aktivan" : "Neaktivan"}
@@ -87,7 +87,7 @@ export default function AdminPDSClient({
                   <div className="flex items-center justify-end gap-1">
                     <Link
                       href={`/admin/pds/${t.id}`}
-                      className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-[#1a3826]"
+                      className="p-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-[#1a3826]"
                       title="Uredi"
                     >
                       <Pencil size={16} />
@@ -95,7 +95,7 @@ export default function AdminPDSClient({
                     <button
                       type="button"
                       onClick={() => handleDelete(t.id, t.title)}
-                      className="p-2 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600"
+                      className="p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600"
                       title="Obriši"
                     >
                       <Trash2 size={16} />

@@ -123,25 +123,25 @@ export default function RolePresetsClient() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
       <div className="max-w-[1600px] mx-auto space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-slate-200 pb-6">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
               ROLE <span className="text-[#FFC72C]">PRESETI</span>
             </h1>
-            <p className="text-slate-600 text-sm font-semibold">
+            <p className="text-muted-foreground text-sm font-semibold">
               Podesi permisije po roli jednom – kreiranje korisnika će ih automatski dodeljivati.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="bg-white border border-slate-200 rounded-2xl p-3">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Rola</div>
+            <div className="bg-white border border-border rounded-2xl p-3">
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Rola</div>
               <select
                 value={activeRole}
                 onChange={(e) => setActiveRole(e.target.value as Role)}
-                className="mt-2 w-56 p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
+                className="mt-2 w-56 p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
               >
                 {roles.map((r) => (
                   <option key={r} value={r}>
@@ -170,23 +170,23 @@ export default function RolePresetsClient() {
         </div>
 
         {isGodMode(activeRole) ? (
-          <div className="bg-white border border-slate-200 rounded-3xl p-6">
+          <div className="bg-white border border-border rounded-3xl p-6">
             <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm font-bold">
               Za rolu <span className="font-black">{activeRole}</span> ne podešava se preset, jer sistem automatski daje sve permisije.
             </div>
           </div>
         ) : (
-          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden">
-            <div className="p-5 bg-slate-50 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="bg-white border border-border rounded-3xl overflow-hidden">
+            <div className="p-5 bg-slate-50 border-b border-border flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-600 inline-flex items-center gap-2">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground inline-flex items-center gap-2">
                   <Layers size={14} /> Permisije
                 </h3>
-                <p className="text-xs text-slate-600 font-semibold mt-1">
+                <p className="text-xs text-muted-foreground font-semibold mt-1">
                   Levo odaberi modul, desno označi permisije • {globalSelected}/{globalTotal} ukupno
                 </p>
                 {isLoading && (
-                  <p className="text-[11px] font-bold text-slate-500 mt-2">Učitavam preset iz baze...</p>
+                  <p className="text-[11px] font-bold text-muted-foreground mt-2">Učitavam preset iz baze...</p>
                 )}
               </div>
 
@@ -201,7 +201,7 @@ export default function RolePresetsClient() {
                 <button
                   onClick={() => setKeys([])}
                   disabled={isLoading || isSaving}
-                  className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-[10px] font-black uppercase text-slate-700 inline-flex items-center gap-2"
+                  className="px-3 py-2 rounded-xl bg-white hover:bg-accent border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                 >
                   <Eraser size={14} /> Clear all
                 </button>
@@ -210,14 +210,14 @@ export default function RolePresetsClient() {
 
             <div className="grid grid-cols-1 lg:grid-cols-12">
               {/* Module list */}
-              <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-slate-200 p-5">
+              <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-border p-5">
                 <div className="flex items-center gap-2 mb-3">
-                  <Search size={16} className="text-slate-400" />
+                  <Search size={16} className="text-muted-foreground" />
                   <input
                     value={moduleQuery}
                     onChange={(e) => setModuleQuery(e.target.value)}
                     placeholder="Traži modul..."
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                    className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                 </div>
 
@@ -230,12 +230,12 @@ export default function RolePresetsClient() {
                         key={g.id}
                         onClick={() => setActiveModuleId(g.id)}
                         className={`w-full text-left p-3 rounded-2xl border transition-colors ${
-                          active ? "border-[#1a3826] bg-[#1a3826]/5" : "border-slate-200 hover:bg-slate-50"
+                          active ? "border-[#1a3826] bg-[#1a3826]/5" : "border-border hover:bg-accent"
                         }`}
                       >
-                        <div className="font-black text-slate-900">{g.title}</div>
-                        {g.subtitle && <div className="text-xs text-slate-600 font-semibold truncate">{g.subtitle}</div>}
-                        <div className="text-[10px] font-black uppercase text-slate-500 mt-2">
+                        <div className="font-black text-foreground">{g.title}</div>
+                        {g.subtitle && <div className="text-xs text-muted-foreground font-semibold truncate">{g.subtitle}</div>}
+                        <div className="text-[10px] font-black uppercase text-muted-foreground mt-2">
                           {selected}/{g.items.length} odabrano
                         </div>
                       </button>
@@ -243,7 +243,7 @@ export default function RolePresetsClient() {
                   })}
 
                   {modulesFiltered.length === 0 && (
-                    <div className="p-6 rounded-2xl border border-slate-200 text-sm font-bold text-slate-500 bg-white">
+                    <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
                       Nema rezultata za ovaj upit.
                     </div>
                   )}
@@ -254,11 +254,11 @@ export default function RolePresetsClient() {
               <div className="lg:col-span-7 p-5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                   <div>
-                    <div className="font-black text-slate-900">{activeModule?.title}</div>
+                    <div className="font-black text-foreground">{activeModule?.title}</div>
                     {activeModule?.subtitle && (
-                      <div className="text-xs text-slate-600 font-semibold">{activeModule.subtitle}</div>
+                      <div className="text-xs text-muted-foreground font-semibold">{activeModule.subtitle}</div>
                     )}
-                    <div className="text-[10px] font-black uppercase text-slate-500 mt-2">
+                    <div className="text-[10px] font-black uppercase text-muted-foreground mt-2">
                       {activeSelected}/{activeKeys.length} odabrano u ovom modulu
                     </div>
                   </div>
@@ -270,7 +270,7 @@ export default function RolePresetsClient() {
                       className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase border transition-colors ${
                         activeAllOn
                           ? "bg-[#1a3826] text-white border-[#1a3826]"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                          : "bg-white text-foreground border-border hover:bg-accent"
                       }`}
                     >
                       {activeAllOn ? "Sve" : "Označi sve"}
@@ -279,7 +279,7 @@ export default function RolePresetsClient() {
                     <button
                       onClick={() => setMany(activeKeys, false)}
                       disabled={isLoading || isSaving}
-                      className="px-3 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-[10px] font-black uppercase text-slate-700 inline-flex items-center gap-2"
+                      className="px-3 py-2 rounded-xl bg-white hover:bg-accent border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                     >
                       <Eraser size={14} /> Clear
                     </button>
@@ -287,12 +287,12 @@ export default function RolePresetsClient() {
                 </div>
 
                 <div className="flex items-center gap-2 mb-4">
-                  <Search size={16} className="text-slate-400" />
+                  <Search size={16} className="text-muted-foreground" />
                   <input
                     value={permQuery}
                     onChange={(e) => setPermQuery(e.target.value)}
                     placeholder="Traži permisiju u ovom modulu..."
-                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                    className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                 </div>
 
@@ -303,7 +303,7 @@ export default function RolePresetsClient() {
                       <label
                         key={item.key}
                         className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer text-sm font-bold transition-colors ${
-                          checked ? "border-[#1a3826] bg-[#1a3826]/5" : "border-slate-200 hover:bg-slate-50"
+                          checked ? "border-[#1a3826] bg-[#1a3826]/5" : "border-border hover:bg-accent"
                         }`}
                       >
                         <input
@@ -313,15 +313,15 @@ export default function RolePresetsClient() {
                           onChange={() => toggleOne(item.key)}
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-slate-900">{item.label}</div>
-                          <div className="text-[10px] font-mono text-slate-400 truncate">{item.key}</div>
+                          <div className="text-foreground">{item.label}</div>
+                          <div className="text-[10px] font-mono text-muted-foreground truncate">{item.key}</div>
                         </div>
                       </label>
                     );
                   })}
 
                   {activeItemsFiltered.length === 0 && (
-                    <div className="p-6 rounded-2xl border border-slate-200 text-sm font-bold text-slate-500 bg-white">
+                    <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
                       Nema permisija za ovaj filter.
                     </div>
                   )}

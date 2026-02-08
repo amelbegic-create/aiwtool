@@ -145,7 +145,7 @@ export default function DashboardClient(props: DashboardClientProps) {
   }, [props.tools, toolQuery]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 flex flex-col relative z-0">
+    <div className="min-h-screen bg-background font-sans text-foreground flex flex-col relative z-0">
       {/* HEADER */}
       <header className="h-20 bg-white border-b border-slate-200 sticky top-0 z-40 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] px-6 md:px-10 flex items-center justify-between">
         <div className="flex items-center gap-4">

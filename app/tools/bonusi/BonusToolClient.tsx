@@ -63,7 +63,7 @@ export default function BonusToolClient({ initialState }: Props) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
       <div className="max-w-[1600px] mx-auto space-y-8">
         <header className="bg-[#1a3826] text-white rounded-3xl px-5 py-4 md:px-7 md:py-5 shadow-sm border border-black/10">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -83,7 +83,7 @@ export default function BonusToolClient({ initialState }: Props) {
                 onClick={handleSyncEmployees}
                 disabled={syncing}
                 className={cn(
-                  "px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border border-white/20 bg-white/5 hover:bg-white/10 transition-colors",
+                  "px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border border-white/20 bg-card/5 hover:bg-card/10 transition-colors",
                   syncing && "opacity-60 cursor-wait",
                 )}
               >
@@ -109,7 +109,7 @@ export default function BonusToolClient({ initialState }: Props) {
                 onClick={() => setState((s) => ({ ...s, ui: { ...s.ui, tab: t.id } }))}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-[11px] font-black tracking-wide border border-white/30",
-                  state.ui.tab === t.id ? "bg-[#FFC72C] text-[#1a3826] border-[#FFC72C]" : "bg-white/5 text-white/85",
+                  state.ui.tab === t.id ? "bg-[#FFC72C] text-[#1a3826] border-[#FFC72C]" : "bg-card/5 text-white/85",
                 )}
               >
                 {t.label}
@@ -159,10 +159,10 @@ function EmployeeView({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+      <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <select
-            className="min-w-[260px] rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+            className="min-w-[260px] rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
             value={emp.id}
             onChange={(e) =>
               setState((s) => ({
@@ -178,13 +178,13 @@ function EmployeeView({
             ))}
           </select>
 
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500">
             Basis: {p.base.toLocaleString("de-AT", { style: "currency", currency: "EUR" })}
           </span>
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500">
             Gesamt: {Math.round(p.total * 100)}%
           </span>
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-slate-200 text-[11px] font-black uppercase tracking-wide text-slate-500">
             Deckel: {p.cap.toLocaleString("de-AT", { style: "currency", currency: "EUR" })}
           </span>
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFF7CC] border border-[#F2C94C] text-[11px] font-black uppercase tracking-wide text-[#1a3826]">
@@ -201,13 +201,13 @@ function EmployeeView({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
           <h2 className="text-sm font-black text-[#1a3826] tracking-tight uppercase">Stammdaten</h2>
           <div className="space-y-3">
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase">Name</label>
               <input
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={emp.name}
                 onChange={(e) => updateEmp({ name: e.target.value })}
               />
@@ -215,7 +215,7 @@ function EmployeeView({
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase">Abteilung</label>
               <select
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={emp.dept}
                 onChange={(e) => updateEmp({ dept: e.target.value })}
               >
@@ -228,14 +228,14 @@ function EmployeeView({
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
           <h2 className="text-sm font-black text-[#1a3826] tracking-tight uppercase">Einstellungen</h2>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase">Monatsgehalt (€)</label>
               <input
                 type="number"
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={emp.salary}
                 onChange={(e) => updateEmp({ salary: Math.max(0, Number(e.target.value) || 0) })}
               />
@@ -244,7 +244,7 @@ function EmployeeView({
               <label className="text-[11px] font-bold text-slate-500 uppercase">Bonusbasis (Monate)</label>
               <input
                 type="number"
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={emp.baseMonths ?? state.settings.baseMonths}
                 onChange={(e) =>
                   updateEmp({
@@ -258,7 +258,7 @@ function EmployeeView({
               <input
                 type="number"
                 step="0.01"
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={emp.factors.tenure}
                 onChange={(e) =>
                   updateEmp({
@@ -272,7 +272,7 @@ function EmployeeView({
               <input
                 type="number"
                 step="0.01"
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={emp.factors.size}
                 onChange={(e) =>
                   updateEmp({
@@ -332,12 +332,12 @@ function GoalsView({ state, setState }: { state: BonusState; setState: (fn: (s: 
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+      <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label className="text-[11px] font-bold text-slate-500 uppercase">Način uređivanja</label>
             <select
-              className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+              className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
               value={mode}
               onChange={(e) =>
                 setState((s) => ({
@@ -355,7 +355,7 @@ function GoalsView({ state, setState }: { state: BonusState; setState: (fn: (s: 
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase">Odjel</label>
               <select
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={dept}
                 onChange={(e) =>
                   setState((s) => ({
@@ -376,7 +376,7 @@ function GoalsView({ state, setState }: { state: BonusState; setState: (fn: (s: 
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase">Zaposlenik</label>
               <select
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={currentEmp?.id || ""}
                 onChange={(e) =>
                   setState((s) => ({
@@ -396,7 +396,7 @@ function GoalsView({ state, setState }: { state: BonusState; setState: (fn: (s: 
 
           <div className="flex flex-col gap-2">
             <label className="text-[11px] font-bold text-slate-500 uppercase">Scope</label>
-            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600">
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-2xl bg-muted border border-slate-200 text-xs font-semibold text-muted-foreground">
               Uređuješ ciljeve za: <span className="font-black text-[#1a3826]">{scopeLabel}</span>
             </div>
             {mode === "emp" && currentEmp && (
@@ -406,7 +406,7 @@ function GoalsView({ state, setState }: { state: BonusState; setState: (fn: (s: 
                     "px-3 py-1.5 rounded-xl text-[11px] font-black uppercase border",
                     hasIndividual
                       ? "bg-[#1a3826] text-white border-[#1a3826]"
-                      : "bg-white text-slate-600 border-slate-200",
+                      : "bg-card text-muted-foreground border-slate-200",
                   )}
                   onClick={() =>
                     setState((s) => {
@@ -473,21 +473,21 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
   const enabled = pillar.enabled !== false;
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+    <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-black text-[#1a3826] tracking-tight uppercase">{label}</h2>
-            <span className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-500">
+            <span className="px-2 py-0.5 rounded-full bg-muted border border-slate-200 text-[10px] font-black text-slate-500">
               Osnovna težina: {basePct}% · Efektivna: {enabled ? effPct : 0}%
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black text-slate-500">
+            <span className="px-2 py-0.5 rounded-full bg-muted border border-slate-200 text-[10px] font-black text-slate-500">
               Zbir ciljeva: {Math.round(sumW * 100) / 100}%
             </span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+          <label className="inline-flex items-center gap-2 text-xs font-semibold text-foreground">
             <input
               type="checkbox"
               checked={enabled}
@@ -500,7 +500,7 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
             Aktivno
           </label>
           <button
-            className="px-3 py-1.5 rounded-xl text-[11px] font-black uppercase border border-slate-200 bg-white hover:bg-slate-50"
+            className="px-3 py-1.5 rounded-xl text-[11px] font-black uppercase border border-slate-200 bg-card hover:bg-muted"
             onClick={() =>
               updatePillars((pb) => {
                 pb[keyName].goals.push({ name: "Novi cilj", w: 0 });
@@ -518,7 +518,7 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase">Naziv stuba</label>
               <input
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={pillar.name}
                 onChange={(e) =>
                   updatePillars((pb) => {
@@ -532,7 +532,7 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
               <input
                 type="number"
                 step="0.1"
-                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                 value={basePct}
                 onChange={(e) => {
                   const pct = Math.max(0, Math.min(100, Number(e.target.value) || 0));
@@ -544,9 +544,9 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
             </div>
           </div>
 
-          <div className="border border-slate-100 rounded-2xl overflow-hidden">
+          <div className="border border-border rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-[11px] font-black uppercase text-slate-500">
+              <thead className="bg-muted text-[11px] font-black uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-2 text-left">Cilj</th>
                   <th className="px-4 py-2 text-right">Težina %</th>
@@ -555,10 +555,10 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
               </thead>
               <tbody>
                 {pillar.goals.map((g: any, i: number) => (
-                  <tr key={i} className="border-t border-slate-100">
+                  <tr key={i} className="border-t border-border">
                     <td className="px-4 py-2">
                       <input
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white"
+                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card"
                         value={g.name}
                         onChange={(e) =>
                           updatePillars((pb) => {
@@ -571,7 +571,7 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
                       <input
                         type="number"
                         step="0.1"
-                        className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white text-right"
+                        className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card text-right"
                         value={g.w}
                         onChange={(e) => {
                           const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
@@ -597,7 +597,7 @@ function GoalsPillarEditor({ pillar, keyName, label, effWeight, updatePillars }:
                 ))}
                 {pillar.goals.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-4 text-center text-xs text-slate-400">
+                    <td colSpan={3} className="px-4 py-4 text-center text-xs text-muted-foreground">
                       Nema definisanih ciljeva za ovaj stub.
                     </td>
                   </tr>
@@ -650,7 +650,7 @@ function OverviewView({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-sm font-black text-[#1a3826] tracking-tight uppercase">Pregled zaposlenika</h2>
@@ -660,7 +660,7 @@ function OverviewView({
           </div>
           <div className="flex gap-2">
             <input
-              className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-white min-w-[220px]"
+              className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold bg-card min-w-[220px]"
               placeholder="Pretraga po imenu ili odjelu..."
               value={state.ui.ovQuery || ""}
               onChange={(e) =>
@@ -674,9 +674,9 @@ function OverviewView({
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-slate-200 p-0 shadow-sm overflow-hidden">
+      <div className="bg-card rounded-3xl border border-slate-200 p-0 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-[11px] font-black uppercase text-slate-500">
+          <thead className="bg-muted text-[11px] font-black uppercase text-slate-500">
             <tr>
               <th className="px-4 py-2 text-left">Ime i prezime</th>
               <th className="px-4 py-2 text-left">Odjel</th>
@@ -689,17 +689,17 @@ function OverviewView({
           </thead>
           <tbody>
             {filtered.map((e) => (
-              <tr key={e.id} className="border-t border-slate-100">
+              <tr key={e.id} className="border-t border-border">
                 <td className="px-4 py-2">
                   <input
-                    className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-white"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-card"
                     value={e.name}
                     onChange={(ev) => updateFromInput(e.id, "name", ev.target.value)}
                   />
                 </td>
                 <td className="px-4 py-2">
                   <select
-                    className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-white"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-card"
                     value={e.dept}
                     onChange={(ev) => updateFromInput(e.id, "dept", ev.target.value)}
                   >
@@ -712,7 +712,7 @@ function OverviewView({
                 <td className="px-4 py-2 text-right">
                   <input
                     type="number"
-                    className="w-24 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-white text-right"
+                    className="w-24 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-card text-right"
                     value={e.salary}
                     onChange={(ev) => updateFromInput(e.id, "salary", ev.target.value)}
                   />
@@ -721,7 +721,7 @@ function OverviewView({
                   <input
                     type="number"
                     step="0.5"
-                    className="w-24 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-white text-right"
+                    className="w-24 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-card text-right"
                     value={e.baseMonths ?? state.settings.baseMonths}
                     onChange={(ev) => updateFromInput(e.id, "baseMonths", ev.target.value)}
                   />
@@ -730,7 +730,7 @@ function OverviewView({
                   <input
                     type="number"
                     step="0.01"
-                    className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-white text-right"
+                    className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-card text-right"
                     value={e.factors.tenure}
                     onChange={(ev) => updateFromInput(e.id, "tenure", ev.target.value)}
                   />
@@ -739,7 +739,7 @@ function OverviewView({
                   <input
                     type="number"
                     step="0.01"
-                    className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-white text-right"
+                    className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-card text-right"
                     value={e.factors.size}
                     onChange={(ev) => updateFromInput(e.id, "size", ev.target.value)}
                   />
@@ -748,7 +748,7 @@ function OverviewView({
                   <input
                     type="number"
                     step="0.01"
-                    className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-white text-right"
+                    className="w-20 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold bg-card text-right"
                     value={e.factors.office}
                     onChange={(ev) => updateFromInput(e.id, "office", ev.target.value)}
                   />
@@ -757,7 +757,7 @@ function OverviewView({
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-xs text-slate-400">
+                <td colSpan={7} className="px-4 py-6 text-center text-xs text-muted-foreground">
                   Nema zaposlenika za prikaz sa trenutnim filterom.
                 </td>
               </tr>
@@ -873,16 +873,16 @@ function ResultsView({ state }: { state: BonusState }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm">
         <h2 className="text-sm font-black text-[#1a3826] tracking-tight uppercase">Ukupni rezultati</h2>
         <div className="mt-4 flex flex-wrap gap-3">
-          <span className="pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-xs font-black text-slate-600">
+          <span className="pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-slate-200 text-xs font-black text-muted-foreground">
             Zaposlenika: {state.employees.length}
           </span>
-          <span className="pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-xs font-black text-slate-600">
+          <span className="pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-slate-200 text-xs font-black text-muted-foreground">
             Ukupna baza: {fmt(grand.base)}
           </span>
-          <span className="pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-xs font-black text-slate-600">
+          <span className="pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-slate-200 text-xs font-black text-muted-foreground">
             Ukupni plafon: {fmt(grand.cap)}
           </span>
           <span className="pill inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FFF7CC] border border-[#F2C94C] text-xs font-black text-[#1a3826]">
@@ -904,16 +904,16 @@ function ResultsView({ state }: { state: BonusState }) {
         );
 
         return (
-          <div key={dept} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div key={dept} className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-black text-[#1a3826] tracking-tight uppercase">Odjel: {dept}</h3>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
-                <span className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 font-black text-slate-600">
+                <span className="px-3 py-1.5 rounded-full bg-muted border border-slate-200 font-black text-muted-foreground">
                   Baza: {fmt(totals.base)}
                 </span>
-                <span className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 font-black text-slate-600">
+                <span className="px-3 py-1.5 rounded-full bg-muted border border-slate-200 font-black text-muted-foreground">
                   Plafon: {fmt(totals.cap)}
                 </span>
                 <span className="px-3 py-1.5 rounded-full bg-[#FFF7CC] border border-[#F2C94C] font-black text-[#1a3826]">
@@ -922,9 +922,9 @@ function ResultsView({ state }: { state: BonusState }) {
               </div>
             </div>
 
-            <div className="border border-slate-100 rounded-2xl overflow-hidden">
+            <div className="border border-border rounded-2xl overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-[11px] font-black uppercase text-slate-500">
+                <thead className="bg-muted text-[11px] font-black uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-2 text-left">Zaposlenik</th>
                     <th className="px-4 py-2 text-right">Plata</th>
@@ -937,15 +937,15 @@ function ResultsView({ state }: { state: BonusState }) {
                 </thead>
                 <tbody>
                   {g.rows.map(({ emp, p }) => (
-                    <tr key={emp.id} className="border-t border-slate-100">
-                      <td className="px-4 py-2 text-left font-semibold text-slate-800">{displayName(emp)}</td>
-                      <td className="px-4 py-2 text-right text-slate-700">{fmt(emp.salary)}</td>
-                      <td className="px-4 py-2 text-right text-slate-700">{fmt(p.base)}</td>
-                      <td className="px-4 py-2 text-right font-bold text-slate-800">
+                    <tr key={emp.id} className="border-t border-border">
+                      <td className="px-4 py-2 text-left font-semibold text-foreground">{displayName(emp)}</td>
+                      <td className="px-4 py-2 text-right text-foreground">{fmt(emp.salary)}</td>
+                      <td className="px-4 py-2 text-right text-foreground">{fmt(p.base)}</td>
+                      <td className="px-4 py-2 text-right font-bold text-foreground">
                         {Math.round(p.total * 100)}%
                       </td>
-                      <td className="px-4 py-2 text-right text-slate-700">{p.factor.toFixed(3)}</td>
-                      <td className="px-4 py-2 text-right text-slate-700">{fmt(p.cap)}</td>
+                      <td className="px-4 py-2 text-right text-foreground">{p.factor.toFixed(3)}</td>
+                      <td className="px-4 py-2 text-right text-foreground">{fmt(p.cap)}</td>
                       <td className="px-4 py-2 text-right font-bold text-[#1a3826]">{fmt(p.payout)}</td>
                     </tr>
                   ))}
@@ -956,7 +956,7 @@ function ResultsView({ state }: { state: BonusState }) {
         );
       })}
 
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex justify-end">
+      <div className="bg-card rounded-3xl border border-slate-200 p-6 shadow-sm flex justify-end">
         <button
           type="button"
           onClick={handleExportPdf}
@@ -998,7 +998,7 @@ function KpiCard({
   return (
     <div
       className={cn(
-        "kpiCard bg-white rounded-3xl border p-4 shadow-sm",
+        "kpiCard bg-card rounded-3xl border p-4 shadow-sm",
         highlight ? "border-[#F2C94C] bg-[#FFF7CC]" : "border-slate-200",
       )}
     >

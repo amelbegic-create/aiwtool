@@ -20,14 +20,14 @@ export default async function AdminPDSPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-2xl font-black text-[#1a3826] uppercase tracking-tight">
+            <h1 className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">
               PDS Obrasci
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Kreirajte i upravljajte PDS obrascima za jedan, više ili sve restorane.
             </p>
           </div>

@@ -40,9 +40,9 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
   const activeRest = restaurants.find(r => r.id === activeRestaurantId);
   
   // Prikazno ime (Samo broj)
-  let displayName = activeRest?.name || "Odaberi";
+  let displayName = activeRest?.name || "Auswählen";
   if (activeRestaurantId === 'all') {
-      displayName = "Svi";
+      displayName = "Alle";
   }
 
   const handleSelect = (restId: string) => {
@@ -84,7 +84,7 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
         
         <div className="text-left flex flex-col">
             <span className="text-[9px] font-bold text-[#FFC72C] uppercase tracking-widest leading-none mb-0.5 opacity-80">
-                {activeRestaurantId === 'all' ? 'Prikaz' : 'Store'}
+                {activeRestaurantId === 'all' ? 'Übersicht' : 'Store'}
             </span>
             <span className="text-sm font-black leading-none tracking-tight">
                 {displayName}
@@ -119,7 +119,7 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
                         >
                             <div className="flex items-center gap-3">
                                 <Globe size={16} />
-                                <span className="text-xs font-bold uppercase tracking-wide">Svi Restorani</span>
+                                <span className="text-xs font-bold uppercase tracking-wide">Alle Restaurants</span>
                             </div>
                             {activeRestaurantId === 'all' && <CheckCircle2 size={16} className="text-[#1a3826]"/>}
                         </button>

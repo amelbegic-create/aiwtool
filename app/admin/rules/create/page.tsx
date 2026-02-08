@@ -18,7 +18,7 @@ export default async function AdminRulesCreatePage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-8">
         <Link
           href="/admin/rules"

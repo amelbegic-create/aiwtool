@@ -15,13 +15,13 @@ export default async function UsersLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-4 md:p-10 font-sans text-foreground">
       <div className="max-w-[1600px] mx-auto space-y-6">
         <div>
           <h1 className="text-3xl md:text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
             Korisnici <span className="text-[#FFC72C]">&</span> Timovi
           </h1>
-          <p className="text-slate-600 text-sm font-semibold mt-1">
+          <p className="text-muted-foreground text-sm font-semibold mt-1">
             Upravljanje korisnicima, restoranima i konfiguracija rola
           </p>
         </div>

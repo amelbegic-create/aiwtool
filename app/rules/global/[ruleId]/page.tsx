@@ -54,7 +54,7 @@ export default async function GlobalRuleDetailsPage(props: PageProps) {
   const rule = GLOBAL_RULES[ruleId] || { ...GLOBAL_RULES["default"], title: `Pravilo: ${ruleId}` };
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-[#1F2937] font-sans flex">
+    <div className="min-h-screen bg-background text-foreground font-sans flex">
       {/* SIDEBAR (ISTI) */}
       <aside className="hidden md:flex flex-col w-64 bg-[#1E293B] text-slate-300 h-screen sticky top-0 border-r border-slate-700 shrink-0">
         <div className="h-16 flex items-center px-6 border-b border-slate-700 bg-[#0F172A]">

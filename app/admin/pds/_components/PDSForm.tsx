@@ -181,7 +181,7 @@ export default function PDSForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+      <div className="bg-card rounded-2xl border border-border p-6 shadow-sm space-y-6">
         <h2 className="text-sm font-black text-[#1a3826] uppercase tracking-wider">
           Osnovni podaci
         </h2>
@@ -194,7 +194,7 @@ export default function PDSForm({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="npr. PDS 2025"
-            className="w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826]"
+            className="w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826]"
           />
         </div>
         <div>
@@ -204,7 +204,7 @@ export default function PDSForm({
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
+            className="w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
           >
             {YEARS.map((y) => (
               <option key={y} value={y}>
@@ -215,11 +215,11 @@ export default function PDSForm({
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+      <div className="bg-card rounded-2xl border border-border p-6 shadow-sm space-y-6">
         <h2 className="text-sm font-black text-[#1a3826] uppercase tracking-wider">
           Ciljanje restorana
         </h2>
-        <label className="flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 hover:border-[#1a3826]/30 cursor-pointer transition-colors">
+        <label className="flex items-center gap-3 p-4 rounded-xl border-2 border-border hover:border-[#1a3826]/30 cursor-pointer transition-colors">
           <input
             type="checkbox"
             checked={isGlobal}
@@ -238,7 +238,7 @@ export default function PDSForm({
               {restaurants.map((r) => (
                 <label
                   key={r.id}
-                  className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                  className="flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-accent cursor-pointer"
                 >
                   <input
                     type="checkbox"
@@ -251,7 +251,7 @@ export default function PDSForm({
                     }}
                     className="rounded border-slate-300 text-[#1a3826] focus:ring-[#1a3826] h-4 w-4"
                   />
-                  <span className="text-sm font-medium text-slate-700 truncate">
+                  <span className="text-sm font-medium text-foreground truncate">
                     {r.name || r.code}
                   </span>
                 </label>
@@ -261,16 +261,16 @@ export default function PDSForm({
         )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+      <div className="bg-card rounded-2xl border border-border p-6 shadow-sm space-y-6">
         <h2 className="text-sm font-black text-[#1a3826] uppercase tracking-wider">
           Pitanja (ciljevi i skala)
         </h2>
-        <div className="flex gap-2 border-b border-slate-100 pb-4">
+        <div className="flex gap-2 border-b border-border pb-4">
           <button
             type="button"
             onClick={() => setActiveTab("goals")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold ${
-              activeTab === "goals" ? "bg-[#1a3826] text-white" : "bg-slate-100 text-slate-600"
+              activeTab === "goals" ? "bg-[#1a3826] text-white" : "bg-muted text-muted-foreground"
             }`}
           >
             <Target size={16} /> Ciljevi
@@ -279,7 +279,7 @@ export default function PDSForm({
             type="button"
             onClick={() => setActiveTab("scale")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold ${
-              activeTab === "scale" ? "bg-[#1a3826] text-white" : "bg-slate-100 text-slate-600"
+              activeTab === "scale" ? "bg-[#1a3826] text-white" : "bg-muted text-muted-foreground"
             }`}
           >
             <BarChart4 size={16} /> Skala
@@ -304,7 +304,7 @@ export default function PDSForm({
                     className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold border ${
                       selectedGoalIndex === i
                         ? "border-[#1a3826] bg-[#1a3826]/10 text-[#1a3826]"
-                        : "border-slate-200 text-slate-600"
+                        : "border-border text-muted-foreground"
                     }`}
                   >
                     {g.title || `Cilj ${i + 1}`}
@@ -320,7 +320,7 @@ export default function PDSForm({
                       <input
                         value={goals[selectedGoalIndex].title}
                         onChange={(e) => updateGoal(selectedGoalIndex, "title", e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm"
+                        className="w-full px-3 py-2 rounded-lg border border-border text-sm"
                       />
                     </div>
                     <div>
@@ -332,7 +332,7 @@ export default function PDSForm({
                           className={`flex-1 py-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 ${
                             goals[selectedGoalIndex].type === "NUMERIC"
                               ? "border-[#1a3826] bg-[#1a3826]/10 text-[#1a3826]"
-                              : "border-slate-200"
+                              : "border-border"
                           }`}
                         >
                           <Hash size={14} /> Raspon
@@ -343,7 +343,7 @@ export default function PDSForm({
                           className={`flex-1 py-2 rounded-lg border text-xs font-bold flex items-center justify-center gap-1 ${
                             goals[selectedGoalIndex].type === "BOOLEAN"
                               ? "border-[#1a3826] bg-[#1a3826]/10 text-[#1a3826]"
-                              : "border-slate-200"
+                              : "border-border"
                           }`}
                         >
                           <ToggleLeft size={14} /> DA/NE
@@ -394,7 +394,7 @@ export default function PDSForm({
                             <button
                               type="button"
                               onClick={() => removeRule(selectedGoalIndex, ri)}
-                              className="col-span-1 text-slate-400 hover:text-red-500"
+                              className="col-span-1 text-muted-foreground hover:text-red-500"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -440,7 +440,7 @@ export default function PDSForm({
             {scale.map((s, i) => (
               <div
                 key={i}
-                className="flex items-center gap-4 p-3 rounded-xl border border-slate-200 bg-slate-50/50"
+                className="flex items-center gap-4 p-3 rounded-xl border border-border bg-muted/50"
               >
                 <input
                   value={s.label}
@@ -449,7 +449,7 @@ export default function PDSForm({
                     n[i] = { ...n[i], label: e.target.value };
                     setScale(n);
                   }}
-                  className="flex-1 min-w-0 px-3 py-2 rounded border border-slate-200 text-sm font-medium"
+                  className="flex-1 min-w-0 px-3 py-2 rounded border border-border text-sm font-medium"
                   placeholder="Naziv"
                 />
                 <input
@@ -460,7 +460,7 @@ export default function PDSForm({
                     n[i] = { ...n[i], min: Number(e.target.value) };
                     setScale(n);
                   }}
-                  className="w-20 px-2 py-2 rounded border border-slate-200 text-sm text-center"
+                  className="w-20 px-2 py-2 rounded border border-border text-sm text-center"
                 />
                 <input
                   type="number"
@@ -470,7 +470,7 @@ export default function PDSForm({
                     n[i] = { ...n[i], max: Number(e.target.value) };
                     setScale(n);
                   }}
-                  className="w-20 px-2 py-2 rounded border border-slate-200 text-sm text-center"
+                  className="w-20 px-2 py-2 rounded border border-border text-sm text-center"
                 />
                 <input
                   type="color"
@@ -480,7 +480,7 @@ export default function PDSForm({
                     n[i] = { ...n[i], colorHex: e.target.value };
                     setScale(n);
                   }}
-                  className="h-9 w-9 rounded border border-slate-200 cursor-pointer"
+                  className="h-9 w-9 rounded border border-border cursor-pointer"
                 />
                 <button
                   type="button"
@@ -488,7 +488,7 @@ export default function PDSForm({
                     const n = scale.filter((_, idx) => idx !== i);
                     setScale(n);
                   }}
-                  className="text-slate-400 hover:text-red-500 p-1"
+                  className="text-muted-foreground hover:text-red-500 p-1"
                 >
                   <Trash2 size={18} />
                 </button>
@@ -497,7 +497,7 @@ export default function PDSForm({
             <button
               type="button"
               onClick={addScaleLevel}
-              className="w-full py-3 border border-dashed border-slate-300 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50"
+              className="w-full py-3 border border-dashed border-slate-300 rounded-xl text-sm font-bold text-slate-500 hover:bg-accent"
             >
               + Dodaj rang
             </button>
@@ -508,7 +508,7 @@ export default function PDSForm({
       <div className="flex gap-3">
         <Link
           href="/admin/pds"
-          className="px-6 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+          className="px-6 py-3 rounded-xl font-bold text-muted-foreground hover:bg-accent transition-colors"
         >
           Odustani
         </Link>

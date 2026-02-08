@@ -7,6 +7,7 @@ import TopNavbar from "@/components/TopNavbar";
 import prisma from "@/lib/prisma";
 import { cookies } from "next/headers";
 import AuthProvider from "@/components/AuthProvider";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
 import { Role } from "@prisma/client";
 // UKLONIO SAM IMPORT switchRestaurant JER GA NE SMIJEMO KORISTITI OVDJE
@@ -114,8 +115,9 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+        <ThemeProvider>
         <AuthProvider hasSession={!!session?.user}>
             {session?.user && (
                 <TopNavbar 
@@ -127,6 +129,7 @@ export default async function RootLayout({
             {children}
             <Toaster richColors position="top-center" closeButton />
         </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

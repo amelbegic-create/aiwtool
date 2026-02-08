@@ -41,7 +41,7 @@ export default async function RestaurantsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-8 text-[#0F172A]">
+    <div className="min-h-screen bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-6xl mx-auto">
         
         {/* HEADER */}

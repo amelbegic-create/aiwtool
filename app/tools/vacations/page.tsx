@@ -27,9 +27,14 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    include: {
-      restaurants: { include: { restaurant: true } },
-      vacationAllowances: true,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      vacationEntitlement: true,
+      vacationCarryover: true,
+      restaurants: { select: { restaurantId: true, restaurant: { select: { name: true } } } },
     },
   });
 
@@ -95,12 +100,19 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       blockedDaysPromise,
       prisma.vacationRequest.findMany({
         where: requestWhereClause,
-        include: {
+        select: {
+          id: true,
+          start: true,
+          end: true,
+          days: true,
+          status: true,
           restaurant: { select: { name: true } },
           user: {
-            include: {
-              restaurants: { include: { restaurant: true } },
-              vacationAllowances: { where: { year: selectedYear }, select: { days: true, year: true } },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              restaurants: { take: 1, select: { restaurant: { select: { name: true } } } },
             },
           },
         },
@@ -108,15 +120,20 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       }),
       prisma.user.findMany({
         where: userWhereClause,
-        include: {
+        select: {
+          id: true,
+          name: true,
+          vacationEntitlement: true,
+          vacationCarryover: true,
           department: { select: { name: true, color: true } },
           vacations: {
             where: {
               status: "APPROVED",
               start: { gte: startOfYear, lte: endOfYear },
             },
+            select: { days: true },
           },
-          restaurants: { include: { restaurant: true } },
+          restaurants: { select: { restaurantId: true, restaurant: { select: { name: true } } } },
           vacationAllowances: {
             where: { year: { in: [selectedYear, selectedYear - 1] } },
             select: { year: true, days: true, carriedOverDays: true },
@@ -228,6 +245,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         userId: user.id,
         start: { gte: startOfYear, lte: endOfYear },
       },
+      select: { id: true, start: true, end: true, days: true, status: true },
       orderBy: { createdAt: "desc" },
     }),
     getUserTotalForYear(sessionUserId, selectedYear),

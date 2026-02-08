@@ -93,14 +93,14 @@ export default function ProfilePage() {
           : "Zaposlenik";
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14">
         {/* Header */}
         <div className="mb-10">
-          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
             Moj profil
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Upravljajte ličnim podacima i sigurnošću računa.
           </p>
         </div>
@@ -116,16 +116,16 @@ export default function ProfilePage() {
                 className="w-full h-full"
               />
             </div>
-            <div className="mt-6 w-full max-w-sm md:max-w-[400px] bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden p-6 text-center lg:text-left">
-              <h2 className="text-lg font-semibold text-slate-900 truncate">
+            <div className="mt-6 w-full max-w-sm md:max-w-[400px] bg-card rounded-2xl border border-border shadow-sm overflow-hidden p-6 text-center lg:text-left">
+              <h2 className="text-lg font-semibold text-card-foreground truncate">
                 {user?.name || "Korisnik"}
               </h2>
-              <p className="text-sm text-slate-500 truncate mt-1">
+              <p className="text-sm text-muted-foreground truncate mt-1">
                 {user?.email}
               </p>
-              <div className="flex items-center justify-center lg:justify-start gap-2 mt-4 px-4 py-2 rounded-xl bg-slate-50 border border-slate-100">
-                <ShieldCheck size={16} className="text-slate-500 shrink-0" />
-                <span className="text-xs font-medium text-slate-600 uppercase tracking-wide">
+              <div className="flex items-center justify-center lg:justify-start gap-2 mt-4 px-4 py-2 rounded-xl bg-muted border border-border">
+                <ShieldCheck size={16} className="text-muted-foreground shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   {roleLabel}
                 </span>
               </div>
@@ -135,15 +135,15 @@ export default function ProfilePage() {
           {/* Right: Forms */}
           <div className="lg:col-span-8 space-y-6">
             {/* Lični podaci */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+            <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-border bg-muted/50">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-[#1a3826]/10 text-[#1a3826]">
+                  <div className="p-2.5 rounded-xl bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 text-[#1a3826] dark:text-[#FFC72C]">
                     <User size={20} />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-slate-900">Lični podaci</h3>
-                    <p className="text-sm text-slate-500">Ime i email adresa</p>
+                    <h3 className="text-base font-semibold text-card-foreground">Lični podaci</h3>
+                    <p className="text-sm text-muted-foreground">Ime i email adresa</p>
                   </div>
                 </div>
               </div>
@@ -152,42 +152,42 @@ export default function ProfilePage() {
                   <div
                     className={`rounded-xl px-4 py-3 text-sm ${
                       profileMessage.type === "success"
-                        ? "bg-emerald-50 text-emerald-800"
-                        : "bg-red-50 text-red-800"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200"
+                        : "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200"
                     }`}
                   >
                     {profileMessage.text}
                   </div>
                 )}
                 <div>
-                  <label htmlFor="name" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                  <label htmlFor="name" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Ime i prezime
                   </label>
                   <div className="relative">
-                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                     <input
                       id="name"
                       name="name"
                       type="text"
                       defaultValue={user?.name ?? ""}
                       placeholder="Ime i prezime"
-                      className="w-full min-h-[48px] pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
+                      className="w-full min-h-[48px] pl-12 pr-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                     />
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                  <label htmlFor="email" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Email
                   </label>
                   <div className="relative">
-                    <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                     <input
                       id="email"
                       name="email"
                       type="email"
                       defaultValue={user?.email ?? ""}
                       placeholder="email@primjer.ba"
-                      className="w-full min-h-[48px] pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
+                      className="w-full min-h-[48px] pl-12 pr-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                     />
                   </div>
                 </div>
@@ -201,15 +201,15 @@ export default function ProfilePage() {
             </div>
 
             {/* Sigurnost */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+            <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-border bg-muted/50">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-[#1a3826]/10 text-[#1a3826]">
+                  <div className="p-2.5 rounded-xl bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 text-[#1a3826] dark:text-[#FFC72C]">
                     <Lock size={20} />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-slate-900">Sigurnost</h3>
-                    <p className="text-sm text-slate-500">Promjena lozinke</p>
+                    <h3 className="text-base font-semibold text-card-foreground">Sigurnost</h3>
+                    <p className="text-sm text-muted-foreground">Promjena lozinke</p>
                   </div>
                 </div>
               </div>
@@ -218,15 +218,15 @@ export default function ProfilePage() {
                   <div
                     className={`rounded-xl px-4 py-3 text-sm ${
                       passwordMessage.type === "success"
-                        ? "bg-emerald-50 text-emerald-800"
-                        : "bg-red-50 text-red-800"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200"
+                        : "bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200"
                     }`}
                   >
                     {passwordMessage.text}
                   </div>
                 )}
                 <div>
-                  <label htmlFor="currentPassword" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                  <label htmlFor="currentPassword" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Trenutna lozinka
                   </label>
                   <input
@@ -235,11 +235,11 @@ export default function ProfilePage() {
                     type="password"
                     required
                     placeholder="••••••••"
-                    className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
+                    className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                   />
                 </div>
                 <div>
-                  <label htmlFor="newPassword" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                  <label htmlFor="newPassword" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Nova lozinka
                   </label>
                   <input
@@ -249,11 +249,11 @@ export default function ProfilePage() {
                     required
                     minLength={6}
                     placeholder="Min. 6 znakova"
-                    className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
+                    className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                   />
                 </div>
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                  <label htmlFor="confirmPassword" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                     Potvrda nove lozinke
                   </label>
                   <input
@@ -263,7 +263,7 @@ export default function ProfilePage() {
                     required
                     minLength={6}
                     placeholder="Ponovite novu lozinku"
-                    className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
+                    className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                   />
                 </div>
                 <div className="pt-2">

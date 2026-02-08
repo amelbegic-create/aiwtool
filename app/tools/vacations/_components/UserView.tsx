@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createVacationRequest,
@@ -80,6 +80,7 @@ export default function UserView({
   selectedYear,
 }: UserViewProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [loading, setLoading] = useState(false);
@@ -87,6 +88,13 @@ export default function UserView({
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const years = [2025, 2026, 2027, 2028, 2029, 2030];
+
+  const handleYearChange = (y: number) => {
+    if (y === selectedYear) return;
+    startTransition(() => {
+      router.push(`/tools/vacations?year=${y}`);
+    });
+  };
 
   const tomorrow = (() => {
     const t = new Date();
@@ -277,8 +285,8 @@ export default function UserView({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
+      <div className={`max-w-6xl mx-auto space-y-8 transition-opacity duration-150 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
@@ -286,8 +294,8 @@ export default function UserView({
                 <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">
                     MOJ <span className="text-[#FFC72C]">GODIŠNJI</span>
                 </h1>
-                <p className="text-slate-500 text-sm font-medium">
-                    Pregled dana i slanje zahtjeva za <span className="font-bold text-slate-800">{selectedYear}.</span> godinu
+                <p className="text-muted-foreground text-sm font-medium">
+                    Pregled dana i slanje zahtjeva za <span className="font-bold text-foreground">{selectedYear}.</span> godinu
                 </p>
             </div>
             
@@ -301,20 +309,29 @@ export default function UserView({
                     PDF IZVJEŠTAJ
                 </button>
 
-                <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-x-auto max-w-full">
-                    {years.map(y => (
-                        <button
-                            key={y}
-                            onClick={() => router.push(`/tools/vacations?year=${y}`)}
-                            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                                selectedYear === y 
-                                ? "bg-[#1a3826] text-white shadow-md" 
-                                : "text-slate-500 hover:bg-slate-50"
-                            }`}
-                        >
-                            {y}
-                        </button>
-                    ))}
+                <div className="flex items-center gap-2">
+                    {isPending && (
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                            <Loader2 size={14} className="animate-spin shrink-0" />
+                            Učitavanje…
+                        </span>
+                    )}
+                    <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full">
+                        {years.map(y => (
+                            <button
+                                key={y}
+                                onClick={() => handleYearChange(y)}
+                                disabled={isPending}
+                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                                    selectedYear === y 
+                                    ? "bg-[#1a3826] text-white shadow-md" 
+                                    : "text-muted-foreground hover:bg-accent"
+                                } disabled:opacity-70`}
+                            >
+                                {y}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>
@@ -325,15 +342,15 @@ export default function UserView({
             
             {/* KARTICE STATISTIKE */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+              <div className="bg-card p-6 rounded-2xl shadow-sm border border-border flex flex-col items-center justify-center">
+                <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
                   UKUPNO ({selectedYear})
                 </div>
-                <div className="text-3xl font-black text-slate-800">
+                <div className="text-3xl font-black text-foreground">
                   {total}
                 </div>
               </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col items-center justify-center">
+              <div className="bg-card p-6 rounded-2xl shadow-sm border border-border flex flex-col items-center justify-center">
                 <div className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">
                   ISKORIŠTENO
                 </div>
@@ -352,8 +369,8 @@ export default function UserView({
             </div>
 
             {/* FORMA ZA SLANJE */}
-            <div className={`bg-white p-8 rounded-3xl shadow-sm border transition-all ${editingId ? 'border-orange-300 ring-4 ring-orange-50' : 'border-slate-200'}`}>
-              <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-lg">
+            <div className={`bg-card p-8 rounded-3xl shadow-sm border transition-all ${editingId ? 'border-orange-300 dark:border-orange-600 ring-4 ring-orange-50 dark:ring-orange-950/50' : 'border-border'}`}>
+              <h3 className="font-bold text-card-foreground mb-6 flex items-center gap-2 text-lg">
                 {editingId ? (
                     <span className="text-orange-600 flex items-center gap-2"><Edit size={20}/> Uređivanje Zahtjeva</span>
                 ) : (
@@ -363,7 +380,7 @@ export default function UserView({
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase mb-2 block">
                     Datum Od (samo od sutra)
                   </label>
                   <input
@@ -371,11 +388,11 @@ export default function UserView({
                     value={start}
                     onChange={(e) => setStart(e.target.value)}
                     min={tomorrow}
-                    className="w-full border border-slate-200 p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-slate-700 bg-slate-50 focus:bg-white transition-colors"
+                    className="w-full border border-border p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase mb-2 block">
                     Datum Do
                   </label>
                   <input
@@ -383,7 +400,7 @@ export default function UserView({
                     value={end}
                     onChange={(e) => setEnd(e.target.value)}
                     min={start || undefined}
-                    className="w-full border border-slate-200 p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-slate-700 bg-slate-50 focus:bg-white transition-colors"
+                    className="w-full border border-border p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors"
                   />
                 </div>
               </div>
@@ -392,7 +409,7 @@ export default function UserView({
                   {editingId && (
                       <button 
                         onClick={() => { setEditingId(null); setStart(""); setEnd(""); }}
-                        className="px-6 py-4 rounded-xl font-bold uppercase text-sm bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                        className="px-6 py-4 rounded-xl font-bold uppercase text-sm bg-muted text-muted-foreground hover:bg-accent transition-colors"
                       >
                           Odustani
                       </button>
@@ -408,7 +425,7 @@ export default function UserView({
                   </button>
               </div>
               
-              <div className="mt-4 flex items-start gap-2 text-[11px] text-slate-400 bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <div className="mt-4 flex items-start gap-2 text-[11px] text-muted-foreground bg-muted/50 p-3 rounded-lg border border-border">
                 <Info size={14} className="shrink-0 mt-0.5" />
                 <p>
                   Sistem automatski izuzima vikende i praznike iz proračuna dana.
@@ -418,26 +435,26 @@ export default function UserView({
             </div>
 
             {/* PRAZNICI */}
-            <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
-              <h3 className="font-bold text-red-900 mb-4 flex items-center gap-2">
+            <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-3xl border border-red-100 dark:border-red-900/50">
+              <h3 className="font-bold text-red-900 dark:text-red-200 mb-4 flex items-center gap-2">
                 <Info size={18} /> Neradni Dani ({selectedYear})
               </h3>
               <div className="flex flex-wrap gap-2">
                 {blockedDays.filter(d => new Date(d.date).getFullYear() === selectedYear).map((day) => (
                   <div
                     key={day.id}
-                    className="bg-white px-3 py-2 rounded-lg border border-red-100 shadow-sm flex items-center gap-2"
+                    className="bg-card dark:bg-red-950/20 px-3 py-2 rounded-lg border border-red-100 dark:border-red-900/50 shadow-sm flex items-center gap-2"
                   >
-                    <span className="text-xs font-bold text-slate-700">
+                    <span className="text-xs font-bold text-foreground">
                       {day.reason}
                     </span>
-                    <span className="text-[10px] font-mono text-red-500 bg-red-50 px-1.5 rounded">
+                    <span className="text-[10px] font-mono text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 rounded">
                       {formatDate(day.date)}
                     </span>
                   </div>
                 ))}
                 {blockedDays.filter(d => new Date(d.date).getFullYear() === selectedYear).length === 0 && (
-                  <span className="text-xs text-slate-400 italic">
+                  <span className="text-xs text-muted-foreground italic">
                     Nema unesenih praznika za ovu godinu.
                   </span>
                 )}
@@ -446,9 +463,9 @@ export default function UserView({
           </div>
 
           {/* MOJA HISTORIJA (DESNO) */}
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 h-fit">
-            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Clock className="text-[#1a3826]" /> Moja Historija
+          <div className="bg-card p-6 rounded-3xl shadow-sm border border-border h-fit">
+            <h3 className="font-bold text-card-foreground mb-6 flex items-center gap-2">
+              <Clock className="text-[#1a3826] dark:text-[#FFC72C]" /> Moja Historija
             </h3>
             
             <div className="space-y-4">
@@ -456,10 +473,10 @@ export default function UserView({
                 <div
                   key={req.id}
                   className={`p-4 rounded-2xl border transition-colors group relative ${
-                      req.status === 'RETURNED' ? 'bg-orange-50 border-orange-200' : 
-                      req.status === 'CANCEL_PENDING' ? 'bg-red-50 border-red-200 animate-pulse' :
-                      req.status === 'CANCELLED' ? 'bg-gray-50 border-gray-200 opacity-75' :
-                      'bg-slate-50 border-slate-100 hover:border-slate-200'
+                      req.status === 'RETURNED' ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800' : 
+                      req.status === 'CANCEL_PENDING' ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 animate-pulse' :
+                      req.status === 'CANCELLED' ? 'bg-muted/50 border-border opacity-75' :
+                      'bg-muted/50 border-border hover:border-border'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-2">
@@ -490,7 +507,7 @@ export default function UserView({
                             if (confirm("Obrisati zahtjev trajno?"))
                                 deleteVacationRequest(req.id);
                             }}
-                            className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                            className="text-muted-foreground hover:text-red-500 transition-colors p-1"
                             title="Obriši"
                         >
                             <Trash2 size={14} />
@@ -519,13 +536,13 @@ export default function UserView({
                     </div>
                   </div>
                   
-                  <div className="text-xs font-mono text-slate-500 mb-2 flex items-center gap-1">
+                  <div className="text-xs font-mono text-muted-foreground mb-2 flex items-center gap-1">
                     <Calendar size={12} />
-                    {formatDate(req.start)} <span className="text-slate-300">➜</span> {formatDate(req.end)}
+                    {formatDate(req.start)} <span className="text-muted-foreground/70">➜</span> {formatDate(req.end)}
                   </div>
                   
-                  <div className="flex items-center gap-1 text-sm font-bold text-slate-800">
-                    <Briefcase size={14} className="text-slate-400" />
+                  <div className="flex items-center gap-1 text-sm font-bold text-foreground">
+                    <Briefcase size={14} className="text-muted-foreground" />
                     {req.days} {req.days === 1 ? "dan" : "dana"}
                   </div>
 
@@ -548,7 +565,7 @@ export default function UserView({
               ))}
               
               {myRequests.length === 0 && (
-                <div className="text-center py-10 text-slate-400 italic text-sm">
+                <div className="text-center py-10 text-muted-foreground italic text-sm">
                   Nemate zahtjeva za {selectedYear}. godinu.
                 </div>
               )}

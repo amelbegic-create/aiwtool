@@ -73,7 +73,7 @@ export default function AvatarUpload({
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="relative w-full h-full rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-lg hover:border-[#1a3826]/30 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:ring-offset-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
+        className="relative w-full h-full rounded-2xl overflow-hidden bg-muted border border-border shadow-lg hover:border-[#1a3826]/30 dark:hover:border-[#FFC72C]/30 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:ring-offset-2 transition-all disabled:opacity-70 disabled:cursor-not-allowed group"
         aria-label="Promijeni profilnu sliku"
       >
         {currentImageUrl ? (
@@ -86,12 +86,12 @@ export default function AvatarUpload({
             unoptimized={currentImageUrl.includes("blob.vercel-storage.com")}
           />
         ) : (
-          <span className="w-full h-full flex items-center justify-center text-slate-400">
+          <span className="w-full h-full flex items-center justify-center text-muted-foreground">
             <User size={Math.min(size * 0.4, 120)} strokeWidth={1.5} />
           </span>
         )}
         {loading && (
-          <span className="absolute inset-0 flex items-center justify-center bg-white/80">
+          <span className="absolute inset-0 flex items-center justify-center bg-card/90">
             <Loader2 size={40} className="animate-spin text-[#1a3826]" />
           </span>
         )}

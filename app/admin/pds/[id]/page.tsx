@@ -47,17 +47,17 @@ export default async function AdminPDSEditPage({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
           <Link
             href="/admin/pds"
-            className="text-slate-500 hover:text-[#1a3826] font-medium text-sm"
+            className="text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] font-medium text-sm"
           >
             ← Povratak na listu
           </Link>
         </div>
-        <h1 className="text-2xl font-black text-[#1a3826] uppercase tracking-tight">
+        <h1 className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">
           Uredi PDS obrazac
         </h1>
         <PDSForm

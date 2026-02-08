@@ -17,7 +17,7 @@ export default async function RulesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] p-6 md:p-8">
+    <div className="min-h-screen bg-background text-foreground p-6 md:p-8">
       <div className="max-w-6xl mx-auto">
         
         {/* Header */}

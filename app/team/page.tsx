@@ -14,7 +14,7 @@ export default async function TeamPage() {
   const team = await getMyTeamData();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+    <div className="min-h-screen bg-background font-sans text-foreground">
       <div className="max-w-[1600px] mx-auto p-6 md:p-10">
         <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-1">
           Moj <span className="text-[#FFC72C]">Tim</span>

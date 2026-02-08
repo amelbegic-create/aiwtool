@@ -29,7 +29,7 @@ async function resolveRestaurantIdForSessionUser(sessionUserId: string) {
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    include: { restaurants: true },
+    select: { restaurants: { select: { restaurantId: true, isPrimary: true } } },
   });
 
   const primary = user?.restaurants.find((r) => r.isPrimary)?.restaurantId;
@@ -55,19 +55,24 @@ export async function getGlobalVacationStats(year: number) {
 
   const allUsers = await prisma.user.findMany({
     where: { isActive: true, role: { not: "SYSTEM_ARCHITECT" } },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      vacationEntitlement: true,
+      vacationCarryover: true,
       department: { select: { name: true, color: true } },
       vacations: {
         where: {
           status: "APPROVED",
           start: { gte: startOfYear, lte: endOfYear },
         },
+        select: { days: true },
       },
       vacationAllowances: {
         where: { year: { in: [year, prevYear] } },
         select: { year: true, days: true, carriedOverDays: true },
       },
-      restaurants: { include: { restaurant: true } },
+      restaurants: { select: { restaurant: { select: { name: true } } } },
     },
     orderBy: { name: "asc" },
   });
@@ -77,7 +82,14 @@ export async function getGlobalVacationStats(year: number) {
       status: "APPROVED",
       start: { gte: startOfYear, lte: endOfYear },
     },
-    include: { user: true },
+    select: {
+      id: true,
+      start: true,
+      end: true,
+      days: true,
+      status: true,
+      user: { select: { id: true, name: true, email: true } },
+    },
   });
 
   const prevYearUsedByUser = await prisma.vacationRequest

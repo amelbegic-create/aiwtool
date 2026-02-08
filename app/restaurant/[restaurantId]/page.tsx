@@ -49,7 +49,7 @@ export default async function RestaurantDashboard({ params }: PageProps) {
   if (!hasAccess) redirect("/restaurants");
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-8 text-[#0F172A]">
+    <div className="min-h-screen bg-background p-6 md:p-8 text-foreground">
       <div className="max-w-6xl mx-auto">
         <Link
           href="/restaurants"

@@ -85,7 +85,7 @@ export function SearchableCombobox({
             return !o;
           });
         }}
-        className={`flex min-h-[44px] items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-left transition-colors focus-within:ring-2 focus-within:ring-[#1a3826]/20 focus-within:border-[#1a3826] ${
+        className={`flex min-h-[44px] items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors focus-within:ring-2 focus-within:ring-[#1a3826]/20 focus-within:border-[#1a3826] ${
           disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
         } ${error ? "border-red-300" : ""}`}
       >
@@ -100,7 +100,7 @@ export function SearchableCombobox({
           placeholder={placeholder}
           disabled={disabled}
           readOnly={!open}
-          className="flex-1 bg-transparent text-slate-900 outline-none placeholder:text-slate-400 min-w-0"
+          className="flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground min-w-0"
           aria-autocomplete="list"
           aria-controls="combobox-listbox"
         />
@@ -109,7 +109,7 @@ export function SearchableCombobox({
             <button
               type="button"
               onClick={handleClear}
-              className="rounded p-1 hover:bg-slate-100 text-slate-500"
+              className="rounded p-1 hover:bg-accent text-muted-foreground"
               aria-label="Obriši odabir"
             >
               <X size={16} />
@@ -117,7 +117,7 @@ export function SearchableCombobox({
           )}
           <ChevronDown
             size={18}
-            className={`text-slate-500 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
           />
         </div>
       </div>
@@ -125,10 +125,10 @@ export function SearchableCombobox({
         <ul
           id="combobox-listbox"
           role="listbox"
-          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-border bg-card py-1 shadow-lg"
         >
           {filtered.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-slate-500">Nema rezultata</li>
+            <li className="px-4 py-3 text-sm text-muted-foreground">Nema rezultata</li>
           ) : (
             filtered.map((opt) => (
               <li
@@ -136,8 +136,8 @@ export function SearchableCombobox({
                 role="option"
                 aria-selected={value === opt.id}
                 onClick={() => handleSelect(opt.id)}
-                className={`cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-[#1a3826]/5 ${
-                  value === opt.id ? "bg-[#1a3826]/10 font-medium text-[#1a3826]" : "text-slate-800"
+                className={`cursor-pointer px-4 py-3 text-sm transition-colors hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10 ${
+                  value === opt.id ? "bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 font-medium text-[#1a3826] dark:text-[#FFC72C]" : "text-foreground"
                 }`}
               >
                 {getOptionLabel(opt)}

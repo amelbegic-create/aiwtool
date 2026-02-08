@@ -27,7 +27,7 @@ export default async function RulesPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="min-h-screen bg-background">
       <RulesUserView initialRules={rules} categories={categories} />
     </div>
   );

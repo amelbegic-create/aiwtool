@@ -6,24 +6,24 @@ import {
 } from "lucide-react";
 
 export const TOOL_CATEGORIES = [
-  { id: 'general', label: 'OPĆENITO', icon: LayoutDashboard },
-  { id: 'staff', label: 'OSOBLJE', icon: Users },
-  { id: 'operations', label: 'OPERACIJE', icon: Briefcase },
-  { id: 'other', label: 'OSTALO', icon: Settings }
+  { id: 'general', label: 'ALLGEMEIN', icon: LayoutDashboard },
+  { id: 'staff', label: 'PERSONAL', icon: Users },
+  { id: 'operations', label: 'OPERATIONEN', icon: Briefcase },
+  { id: 'other', label: 'SONSTIGES', icon: Settings }
 ];
 
 export const APP_TOOLS = [
-  // OSOBLJE (Personal)
-  { id: 'team', name: 'Moj Tim', href: '/team', icon: Users, category: 'staff' },
-  { id: 'vacations', name: 'Godišnji Odmori', href: '/tools/vacations', icon: PlaneTakeoff, category: 'staff' },
-  { id: 'PDS', name: 'PDS', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
-  { id: 'rules', name: 'Pravila & Procedure', href: '/tools/rules', icon: BookOpen, category: 'staff' },
-  { id: 'bonus', name: 'Bonusi', href: '/tools/bonusi', icon: Gift, category: 'staff' },
-  // OPERACIJE
-  { id: 'labor-planner', name: 'Labor Planner', href: '/tools/labor-planner', icon: Clock, category: 'operations' },
-  { id: 'productivity', name: 'Produktivnost', href: '/tools/productivity', icon: TrendingUp, category: 'operations' },
-  // OSTALO – Admin panel
-  { id: 'admin-panel', name: 'Admin panel', href: '/admin', icon: ShieldCheck, category: 'other' }
+  // PERSONAL
+  { id: 'team', name: 'Mein Team', href: '/team', icon: Users, category: 'staff' },
+  { id: 'vacations', name: 'Urlaubsplanung', href: '/tools/vacations', icon: PlaneTakeoff, category: 'staff' },
+  { id: 'PDS', name: 'PDS (Beurteilung)', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
+  { id: 'rules', name: 'Richtlinien & Verfahren', href: '/tools/rules', icon: BookOpen, category: 'staff' },
+  { id: 'bonus', name: 'Prämien & Bonus', href: '/tools/bonusi', icon: Gift, category: 'staff' },
+  // OPERATIONEN
+  { id: 'labor-planner', name: 'Personaleinsatzplanung', href: '/tools/labor-planner', icon: Clock, category: 'operations' },
+  { id: 'productivity', name: 'Produktivität', href: '/tools/productivity', icon: TrendingUp, category: 'operations' },
+  // SONSTIGES – Admin
+  { id: 'admin-panel', name: 'Einstellungen', href: '/admin', icon: ShieldCheck, category: 'other' }
 ];
 
 /** Permission key potreban za pristup modulu (za brze akcije i highlight). */

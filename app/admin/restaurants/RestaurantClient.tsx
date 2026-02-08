@@ -102,14 +102,14 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
       <div className="max-w-[1600px] mx-auto space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-slate-200 pb-6">
+        <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
               ADMIN <span className="text-[#FFC72C]">RESTORANI</span>
             </h1>
-            <p className="text-slate-500 text-sm font-medium">
+            <p className="text-muted-foreground text-sm font-medium">
               Kreiranje i održavanje lokacija (globalne postavke)
             </p>
           </div>
@@ -122,18 +122,18 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
           </button>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
-          <Search size={16} className="text-slate-400" />
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-border flex items-center gap-3">
+          <Search size={16} className="text-muted-foreground" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Traži restoran..."
-            className="bg-transparent outline-none text-sm font-bold text-slate-700 w-full"
+            className="bg-transparent outline-none text-sm font-bold text-foreground w-full"
           />
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50/80 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase">
+        <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase">
             <div className="col-span-2">Code</div>
             <div className="col-span-4">Naziv</div>
             <div className="col-span-3">Grad</div>
@@ -145,18 +145,18 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
             {filtered.map((r) => (
               <div
                 key={r.id}
-                className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors"
+                className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent transition-colors"
               >
-                <div className="col-span-2 font-mono text-sm font-bold text-slate-700">
+                <div className="col-span-2 font-mono text-sm font-bold text-foreground">
                   {r.code}
                 </div>
 
                 <div className="col-span-4">
                   <div className="font-bold text-sm text-slate-800">{r.name}</div>
-                  {r.address && <div className="text-[10px] text-slate-400">{r.address}</div>}
+                  {r.address && <div className="text-[10px] text-muted-foreground">{r.address}</div>}
                 </div>
 
-                <div className="col-span-3 text-sm font-bold text-slate-600">
+                <div className="col-span-3 text-sm font-bold text-muted-foreground">
                   {r.city || "-"}
                 </div>
 
@@ -205,14 +205,14 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
         {open && (
           <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-[700px] rounded-3xl shadow-2xl overflow-hidden">
-              <div className="p-6 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="p-6 bg-slate-50 border-b border-border flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-black">
                     {editing ? "Uredi restoran" : "Novi restoran"}
                   </h2>
-                  <p className="text-xs text-slate-500 font-medium">Code mora biti unikatan</p>
+                  <p className="text-xs text-muted-foreground font-medium">Code mora biti unikatan</p>
                 </div>
-                <button onClick={() => setOpen(false)} className="p-2 rounded-xl hover:bg-white">
+                <button onClick={() => setOpen(false)} className="p-2 rounded-xl hover:bg-accent">
                   <X />
                 </button>
               </div>
@@ -223,13 +223,13 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
                     value={form.code}
                     onChange={(e) => setForm({ ...form, code: e.target.value })}
                     placeholder="Code (npr. SA01)"
-                    className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                    className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                   <input
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="Naziv"
-                    className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                    className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                 </div>
 
@@ -238,21 +238,21 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
                     value={form.city}
                     onChange={(e) => setForm({ ...form, city: e.target.value })}
                     placeholder="Grad"
-                    className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                    className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                   <input
                     value={form.address}
                     onChange={(e) => setForm({ ...form, address: e.target.value })}
                     placeholder="Adresa"
-                    className="w-full p-3 rounded-xl border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                    className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-200 flex justify-end gap-3 bg-white">
+              <div className="p-6 border-t border-border flex justify-end gap-3 bg-white">
                 <button
                   onClick={() => setOpen(false)}
-                  className="px-5 py-3 rounded-xl border border-slate-200 text-xs font-black uppercase text-slate-600 hover:bg-slate-50"
+                  className="px-5 py-3 rounded-xl border border-border text-xs font-black uppercase text-muted-foreground hover:bg-accent"
                 >
                   Odustani
                 </button>

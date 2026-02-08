@@ -4,9 +4,15 @@ import prisma from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
+import { GOD_MODE_ROLES } from "@/lib/permissions";
 
 /** Stealth: SYSTEM_ARCHITECT se ne prikazuje u "Mom Timu". */
 const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
+
+/** Ghost/Test: SYSTEM_ARCHITECT & SUPER_ADMIN vide sve aktivne korisnike kao "svoj tim". */
+function isGodModeRole(role: string) {
+  return GOD_MODE_ROLES.has(String(role));
+}
 
 const today = new Date();
 const todayStr = today.toISOString().slice(0, 10);
@@ -54,8 +60,16 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
   const userId = (session?.user as { id?: string })?.id;
   if (!userId) return [];
 
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  const seeAllAsTeam = dbUser && isGodModeRole(dbUser.role);
+
   const subordinates = await prisma.user.findMany({
-    where: { supervisorId: userId, isActive: true },
+    where: seeAllAsTeam
+      ? { isActive: true, ...STEALTH_ROLE_FILTER }
+      : { supervisorId: userId, isActive: true },
     include: {
       department: { select: { name: true, color: true } },
       vacations: {
@@ -144,8 +158,18 @@ export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDet
   const currentUserId = (session?.user as { id?: string })?.id;
   if (!currentUserId) return null;
 
+  const currentUser = await prisma.user.findUnique({
+    where: { id: currentUserId },
+    select: { role: true },
+  });
+  const canSeeAnyone = currentUser && isGodModeRole(currentUser.role);
+
   const user = await prisma.user.findFirst({
-    where: { ...STEALTH_ROLE_FILTER, id: userId, supervisorId: currentUserId },
+    where: {
+      ...STEALTH_ROLE_FILTER,
+      id: userId,
+      ...(canSeeAnyone ? {} : { supervisorId: currentUserId }),
+    },
     include: {
       department: { select: { name: true, color: true } },
       vacations: {

@@ -47,7 +47,7 @@ export default async function GlobalRulesPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] text-[#1F2937] font-sans flex overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground font-sans flex overflow-hidden">
       
       {/* SIDEBAR (Standard Enterprise) */}
       <aside className="hidden md:flex flex-col w-64 bg-[#1E293B] text-slate-300 h-screen sticky top-0 border-r border-slate-700 shrink-0">

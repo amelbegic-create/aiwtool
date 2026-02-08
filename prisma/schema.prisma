@@ -319,6 +319,9 @@ model VacationRequest {
   note         String?     // opcionalna napomena (npr. za self-service admina)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  @@index([start])
+  @@index([userId, start])
 }
 
 model BlockedDay {

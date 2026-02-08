@@ -22,9 +22,9 @@ export function getAllowedQuickActions(
 
   if (isAdmin) {
     return [
-      { id: "hijerarhija", label: "Hijerarhija Restorana", href: "#", iconKey: "Network" },
-      { id: "vacations", label: "Nova Prijava", href: "/tools/vacations", iconKey: "FilePlus" },
-      { id: "rules", label: "Moja Pravila", href: "/tools/rules", iconKey: "BookOpen" },
+      { id: "hijerarhija", label: "Restaurant-Hierarchie", href: "#", iconKey: "Network" },
+      { id: "vacations", label: "Neue Anfrage", href: "/tools/vacations", iconKey: "FilePlus" },
+      { id: "rules", label: "Richtlinien", href: "/tools/rules", iconKey: "BookOpen" },
     ];
   }
 

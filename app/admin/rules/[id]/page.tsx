@@ -48,7 +48,7 @@ export default async function AdminRulesEditPage({
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10">
+    <div className="min-h-screen bg-background p-4 md:p-10">
       <div className="max-w-4xl mx-auto">
         <Link
           href="/admin/rules"

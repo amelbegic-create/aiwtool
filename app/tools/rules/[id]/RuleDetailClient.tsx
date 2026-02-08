@@ -46,10 +46,10 @@ function escapeHtml(s: string) {
 function mdToHtml(md: string) {
   const src = escapeHtml(md || "");
   const withCodeBlocks = src.replace(/```([\s\S]*?)```/g, (_m, code) => {
-    return `<pre class="rounded-xl border border-slate-200 bg-slate-900 text-slate-100 p-4 overflow-auto text-sm"><code>${code}</code></pre>`;
+    return `<pre class="rounded-xl border border-border bg-slate-900 text-slate-100 p-4 overflow-auto text-sm"><code>${code}</code></pre>`;
   });
   let html = withCodeBlocks
-    .replace(/`([^`]+)`/g, `<code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono">$1</code>`)
+    .replace(/`([^`]+)`/g, `<code class="rounded bg-muted px-1.5 py-0.5 text-xs font-mono">$1</code>`)
     .replace(/^### (.*)$/gm, `<h3 class="text-base font-bold mt-4 mb-1">$1</h3>`)
     .replace(/^## (.*)$/gm, `<h2 class="text-lg font-bold mt-5 mb-1">$1</h2>`)
     .replace(/^# (.*)$/gm, `<h1 class="text-xl font-bold mt-5 mb-2">$1</h1>`)
@@ -71,7 +71,7 @@ function mdToHtml(md: string) {
       out.push(t);
       continue;
     }
-    out.push(`<p class="text-slate-700 leading-relaxed text-sm">${t}</p>`);
+    out.push(`<p class="text-foreground leading-relaxed text-sm">${t}</p>`);
   }
   return out.join("\n");
 }
@@ -135,18 +135,18 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] pb-16">
+    <div className="min-h-screen bg-background pb-16">
       {/* Kompaktna traka */}
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-200">
+      <div className="sticky top-0 z-20 bg-card border-b border-border">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <Link
             href="/tools/rules"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-[#1a3826]"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-[#1a3826]"
           >
             <ArrowLeft size={16} /> Natrag
           </Link>
           <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded-md bg-slate-100 text-slate-600 text-xs font-medium">
+            <span className="px-2 py-1 rounded-md bg-muted text-muted-foreground text-xs font-medium">
               {rule.category?.name}
             </span>
             {isRead ? (
@@ -171,13 +171,13 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
         {/* Glavni sadržaj */}
         <div className="flex-1 min-w-0 space-y-5">
           {/* Naslov i meta na vrhu – čisto i uredno */}
-          <header className="border-b border-slate-200 pb-4">
+          <header className="border-b border-border pb-4">
             <h1 className="text-xl md:text-2xl font-bold text-[#1a3826] leading-tight">
               {rule.title}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
               {rule.category?.name && (
-                <span className="font-medium text-slate-600">{rule.category.name}</span>
+                <span className="font-medium text-muted-foreground">{rule.category.name}</span>
               )}
               <span className="inline-flex items-center gap-1">
                 <Calendar size={12} />
@@ -190,12 +190,12 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
           </header>
 
           <div
-            className="prose prose-slate max-w-none prose-p:text-slate-700 prose-p:text-sm prose-headings:text-slate-900 prose-headings:font-bold prose-a:text-[#1a3826] prose-strong:text-slate-900 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+            className="prose prose-slate max-w-none prose-p:text-foreground prose-p:text-sm prose-headings:text-slate-900 prose-headings:font-bold prose-a:text-[#1a3826] prose-strong:text-slate-900 rounded-xl border border-border bg-card p-6 shadow-sm"
             dangerouslySetInnerHTML={{ __html: ruleContentToHtml(rule.content) }}
           />
 
           {rule.videoUrl && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Video</p>
               <div className="aspect-video rounded-lg overflow-hidden bg-slate-900">
                 {(rule.videoUrl.includes("youtube") || rule.videoUrl.includes("youtu.be")) ? (
@@ -208,11 +208,11 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
           )}
 
           {hasImages && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
                 Galerija ({rule.images.length})
               </p>
-              <div className="relative rounded-lg overflow-hidden bg-slate-100 aspect-video">
+              <div className="relative rounded-lg overflow-hidden bg-muted aspect-video">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={rule.images[galleryIndex].url} alt={`Galerija ${galleryIndex + 1} od ${rule.images.length}`} className="w-full h-full object-contain" />
                 {rule.images.length > 1 && (
@@ -220,14 +220,14 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                     <button
                       type="button"
                       onClick={() => setGalleryIndex((i) => (i - 1 + rule.images.length) % rule.images.length)}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-slate-700 shadow"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-card/90 flex items-center justify-center text-foreground shadow"
                     >
                       <ChevronLeft size={18} />
                     </button>
                     <button
                       type="button"
                       onClick={() => setGalleryIndex((i) => (i + 1) % rule.images.length)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-slate-700 shadow"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-card/90 flex items-center justify-center text-foreground shadow"
                     >
                       <ChevronRight size={18} />
                     </button>
@@ -257,7 +257,7 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
         {/* Sa strane: Dokumenti */}
         {pdfs.length > 0 && (
           <aside className="lg:w-64 shrink-0">
-            <div className="lg:sticky lg:top-20 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="lg:sticky lg:top-20 rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
                 Dokumenti ({pdfs.length})
               </p>
@@ -268,11 +268,11 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                     href={u}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-100 transition"
+                    className="flex items-center gap-2 p-2.5 rounded-lg bg-muted hover:bg-muted border border-slate-100 transition"
                   >
                     <FileText size={16} className="text-red-500 shrink-0" />
-                    <span className="text-sm font-medium text-slate-800 truncate flex-1">PDF {idx + 1}</span>
-                    <Download size={14} className="text-slate-400 shrink-0" />
+                    <span className="text-sm font-medium text-foreground truncate flex-1">PDF {idx + 1}</span>
+                    <Download size={14} className="text-muted-foreground shrink-0" />
                   </a>
                 ))}
               </div>

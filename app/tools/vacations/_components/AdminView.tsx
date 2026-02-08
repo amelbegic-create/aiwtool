@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   updateVacationStatus,
@@ -208,9 +208,17 @@ export default function AdminView({
   canRegisterOwnVacation = false,
 }: AdminViewProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [activeTab, setActiveTab] = useState<TabType>("STATS");
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingGlobal, setLoadingGlobal] = useState(false);
+
+  const handleYearChange = (y: number) => {
+    if (y === selectedYear) return;
+    startTransition(() => {
+      router.push(`/tools/vacations?year=${y}`);
+    });
+  };
   const [deptExportModalOpen, setDeptExportModalOpen] = useState(false);
   const [deptExportData, setDeptExportData] = useState<{
     usersStats: UserStat[];
@@ -766,39 +774,48 @@ export default function AdminView({
   const years = [2025, 2026, 2027, 2028, 2029, 2030];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
-      <div className="max-w-[1600px] mx-auto space-y-8">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
+      <div className={`max-w-[1600px] mx-auto space-y-8 transition-opacity duration-150 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
         {/* HEADER */}
-        <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
               ADMIN <span className="text-[#FFC72C]">GODIŠNJI</span>
             </h1>
-            <p className="text-slate-500 text-sm font-medium">
-              Upravljanje odsustvima (<span className="font-bold text-slate-800">{selectedYear}.</span> godina)
+            <p className="text-muted-foreground text-sm font-medium">
+              Upravljanje odsustvima (<span className="font-bold text-foreground">{selectedYear}.</span> godina)
             </p>
-            <div className="mt-3 flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 overflow-x-auto max-w-full">
-              {years.map((y) => (
-                <button
-                  key={y}
-                  onClick={() => router.push(`/tools/vacations?year=${y}`)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                    selectedYear === y
-                      ? "bg-[#1a3826] text-white shadow-md"
-                      : "text-slate-500 hover:bg-slate-50"
-                  }`}
-                >
-                  {y}
-                </button>
-              ))}
+            <div className="mt-3 flex items-center gap-2">
+              {isPending && (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin shrink-0" />
+                  Učitavanje…
+                </span>
+              )}
+              <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full">
+                {years.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => handleYearChange(y)}
+                    disabled={isPending}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                      selectedYear === y
+                        ? "bg-[#1a3826] text-white shadow-md"
+                        : "text-muted-foreground hover:bg-accent"
+                    } disabled:opacity-70`}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border">
               <button
                 onClick={() => setActiveTab("STATS")}
                 className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                  activeTab === "STATS" ? "bg-[#FFC72C] text-[#1a3826]" : "text-slate-500 hover:bg-slate-50"
+                  activeTab === "STATS" ? "bg-[#FFC72C] text-[#1a3826]" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
                 STATISTIKA
@@ -807,7 +824,7 @@ export default function AdminView({
               <button
                 onClick={() => setActiveTab("REQUESTS")}
                 className={`relative px-5 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                  activeTab === "REQUESTS" ? "bg-[#1a3826] text-white" : "text-slate-500 hover:bg-slate-50"
+                  activeTab === "REQUESTS" ? "bg-[#1a3826] text-white" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
                 ZAHTJEVI
@@ -822,7 +839,7 @@ export default function AdminView({
               <button
                 onClick={() => setActiveTab("BLOCKED")}
                 className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
-                  activeTab === "BLOCKED" ? "bg-[#1a3826] text-white" : "text-slate-500 hover:bg-slate-50"
+                  activeTab === "BLOCKED" ? "bg-[#1a3826] text-white" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
                 PRAZNICI
@@ -844,15 +861,15 @@ export default function AdminView({
 
         {/* TOOLBAR */}
         {activeTab !== "BLOCKED" && (
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="bg-card p-4 rounded-2xl shadow-sm border border-border flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3 w-full md:w-auto">
-              <Search size={16} className="text-slate-400" />
+              <Search size={16} className="text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Traži radnika (ime, odjel, restoran)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent outline-none text-sm font-bold text-slate-700 w-full md:w-80"
+                className="bg-transparent outline-none text-sm font-bold text-foreground w-full md:w-80 placeholder:text-muted-foreground"
               />
             </div>
 
@@ -860,7 +877,7 @@ export default function AdminView({
               <div className="flex gap-2">
                 <button
                   onClick={() => exportTablePDF()}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all"
+                  className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-xs font-bold text-foreground hover:bg-accent transition-all"
                 >
                   <FileSpreadsheet size={16} /> TABELA (CLEAN)
                 </button>
@@ -883,7 +900,7 @@ export default function AdminView({
                 <button
                   onClick={handleOpenDeptExportModal}
                   disabled={loadingDeptExport}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg text-xs font-black transition-all hover:bg-slate-800 disabled:opacity-70"
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 dark:bg-slate-600 text-white rounded-lg text-xs font-black transition-all hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-70"
                 >
                   <FileBarChart size={16} />
                   {loadingDeptExport ? "UČITAVANJE..." : "EXPORT PO ODJELIMA"}
@@ -896,24 +913,24 @@ export default function AdminView({
         {/* Modal: Export po odjelima */}
         {deptExportModalOpen && deptExportData && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Export po odjelima</h3>
-              <p className="text-sm text-slate-500 mb-4">
+            <div className="bg-card rounded-xl shadow-xl max-w-sm w-full p-6 border border-border">
+              <h3 className="text-lg font-bold text-card-foreground mb-1">Export po odjelima</h3>
+              <p className="text-sm text-muted-foreground mb-4">
                 Odaberite odjele za godišnji plan ({selectedYear}). Preuzet će se PDF samo s tim odjelima.
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
                 {uniqueDeptNames.map((name) => (
                   <label
                     key={name}
-                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border hover:bg-accent cursor-pointer"
                   >
                     <input
                       type="checkbox"
                       checked={selectedDeptNamesForExport.includes(name)}
                       onChange={() => toggleDeptForExport(name)}
-                      className="h-4 w-4 rounded border-gray-300 text-[#1a3826] focus:ring-[#1a3826]"
+                      className="h-4 w-4 rounded border-border text-[#1a3826] dark:text-[#FFC72C] focus:ring-[#1a3826]"
                     />
-                    <span className="text-sm font-medium text-slate-800">{name}</span>
+                    <span className="text-sm font-medium text-foreground">{name}</span>
                   </label>
                 ))}
               </div>
@@ -924,7 +941,7 @@ export default function AdminView({
                     setDeptExportModalOpen(false);
                     setDeptExportData(null);
                   }}
-                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-gray-100"
+                  className="flex-1 px-4 py-2.5 rounded-lg font-medium text-muted-foreground hover:bg-accent"
                 >
                   Odustani
                 </button>
@@ -944,14 +961,14 @@ export default function AdminView({
         {/* Modal: Registruj Moj Godišnji (self-service za admine) */}
         {myVacationModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Registruj Moj Godišnji</h3>
-              <p className="text-sm text-slate-500 mb-4">
+            <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border">
+              <h3 className="text-lg font-bold text-card-foreground mb-1">Registruj Moj Godišnji</h3>
+              <p className="text-sm text-muted-foreground mb-4">
                 Unesite period godišnjeg odmora. Zahtjev će biti automatski odobren (samo za administratore).
               </p>
               <form onSubmit={handleSubmitMyVacation} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
                     Datum od
                   </label>
                   <input
@@ -959,11 +976,11 @@ export default function AdminView({
                     value={myVacationStart}
                     onChange={(e) => setMyVacationStart(e.target.value)}
                     required
-                    className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                    className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
                     Datum do
                   </label>
                   <input
@@ -971,11 +988,11 @@ export default function AdminView({
                     value={myVacationEnd}
                     onChange={(e) => setMyVacationEnd(e.target.value)}
                     required
-                    className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                    className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
                     Napomena (opcionalno)
                   </label>
                   <textarea
@@ -983,7 +1000,7 @@ export default function AdminView({
                     onChange={(e) => setMyVacationNote(e.target.value)}
                     rows={3}
                     placeholder="Dodatna napomena..."
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] resize-none"
+                    className="w-full px-4 py-2.5 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] resize-none"
                   />
                 </div>
                 <div className="flex gap-2 pt-2">
@@ -995,7 +1012,7 @@ export default function AdminView({
                       setMyVacationEnd("");
                       setMyVacationNote("");
                     }}
-                    className="flex-1 px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-gray-100"
+                    className="flex-1 px-4 py-2.5 rounded-lg font-medium text-muted-foreground hover:bg-accent"
                   >
                     Odustani
                   </button>
@@ -1021,8 +1038,8 @@ export default function AdminView({
 
         {/* STATS TABLE */}
         {activeTab === "STATS" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-50/80 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase">
+          <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+            <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/80 border-b border-border text-[10px] font-black text-muted-foreground uppercase">
               <div className="col-span-3">Zaposlenik</div>
               <div className="col-span-3">Restorani</div>
               <div className="col-span-4 grid grid-cols-4 text-center">
@@ -1033,19 +1050,19 @@ export default function AdminView({
               </div>
               <div className="col-span-2 text-right">Izvještaj</div>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border">
               {filteredStats.map((u) => (
                 <div
                   key={u.id}
-                  className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 transition-colors"
+                  className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent/50 transition-colors"
                 >
                   <div className="col-span-3 flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold">
                       {(u.name || "K").charAt(0)}
                     </div>
                     <div>
-                      <div className="font-bold text-sm text-slate-800">{u.name}</div>
-                      <div className="text-[10px] text-slate-400 uppercase">{u.department}</div>
+                      <div className="font-bold text-sm text-foreground">{u.name}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase">{u.department}</div>
                     </div>
                   </div>
 
@@ -1053,7 +1070,7 @@ export default function AdminView({
                     {u.restaurantNames.map((r, i) => (
                       <span
                         key={i}
-                        className="text-[9px] bg-slate-100 px-2 py-1 rounded border border-slate-200"
+                        className="text-[9px] bg-muted px-2 py-1 rounded border border-border"
                       >
                         {r}
                       </span>
@@ -1061,8 +1078,8 @@ export default function AdminView({
                   </div>
 
                   <div className="col-span-4 grid grid-cols-4 text-center font-bold text-sm">
-                    <span className="text-slate-500">{u.carriedOver ?? 0}</span>
-                    <span className="text-slate-400">{u.total}</span>
+                    <span className="text-muted-foreground">{u.carriedOver ?? 0}</span>
+                    <span className="text-muted-foreground">{u.total}</span>
                     <span className="text-green-600">{u.used}</span>
                     <span className="text-orange-500">{u.remaining}</span>
                   </div>
@@ -1070,7 +1087,7 @@ export default function AdminView({
                   <div className="col-span-2 text-right">
                     <button
                       onClick={() => exportIndividualReport(u)}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase"
+                      className="bg-muted hover:bg-accent text-foreground px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase"
                     >
                       <FileText size={14} /> PDF
                     </button>
@@ -1083,9 +1100,9 @@ export default function AdminView({
 
         {/* REQUESTS TABLE */}
         {activeTab === "REQUESTS" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase">
+              <thead className="bg-muted/80 text-muted-foreground font-bold text-xs uppercase">
                 <tr>
                   <th className="p-4 pl-6">Radnik</th>
                   <th className="p-4">Restoran</th>
@@ -1095,27 +1112,27 @@ export default function AdminView({
                   <th className="p-4 text-right pr-6">Akcija</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {filteredRequests.map((req) => (
                   <tr
                     key={req.id}
                     className={`transition-colors ${
-                      req.status === "CANCELLED" ? "bg-gray-50 opacity-75" : "hover:bg-slate-50"
+                      req.status === "CANCELLED" ? "bg-muted/50 opacity-75" : "hover:bg-accent/50"
                     }`}
                   >
                     <td className="p-4 pl-6">
-                      <div className="font-bold text-sm text-slate-800">{req.user.name}</div>
-                      <div className="text-[10px] text-slate-400">{req.user.email}</div>
+                      <div className="font-bold text-sm text-foreground">{req.user.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{req.user.email}</div>
                     </td>
                     <td className="p-4">
                       <span className="text-sm font-semibold text-[#1a3826]">
                         {req.restaurantName ?? req.user.mainRestaurant}
                       </span>
                     </td>
-                    <td className="p-4 text-sm font-mono text-slate-600">
-                      {formatDate(req.start)} <span className="text-slate-300">➜</span> {formatDate(req.end)}
+                    <td className="p-4 text-sm font-mono text-muted-foreground">
+                      {formatDate(req.start)} <span className="text-muted-foreground/70">➜</span> {formatDate(req.end)}
                     </td>
-                    <td className="p-4 text-center font-bold text-slate-700">{req.days}</td>
+                    <td className="p-4 text-center font-bold text-foreground">{req.days}</td>
                     <td className="p-4">
                       <span
                         className={`px-2 py-1 rounded text-[10px] font-bold border ${
@@ -1160,7 +1177,7 @@ export default function AdminView({
                         {req.status === "REJECTED" && (
                           <button
                             onClick={() => handleStatus(req.id, "PENDING")}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent text-foreground rounded-lg text-xs font-bold transition-colors"
                           >
                             <RotateCcw size={14} /> Vrati na čekanju
                           </button>
@@ -1175,14 +1192,14 @@ export default function AdminView({
                             </button>
                             <button
                               onClick={() => handleStatus(req.id, "APPROVED")}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold uppercase"
+                              className="flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-accent text-foreground rounded-lg text-[10px] font-bold uppercase"
                             >
                               <RotateCcw size={14} /> Vrati (zadrži odobrenje)
                             </button>
                           </>
                         )}
                         {req.status === "CANCELLED" && (
-                          <span className="text-[10px] font-bold text-slate-400">PONIŠTENO</span>
+                          <span className="text-[10px] font-bold text-muted-foreground">PONIŠTENO</span>
                         )}
                       </div>
                     </td>
@@ -1196,21 +1213,21 @@ export default function AdminView({
         {/* BLOCKED DAYS */}
         {activeTab === "BLOCKED" && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
-              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <div className="bg-card p-6 rounded-2xl shadow-sm border border-border h-fit">
+              <h3 className="font-bold text-card-foreground mb-4 flex items-center gap-2">
                 <Calendar className="text-[#1a3826]" size={20} /> Novi Praznik
               </h3>
               <div className="space-y-4">
                 <input
                   type="date"
-                  className="w-full border border-slate-200 p-3 rounded-xl outline-none text-sm font-bold text-slate-700"
+                  className="w-full border border-border p-3 rounded-xl outline-none text-sm font-bold text-foreground bg-card"
                   value={newBlockedDate}
                   onChange={(e) => setNewBlockedDate(e.target.value)}
                 />
                 <input
                   type="text"
                   placeholder="Naziv Praznika"
-                  className="w-full border border-slate-200 p-3 rounded-xl outline-none text-sm font-bold text-slate-700"
+                  className="w-full border border-border p-3 rounded-xl outline-none text-sm font-bold text-foreground bg-card"
                   value={newBlockedReason}
                   onChange={(e) => setNewBlockedReason(e.target.value)}
                 />
@@ -1223,8 +1240,8 @@ export default function AdminView({
               </div>
             </div>
 
-            <div className="md:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-800 mb-4 uppercase tracking-tighter">
+            <div className="md:col-span-2 bg-card p-6 rounded-2xl shadow-sm border border-border">
+              <h3 className="font-bold text-card-foreground mb-4 uppercase tracking-tighter">
                 Kalendar Neradnih Dana ({selectedYear})
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1254,7 +1271,7 @@ export default function AdminView({
                     </div>
                   ))}
                 {blockedDays.filter((d) => new Date(d.date).getFullYear() === selectedYear).length === 0 && (
-                  <div className="col-span-full text-center py-10 text-slate-400 italic">
+                  <div className="col-span-full text-center py-10 text-muted-foreground italic">
                     Nema definisanih praznika.
                   </div>
                 )}

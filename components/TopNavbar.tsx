@@ -9,7 +9,6 @@ import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
 import RestaurantSwitcher from "./RestaurantSwitcher";
-
 interface UserWithRole {
   name?: string | null;
   email?: string | null;
@@ -63,7 +62,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
             <button
               className="md:hidden flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors -ml-1"
               onClick={() => setMobileMenuOpen(true)}
-              aria-label="Otvori meni"
+              aria-label="Menü öffnen"
             >
               <Menu size={24} />
             </button>
@@ -106,14 +105,14 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
 
                 {/* Dropdown Menu */}
                 {!isGeneral && categoryTools.length > 0 && (
-                  <div className="absolute top-[90%] left-0 w-64 bg-white rounded-xl shadow-2xl border border-slate-100 overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-1 group-hover:translate-y-0 z-50">
-                    <div className="p-2 space-y-0.5 text-slate-900">
+                  <div className="absolute top-[90%] left-0 w-64 bg-card rounded-xl shadow-2xl border border-border overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-1 group-hover:translate-y-0 z-50">
+                    <div className="p-2 space-y-0.5 text-card-foreground">
                       {categoryTools.map((tool) => (
-                        <Link key={tool.id} href={tool.href} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors group/tool">
-                          <span className="p-1.5 bg-slate-100 rounded-md text-slate-400 group-hover/tool:bg-[#1a3826] group-hover/tool:text-[#FFC72C] transition-all">
+                        <Link key={tool.id} href={tool.href} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent transition-colors group/tool">
+                          <span className="p-1.5 bg-muted rounded-md text-muted-foreground group-hover/tool:bg-[#1a3826] group-hover/tool:text-[#FFC72C] transition-all">
                             <tool.icon size={14} />
                           </span>
-                          <span className="text-xs font-bold text-slate-700 tracking-tight">{tool.name}</span>
+                          <span className="text-xs font-bold text-foreground tracking-tight">{tool.name}</span>
                         </Link>
                       ))}
                     </div>
@@ -127,7 +126,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
         {/* DESNA STRANA: NOTIFIKACIJE + USER PROFILE */}
         <div className="hidden md:flex items-center gap-4">
           <div className="flex flex-col items-end leading-none border-r border-white/10 pr-4 font-bold">
-            <span className="text-[10px] font-black text-white uppercase tracking-tight">{session?.user?.name || "Korisnik"}</span>
+            <span className="text-[10px] font-black text-white uppercase tracking-tight">{session?.user?.name || "Benutzer"}</span>
             <span className="text-[9px] font-bold text-[#FFC72C] uppercase tracking-widest mt-1 opacity-80">
                 Online
             </span>
@@ -145,13 +144,13 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
               </span>
             )}
           </Link>
-          {/* Prečica za Moj Profil */}
+          {/* Schnellzugriff Mein Profil */}
           <Link
             href="/profile"
             onClick={closeMenu}
             className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
-            title="Moj Profil"
-            aria-label="Moj Profil"
+            title="Mein Profil"
+            aria-label="Mein Profil"
           >
             <UserCircle size={18} />
           </Link>
@@ -177,15 +176,15 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
         <div
           className="md:hidden fixed inset-y-0 left-0 z-[101] w-[min(320px,85vw)] max-w-full bg-[#1a3826] shadow-2xl animate-in slide-in-from-left duration-300 overflow-y-auto"
           role="dialog"
-          aria-label="Navigacijski meni"
+          aria-label="Navigationsmenü"
         >
           <div className="flex flex-col min-h-full">
             <div className="flex items-center justify-between p-4 border-b border-white/10 shrink-0">
-              <span className={`text-lg font-black text-white ${brandFont.className}`}>Meni</span>
+              <span className={`text-lg font-black text-white ${brandFont.className}`}>Menü</span>
               <button
                 onClick={closeMenu}
                 className="flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors"
-                aria-label="Zatvori meni"
+                aria-label="Menü schließen"
               >
                 <X size={24} />
               </button>
@@ -245,13 +244,13 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
                   className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
                 >
                   <User size={18} />
-                  <span className="text-sm font-bold">Moj profil</span>
+                  <span className="text-sm font-bold">Mein Profil</span>
                 </Link>
                 <button
                   onClick={() => { closeMenu(); signOut({ callbackUrl: "/login" }); }}
                   className="w-full flex items-center justify-center gap-2 bg-red-500/20 text-red-300 hover:bg-red-500/30 py-3.5 rounded-xl text-sm font-black uppercase tracking-widest transition-colors min-h-[44px]"
                 >
-                  <LogOut size={18} /> Odjava
+                  <LogOut size={18} /> Abmelden
                 </button>
               </div>
             </div>

@@ -84,9 +84,9 @@ export default function RulesGrid({
     r.imageUrl || (r.images && r.images.length > 0 ? r.images[0].url : null);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 pb-24">
+    <div className="min-h-screen bg-background font-sans text-foreground pb-24">
       {/* HEADER – Compact: title + search + pills u jednom bloku */}
-      <div className="border-b border-slate-200 bg-white">
+      <div className="border-b border-border bg-card">
         <div className="max-w-[1600px] mx-auto px-4 md:px-8 lg:px-10 py-4 md:py-5">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -98,7 +98,7 @@ export default function RulesGrid({
                   <h1 className="text-lg md:text-xl font-bold text-[#1a3826] tracking-tight truncate">
                     Pravila & Procedure
                   </h1>
-                  <p className="text-xs text-slate-500 truncate">
+                  <p className="text-xs text-muted-foreground truncate">
                     {showReadStatus && unreadCount > 0 ? (
                       <span className="font-semibold text-red-600 inline-flex items-center gap-1.5">
                         <span className="relative flex h-2 w-2">
@@ -114,12 +114,12 @@ export default function RulesGrid({
                 </div>
               </div>
               <div className="w-full sm:w-56 md:w-64 flex-shrink-0">
-                <div className="bg-slate-50 rounded-lg border border-slate-200 px-3 py-2 flex items-center gap-2 min-h-[36px]">
-                  <Search size={16} className="text-slate-400 shrink-0" />
+                <div className="bg-muted rounded-lg border border-border px-3 py-2 flex items-center gap-2 min-h-[36px]">
+                  <Search size={16} className="text-muted-foreground shrink-0" />
                   <input
                     type="text"
                     placeholder="Pretraži…"
-                    className="w-full bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400"
+                    className="w-full bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -127,7 +127,7 @@ export default function RulesGrid({
                     <button
                       type="button"
                       onClick={() => setSearchQuery("")}
-                      className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-600 transition"
+                      className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-muted hover:bg-accent text-muted-foreground transition"
                     >
                       ×
                     </button>
@@ -144,7 +144,7 @@ export default function RulesGrid({
                   "px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0",
                   activeCategory === "SVE"
                     ? "bg-[#1a3826] text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    : "bg-muted text-muted-foreground hover:bg-muted"
                 )}
               >
                 SVE
@@ -157,7 +157,7 @@ export default function RulesGrid({
                     "px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0",
                     activeCategory === cat.id
                       ? "bg-[#1a3826] text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      : "bg-muted text-muted-foreground hover:bg-muted"
                   )}
                 >
                   {cat.name}
@@ -171,19 +171,19 @@ export default function RulesGrid({
       {/* SADRŽAJ – Compact grid */}
       <div className="max-w-[1600px] mx-auto px-4 md:px-8 lg:px-10 py-5">
         {filteredRules.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
-            <div className="h-10 w-10 rounded-lg bg-slate-100 flex items-center justify-center mx-auto mb-2">
-              <AlertTriangle size={20} className="text-slate-400" />
+          <div className="bg-card rounded-xl border border-border shadow-sm p-8 text-center">
+            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center mx-auto mb-2">
+              <AlertTriangle size={20} className="text-muted-foreground" />
             </div>
-            <h2 className="text-base font-bold text-slate-700">Nema pravila za prikaz</h2>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            <h2 className="text-base font-bold text-foreground">Nema pravila za prikaz</h2>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
               Promijenite kategoriju ili pretragu.
             </p>
           </div>
         ) : (
           <>
-            <p className="text-xs font-medium text-slate-500 mb-4">
-              <span className="font-semibold text-slate-700">{filteredRules.length}</span>{" "}
+            <p className="text-xs font-medium text-muted-foreground mb-4">
+              <span className="font-semibold text-foreground">{filteredRules.length}</span>{" "}
               {filteredRules.length === 1 ? "pravilo" : "pravila"}
               {activeCategory !== "SVE" && (
                 <span className="ml-1.5">
@@ -201,10 +201,10 @@ export default function RulesGrid({
                   <Link
                     href={`/tools/rules/${rule.id}`}
                     key={rule.id}
-                    className="group bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-[#1a3826]/30 transition-all overflow-hidden flex flex-col"
+                    className="group bg-card rounded-xl border border-border shadow-sm hover:shadow-md hover:border-[#1a3826]/30 transition-all overflow-hidden flex flex-col"
                   >
                     {/* Cover – fiksna visina h-32; bez slike = mala ikonica */}
-                    <div className="h-32 w-full bg-slate-100 overflow-hidden flex items-center justify-center">
+                    <div className="h-32 w-full bg-muted overflow-hidden flex items-center justify-center">
                       {cover ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
@@ -213,8 +213,8 @@ export default function RulesGrid({
                           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center">
-                          <ImageIcon size={16} className="text-slate-500" />
+                        <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                          <ImageIcon size={16} className="text-muted-foreground" />
                         </div>
                       )}
                     </div>
@@ -232,9 +232,9 @@ export default function RulesGrid({
                         {rule.title}
                       </h3>
                       {/* Footer: datum + status u text-xs */}
-                      <div className="mt-auto pt-2 flex items-center justify-between gap-2 text-xs text-slate-500">
+                      <div className="mt-auto pt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1 shrink-0 min-w-0">
-                          <Calendar size={12} className="text-slate-400 shrink-0" />
+                          <Calendar size={12} className="text-muted-foreground shrink-0" />
                           {formatDateDDMMGGGG(rule.createdAt)}
                         </span>
                         {showReadStatus &&

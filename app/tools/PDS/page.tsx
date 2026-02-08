@@ -70,7 +70,7 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   const safePdsList = JSON.parse(JSON.stringify(pdsList));
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-6 md:p-8 font-sans text-slate-900">
+    <div className="min-h-screen bg-background p-6 md:p-8 font-sans text-foreground">
       <div className="max-w-7xl mx-auto space-y-8">
         
         {/* HEADER */}

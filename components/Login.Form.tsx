@@ -39,7 +39,7 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-100">
+    <div className="bg-card p-8 rounded-xl shadow-2xl w-full max-w-md border border-border">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-extrabold text-[#1a3826]">AIW Services</h1>
         <p className="text-gray-400 text-sm mt-2">Prijavite se za pristup</p>
