@@ -6,7 +6,7 @@ import DashboardModulesClient from "./DashboardModulesClient";
 export default async function DashboardModulesPage() {
   const access = await tryRequirePermission("users:access");
   if (!access.ok) {
-    return <NoPermission moduleName="Dashboard moduli" />;
+    return <NoPermission moduleName="Dashboard-Konfiguration" />;
   }
 
   const highlights = await getDashboardHighlights();

@@ -37,10 +37,10 @@ const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
 const createSchema = (isEdit: boolean) =>
   z.object({
-    firstName: z.string().min(1, "Ime je obavezno"),
-    lastName: z.string().min(1, "Prezime je obavezno"),
-    email: z.string().email("Neispravan email"),
-    password: isEdit ? z.string().optional() : z.string().min(6, "Lozinka mora imati min. 6 znakova"),
+    firstName: z.string().min(1, "Vorname ist erforderlich"),
+    lastName: z.string().min(1, "Nachname ist erforderlich"),
+    email: z.string().email("Ungültige E-Mail-Adresse"),
+    password: isEdit ? z.string().optional() : z.string().min(6, "Passwort mindestens 6 Zeichen"),
     role: z.enum(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "CREW"]),
     departmentId: z.string().optional().nullable(),
     restaurantIds: z.array(z.string()).optional(),
@@ -205,7 +205,7 @@ export default function UserForm({
     try {
       const res = await createDepartment({ name, color: newDeptColor });
       if (res.success && res.data) {
-        toast.success("Odjel kreiran.");
+        toast.success("Abteilung erstellt.");
         setDepartmentsList((prev) => [...prev, res.data!]);
         form.setValue("departmentId", res.data.id);
         setDepartmentModalOpen(false);
@@ -251,7 +251,7 @@ export default function UserForm({
         cancelEditDepartment();
       }
     } catch {
-      alert("Greška pri ažuriranju odjela.");
+      alert("Fehler beim Aktualisieren der Abteilung.");
     }
     setIsUpdatingDept(false);
   };
@@ -262,7 +262,7 @@ export default function UserForm({
     try {
       const res = await deleteDepartment(id);
       if (res.success) {
-        toast.success("Odjel obrisan.");
+        toast.success("Abteilung gelöscht.");
         setDepartmentsList((prev) => prev.filter((d) => d.id !== id));
         if (form.getValues("departmentId") === id) form.setValue("departmentId", null);
         if (editingDeptId === id) cancelEditDepartment();
@@ -275,7 +275,7 @@ export default function UserForm({
 
   const onSubmit = async (data: FormValues) => {
     if (requiresRestaurant && (!data.restaurantIds || data.restaurantIds.length === 0)) {
-      form.setError("restaurantIds", { message: "Odaberite barem jedan restoran" });
+      form.setError("restaurantIds", { message: "Bitte mindestens ein Restaurant auswählen" });
       return;
     }
     // Nadređeni obavezan samo ako postoji barem jedan mogući nadređeni u listi
@@ -284,7 +284,7 @@ export default function UserForm({
       return;
     }
     if (!isEdit && !data.password) {
-      form.setError("password", { message: "Lozinka je obavezna" });
+      form.setError("password", { message: "Passwort ist erforderlich" });
       return;
     }
     try {
@@ -326,7 +326,7 @@ export default function UserForm({
       router.refresh();
     } catch (e) {
       const message =
-        e instanceof Error ? e.message : typeof e === "string" ? e : "Greška pri spremanju korisnika";
+        e instanceof Error ? e.message : typeof e === "string" ? e : "Fehler beim Speichern des Benutzers";
       console.error("Create/Update user error:", e);
       alert(message);
     }
@@ -356,26 +356,26 @@ export default function UserForm({
           <div className="p-6">
             <h2 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-wider mb-4">
               <User size={18} className="text-[#1a3826]" />
-              Osnovni podaci
+              Grunddaten
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ime</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Vorname</label>
                 <input
                   {...form.register("firstName")}
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                  placeholder="Ime"
+                  placeholder="Vorname"
                 />
                 {form.formState.errors.firstName && (
                   <p className="text-red-500 text-xs mt-1">{form.formState.errors.firstName.message}</p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Prezime</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nachname</label>
                 <input
                   {...form.register("lastName")}
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                  placeholder="Prezime"
+                  placeholder="Nachname"
                 />
                 {form.formState.errors.lastName && (
                   <p className="text-red-500 text-xs mt-1">{form.formState.errors.lastName.message}</p>
@@ -396,13 +396,13 @@ export default function UserForm({
             </div>
             <div className="mt-4">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Lozinka {isEdit && "(ostaviti prazno ako se ne mijenja)"}
+                Passwort {isEdit && "(leer lassen, wenn unverändert)"}
               </label>
               <input
                 type="password"
                 {...form.register("password")}
                 className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                placeholder={isEdit ? "•••••••• (opcionalno)" : "••••••••"}
+                placeholder={isEdit ? "•••••••• (optional)" : "••••••••"}
               />
               {form.formState.errors.password && (
                 <p className="text-red-500 text-xs mt-1">{form.formState.errors.password.message}</p>
@@ -431,13 +431,13 @@ export default function UserForm({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Odjel</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Abteilung</label>
                 <div className="flex gap-2">
                   <select
                     {...form.register("departmentId")}
                     className="flex-1 min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
                   >
-                    <option value="">— Nije odabrano —</option>
+                    <option value="">— Nicht ausgewählt —</option>
                     {departmentsList.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name}
@@ -448,7 +448,7 @@ export default function UserForm({
                     type="button"
                     onClick={() => setDepartmentModalOpen(true)}
                     className="flex-shrink-0 h-[44px] w-[44px] rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-[#1a3826] hover:text-[#1a3826] flex items-center justify-center transition-colors"
-                    title="Dodaj novi odjel"
+                    title="Neue Abteilung anlegen"
                   >
                     <Plus size={20} />
                   </button>
@@ -459,7 +459,7 @@ export default function UserForm({
             {requiresRestaurant && (
               <div className="mt-4">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                  Restorani (obavezno)
+                  Zugewiesene Restaurants (Pflicht)
                 </label>
                 <Controller
                   name="restaurantIds"
@@ -505,7 +505,7 @@ export default function UserForm({
             {requiresSupervisor && (
               <div className="mt-4">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Nadređeni (obavezno)
+                  Vorgesetzter (Pflicht)
                 </label>
                 <Controller
                   name="supervisorId"
@@ -536,7 +536,7 @@ export default function UserForm({
           <div className="p-6">
             <h2 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-wider mb-4">
               <CalendarDays size={18} className="text-[#1a3826]" />
-              Godišnji odmor po godinama
+              Urlaub pro Jahr
             </h2>
             <div className="space-y-2">
               {vacationRows.map((row, index) => (
@@ -572,14 +572,14 @@ export default function UserForm({
                       });
                     }}
                     className="w-20 min-h-[40px] px-3 py-2 rounded-lg border border-gray-300 text-slate-900 focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                    placeholder="dana"
+                    placeholder="Tage"
                   />
-                  <span className="text-sm text-slate-500">dana</span>
+                  <span className="text-sm text-slate-500">Tage</span>
                   <button
                     type="button"
                     onClick={() => removeVacationRow(index)}
                     className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                    title="Ukloni red"
+                    title="Zeile entfernen"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -600,20 +600,20 @@ export default function UserForm({
           <div className="p-6">
             <h2 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-wider mb-4">
               <Settings size={18} className="text-[#1a3826]" />
-              Moduli i permisije
+              Module und Berechtigungen
             </h2>
             <p className="text-sm text-slate-500 mb-4">
-              Odabrana rola automatski dodjeljuje set permisija. Ručno dodajte ili uklonite po potrebi.
+              Die gewählte Rolle vergibt automatisch Berechtigungen. Bei Bedarf manuell anpassen.
             </p>
             {isLoadingPreset ? (
               <div className="flex items-center gap-2 text-slate-500">
                 <Loader2 size={18} className="animate-spin" />
-                Učitavanje permisija…
+                Berechtigungen werden geladen…
               </div>
             ) : GOD_MODE_ROLES.has(role) ? (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4">
                 <span className="text-sm font-semibold text-emerald-800">
-                  Ova rola ima sve permisije automatski.
+                  Diese Rolle hat automatisch alle Berechtigungen.
                 </span>
               </div>
             ) : !showAdvanced ? (
@@ -696,7 +696,7 @@ export default function UserForm({
                   className="mt-3 text-sm font-semibold text-slate-600 hover:text-[#1a3826] flex items-center gap-1"
                 >
                   <ChevronDown size={16} className="rotate-180" />
-                  Sakrij napredne opcije
+                  Erweiterte Optionen ausblenden
                 </button>
               </div>
             )}
@@ -735,14 +735,14 @@ export default function UserForm({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-slate-900">Odjeli</h3>
-              <p className="text-sm text-slate-500 mt-0.5">Uredi ili obriši odjel, ili dodaj novi.</p>
+              <h3 className="text-lg font-bold text-slate-900">Abteilungen</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Abteilung bearbeiten, löschen oder neu anlegen.</p>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Lista odjela s Uredi / Obriši */}
               {departmentsList.length > 0 && (
                 <div>
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Postojeći odjeli</h4>
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Vorhandene Abteilungen</h4>
                   <ul className="space-y-2">
                     {departmentsList.map((d) => (
                       <li key={d.id} className="flex items-center gap-2 rounded-lg border border-gray-200 p-2">
@@ -752,7 +752,7 @@ export default function UserForm({
                               value={editDeptName}
                               onChange={(e) => setEditDeptName(e.target.value)}
                               className="flex-1 min-w-0 min-h-[36px] px-3 py-1.5 rounded border border-gray-300 text-sm focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                              placeholder="Naziv"
+                              placeholder="Name"
                               required
                             />
                             <input
@@ -760,20 +760,20 @@ export default function UserForm({
                               value={editDeptColor}
                               onChange={(e) => setEditDeptColor(e.target.value)}
                               className="h-8 w-10 rounded border border-gray-300 cursor-pointer"
-                              title="Boja"
+                              title="Farbe"
                             />
                             <button
                               type="submit"
                               disabled={isUpdatingDept}
                               className="px-3 py-1.5 rounded-lg text-sm font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50"
                             >
-                              {isUpdatingDept ? "…" : "Spremi"}
+                              {isUpdatingDept ? "…" : "Speichern"}
                             </button>
                             <button
                               type="button"
                               onClick={cancelEditDepartment}
                               className="p-1.5 rounded-lg text-slate-500 hover:bg-gray-100"
-                              title="Odustani"
+                              title="Abbrechen"
                             >
                               <X size={18} />
                             </button>
@@ -790,7 +790,7 @@ export default function UserForm({
                               type="button"
                               onClick={() => startEditDepartment(d)}
                               className="p-2 rounded-lg text-slate-500 hover:bg-gray-100 hover:text-[#1a3826]"
-                              title="Uredi odjel"
+                              title="Abteilung bearbeiten"
                             >
                               <Pencil size={16} />
                             </button>
@@ -799,7 +799,7 @@ export default function UserForm({
                               onClick={() => handleDeleteDepartment(d.id)}
                               disabled={isDeletingDeptId === d.id}
                               className="p-2 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-                              title="Obriši odjel"
+                              title="Abteilung löschen"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -813,20 +813,20 @@ export default function UserForm({
 
               {/* Forma za novi odjel */}
               <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Dodaj novi odjel</h4>
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Neue Abteilung anlegen</h4>
                 <form onSubmit={handleCreateDepartment} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Naziv</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Name</label>
                     <input
                       value={newDeptName}
                       onChange={(e) => setNewDeptName(e.target.value)}
                       className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                      placeholder="npr. RL, Office"
+                      placeholder="z. B. RL, Office"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Boja (HEX)</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Farbe (HEX)</label>
                     <div className="flex gap-2">
                       <input
                         type="color"
@@ -848,7 +848,7 @@ export default function UserForm({
                     disabled={isCreatingDept}
                     className="w-full px-4 py-2.5 rounded-lg font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50"
                   >
-                    {isCreatingDept ? "Kreiranje…" : "Kreiraj odjel"}
+                    {isCreatingDept ? "Erstellen…" : "Abteilung anlegen"}
                   </button>
                 </form>
               </div>
@@ -864,7 +864,7 @@ export default function UserForm({
                 }}
                 className="w-full px-4 py-2.5 rounded-lg font-medium text-slate-600 hover:bg-gray-200"
               >
-                Zatvori
+                Schließen
               </button>
             </div>
           </div>

@@ -54,11 +54,11 @@ export default function PDSForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      alert("Unesite naziv PDS obrasca.");
+      alert("Bitte Titel der PDS-Vorlage eingeben.");
       return;
     }
     if (!isGlobal && selectedRestaurantIds.length === 0) {
-      alert("Odaberite barem jedan restoran ili uključite \"Pošalji SVIM restoranima\".");
+      alert("Bitte mindestens ein Restaurant auswählen oder „An alle Restaurants“ aktivieren.");
       return;
     }
     if (goals.length === 0) {
@@ -66,7 +66,7 @@ export default function PDSForm({
       return;
     }
     if (scale.length === 0) {
-      alert("Dodajte barem jednu razinu skale.");
+      alert("Bitte mindestens eine Skalenstufe hinzufügen.");
       return;
     }
 
@@ -90,7 +90,7 @@ export default function PDSForm({
           scale,
         });
         if (res.success) {
-          toast.success("PDS obrazac ažuriran.");
+          toast.success("PDS-Vorlage aktualisiert.");
           router.push("/admin/pds");
           router.refresh();
         } else {
@@ -137,7 +137,7 @@ export default function PDSForm({
     setGoals([
       ...goals,
       {
-        title: "Novi cilj",
+        title: "Neues Kriterium",
         type: "NUMERIC",
         scoringRules: [],
         result: "",
@@ -183,17 +183,17 @@ export default function PDSForm({
     <form onSubmit={handleSubmit} className="space-y-8">
       <div className="bg-card rounded-2xl border border-border p-6 shadow-sm space-y-6">
         <h2 className="text-sm font-black text-[#1a3826] uppercase tracking-wider">
-          Osnovni podaci
+          Grunddaten
         </h2>
         <div>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Naziv PDS obrasca
+            Titel der PDS-Vorlage
           </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="npr. PDS 2025"
+            placeholder="z. B. PDS 2025"
             className="w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826]"
           />
         </div>
@@ -217,7 +217,7 @@ export default function PDSForm({
 
       <div className="bg-card rounded-2xl border border-border p-6 shadow-sm space-y-6">
         <h2 className="text-sm font-black text-[#1a3826] uppercase tracking-wider">
-          Ciljanje restorana
+          Ziel-Restaurants
         </h2>
         <label className="flex items-center gap-3 p-4 rounded-xl border-2 border-border hover:border-[#1a3826]/30 cursor-pointer transition-colors">
           <input
@@ -229,11 +229,11 @@ export default function PDSForm({
             }}
             className="rounded border-slate-300 text-[#1a3826] focus:ring-[#1a3826] h-4 w-4"
           />
-          <span className="font-bold text-slate-800">Pošalji SVIM restoranima</span>
+          <span className="font-bold text-slate-800">An alle Restaurants senden</span>
         </label>
         {!isGlobal && (
           <div>
-            <p className="text-xs text-slate-500 mb-3">Odaberite restorane za ovaj PDS:</p>
+            <p className="text-xs text-slate-500 mb-3">Restaurants für diese PDS-Vorlage auswählen:</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
               {restaurants.map((r) => (
                 <label
@@ -307,7 +307,7 @@ export default function PDSForm({
                         : "border-border text-muted-foreground"
                     }`}
                   >
-                    {g.title || `Cilj ${i + 1}`}
+                    {g.title || `Kriterium ${i + 1}`}
                     {selectedGoalIndex === i && <ChevronRight size={14} className="inline ml-1" />}
                   </button>
                 ))}

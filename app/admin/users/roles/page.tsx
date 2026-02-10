@@ -6,7 +6,7 @@ export default async function UsersRolesPage() {
   try {
     await requirePermission("users:permissions");
   } catch {
-    return <NoPermission moduleName="Konfiguracija Rola/Permisija" />;
+    return <NoPermission moduleName="Rollen-/Berechtigungskonfiguration" />;
   }
 
   return <RolePresetsClient />;

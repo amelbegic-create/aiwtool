@@ -11,6 +11,17 @@ type Highlight = { id: string; moduleKey: string; moduleLabel: string; addedAt: 
 
 type Props = { initialHighlights: Highlight[] };
 
+/** Display label for module – maps legacy Croatian labels from DB to German */
+const MODULE_LABEL_DE: Record<string, string> = {
+  "Godišnji Odmori": "Jahresurlaub",
+  "Pravila & Procedure": "Richtlinien & Dokumente",
+  "Pravila": "Richtlinien",
+};
+
+function displayModuleLabel(label: string): string {
+  return MODULE_LABEL_DE[label] ?? label;
+}
+
 export default function DashboardModulesClient({ initialHighlights }: Props) {
   const [highlights, setHighlights] = useState<Highlight[]>(initialHighlights);
   const [loading, setLoading] = useState<string | null>(null);
@@ -42,26 +53,26 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
           <div>
             <h1 className="text-2xl font-black text-[#1a3826] flex items-center gap-2">
               <LayoutDashboard size={28} />
-              Moduli na dashboardu
+              Dashboard-Konfiguration
             </h1>
             <p className="text-muted-foreground text-sm font-semibold mt-1">
-              Označite koje module želite prikazati korisnicima u sekciji &quot;Novi moduli na stranici&quot; na početnoj stranici.
+              Legen Sie fest, welche Module Nutzern auf der Startseite angezeigt werden.
             </p>
           </div>
           <Link
             href="/admin"
             className="text-sm font-bold text-[#1a3826] hover:underline"
           >
-            ← Natrag na Admin
+            ← Zurück zur Verwaltung
           </Link>
         </div>
 
         <div className="space-y-4">
           <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">
-            Trenutno označeni moduli (prikazuju se na dashboardu)
+            Sichtbare Module (werden auf dem Dashboard angezeigt)
           </h2>
           {highlights.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">Nema označenih modula. Dodajte ih ispod.</p>
+            <p className="text-sm text-muted-foreground py-4">Keine Module ausgewählt. Fügen Sie unten welche hinzu.</p>
           ) : (
             <ul className="space-y-2">
               {highlights.map((h) => (
@@ -69,14 +80,14 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
                   key={h.id}
                   className="flex items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-card"
                 >
-                  <span className="font-semibold text-foreground">{h.moduleLabel}</span>
-                  <span className="text-xs text-muted-foreground">dodano {formatDateDDMMGGGG(h.addedAt)}</span>
+                  <span className="font-semibold text-foreground">{displayModuleLabel(h.moduleLabel)}</span>
+                  <span className="text-xs text-muted-foreground">hinzugefügt {formatDateDDMMGGGG(h.addedAt)}</span>
                   <button
                     type="button"
                     onClick={() => handleRemove(h.moduleKey)}
                     disabled={loading === h.moduleKey}
                     className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    title="Ukloni s liste"
+                    title="Von Liste entfernen"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -88,7 +99,7 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
 
         <div className="space-y-4">
           <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">
-            Dostupni moduli – označi kao dodan na stranicu
+            Verfügbare Module – zur Anzeige auf der Startseite hinzufügen
           </h2>
           <ul className="grid gap-2">
             {APP_TOOLS.filter((t) => !highlightedKeys.has(t.id)).map((tool) => (
@@ -102,13 +113,13 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
                   <span className="font-semibold text-foreground">{tool.name}</span>
                   <span className="inline-flex items-center gap-2 text-sm font-bold text-[#1a3826]">
                     <Plus size={18} />
-                    Označi kao dodan
+                    Hinzufügen
                   </span>
                 </button>
               </li>
             ))}
             {APP_TOOLS.every((t) => highlightedKeys.has(t.id)) && (
-              <p className="text-sm text-muted-foreground py-2">Svi moduli su već označeni.</p>
+              <p className="text-sm text-muted-foreground py-2">Alle Module sind bereits hinzugefügt.</p>
             )}
           </ul>
         </div>

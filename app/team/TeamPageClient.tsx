@@ -67,11 +67,11 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
       setUpdatingRequestId(requestId);
       try {
         await updateVacationStatus(requestId, status);
-        toast.success(status === "APPROVED" ? "Zahtjev odobren." : "Zahtjev odbijen.");
+        toast.success(status === "APPROVED" ? "Anfrage genehmigt." : "Anfrage abgelehnt.");
         const d = await getTeamMemberDetail(detailUserId);
         setDetail(d);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Greška.");
+        toast.error(e instanceof Error ? e.message : "Fehler.");
       } finally {
         setUpdatingRequestId(null);
       }
@@ -85,10 +85,10 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
         <div className="inline-flex h-20 w-20 rounded-full bg-slate-100 items-center justify-center mb-6">
           <Users size={40} className="text-slate-400" />
         </div>
-        <h2 className="text-xl font-bold text-slate-800 mb-2">Nemate članova tima</h2>
+        <h2 className="text-xl font-bold text-slate-800 mb-2">Keine Mitarbeiter gefunden</h2>
         <p className="text-slate-500 max-w-md mx-auto">
-          Lista prikazuje zaposlenike kojima ste vi direktni nadređeni (supervisor). Ako očekujete
-          da ovdje neko bude, provjerite postavke nadležnosti u Admin panelu.
+          Diese Liste zeigt Mitarbeiter, für die Sie direkt verantwortlich sind (Supervisor).
+          Falls Sie hier jemanden erwarten, prüfen Sie die Zuständigkeiten im Admin-Bereich.
         </p>
       </div>
     );
@@ -158,11 +158,11 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                   <td className="px-4 py-3">
                     {member.isOnVacationToday ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
-                        <Calendar size={12} /> Na odmoru
+                        <Calendar size={12} /> Im Urlaub
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold">
-                        <Check size={12} /> Aktivan
+                        <Check size={12} /> Aktiv
                       </span>
                     )}
                   </td>
@@ -178,11 +178,11 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                           />
                         </div>
                         <span className="text-xs font-medium text-slate-600">
-                          {member.vacationUsed}/{member.vacationTotal} dana
+                          {member.vacationUsed}/{member.vacationTotal} Tage
                         </span>
                       </div>
                       <div className="text-[10px] text-slate-500">
-                        Preostalo: {member.vacationRemaining} dana
+                        Resturlaub: {member.vacationRemaining} Tage
                       </div>
                     </div>
                   </td>
@@ -202,7 +202,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                       onClick={() => openDetail(member.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-[#1a3826] hover:text-white text-slate-700 text-xs font-bold transition-colors"
                     >
-                      <Eye size={14} /> Detalji
+                      <Eye size={14} /> Details
                     </button>
                   </td>
                 </tr>
@@ -228,13 +228,13 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
           >
             <div className="flex items-center justify-between gap-4 p-4 border-b border-slate-200 bg-[#1a3826]">
               <h2 id="team-detail-title" className="text-lg font-black text-white truncate">
-                {detail?.name || "Učitavanje…"}
+                {detail?.name || "Laden..."}
               </h2>
               <button
                 type="button"
                 onClick={closeDetail}
                 className="p-2 rounded-lg text-white/80 hover:bg-white/20 transition"
-                aria-label="Zatvori"
+                aria-label="Schließen"
               >
                 <X size={20} />
               </button>
@@ -258,9 +258,9 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                           : "text-slate-500 hover:text-slate-700"
                       }`}
                     >
-                      {tab === "pregled" && "Pregled"}
-                      {tab === "godisnji" && "Godišnji odmori"}
-                      {tab === "pds" && "PDS dosje"}
+                      {tab === "pregled" && "Übersicht"}
+                      {tab === "godisnji" && "Urlaub"}
+                      {tab === "pds" && "PDS-Dossier"}
                     </button>
                   ))}
                 </div>
@@ -303,15 +303,15 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                       <div className="grid grid-cols-2 gap-3">
                         <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            Ukupno PDS-ova
+                            Anzahl PDS
                           </p>
                           <p className="text-2xl font-black text-[#1a3826]">{detail.pdsHistory.length}</p>
                         </div>
                         <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            Godišnji (preostalo)
+                            Urlaub (Rest)
                           </p>
-                          <p className="text-2xl font-black text-[#1a3826]">{detail.vacationRemaining} dana</p>
+                          <p className="text-2xl font-black text-[#1a3826]">{detail.vacationRemaining} Tage</p>
                         </div>
                       </div>
                     </div>
@@ -320,10 +320,10 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                   {activeTab === "godisnji" && (
                     <div className="space-y-3">
                       <p className="text-xs text-slate-500 font-medium mb-4">
-                        Zadnjih {detail.vacationRequests.length} zahtjeva za godišnji
+                        Letzte {detail.vacationRequests.length} Urlaubsanträge
                       </p>
                       {detail.vacationRequests.length === 0 ? (
-                        <p className="text-slate-500 text-sm">Nema zahtjeva.</p>
+                        <p className="text-slate-500 text-sm">Keine Anträge.</p>
                       ) : (
                         detail.vacationRequests.map((req) => (
                           <div
@@ -334,7 +334,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                               <p className="font-medium text-slate-800">
                                 {formatDateDDMMGGGG(req.start)} – {formatDateDDMMGGGG(req.end)}
                               </p>
-                              <p className="text-xs text-slate-500">{req.days} dana</p>
+                              <p className="text-xs text-slate-500">{req.days} Tage</p>
                             </div>
                             <div className="flex items-center gap-2">
                               <span
@@ -347,10 +347,10 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                                 }`}
                               >
                                 {req.status === "APPROVED"
-                                  ? "Odobreno"
+                                  ? "Genehmigt"
                                   : req.status === "REJECTED"
-                                    ? "Odbijeno"
-                                    : "Na čekanju"}
+                                    ? "Abgelehnt"
+                                    : "Ausstehend"}
                               </span>
                               {req.status === "PENDING" && (
                                 <>
@@ -359,7 +359,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                                     disabled={updatingRequestId === req.id}
                                     onClick={() => handleVacationStatus(req.id, "APPROVED")}
                                     className="p-2 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-50"
-                                    title="Odobri"
+                                    title="Genehmigen"
                                   >
                                     {updatingRequestId === req.id ? (
                                       <Loader2 size={16} className="animate-spin" />
@@ -372,7 +372,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                                     disabled={updatingRequestId === req.id}
                                     onClick={() => handleVacationStatus(req.id, "REJECTED")}
                                     className="p-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50"
-                                    title="Odbij"
+                                    title="Ablehnen"
                                   >
                                     <XCircle size={16} />
                                   </button>
@@ -388,7 +388,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                   {activeTab === "pds" && (
                     <div className="space-y-4">
                       {detail.pdsHistory.length === 0 ? (
-                        <p className="text-slate-500 text-sm">Nema PDS obrazaca.</p>
+                        <p className="text-slate-500 text-sm">Keine PDS-Formulare.</p>
                       ) : (
                         <>
                           <div className="space-y-2">
@@ -404,7 +404,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                                   <div>
                                     <p className="font-bold text-slate-800">PDS {pds.year}</p>
                                     <p className={`text-sm ${pdsScoreColor(pds.totalScore)}`}>
-                                      {pds.totalScore} bodova
+                                      {pds.totalScore} Punkte
                                       {pds.finalGrade ? ` · ${pds.finalGrade}` : ""}
                                     </p>
                                   </div>
@@ -413,13 +413,14 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                                   href={`/tools/PDS/${pds.id}`}
                                   className="text-xs font-bold text-[#1a3826] hover:underline"
                                 >
-                                  Otvori PDS
+                                  PDS öffnen
                                 </Link>
                               </div>
                             ))}
                           </div>
                           <p className="text-xs text-slate-500 mt-4">
-                            Kretanje ocjene: {detail.pdsHistory.map((p) => `${p.year}: ${p.totalScore}`).join(" → ")}
+                            Bewertungsverlauf:{" "}
+                            {detail.pdsHistory.map((p) => `${p.year}: ${p.totalScore}`).join(" → ")}
                           </p>
                         </>
                       )}
@@ -429,7 +430,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center p-8 text-slate-500">
-                Nije moguće učitati detalje.
+                Details können nicht geladen werden.
               </div>
             )}
           </div>

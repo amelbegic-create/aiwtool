@@ -64,16 +64,16 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.text('AIW Services', margin, 10);
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(12);
-      doc.text('PDS EVALUACIJA', margin, 17);
+      doc.text(`Mitarbeiter Beurteilung ${pds.year}`, margin, 17);
       doc.setFontSize(8);
       doc.setTextColor(255, 199, 44);
-      doc.text(`Godina: ${pds.year}`, margin, 21);
+      doc.text(`Jahr: ${pds.year}`, margin, 21);
 
       y = 30;
       doc.setTextColor(15, 23, 42);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(11);
-      doc.text(pds.user?.name ?? 'Zaposlenik', margin, y);
+      doc.text(pds.user?.name ?? 'Mitarbeiter', margin, y);
       y += 5;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -89,20 +89,20 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(255, 199, 44);
-      doc.text('UKUPNA OCJENA', w - margin - boxW + 4, 36);
+      doc.text('BEWERTUNG', w - margin - boxW + 4, 36);
       doc.setFontSize(14);
       doc.setTextColor(255, 255, 255);
       doc.text(finalGrade ?? '–', w - margin - boxW + 4, 45);
       doc.setFontSize(8);
       doc.setTextColor(255, 199, 44);
-      doc.text(`Bodova: ${totalScore}`, w - margin - boxW + 4, 52);
+      doc.text(`Punkte: ${totalScore}`, w - margin - boxW + 4, 52);
 
       y = 42;
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(51, 65, 85);
-      doc.text('CILJEVI I REZULTATI', margin, y);
+      doc.text('ZIELE UND ERGEBNISSE', margin, y);
       y += 7;
 
       doc.setFont('helvetica', 'normal');
@@ -113,9 +113,9 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       const scoreX = w - margin - 14;
       goals.forEach((goal: PDSGoal, i: number) => {
         if (y > 265) { doc.addPage(); y = 20; }
-        const title = goal.title ?? `Cilj ${i + 1}`;
+        const title = goal.title ?? `Ziel ${i + 1}`;
         const titleLines = doc.splitTextToSize(title, goalTextWidth);
-        const res = goal.type === 'BOOLEAN' ? (goal.result ? 'DA' : 'NE') : String(goal.result ?? '');
+        const res = goal.type === 'BOOLEAN' ? (goal.result ? 'Ja' : 'Nein') : String(goal.result ?? '');
         const blockTop = y;
         const titleHeight = titleLines.length * goalLineHeight;
         const resultY = blockTop + titleHeight + goalLineHeight;
@@ -127,10 +127,10 @@ export default function PDSFormClient({ pds, isManager }: Props) {
           doc.text(line, margin + 2, blockTop + 2 + (li + 1) * goalLineHeight);
         });
         doc.setFont('helvetica', 'normal');
-        doc.text(`Rez: ${res}`, margin + 2, resultY + 2);
+        doc.text(`Ergebnis: ${res}`, margin + 2, resultY + 2);
         doc.setTextColor(26, 56, 38);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${goal.points ?? 0} b`, scoreX, blockTop + 2 + goalLineHeight);
+        doc.text(`${goal.points ?? 0} Pkt`, scoreX, blockTop + 2 + goalLineHeight);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(15, 23, 42);
         y = blockTop + rowH + 2;
@@ -141,14 +141,14 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(51, 65, 85);
-      doc.text('KOMENTARI', margin, y);
+      doc.text('KOMMENTARE', margin, y);
       y += 7;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       const commentWidth = maxTextWidth - 4;
       const commentLineH = 5;
       doc.setFont('helvetica', 'bold');
-      doc.text('Zaposlenik:', margin, y);
+      doc.text('Mitarbeiter:', margin, y);
       y += commentLineH;
       doc.setFont('helvetica', 'normal');
       const empText = (employeeComment || '–').trim() || '–';
@@ -167,7 +167,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       if (y > 260) { doc.addPage(); y = 20; }
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      doc.text('POTPISI', margin, y);
+      doc.text('UNTERSCHRIFTEN', margin, y);
       y += 7;
       const sigImgW = 45;
       const sigImgH = 22;
@@ -176,7 +176,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(71, 85, 105);
-      doc.text('Zaposlenik:', margin, y);
+      doc.text('Unterschrift Mitarbeiter:', margin, y);
       if (empSigImg) {
         try { doc.addImage(empSigImg, 'PNG', margin, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', margin, y + 8); }
         y += sigImgH + 6;
@@ -184,7 +184,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
         doc.text('________________', margin, y + 5);
         y += 14;
       }
-      doc.text('Manager:', margin, y);
+      doc.text('Unterschrift Manager:', margin, y);
       if (mgrSigImg) {
         try { doc.addImage(mgrSigImg, 'PNG', margin, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', margin, y + 8); }
         y += sigImgH + 6;
@@ -194,12 +194,12 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       }
       y += 4;
       doc.setFontSize(7);
-      doc.text('Generirano: ' + formatDateDDMMGGGG(new Date()), margin, y + 5);
+      doc.text('Erstellt: ' + formatDateDDMMGGGG(new Date()), margin, y + 5);
 
-      doc.save(`PDS_${(pds.user?.name ?? 'Evaluacija').replace(/\s+/g, '_')}_${pds.year}.pdf`);
+      doc.save(`PDS_Beurteilung_${(pds.user?.name ?? 'Mitarbeiter').replace(/\s+/g, '_').replace(/[^\w\-]/g, '')}_${pds.year}.pdf`);
     } catch (error) {
       console.error('Export PDF Error:', error);
-      alert('Greška pri exportu PDF-a.');
+      alert('Fehler beim PDF-Export.');
     } finally {
       setIsExporting(false);
     }
@@ -235,7 +235,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
   };
 
   const handleSubmit = async () => {
-    if (!confirm('Jeste li sigurni?')) return;
+    if (!confirm('Sind Sie sicher?')) return;
     setLoading(true);
     await updatePDSContent(pds.id, {
       goals,
@@ -251,12 +251,12 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       await submitPDS(pds.id);
     }
     setLoading(false);
-    toast.success(isManager ? "PDS odobren." : "Zahtjev poslan.");
+    toast.success(isManager ? "PDS genehmigt." : "Antrag eingereicht.");
     router.refresh();
   };
 
   const handleReturn = async () => {
-    if (!confirm('Vratiti radniku na doradu?')) return;
+    if (!confirm('Zur Überarbeitung an den Mitarbeiter zurücksenden?')) return;
     setLoading(true);
     await returnPDS(pds.id, managerComment);
     setLoading(false);
@@ -266,16 +266,16 @@ export default function PDSFormClient({ pds, isManager }: Props) {
   const handleConfirmSignature = async (role: 'employee' | 'manager') => {
     const img = role === 'employee' ? employeeSignature : managerSignature;
     if (!img || !img.startsWith('data:image')) {
-      alert('Prvo nacrtajte potpis u polju iznad.');
+      alert('Bitte zeichnen Sie zuerst Ihre Unterschrift im Feld oben.');
       return;
     }
     setLoading(true);
     const res = await saveSignatureImage(pds.id, role, img);
     setLoading(false);
     if (res?.success) {
-      toast.success("Potpis spremljen.");
+      toast.success("Unterschrift gespeichert.");
       router.refresh();
-    } else alert(res?.error ?? 'Greška pri spremanju potpisa.');
+    } else alert(res?.error ?? 'Fehler beim Speichern der Unterschrift.');
   };
 
   return (
@@ -285,12 +285,12 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-col xl:flex-row justify-between items-center gap-4 sticky top-4 z-40">
         <div>
             <button onClick={() => router.back()} className="flex items-center text-slate-400 hover:text-slate-600 text-xs font-bold mb-2">
-                <ChevronLeft size={14}/> NAZAD NA LISTU
+                <ChevronLeft size={14}/> ZURÜCK ZUR LISTE
             </button>
             <div className="flex items-center gap-3">
                 <h1 className="text-xl md:text-2xl font-black text-[#1a3826] uppercase">{pds.user.name}</h1>
                 <span className="px-2 py-1 rounded text-[10px] font-bold uppercase border bg-slate-50 text-slate-500 border-slate-200">
-                    {pds.status === 'RETURNED' ? 'VRAĆENO' : pds.status === 'APPROVED' ? 'ODOBRENO' : pds.status}
+                    {pds.status === 'DRAFT' || pds.status === 'OPEN' || pds.status === 'IN_PROGRESS' ? 'Entwurf' : pds.status === 'SUBMITTED' || pds.status === 'PENDING' ? 'Eingereicht' : pds.status === 'APPROVED' ? 'Genehmigt' : pds.status === 'RETURNED' ? 'Zur Überarbeitung' : pds.status === 'ARCHIVED' ? 'Archiviert' : pds.status === 'COMPLETED' ? 'Abgeschlossen' : pds.status}
                 </span>
             </div>
         </div>
@@ -300,18 +300,19 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                 onClick={handleExportPDF} 
                 disabled={isExporting}
                 className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-2 border border-slate-200"
+                title="PDF herunterladen"
             >
                 {isExporting ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>}
-                PDF IZVJEŠTAJ
+                PDF HERUNTERLADEN
             </button>
 
             {canEmployeeEdit && (
                 <>
-                    <button onClick={handleSave} disabled={loading} className="px-5 py-2.5 rounded-xl bg-white border border-slate-300 font-bold text-slate-600 hover:bg-slate-50 text-xs flex items-center gap-2">
-                        <Save size={16}/> SPREMI
+                    <button onClick={handleSave} disabled={loading} className="px-5 py-2.5 rounded-xl bg-white border border-slate-300 font-bold text-slate-600 hover:bg-slate-50 text-xs flex items-center gap-2" title="Als Entwurf speichern">
+                        <Save size={16}/> SPEICHERN
                     </button>
-                    <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#1a3826] text-white font-bold hover:bg-[#142e1e] text-xs flex items-center gap-2 shadow-lg">
-                        <Send size={16}/> POŠALJI
+                    <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#1a3826] text-white font-bold hover:bg-[#142e1e] text-xs flex items-center gap-2 shadow-lg" title="Abschließen und einreichen">
+                        <Send size={16}/> ABSCHLIESSEN
                     </button>
                 </>
             )}
@@ -319,13 +320,13 @@ export default function PDSFormClient({ pds, isManager }: Props) {
             {isManager && (
                 <>
                     {(isSubmitted || isApproved) && !isCompleted && (
-                        <button onClick={handleReturn} disabled={loading} className="px-5 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-100 font-bold hover:bg-red-100 text-xs flex items-center gap-2">
-                            <Undo2 size={16}/> VRATI NA DORADU
+                        <button onClick={handleReturn} disabled={loading} className="px-5 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-100 font-bold hover:bg-red-100 text-xs flex items-center gap-2" title="Zur Überarbeitung zurücksenden">
+                            <Undo2 size={16}/> ZURÜCK ZUR ÜBERARBEITUNG
                         </button>
                     )}
                     {isSubmitted && !isApproved && (
-                        <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#FFC72C] text-[#1a3826] font-bold hover:bg-[#e6b225] text-xs flex items-center gap-2 shadow-lg">
-                            <Check size={16}/> ODOBRI
+                        <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#FFC72C] text-[#1a3826] font-bold hover:bg-[#e6b225] text-xs flex items-center gap-2 shadow-lg" title="Beurteilung genehmigen">
+                            <Check size={16}/> GENEHMIGEN
                         </button>
                     )}
                 </>
@@ -337,14 +338,14 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 max-w-4xl mx-auto">
          <div className="flex justify-between items-start border-b border-slate-200 pb-5 mb-5">
              <div>
-                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">PDS EVALUACIJA • {pds.year}</div>
+                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">PDS BEURTEILUNG • {pds.year}</div>
                  <h2 className="text-xl font-black text-[#1a3826] uppercase">{pds.user.name}</h2>
                  <p className="text-xs font-medium text-slate-500">{pds.user.email} • {pds.user.role}</p>
              </div>
              <div className="text-right bg-[#1a3826] text-white p-4 rounded-xl min-w-[120px]">
-                 <div className="text-[10px] font-black text-[#FFC72C] uppercase tracking-widest mb-0.5">Ukupna ocjena</div>
+                 <div className="text-[10px] font-black text-[#FFC72C] uppercase tracking-widest mb-0.5">Bewertung</div>
                  <div className="text-xl font-black">{finalGrade ?? '–'}</div>
-                 <div className="text-[10px] text-[#FFC72C] mt-1">Bodova: {totalScore}</div>
+                 <div className="text-[10px] text-[#FFC72C] mt-1">Punkte: {totalScore}</div>
              </div>
          </div>
 
@@ -369,7 +370,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                                     : 'bg-white border-slate-200 text-slate-400'
                                 }`}
                             >
-                                <Check size={16} strokeWidth={3} /> DA
+                                <Check size={16} strokeWidth={3} /> Ja
                                 {isManager && <span className="text-[9px] opacity-70">({goal.yesPoints})</span>}
                             </button>
                             <button 
@@ -381,14 +382,14 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                                     : 'bg-white border-slate-200 text-slate-400'
                                 }`}
                             >
-                                <X size={16} strokeWidth={3} /> NE
+                                <X size={16} strokeWidth={3} /> Nein
                                 {isManager && <span className="text-[9px] opacity-70">({goal.noPoints})</span>}
                             </button>
                         </div>
                     ) : (
                         <div className="bg-white p-3 rounded-lg border border-slate-200">
                             <div className="flex items-center justify-between gap-2">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase">Rezultat</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">Ergebnis</label>
                                 <input 
                                     type="number" 
                                     disabled={!canEmployeeEdit}
@@ -421,29 +422,29 @@ export default function PDSFormClient({ pds, isManager }: Props) {
             <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                     <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">1</div>
-                    <h3 className="text-sm font-black text-slate-800 uppercase">Zaposlenik</h3>
+                    <h3 className="text-sm font-black text-slate-800 uppercase">Mitarbeiter</h3>
                 </div>
                 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[120px]">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Komentar</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Kommentar</label>
                     <textarea 
                         disabled={!canEmployeeEdit}
                         value={employeeComment}
                         onChange={(e) => setEmployeeComment(e.target.value)}
                         className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none resize-none h-full disabled:cursor-not-allowed"
-                        placeholder="Nema komentara..."
+                        placeholder="Kein Kommentar…"
                     />
                 </div>
 
                 <SignaturePad 
-                    label="Potpis Zaposlenika"
+                    label="Unterschrift Mitarbeiter"
                     value={typeof employeeSignature === 'string' && employeeSignature.startsWith('data:') ? employeeSignature : ''} 
                     onChange={setEmployeeSignature} 
                     disabled={!canEmployeeEdit && !canEmployeeSign}
                 />
                 {canEmployeeSign && (
                   <button type="button" onClick={() => handleConfirmSignature('employee')} disabled={loading || !employeeSignature?.startsWith('data:image')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1a3826] text-white text-xs font-bold hover:bg-[#142e1e] disabled:opacity-50">
-                    {loading ? <Loader2 size={14} className="animate-spin" /> : null} Potvrdi potpis
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : null} Unterschrift bestätigen
                   </button>
                 )}
             </div>
@@ -455,25 +456,25 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                 </div>
 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[120px]">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Komentar</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Kommentar</label>
                     <textarea 
                         disabled={!canManagerEdit && !isApproved}
                         value={managerComment}
                         onChange={(e) => setManagerComment(e.target.value)}
                         className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none resize-none h-full disabled:cursor-not-allowed"
-                        placeholder="Nema komentara..."
+                        placeholder="Kein Kommentar…"
                     />
                 </div>
 
                 <SignaturePad 
-                    label="Potpis Managera"
+                    label="Unterschrift Manager"
                     value={typeof managerSignature === 'string' && managerSignature.startsWith('data:') ? managerSignature : ''} 
                     onChange={setManagerSignature} 
                     disabled={!canManagerEdit && !canManagerSign}
                 />
                 {canManagerSign && (
                   <button type="button" onClick={() => handleConfirmSignature('manager')} disabled={loading || !managerSignature?.startsWith('data:image')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#1a3826] text-white text-xs font-bold hover:bg-[#142e1e] disabled:opacity-50">
-                    {loading ? <Loader2 size={14} className="animate-spin" /> : null} Potvrdi potpis
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : null} Unterschrift bestätigen
                   </button>
                 )}
             </div>

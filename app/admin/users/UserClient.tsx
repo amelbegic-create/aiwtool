@@ -168,7 +168,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
       .filter((u) => u.role !== "CREW") // nadređeni obično nije CREW
       .map((u) => ({
         id: u.id,
-        name: u.name || "Korisnik",
+        name: u.name || "Benutzer",
         email: u.email || "",
         role: u.role,
       }));
@@ -289,13 +289,13 @@ export default function UserClient({ users = [], restaurants = [], departments =
     };
 
     if (!payload.name || !formData.firstName || !formData.lastName || !payload.email) {
-      return alert("Ime, Prezime i Email su obavezni.");
+      return alert("Name und E-Mail sind erforderlich.");
     }
 
     try {
       setIsSaving(true);
       if (!isEditing) {
-        if (!payload.password) return alert("Lozinka je obavezna kod kreiranja.");
+        if (!payload.password) return alert("Passwort ist bei der Erstellung erforderlich.");
         await createUser(payload as any);
       } else {
         await updateUser(payload as any);
@@ -303,21 +303,21 @@ export default function UserClient({ users = [], restaurants = [], departments =
       setIsModalOpen(false);
       router.refresh();
     } catch (e: any) {
-      alert(e.message || "Greška");
+      alert(e.message || "Fehler aufgetreten.");
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Sigurno obrisati korisnika? Ova akcija je nepovratna.")) return;
+    if (!confirm("Benutzer wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
     try {
       setDeletingId(id);
       await deleteUser(id);
-      toast.success("Korisnik obrisan.");
+      toast.success("Benutzer gelöscht.");
       router.refresh();
     } catch (e: any) {
-      alert(e.message || "Greška");
+      alert(e.message || "Fehler aufgetreten.");
     } finally {
       setDeletingId(null);
     }
@@ -367,9 +367,9 @@ export default function UserClient({ users = [], restaurants = [], departments =
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
-              ADMIN <span className="text-[#FFC72C]">KORISNICI</span>
+              BENUTZERVERWALTUNG
             </h1>
-            <p className="text-muted-foreground text-sm font-semibold">Kreiranje korisnika i dodjela permisija</p>
+            <p className="text-muted-foreground text-sm font-semibold">Benutzer anlegen und Berechtigungen zuweisen</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -378,14 +378,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
                 href="/admin/users/create"
                 className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[44px] md:min-h-0 bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl text-xs font-black uppercase shadow-md active:scale-95"
               >
-                <Plus size={16} /> Novi korisnik
+                <Plus size={16} /> Neuen Benutzer anlegen
               </Link>
             ) : (
               <button
                 onClick={openCreate}
                 className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[44px] md:min-h-0 bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl text-xs font-black uppercase shadow-md active:scale-95"
               >
-                <Plus size={16} /> Novi korisnik
+                <Plus size={16} /> Neuen Benutzer anlegen
               </button>
             )}
 
@@ -393,7 +393,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
               href="/admin/restaurants"
               className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[44px] md:min-h-0 bg-white hover:bg-muted text-foreground rounded-xl text-xs font-black uppercase shadow-sm border border-border active:scale-95"
             >
-              <Building2 size={16} className="text-[#1a3826]" /> Novi restoran
+              <Building2 size={16} className="text-[#1a3826]" /> Standort hinzufügen
             </a>
           </div>
         </div>
@@ -406,7 +406,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Traži korisnika..."
+              placeholder="Benutzer suchen..."
               className="bg-transparent outline-none text-sm font-bold text-foreground w-full min-h-[36px]"
             />
           </div>
@@ -414,7 +414,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
             href="/admin/users/create"
             className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[44px] bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl text-xs font-black uppercase shadow-md active:scale-95 shrink-0"
           >
-            <Plus size={16} /> Dodaj korisnika
+            <Plus size={16} /> Benutzer hinzufügen
           </Link>
         </div>
 
@@ -439,7 +439,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                         const r = restaurants.find((x) => x.id === rid);
                         return (
                           <span key={rid} className="text-[9px] bg-muted px-2 py-1 rounded border border-border text-muted-foreground">
-                            {r?.name || "Restoran"}
+                            {r?.name || "Restaurant"}
                           </span>
                         );
                       })}
@@ -453,7 +453,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                   <Link
                     href={`/admin/users/${u.id}`}
                     className="flex h-11 w-11 items-center justify-center bg-muted hover:bg-accent text-foreground rounded-xl transition-colors"
-                    title="Uredi"
+                    title="Bearbeiten"
                   >
                     <Pencil size={18} />
                   </Link>
@@ -465,7 +465,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                         ? "bg-red-50 text-red-300 cursor-not-allowed"
                         : "bg-red-50 hover:bg-red-100 text-red-700"
                     }`}
-                    title="Deaktiviraj"
+                    title="Löschen"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -478,10 +478,10 @@ export default function UserClient({ users = [], restaurants = [], departments =
         {/* DESKTOP TABLE */}
         <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
           <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/50 border-b border-border text-[10px] font-black text-slate-400 uppercase">
-            <div className="col-span-4">Korisnik</div>
-            <div className="col-span-2">Rola</div>
-            <div className="col-span-4">Restorani</div>
-            <div className="col-span-2 text-right">Akcije</div>
+            <div className="col-span-4">Benutzer</div>
+            <div className="col-span-2">Rolle</div>
+            <div className="col-span-4">Zugewiesene Restaurants</div>
+            <div className="col-span-2 text-right">Aktionen</div>
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -504,7 +504,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                     const r = restaurants.find((x) => x.id === rid);
                     return (
                       <span key={rid} className="text-[9px] bg-muted px-2 py-1 rounded border border-border">
-                        {r?.name || "Restoran"}
+                        {r?.name || "Restaurant"}
                       </span>
                     );
                   })}
@@ -519,7 +519,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                   <Link
                     href={`/admin/users/${u.id}`}
                     className="p-2 bg-muted hover:bg-accent text-foreground rounded-xl transition-colors inline-flex"
-                    title="Uredi"
+                    title="Bearbeiten"
                   >
                     <Pencil size={16} />
                   </Link>
@@ -531,7 +531,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                         ? "bg-red-50 text-red-300 cursor-not-allowed"
                         : "bg-red-50 hover:bg-red-100 text-red-700"
                     }`}
-                    title="Deaktiviraj"
+                    title="Löschen"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -549,12 +549,12 @@ export default function UserClient({ users = [], restaurants = [], departments =
                 {/* Header */}
                 <div className="shrink-0 p-6 bg-muted border-b border-border flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-black text-foreground">{isEditing ? "Uredi korisnika" : "Novi korisnik"}</h2>
+                    <h2 className="text-xl font-black text-foreground">{isEditing ? "Benutzer bearbeiten" : "Neuen Benutzer anlegen"}</h2>
                     <p className="text-xs text-muted-foreground font-semibold">
-                      Globalne permisije • ADMIN/SYSTEM_ARCHITECT imaju sve automatski
+                      Globale Berechtigungen • ADMIN/SYSTEM_ARCHITECT haben alle automatisch
                     </p>
                   </div>
-                  <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-xl hover:bg-accent" aria-label="Zatvori">
+                  <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-xl hover:bg-accent" aria-label="Schließen">
                     <X />
                   </button>
                 </div>
@@ -565,20 +565,20 @@ export default function UserClient({ users = [], restaurants = [], departments =
                     {/* LEFT: Basic + Restaurants + Supervisor + Allowance */}
                     <div className="xl:col-span-4 space-y-4">
                       <div className="bg-white border border-border rounded-2xl p-5">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Osnovno</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Grunddaten</h3>
 
                         <div className="space-y-3">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <input
                               value={formData.firstName}
                               onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                              placeholder="Ime"
+                              placeholder="Vorname"
                               className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             />
                             <input
                               value={formData.lastName}
                               onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                              placeholder="Prezime"
+                              placeholder="Nachname"
                               className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             />
                           </div>
@@ -593,7 +593,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                           <input
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            placeholder={isEditing ? "Nova lozinka (opcionalno)" : "Lozinka"}
+                            placeholder={isEditing ? "Neues Passwort (optional)" : "Passwort"}
                             type="password"
                             className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                           />
@@ -618,7 +618,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                               disabled={isSaving}
                               className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             >
-                              <option value="">— Nije odabrano —</option>
+                              <option value="">— Nicht ausgewählt —</option>
                               {departments.map((d) => (
                                 <option key={d.id} value={d.id}>
                                   {d.name}
@@ -630,7 +630,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                           {/* ✅ NOVO: Nadređeni */}
                           <div className="space-y-2 pt-2">
                             <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground inline-flex items-center gap-2">
-                              <UserCog size={14} /> Nadređeni
+                              <UserCog size={14} /> Vorgesetzter
                             </div>
                             <select
                               value={formData.supervisorId}
@@ -638,7 +638,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                               disabled={isSaving}
                               className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
                             >
-                              <option value="">Bez nadređenog</option>
+                              <option value="">Kein Vorgesetzter</option>
                               {supervisorOptions
                                 .filter((s) => s.id !== formData.id) // ne može sam sebi biti nadređeni
                                 .map((s) => (
@@ -651,14 +651,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
                           {isRoleApplying && (
                             <div className="text-[11px] font-bold text-muted-foreground mt-2">
-                              Učitavam preset permisije za izabranu rolu...
+                              Berechtigungs-Preset wird geladen…
                             </div>
                           )}
                         </div>
 
                         {godMode && (
                           <div className="mt-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                            <ShieldCheck size={18} /> Ova rola automatski dobija SVE permisije.
+                            <ShieldCheck size={18} /> Diese Rolle erhält automatisch alle Berechtigungen.
                           </div>
                         )}
                       </div>
@@ -666,7 +666,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                       {/* ✅ NOVO: godišnji po godini */}
                       <div className="bg-white border border-border rounded-2xl p-5">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4 inline-flex items-center gap-2">
-                          <CalendarDays size={14} /> Godišnji po godini (2025–2030)
+                          <CalendarDays size={14} /> Urlaub pro Jahr (2025–2030)
                         </h3>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -697,7 +697,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                       </div>
 
                       <div className="bg-white border border-border rounded-2xl p-5">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Restorani</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Zugewiesene Restaurants</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
                           {restaurants.map((r) => {
                             const checked = formData.restaurantIds.includes(r.id);
@@ -733,10 +733,10 @@ export default function UserClient({ users = [], restaurants = [], departments =
                         <div className="p-5 bg-muted border-b border-border flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                           <div>
                             <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground inline-flex items-center gap-2">
-                              <Layers size={14} /> Permisije
+                              <Layers size={14} /> Berechtigungen
                             </h3>
                             <p className="text-xs text-muted-foreground font-semibold mt-1">
-                              Lijevo odaberi modul, desno označi permisije • {formData.permissions.length}/{ALL_PERMISSION_KEYS.length} ukupno
+                              Links Modul wählen, rechts Berechtigungen setzen • {formData.permissions.length}/{ALL_PERMISSION_KEYS.length} gesamt
                             </p>
                           </div>
 
@@ -747,14 +747,14 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                 disabled={isRoleApplying || isSaving}
                                 className="px-3 py-2 rounded-xl bg-muted hover:bg-accent text-[10px] font-black uppercase"
                               >
-                                Select all
+                                Alle auswählen
                               </button>
                               <button
                                 onClick={() => setFormData({ ...formData, permissions: [] })}
                                 disabled={isRoleApplying || isSaving}
                                 className="px-3 py-2 rounded-xl bg-white hover:bg-muted border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                               >
-                                <Eraser size={14} /> Clear all
+                                <Eraser size={14} /> Alle löschen
                               </button>
                             </div>
                           )}
@@ -763,7 +763,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                         {godMode ? (
                           <div className="p-6">
                             <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm font-bold">
-                              Permisije su automatske za ovu rolu.
+                              Berechtigungen sind für diese Rolle automatisch gesetzt.
                             </div>
                           </div>
                         ) : (
@@ -775,7 +775,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                 <input
                                   value={moduleQuery}
                                   onChange={(e) => setModuleQuery(e.target.value)}
-                                  placeholder="Traži modul..."
+                                  placeholder="Modul suchen…"
                                   className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                                 />
                               </div>
@@ -797,7 +797,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                         <div className="font-black text-foreground truncate">{g.title}</div>
                                         {g.subtitle && <div className="text-xs text-muted-foreground font-semibold truncate">{g.subtitle}</div>}
                                         <div className="mt-2 text-[10px] font-black uppercase text-muted-foreground">
-                                          {stats.selected}/{stats.total} odabrano
+                                          {stats.selected}/{stats.total} ausgewählt
                                         </div>
                                       </div>
 
@@ -816,7 +816,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
                                 {modulesFiltered.length === 0 && (
                                   <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
-                                    Nema rezultata za ovaj upit.
+                                    Keine Ergebnisse für diese Suche.
                                   </div>
                                 )}
                               </div>
@@ -831,7 +831,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                     <div className="text-xs text-muted-foreground font-semibold">{activeModule.subtitle}</div>
                                   )}
                                   <div className="text-[10px] font-black uppercase text-muted-foreground mt-2">
-                                    {activeSelected}/{activeKeys.length} odabrano u ovom modulu
+                                    {activeSelected}/{activeKeys.length} in diesem Modul ausgewählt
                                   </div>
                                 </div>
 
@@ -841,7 +841,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                     disabled={isRoleApplying || isSaving}
                                     className="px-3 py-2 rounded-xl text-[10px] font-black uppercase border transition-colors bg-white text-foreground border-border hover:bg-muted"
                                   >
-                                    Označi sve
+                                    Alle auswählen
                                   </button>
 
                                   <button
@@ -849,7 +849,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                     disabled={isRoleApplying || isSaving}
                                     className="px-3 py-2 rounded-xl bg-white hover:bg-muted border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                                   >
-                                    <Eraser size={14} /> Clear
+                                    <Eraser size={14} /> Löschen
                                   </button>
                                 </div>
                               </div>
@@ -859,7 +859,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                 <input
                                   value={permQuery}
                                   onChange={(e) => setPermQuery(e.target.value)}
-                                  placeholder="Traži permisiju u ovom modulu..."
+                                  placeholder="Berechtigung in diesem Modul suchen…"
                                   className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                                 />
                               </div>
@@ -890,7 +890,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
                                 {activeItemsFiltered.length === 0 && (
                                   <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
-                                    Nema permisija za ovaj filter.
+                                    Keine Berechtigungen für diesen Filter.
                                   </div>
                                 )}
                               </div>
@@ -909,7 +909,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                     disabled={isSaving}
                     className="px-5 py-3 rounded-xl border border-border text-xs font-black uppercase text-foreground hover:bg-muted"
                   >
-                    Odustani
+                    Abbrechen
                   </button>
                   <button
                     onClick={handleSubmit}
@@ -920,7 +920,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                         : "bg-[#1a3826] hover:bg-[#142e1e] active:scale-95"
                     }`}
                   >
-                    <Check size={16} /> {isSaving ? "Čuvam..." : "Sačuvaj"}
+                    <Check size={16} /> {isSaving ? "Speichern…" : "Speichern"}
                   </button>
                 </div>
               </div>

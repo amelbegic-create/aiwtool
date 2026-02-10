@@ -83,7 +83,7 @@ export default function RuleEditor({
       setImageUrl(url);
     } catch (err) {
       console.error(err);
-      alert("Greška pri uploadu slike.");
+      alert("Fehler beim Hochladen des Bildes.");
     } finally {
       setUploadingCover(false);
     }
@@ -100,7 +100,7 @@ export default function RuleEditor({
       setImageUrl(url);
     } catch (err) {
       console.error(err);
-      alert("Greška pri uploadu slike.");
+      alert("Fehler beim Hochladen des Bildes.");
     } finally {
       setUploadingCover(false);
     }
@@ -118,7 +118,7 @@ export default function RuleEditor({
       setPdfUrls((prev) => [...prev, url]);
     } catch (err) {
       console.error(err);
-      alert("Greška pri uploadu PDF-a.");
+      alert("Fehler beim Hochladen der PDF-Datei.");
     } finally {
       setUploadingPdf(false);
     }
@@ -127,11 +127,11 @@ export default function RuleEditor({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      alert("Unesite naslov.");
+      alert("Bitte Titel eingeben.");
       return;
     }
     if (!categoryId) {
-      alert("Odaberite kategoriju.");
+      alert("Bitte Kategorie auswählen.");
       return;
     }
     setSaving(true);
@@ -154,7 +154,7 @@ export default function RuleEditor({
       router.refresh();
     } catch (err) {
       console.error(err);
-      alert("Greška pri spremanju.");
+      alert("Fehler beim Speichern.");
     } finally {
       setSaving(false);
     }
@@ -197,10 +197,10 @@ export default function RuleEditor({
         {/* Header */}
         <div className="bg-[#1a3826] px-6 py-5">
           <h1 className="text-2xl font-black text-white uppercase tracking-tight">
-            {initialRule ? "Uredi pravilo" : "Novo pravilo"}
+            {initialRule ? "Dokument bearbeiten" : "Neues Dokument hochladen"}
           </h1>
           <p className="text-sm text-white/80 mt-1">
-            {initialRule ? "Izmjena postojećeg pravila" : "Kreiranje novog pravila ili procedure"}
+            {initialRule ? "Vorhandenes Dokument ändern" : "Neues Richtliniendokument anlegen"}
           </p>
         </div>
 
@@ -236,7 +236,7 @@ export default function RuleEditor({
               ) : (
                 <div className="text-slate-400">
                   <UploadCloud size={40} className="mx-auto mb-2" />
-                  <p className="text-sm font-bold text-slate-500">Povuci sliku ovdje ili klikni za upload</p>
+                  <p className="text-sm font-bold text-slate-500">Bild hierher ziehen oder klicken zum Hochladen</p>
                 </div>
               )}
             </div>
@@ -260,7 +260,7 @@ export default function RuleEditor({
           <div className="flex gap-2 flex-wrap">
             <div className="flex-1 min-w-[200px]">
               <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
-                Kategorija
+                Kategorie
               </label>
               <select
                 value={categoryId}
@@ -289,7 +289,7 @@ export default function RuleEditor({
           {/* Video URL (opcionalno) */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
-              Video URL (opcionalno)
+              Video-URL (optional)
             </label>
             <input
               type="url"
@@ -303,33 +303,33 @@ export default function RuleEditor({
           {/* Prioritet */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
-              Prioritet
+              Priorität
             </label>
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as RulePriority)}
               className="w-full rounded-lg border border-slate-300 px-4 py-3 font-medium text-slate-800 focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] outline-none"
             >
-              <option value="INFORMATION">Informacija</option>
-              <option value="MANDATORY">Obavezno</option>
-              <option value="URGENT">Hitno</option>
+              <option value="INFORMATION">Information</option>
+              <option value="MANDATORY">Pflicht</option>
+              <option value="URGENT">Dringend</option>
             </select>
           </div>
 
           {/* Sadržaj */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
-              Sadržaj
+              Inhalt
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Tekst pravila (podrška za HTML ili običan tekst)"
+              placeholder="Dokumenttext (HTML oder Klartext)"
               rows={14}
               className="w-full rounded-lg border border-slate-300 px-4 py-3 font-medium text-slate-800 focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] outline-none resize-y"
             />
             <p className="text-xs text-slate-400 mt-1">
-              Možete koristiti HTML (naslovi, bold, liste). Za bogatiji editor dodajte TipTap ili React Quill.
+              HTML (Überschriften, Fett, Listen) wird unterstützt.
             </p>
           </div>
 
@@ -372,14 +372,14 @@ export default function RuleEditor({
               className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 disabled:opacity-50"
             >
               {uploadingPdf ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-              Dodaj PDF
+              PDF hinzufügen
             </button>
           </div>
 
           {/* Vidljivost */}
           <div>
             <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
-              Vidljivost
+              Sichtbarkeit
             </label>
             <label className="flex items-center gap-2 cursor-pointer mb-3">
               <input
@@ -388,7 +388,7 @@ export default function RuleEditor({
                 onChange={(e) => setIsGlobal(e.target.checked)}
                 className="rounded border-slate-300 text-[#1a3826] focus:ring-[#1a3826]"
               />
-              <span className="font-medium text-slate-800">Globalno (svi restorani)</span>
+              <span className="font-medium text-slate-800">Global (alle Restaurants)</span>
             </label>
             {!isGlobal && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200 p-3">
@@ -418,7 +418,7 @@ export default function RuleEditor({
               className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#1a3826] text-white font-black hover:bg-[#142e1e] disabled:opacity-60 transition shadow-lg"
             >
               {saving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
-              Sačuvaj
+              Speichern
             </button>
           </div>
         </div>
@@ -444,7 +444,7 @@ export default function RuleEditor({
                 type="text"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="Naziv kategorije"
+                placeholder="Kategoriename"
                 className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] outline-none"
               />
               <button

@@ -6,7 +6,7 @@ import NoPermission from "@/components/NoPermission";
 export default async function RestaurantsPage() {
   const accessResult = await tryRequirePermission("restaurants:access");
   if (!accessResult.ok) {
-    return <NoPermission moduleName="Restorani" />;
+    return <NoPermission moduleName="Standortverwaltung" />;
   }
 
   const restaurants = await prisma.restaurant.findMany({
@@ -15,7 +15,7 @@ export default async function RestaurantsPage() {
 
   const formatted = restaurants.map((r) => ({
     ...r,
-    name: r.name || "Nepoznat restoran",
+    name: r.name || "Unbekannt",
     city: r.city || "",
     address: r.address || "",
   }));

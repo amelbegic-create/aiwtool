@@ -77,15 +77,15 @@ export default function AdminRulesClient({
   }, [initialRules]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Sigurno obrisati pravilo?")) return;
+    if (!confirm("Dokument wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
     await deleteRule(id);
-    toast.success("Pravilo obrisano.");
+    toast.success("Dokument gelöscht.");
     router.refresh();
   };
 
   const handleToggleStatus = async (id: string, current: boolean) => {
     await toggleRuleStatus(id, current);
-    toast.success(current ? "Pravilo arhivirano." : "Pravilo aktivirano.");
+    toast.success(current ? "Dokument archiviert." : "Dokument aktiviert.");
     router.refresh();
   };
 
@@ -126,7 +126,7 @@ export default function AdminRulesClient({
               onChange={(e) => setFilterCategory(e.target.value)}
               className="px-4 py-2 bg-slate-50 border border-border rounded-lg text-sm font-medium text-foreground outline-none"
             >
-              <option value="SVE">Sve kategorije</option>
+              <option value="SVE">Alle Kategorien</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -139,19 +139,19 @@ export default function AdminRulesClient({
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-border bg-slate-50/80 text-xs font-black uppercase tracking-wider text-slate-600">
-                  <th className="p-4 w-24">Slika</th>
-                  <th className="p-4">Naslov</th>
-                  <th className="p-4">Kategorija</th>
+                  <th className="p-4 w-24">Bild</th>
+                  <th className="p-4">Titel</th>
+                  <th className="p-4">Kategorie</th>
                   <th className="p-4">Status</th>
-                  <th className="p-4">Statistika čitanja</th>
-                  <th className="p-4 text-right">Akcije</th>
+                  <th className="p-4">Lese-Statistik</th>
+                  <th className="p-4 text-right">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRules.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-12 text-center text-muted-foreground font-medium">
-                      Nema pravila za prikaz.
+                      Keine Dokumente gefunden.
                     </td>
                   </tr>
                 ) : (
@@ -169,7 +169,7 @@ export default function AdminRulesClient({
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 src={cover}
-                                alt={rule.title ? `Naslovnica: ${rule.title}` : "Naslovnica pravila"}
+                                alt={rule.title ? `Titelbild: ${rule.title}` : "Dokument"}
                                 className="object-cover w-full h-full min-w-full min-h-full"
                               />
                             ) : (
@@ -211,7 +211,7 @@ export default function AdminRulesClient({
                         <td className="p-4">
                           {summary ? (
                             <span className="text-sm font-medium text-foreground">
-                              {summary.readCount}/{summary.totalCount} pročitalo
+                              {summary.readCount}/{summary.totalCount} gelesen
                             </span>
                           ) : (
                             <span className="text-slate-400 text-sm">—</span>
@@ -230,14 +230,14 @@ export default function AdminRulesClient({
                               href={`/admin/rules/${rule.id}`}
                               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-foreground text-xs font-bold"
                             >
-                              <Edit2 size={14} /> Uredi
+                              <Edit2 size={14} /> Bearbeiten
                             </Link>
                             <button
                               type="button"
                               onClick={() => handleDelete(rule.id)}
                               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold"
                             >
-                              <Trash2 size={14} /> Obriši
+                              <Trash2 size={14} /> Löschen
                             </button>
                           </div>
                         </td>

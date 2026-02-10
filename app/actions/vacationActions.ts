@@ -39,7 +39,7 @@ async function resolveRestaurantIdForSessionUser(sessionUserId: string) {
   if (first) return first;
 
   const anyRest = await prisma.restaurant.findFirst({ select: { id: true } });
-  if (!anyRest) throw new Error("Nema restorana u sistemu.");
+  if (!anyRest) throw new Error("Kein Restaurant im System.");
   return anyRest.id;
 }
 
@@ -164,7 +164,7 @@ export async function addBlockedDay(date: string, reason: string) {
 
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) throw new Error("Greška u sesiji.");
+  if (!sessionUserId) throw new Error("Sitzungsfehler.");
 
   const restaurantId = await resolveRestaurantIdForSessionUser(sessionUserId);
 
@@ -220,7 +220,7 @@ export async function getUserTotalForYear(userId: string, year: number) {
       },
     },
   });
-  if (!user) throw new Error("Korisnik nije pronađen.");
+  if (!user) throw new Error("Benutzer nicht gefunden.");
 
   const vaThis = user.vacationAllowances?.find((a) => a.year === year);
   const vaPrev = user.vacationAllowances?.find((a) => a.year === year - 1);
@@ -278,18 +278,18 @@ export async function createVacationRequest(data: {
 }) {
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) throw new Error("Niste prijavljeni.");
+  if (!sessionUserId) throw new Error("Sie sind nicht angemeldet.");
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
     select: { id: true, supervisorId: true, isActive: true, role: true },
   });
-  if (!user) throw new Error("Korisnik nije pronađen.");
-  if (user.isActive === false) throw new Error("Korisnik nije aktivan.");
+  if (!user) throw new Error("Benutzer nicht gefunden.");
+  if (user.isActive === false) throw new Error("Benutzer ist nicht aktiv.");
 
   // ✅ chain-of-command: za role 3-5 nadređeni mora postojati (osim self-service admina)
   if (!isGodModeRole(user.role as Role) && !user.supervisorId) {
-    throw new Error("Nadređeni nije postavljen za vaš profil. Obratite se administratoru.");
+    throw new Error("Kein Vorgesetzter für Ihr Profil hinterlegt. Bitte wenden Sie sich an den Administrator.");
   }
 
   const restaurantId = await resolveRestaurantIdForSessionUser(sessionUserId);
@@ -301,11 +301,11 @@ export async function createVacationRequest(data: {
   const startDate = new Date(data.start);
   startDate.setHours(0, 0, 0, 0);
   if (startDate < tomorrow) {
-    throw new Error("Početni datum mora biti sutra ili kasnije. Ne možete poslati zahtjev za prošle dane.");
+    throw new Error("Das Startdatum muss morgen oder später liegen. Anträge für vergangene Tage sind nicht möglich.");
   }
 
   const totalDays = await calculateVacationDays(data.start, data.end, restaurantId);
-  if (totalDays === 0) throw new Error("Odabrani period nema radnih dana.");
+  if (totalDays === 0) throw new Error("Im gewählten Zeitraum gibt es keine Arbeitstage.");
 
   const year = yearFromISO(data.start);
   const { total } = await getUserTotalForYear(user.id, year);
@@ -313,7 +313,7 @@ export async function createVacationRequest(data: {
   const remaining = total - used;
 
   if (totalDays > remaining) {
-    throw new Error(`Nemate dovoljno dana godišnjeg. Preostalo: ${remaining} dana.`);
+    throw new Error(`Nicht genügend Urlaubstage verfügbar. Verbleibend: ${remaining} Tage.`);
   }
 
   // Self-service: SYSTEM_ARCHITECT / SUPER_ADMIN / ADMIN odmah APPROVED, bez notifikacija
@@ -339,18 +339,18 @@ export async function createVacationRequest(data: {
 export async function updateVacationRequest(id: string, data: { start: string; end: string }) {
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) throw new Error("Niste prijavljeni.");
+  if (!sessionUserId) throw new Error("Sie sind nicht angemeldet.");
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
     select: { id: true, supervisorId: true, role: true },
   });
-  if (!user) throw new Error("Greška.");
+  if (!user) throw new Error("Fehler.");
 
   const request = await prisma.vacationRequest.findUnique({ where: { id } });
-  if (!request) throw new Error("Zahtjev nije pronađen.");
-  if (request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
-  if (request.status !== "PENDING") throw new Error("Možete uređivati samo zahtjev u statusu PENDING.");
+  if (!request) throw new Error("Antrag nicht gefunden.");
+  if (request.userId !== user.id) throw new Error("Das ist nicht Ihr Antrag.");
+  if (request.status !== "PENDING") throw new Error("Nur Anträge mit Status „Ausstehend“ können bearbeitet werden.");
 
   // Zahtjev mora biti od sutra – ne može se uzeti od jučer ili danas
   const tomorrow = new Date();
@@ -359,13 +359,13 @@ export async function updateVacationRequest(id: string, data: { start: string; e
   const startDate = new Date(data.start);
   startDate.setHours(0, 0, 0, 0);
   if (startDate < tomorrow) {
-    throw new Error("Početni datum mora biti sutra ili kasnije. Ne možete poslati zahtjev za prošle dane.");
+    throw new Error("Das Startdatum muss morgen oder später liegen. Anträge für vergangene Tage sind nicht möglich.");
   }
 
   const restaurantId = request.restaurantId;
 
   const totalDays = await calculateVacationDays(data.start, data.end, restaurantId);
-  if (totalDays === 0) throw new Error("Odabrani period nema radnih dana.");
+  if (totalDays === 0) throw new Error("Im gewählten Zeitraum gibt es keine Arbeitstage.");
 
   const year = yearFromISO(data.start);
   const { total } = await getUserTotalForYear(user.id, year);
@@ -373,7 +373,7 @@ export async function updateVacationRequest(id: string, data: { start: string; e
   const remaining = total - used;
 
   if (totalDays > remaining) {
-    throw new Error(`Nemate dovoljno dana godišnjeg. Preostalo: ${remaining} dana.`);
+    throw new Error(`Nicht genügend Urlaubstage verfügbar. Verbleibend: ${remaining} Tage.`);
   }
 
   await prisma.vacationRequest.update({
@@ -403,7 +403,7 @@ export async function updateVacationStatus(requestId: string, status: string) {
 
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) throw new Error("Niste prijavljeni.");
+  if (!sessionUserId) throw new Error("Sie sind nicht angemeldet.");
 
   const actingUser = await prisma.user.findUnique({
     where: { id: sessionUserId },
@@ -413,7 +413,7 @@ export async function updateVacationStatus(requestId: string, status: string) {
       restaurants: { select: { restaurantId: true } },
     },
   });
-  if (!actingUser) throw new Error("Korisnik nije pronađen.");
+  if (!actingUser) throw new Error("Benutzer nicht gefunden.");
 
   const req = await prisma.vacationRequest.findUnique({
     where: { id: requestId },
@@ -423,29 +423,29 @@ export async function updateVacationStatus(requestId: string, status: string) {
       user: { select: { id: true, role: true } },
     },
   });
-  if (!req) throw new Error("Zahtjev nije pronađen.");
+  if (!req) throw new Error("Antrag nicht gefunden.");
 
   const god = isGodModeRole(actingUser.role);
   const isAdmin = actingUser.role === "ADMIN";
 
   if (!god && !isAdmin) {
     if (req.supervisorId !== actingUser.id) {
-      throw new Error("Nemate pravo odobriti ovaj zahtjev. Obratite se administratoru.");
+      throw new Error("Sie sind nicht berechtigt, diesen Antrag zu genehmigen. Bitte wenden Sie sich an den Administrator.");
     }
     if (actingUser.role === "MANAGER") {
       const managerRestaurantIds = (actingUser.restaurants ?? []).map((r) => r.restaurantId);
       const requestRestaurantId = req.restaurantId;
       if (!requestRestaurantId || !managerRestaurantIds.includes(requestRestaurantId)) {
-        throw new Error("Pristup odbijen: zahtjev je iz drugog restorana.");
+        throw new Error("Zugriff verweigert: Der Antrag stammt von einem anderen Restaurant.");
       }
       if (req.user?.role !== "CREW") {
-        throw new Error("Manager može odobravati samo zahtjeve radnika (Crew), ne drugih managera.");
+        throw new Error("Manager dürfen nur Anträge von Mitarbeitern (Crew) genehmigen, nicht von anderen Managern.");
       }
     }
   }
 
   if (!ALLOWED_STATUS_TRANSITIONS.has(status)) {
-    throw new Error(`Nedozvoljen status: ${status}`);
+    throw new Error(`Ungültiger Status: ${status}`);
   }
 
   await prisma.vacationRequest.update({
@@ -460,14 +460,14 @@ export async function updateVacationStatus(requestId: string, status: string) {
 export async function cancelVacationRequest(requestId: string) {
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) throw new Error("Niste prijavljeni.");
+  if (!sessionUserId) throw new Error("Sie sind nicht angemeldet.");
 
   const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
-  if (!user) throw new Error("Greška.");
+  if (!user) throw new Error("Fehler.");
 
   const request = await prisma.vacationRequest.findUnique({ where: { id: requestId } });
-  if (!request) throw new Error("Zahtjev nije pronađen.");
-  if (request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
+  if (!request) throw new Error("Antrag nicht gefunden.");
+  if (request.userId !== user.id) throw new Error("Das ist nicht Ihr Antrag.");
 
   if (request.status === "PENDING") {
     await prisma.vacationRequest.delete({ where: { id: requestId } });
@@ -477,7 +477,7 @@ export async function cancelVacationRequest(requestId: string) {
       data: { status: "CANCEL_PENDING" },
     });
   } else {
-    throw new Error("Ne možete otkazati ovaj zahtjev.");
+    throw new Error("Dieser Antrag kann nicht storniert werden.");
   }
 
   revalidatePath("/tools/vacations");
@@ -486,16 +486,16 @@ export async function cancelVacationRequest(requestId: string) {
 export async function deleteVacationRequest(requestId: string) {
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) throw new Error("Niste prijavljeni.");
+  if (!sessionUserId) throw new Error("Sie sind nicht angemeldet.");
 
   const user = await prisma.user.findUnique({ where: { id: sessionUserId } });
-  if (!user) throw new Error("Greška.");
+  if (!user) throw new Error("Fehler.");
 
   const request = await prisma.vacationRequest.findUnique({ where: { id: requestId } });
-  if (!request) throw new Error("Zahtjev ne postoji.");
+  if (!request) throw new Error("Antrag existiert nicht.");
 
   const isAdminLike = ["ADMIN", "SYSTEM_ARCHITECT", "SUPER_ADMIN", "MANAGER"].includes(String(user.role));
-  if (!isAdminLike && request.userId !== user.id) throw new Error("Nije vaš zahtjev.");
+  if (!isAdminLike && request.userId !== user.id) throw new Error("Das ist nicht Ihr Antrag.");
 
   await prisma.vacationRequest.delete({ where: { id: requestId } });
   revalidatePath("/tools/vacations");

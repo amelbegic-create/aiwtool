@@ -23,7 +23,7 @@ export default function RuleStatsModal({ ruleId, ruleTitle, open, onClose }: Rul
     setError(null);
     getRuleStats(ruleId)
       .then(setData)
-      .catch((e) => setError(e?.message || "Greška u učitavanju."))
+      .catch((e) => setError(e?.message || "Fehler beim Laden."))
       .finally(() => setLoading(false));
   }, [open, ruleId]);
 
@@ -50,7 +50,7 @@ export default function RuleStatsModal({ ruleId, ruleTitle, open, onClose }: Rul
             </div>
             <div>
               <h2 id="stats-modal-title" className="text-lg font-black text-white">
-                Statistika čitanja
+                Lese-Statistik
               </h2>
               <p className="text-sm text-white/80 truncate max-w-md">{ruleTitle}</p>
             </div>
@@ -70,7 +70,7 @@ export default function RuleStatsModal({ ruleId, ruleTitle, open, onClose }: Rul
           {loading && (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 size={32} className="animate-spin text-[#1a3826]" />
-              <p className="mt-3 text-sm font-medium text-slate-500">Učitavanje…</p>
+              <p className="mt-3 text-sm font-medium text-slate-500">Laden…</p>
             </div>
           )}
 
@@ -85,7 +85,7 @@ export default function RuleStatsModal({ ruleId, ruleTitle, open, onClose }: Rul
               {/* Progress */}
               <div className="mb-6">
                 <div className="flex justify-between text-sm font-bold text-slate-700 mb-2">
-                  <span>Pročitano</span>
+                  <span>Gelesen</span>
                   <span>
                     {readCount} / {total} ({progressPct}%)
                   </span>
@@ -132,11 +132,11 @@ export default function RuleStatsModal({ ruleId, ruleTitle, open, onClose }: Rul
                 <div>
                   <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-600 mb-3">
                     <Circle size={16} />
-                    Nisu pročitali ({data.unread.length})
+                    Nicht gelesen ({data.unread.length})
                   </h3>
                   <ul className="space-y-2 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
                     {data.unread.length === 0 ? (
-                      <li className="text-sm text-emerald-600 font-medium">Svi su pročitali.</li>
+                      <li className="text-sm text-emerald-600 font-medium">Alle haben gelesen.</li>
                     ) : (
                       data.unread.map((u) => (
                         <li

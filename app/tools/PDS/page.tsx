@@ -15,17 +15,19 @@ const db = prisma as any;
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
-export default async function PDSDashboard(props: { searchParams: Promise<{ year?: string }> }) {
+export default async function PDSDashboard(props: { searchParams: Promise<{ year?: string; restaurantId?: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return redirect("/");
 
   const accessResult = await tryRequirePermission("pds:access");
   if (!accessResult.ok) {
-    return <NoPermission moduleName="PDS sistem" />;
+    return <NoPermission moduleName="PDS (Beurteilung)" />;
   }
 
+  const searchParams = await props.searchParams;
   const cookieStore = await cookies();
-  const activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
+  const activeRestaurantIdFromCookie = cookieStore.get('activeRestaurantId')?.value;
+  const restaurantIdFromUrl = searchParams.restaurantId;
 
   const currentUser = await prisma.user.findUnique({
     where: { email: session.user.email },
@@ -36,25 +38,28 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   const isManagerView = isAdminOrGod || isManager;
   const managerRestaurantIds = (currentUser?.restaurants ?? []).map((r) => r.restaurantId);
 
-  const allowedRestaurantId =
-    isManager && activeRestaurantId && managerRestaurantIds.includes(activeRestaurantId)
-      ? activeRestaurantId
-      : isManager && managerRestaurantIds.length > 0
-        ? managerRestaurantIds[0]
-        : activeRestaurantId;
-
-  if (!allowedRestaurantId) {
-    return <div className="p-10 text-center">Molimo odaberite restoran.</div>;
-  }
-
-  const searchParams = await props.searchParams;
-  const selectedYear = searchParams.year ? parseInt(searchParams.year) : new Date().getFullYear();
-
   const restaurants = await prisma.restaurant.findMany({
     where: { isActive: true },
     select: { id: true, name: true, code: true },
     orderBy: { name: 'asc' }
   });
+  const allRestaurantIds = restaurants.map((r) => r.id);
+  const availableRestaurantIds = isAdminOrGod ? allRestaurantIds : managerRestaurantIds;
+
+  const allowedRestaurantId =
+    (restaurantIdFromUrl && (availableRestaurantIds.length === 0 || availableRestaurantIds.includes(restaurantIdFromUrl)))
+      ? restaurantIdFromUrl
+      : (activeRestaurantIdFromCookie && (availableRestaurantIds.length === 0 || availableRestaurantIds.includes(activeRestaurantIdFromCookie)))
+        ? activeRestaurantIdFromCookie
+        : availableRestaurantIds.length > 0
+          ? availableRestaurantIds[0]
+          : null;
+
+  if (!allowedRestaurantId) {
+    return <div className="p-10 text-center text-slate-600">Bitte wählen Sie ein Restaurant.</div>;
+  }
+
+  const selectedYear = searchParams.year ? parseInt(searchParams.year) : new Date().getFullYear();
 
   const template = await getTemplateForRestaurantAndYear(allowedRestaurantId, selectedYear);
   
@@ -77,9 +82,9 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
         <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-slate-200 pb-6 print:hidden">
           <div>
             <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">
-              PDS <span className="text-[#FFC72C]">EVALUACIJE</span>
+              PDS <span className="text-[#FFC72C]">BEURTEILUNG</span>
             </h1>
-            <p className="text-slate-500 text-sm font-medium">Upravljanje učinkom i razvojem zaposlenika</p>
+            <p className="text-slate-500 text-sm font-medium">Mitarbeiterbeurteilung und -entwicklung</p>
           </div>
           
           <div className="flex flex-col items-end gap-4">
@@ -88,7 +93,7 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
               {YEARS.map(y => (
                 <Link 
                   key={y} 
-                  href={`/tools/PDS?year=${y}`} 
+                  href={`/tools/PDS?year=${y}${allowedRestaurantId ? `&restaurantId=${allowedRestaurantId}` : ''}`} 
                   className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                     selectedYear === y 
                     ? 'bg-[#1a3826] text-white shadow-sm' 

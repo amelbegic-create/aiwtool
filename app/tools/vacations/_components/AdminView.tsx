@@ -127,12 +127,13 @@ function resolveDeptRGB(user: { department?: string | null; departmentColor?: st
 }
 
 function statusLabel(s: string) {
-  if (s === "APPROVED") return "ODOBRENO";
-  if (s === "REJECTED") return "ODBIJENO";
-  if (s === "PENDING") return "NA ČEKANJU";
-  if (s === "RETURNED") return "VRAĆENO";
-  if (s === "CANCEL_PENDING") return "ČEKA PONIŠTENJE";
-  if (s === "CANCELLED") return "PONIŠTENO";
+  if (s === "APPROVED") return "Genehmigt";
+  if (s === "REJECTED") return "Abgelehnt";
+  if (s === "PENDING") return "Ausstehend";
+  if (s === "RETURNED") return "Zur Überarbeitung";
+  if (s === "CANCEL_PENDING") return "Stornierung ausstehend";
+  if (s === "CANCELLED") return "Storniert";
+  if (s === "COMPLETED") return "Abgeschlossen";
   return s;
 }
 
@@ -269,30 +270,30 @@ export default function AdminView({
     status: "APPROVED" | "REJECTED" | "RETURNED" | "CANCELLED" | "PENDING"
   ) => {
     const messages: Record<string, string> = {
-      APPROVED: "Odobriti ovaj zahtjev?",
-      REJECTED: "Odbiti ovaj zahtjev?",
-      RETURNED: "Vratiti zahtjev radniku na doradu?",
-      CANCELLED: "Odobriti poništenje godišnjeg odmora? Ovo će osloboditi dane radniku.",
-      PENDING: "Vratiti zahtjev u status „Na čekanju”?",
+      APPROVED: "Diesen Antrag genehmigen?",
+      REJECTED: "Diesen Antrag ablehnen?",
+      RETURNED: "Antrag zur Überarbeitung an den Mitarbeiter zurücksenden?",
+      CANCELLED: "Stornierung des Urlaubs genehmigen? Die Tage werden dem Mitarbeiter wieder gutgeschrieben.",
+      PENDING: "Antrag wieder auf „Ausstehend“ setzen?",
     };
     if (confirm(messages[status])) {
       await updateVacationStatus(id, status);
       toast.success(
         status === "APPROVED"
-          ? "Zahtjev odobren."
+          ? "Antrag genehmigt."
           : status === "REJECTED"
-            ? "Zahtjev odbijen."
+            ? "Antrag abgelehnt."
             : status === "CANCELLED"
-              ? "Poništenje odobreno."
-              : "Status ažuriran."
+              ? "Stornierung genehmigt."
+              : "Status aktualisiert."
       );
       router.refresh();
     }
   };
 
   const handleAddBlocked = async () => {
-    if (!newBlockedDate) return alert("Odaberite datum");
-    await addBlockedDay(newBlockedDate, newBlockedReason || "Praznik");
+    if (!newBlockedDate) return alert("Bitte Datum wählen.");
+    await addBlockedDay(newBlockedDate, newBlockedReason || "Feiertag");
     setNewBlockedDate("");
     setNewBlockedReason("");
   };
@@ -305,23 +306,23 @@ export default function AdminView({
     const userRequests = allRequests.filter((r) => r.user.id === user.id);
 
     drawPdfHeader(doc, {
-      title: "Status godišnjih odmora",
-      subtitle: `Generirano: ${formatDate(new Date().toISOString())}`,
+      title: "Urlaubsübersicht",
+      subtitle: `Erstellt: ${formatDate(new Date().toISOString())}`,
       restaurantName: user.restaurantNames?.[0] ?? undefined,
       year: selectedYear,
     });
 
-    // Card: zaposlenik
+    // Card: Mitarbeiter
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text(`Zaposlenik: ${user.name || "N/A"}`, 14, 45);
+    doc.text(`Mitarbeiter: ${user.name || "N/A"}`, 14, 45);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
-    doc.text(`Email: ${user.email || "N/A"}`, 14, 52);
-    doc.text(`Odjel: ${user.department || "N/A"}`, 14, 58);
+    doc.text(`E-Mail: ${user.email || "N/A"}`, 14, 52);
+    doc.text(`Abteilung: ${user.department || "N/A"}`, 14, 58);
 
     // KPI boxovi – smanjeni, svi brojevi crni, centrirani
     const startY = 66;
@@ -331,42 +332,43 @@ export default function AdminView({
 
     const boxCenterX = (x: number) => x + boxW / 2;
 
-    // Ukupno – siva pozadina, crni broj
+    // Gesamt
     doc.setFillColor(241, 245, 249);
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(14, startY, boxW, boxH, 2, 2, "FD");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7);
     doc.setTextColor(71, 85, 105);
-    doc.text("UKUPNO DANA", boxCenterX(14), startY + 5.5, { align: "center" });
+    doc.text("GESAMT", boxCenterX(14), startY + 5.5, { align: "center" });
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
     doc.text(String(user.total), boxCenterX(14), startY + 13, { align: "center" });
 
-    // Iskorišteno – žuta (#FFC72C), crni broj
+    // Verbraucht
     doc.setFillColor(255, 199, 44);
     doc.setDrawColor(230, 180, 40);
     doc.roundedRect(14 + boxW + boxGap, startY, boxW, boxH, 2, 2, "FD");
     doc.setFontSize(7);
     doc.setTextColor(26, 56, 38);
-    doc.text("ISKORIŠTENO", boxCenterX(14 + boxW + boxGap), startY + 5.5, { align: "center" });
+    doc.text("VERBRAUCHT", boxCenterX(14 + boxW + boxGap), startY + 5.5, { align: "center" });
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
     doc.text(String(user.used), boxCenterX(14 + boxW + boxGap), startY + 13, { align: "center" });
 
-    // Preostalo – zelena (#1a3826), crni broj
+    // Resturlaub
     doc.setFillColor(26, 56, 38);
     doc.setDrawColor(26, 56, 38);
     doc.roundedRect(14 + (boxW + boxGap) * 2, startY, boxW, boxH, 2, 2, "FD");
     doc.setFontSize(7);
     doc.setTextColor(255, 255, 255);
-    doc.text("PREOSTALO", boxCenterX(14 + (boxW + boxGap) * 2), startY + 5.5, { align: "center" });
+    doc.text("RESTURLAUB", boxCenterX(14 + (boxW + boxGap) * 2), startY + 5.5, { align: "center" });
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
     doc.text(String(user.remaining), boxCenterX(14 + (boxW + boxGap) * 2), startY + 13, { align: "center" });
 
     const tableBody = userRequests.map((req) => [
-      `${formatDate(req.start)} - ${formatDate(req.end)}`,
+      formatDate(req.start),
+      formatDate(req.end),
       req.days,
       statusLabel(req.status),
     ]);
@@ -374,7 +376,7 @@ export default function AdminView({
     // Clean tabela: bez “teškog grida”
     autoTable(doc, {
       startY: startY + 26,
-      head: [["Period", "Dana", "Status"]],
+      head: [["Von", "Bis", "Tage", "Status"]],
       body: tableBody,
       theme: "plain",
       styles: {
@@ -394,16 +396,17 @@ export default function AdminView({
       },
       bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0] },
       columnStyles: {
-        0: { halign: "left", cellWidth: 110 },
-        1: { halign: "center", cellWidth: 20 },
-        2: { halign: "center", cellWidth: 50 },
+        0: { halign: "left", cellWidth: 45 },
+        1: { halign: "left", cellWidth: 45 },
+        2: { halign: "center", cellWidth: 20 },
+        3: { halign: "center", cellWidth: 50 },
       },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       margin: { left: 14, right: 14 },
     });
 
-    const safeName = (user.name || "Korisnik").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
-    doc.save(`Izvjestaj_${safeName}_${selectedYear}.pdf`);
+    const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
+    doc.save(`Bericht_${safeName}_${selectedYear}.pdf`);
   };
 
   // =====================================================================
@@ -414,7 +417,7 @@ export default function AdminView({
 
     const doc = new jsPDF();
     drawPdfHeader(doc, {
-      title: "Status godišnjih odmora",
+      title: "Urlaubsübersicht",
       subtitle: reportRestaurantLabel || undefined,
       restaurantName: reportRestaurantLabel,
       year: selectedYear,
@@ -422,7 +425,7 @@ export default function AdminView({
     });
 
     const restaurantDisplay = (names: string[]) =>
-      names.length > 2 ? "Svi restorani" : names.join(", ");
+      names.length > 2 ? "Alle Restaurants" : names.join(", ");
 
     const data = statsToUse.map((u) => [
       u.name || "N/A",
@@ -439,7 +442,7 @@ export default function AdminView({
     const tableWidth = pageWidth - margin * 2;
     autoTable(doc, {
       startY: 50,
-      head: [["Ime i prezime", "Odjel", "Restorani", "Preneseno", "Ukupno", "Iskorišteno", "Preostalo"]],
+      head: [["Name", "Abteilung", "Restaurants", "Vortrag", "Gesamt", "Verbraucht", "Resturlaub"]],
       body: data,
       theme: "plain",
       styles: {
@@ -480,7 +483,7 @@ export default function AdminView({
       margin: { left: margin, right: margin },
     });
 
-    doc.save(`Tabela_Godisnjih_${selectedYear}.pdf`);
+    doc.save(`Tabelle_Urlaub_${selectedYear}.pdf`);
   };
 
   // =====================================================================
@@ -507,7 +510,7 @@ export default function AdminView({
     const rowHeight = 9; // malo kompaktnije i “clean”
 
     drawPdfHeader(doc, {
-      title: "Globalni plan i raspored",
+      title: "Übersichtsplan und Verteilung",
       subtitle: reportRestaurantLabel || undefined,
       year: selectedYear,
       headerHeight: 42,
@@ -553,7 +556,7 @@ export default function AdminView({
       if (currentY > height - marginBottom) {
         doc.addPage();
         drawPdfHeader(doc, {
-          title: "Globalni plan i raspored",
+          title: "Übersichtsplan und Verteilung",
           subtitle: reportRestaurantLabel || undefined,
           year: selectedYear,
           headerHeight: 42,
@@ -647,7 +650,7 @@ export default function AdminView({
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105);
-    doc.text("Crvena linija = praznik unutar godišnjeg.", 15, legendY);
+    doc.text("Rote Linie = Feiertag innerhalb des Urlaubs.", 15, legendY);
 
     legendY += 10;
     const boxW = 5;
@@ -672,7 +675,7 @@ export default function AdminView({
       legendX += boxW + gap + labelW + itemGap;
     });
 
-    doc.save(filename ?? `Globalni_Plan_${selectedYear}.pdf`);
+    doc.save(filename ?? `Uebersichtsplan_${selectedYear}.pdf`);
   };
 
   const handleGlobalExport = async () => {
@@ -681,7 +684,7 @@ export default function AdminView({
       const globalData = await getGlobalVacationStats(selectedYear);
       exportTimelinePDF(globalData.usersStats, globalData.allRequests as any);
     } catch {
-      alert("Greška pri dohvatu globalnih podataka.");
+      alert("Fehler beim Laden der globalen Daten.");
     } finally {
       setLoadingGlobal(false);
     }
@@ -718,7 +721,7 @@ export default function AdminView({
 
   const handleDeptExportPDF = () => {
     if (!deptExportData || selectedDeptNamesForExport.length === 0) {
-      alert("Odaberite barem jedan odjel.");
+      alert("Bitte wählen Sie mindestens eine Abteilung.");
       return;
     }
     const deptSet = new Set(selectedDeptNamesForExport);
@@ -744,11 +747,11 @@ export default function AdminView({
     const start = myVacationStart.trim();
     const end = myVacationEnd.trim();
     if (!start || !end) {
-      alert("Odaberite datum od i datum do.");
+      alert("Bitte wählen Sie Von- und Bis-Datum.");
       return;
     }
     if (new Date(end) < new Date(start)) {
-      alert("Datum do mora biti nakon datuma od.");
+      alert("Das Bis-Datum muss nach dem Von-Datum liegen.");
       return;
     }
     setMyVacationSubmitting(true);
@@ -758,14 +761,14 @@ export default function AdminView({
         end,
         note: myVacationNote.trim() || undefined,
       });
-      toast.success("Zahtjev za godišnji poslan i odobren.");
+      toast.success("Antrag gestellt und genehmigt.");
       setMyVacationModalOpen(false);
       setMyVacationStart("");
       setMyVacationEnd("");
       setMyVacationNote("");
       router.refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Greška pri registraciji godišnjeg.");
+      alert(err instanceof Error ? err.message : "Fehler bei der Urlaubserfassung.");
     } finally {
       setMyVacationSubmitting(false);
     }
@@ -780,16 +783,16 @@ export default function AdminView({
         <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
-              ADMIN <span className="text-[#FFC72C]">GODIŠNJI</span>
+              ADMIN <span className="text-[#FFC72C]">URLAUB</span>
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Upravljanje odsustvima (<span className="font-bold text-foreground">{selectedYear}.</span> godina)
+              Verwaltung von Abwesenheiten (<span className="font-bold text-foreground">{selectedYear}</span>)
             </p>
             <div className="mt-3 flex items-center gap-2">
               {isPending && (
                 <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <Loader2 size={14} className="animate-spin shrink-0" />
-                  Učitavanje…
+                  Laden…
                 </span>
               )}
               <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full">
@@ -818,7 +821,7 @@ export default function AdminView({
                   activeTab === "STATS" ? "bg-[#FFC72C] text-[#1a3826]" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
-                STATISTIKA
+                STATISTIK
               </button>
 
               <button
@@ -827,7 +830,7 @@ export default function AdminView({
                   activeTab === "REQUESTS" ? "bg-[#1a3826] text-white" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
-                ZAHTJEVI
+                ANTRÄGE
                 {hasPendingRequests && (
                   <span className="flex h-2.5 w-2.5 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -842,7 +845,7 @@ export default function AdminView({
                   activeTab === "BLOCKED" ? "bg-[#1a3826] text-white" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
-                PRAZNICI
+                FEIERTAGE
               </button>
             </div>
 
@@ -853,7 +856,7 @@ export default function AdminView({
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm border border-emerald-700/30 transition-all"
               >
                 <CalendarPlus size={16} />
-                Registruj Moj Godišnji
+                Meinen Urlaub eintragen
               </button>
             )}
           </div>
@@ -866,7 +869,7 @@ export default function AdminView({
               <Search size={16} className="text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Traži radnika (ime, odjel, restoran)..."
+                placeholder="Mitarbeiter suchen (Name, Abteilung, Restaurant)…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="bg-transparent outline-none text-sm font-bold text-foreground w-full md:w-80 placeholder:text-muted-foreground"
@@ -879,14 +882,14 @@ export default function AdminView({
                   onClick={() => exportTablePDF()}
                   className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-xs font-bold text-foreground hover:bg-accent transition-all"
                 >
-                  <FileSpreadsheet size={16} /> TABELA (CLEAN)
+                  <FileSpreadsheet size={16} /> TABELLE
                 </button>
 
                 <button
                   onClick={() => exportTimelinePDF()}
                   className="flex items-center gap-2 px-4 py-2 bg-[#FFC72C] hover:bg-[#e0af25] rounded-lg text-xs font-black text-[#1a3826] transition-all"
                 >
-                  <FileBarChart size={16} /> PLAN (TRENUTNI)
+                  <FileBarChart size={16} /> PLAN (AKTUELL)
                 </button>
 
                 <button
@@ -894,7 +897,7 @@ export default function AdminView({
                   disabled={loadingGlobal}
                   className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e] disabled:opacity-70"
                 >
-                  <Globe size={16} /> {loadingGlobal ? "UČITAVANJE..." : "GLOBALNI EXPORT"}
+                  <Globe size={16} /> {loadingGlobal ? "LADEN…" : "GLOBALER EXPORT"}
                 </button>
 
                 <button
@@ -903,7 +906,7 @@ export default function AdminView({
                   className="flex items-center gap-2 px-4 py-2 bg-slate-700 dark:bg-slate-600 text-white rounded-lg text-xs font-black transition-all hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-70"
                 >
                   <FileBarChart size={16} />
-                  {loadingDeptExport ? "UČITAVANJE..." : "EXPORT PO ODJELIMA"}
+                  {loadingDeptExport ? "LADEN…" : "EXPORT NACH ABTEILUNGEN"}
                 </button>
               </div>
             )}
@@ -914,9 +917,9 @@ export default function AdminView({
         {deptExportModalOpen && deptExportData && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="bg-card rounded-xl shadow-xl max-w-sm w-full p-6 border border-border">
-              <h3 className="text-lg font-bold text-card-foreground mb-1">Export po odjelima</h3>
+              <h3 className="text-lg font-bold text-card-foreground mb-1">Export nach Abteilungen</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Odaberite odjele za godišnji plan ({selectedYear}). Preuzet će se PDF samo s tim odjelima.
+                Wählen Sie Abteilungen für den Urlaubsplan ({selectedYear}). Es wird eine PDF nur mit diesen Abteilungen erstellt.
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
                 {uniqueDeptNames.map((name) => (
@@ -943,7 +946,7 @@ export default function AdminView({
                   }}
                   className="flex-1 px-4 py-2.5 rounded-lg font-medium text-muted-foreground hover:bg-accent"
                 >
-                  Odustani
+                  Abbrechen
                 </button>
                 <button
                   type="button"
@@ -951,7 +954,7 @@ export default function AdminView({
                   disabled={selectedDeptNamesForExport.length === 0}
                   className="flex-1 px-4 py-2.5 rounded-lg font-bold bg-[#1a3826] text-white hover:bg-[#142d1f] disabled:opacity-50"
                 >
-                  Preuzmi PDF
+                  PDF herunterladen
                 </button>
               </div>
             </div>
@@ -962,14 +965,14 @@ export default function AdminView({
         {myVacationModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border">
-              <h3 className="text-lg font-bold text-card-foreground mb-1">Registruj Moj Godišnji</h3>
+              <h3 className="text-lg font-bold text-card-foreground mb-1">Meinen Urlaub eintragen</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Unesite period godišnjeg odmora. Zahtjev će biti automatski odobren (samo za administratore).
+                Geben Sie den Zeitraum ein. Der Antrag wird automatisch genehmigt (nur für Administratoren).
               </p>
               <form onSubmit={handleSubmitMyVacation} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                    Datum od
+                    Von
                   </label>
                   <input
                     type="date"
@@ -981,7 +984,7 @@ export default function AdminView({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                    Datum do
+                    Bis
                   </label>
                   <input
                     type="date"
@@ -993,13 +996,13 @@ export default function AdminView({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                    Napomena (opcionalno)
+                    Anmerkung (optional)
                   </label>
                   <textarea
                     value={myVacationNote}
                     onChange={(e) => setMyVacationNote(e.target.value)}
                     rows={3}
-                    placeholder="Dodatna napomena..."
+                    placeholder="Zusätzliche Anmerkung…"
                     className="w-full px-4 py-2.5 rounded-lg border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] resize-none"
                   />
                 </div>
@@ -1014,7 +1017,7 @@ export default function AdminView({
                     }}
                     className="flex-1 px-4 py-2.5 rounded-lg font-medium text-muted-foreground hover:bg-accent"
                   >
-                    Odustani
+                    Abbrechen
                   </button>
                   <button
                     type="submit"
@@ -1024,10 +1027,10 @@ export default function AdminView({
                     {myVacationSubmitting ? (
                       <>
                         <Loader2 size={16} className="animate-spin" />
-                        Šaljem…
+                        Wird gesendet…
                       </>
                     ) : (
-                      "Registruj"
+                      "Eintragen"
                     )}
                   </button>
                 </div>
@@ -1040,15 +1043,15 @@ export default function AdminView({
         {activeTab === "STATS" && (
           <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
             <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/80 border-b border-border text-[10px] font-black text-muted-foreground uppercase">
-              <div className="col-span-3">Zaposlenik</div>
-              <div className="col-span-3">Restorani</div>
+              <div className="col-span-3">Mitarbeiter</div>
+              <div className="col-span-3">Restaurants</div>
               <div className="col-span-4 grid grid-cols-4 text-center">
-                <span>Preneseno</span>
-                <span>Ukupno</span>
-                <span>Iskorišteno</span>
-                <span>Preostalo</span>
+                <span>Vortrag</span>
+                <span>Gesamt</span>
+                <span>Verbraucht</span>
+                <span>Resturlaub</span>
               </div>
-              <div className="col-span-2 text-right">Izvještaj</div>
+              <div className="col-span-2 text-right">Bericht</div>
             </div>
             <div className="divide-y divide-border">
               {filteredStats.map((u) => (
@@ -1104,12 +1107,12 @@ export default function AdminView({
             <table className="w-full text-left">
               <thead className="bg-muted/80 text-muted-foreground font-bold text-xs uppercase">
                 <tr>
-                  <th className="p-4 pl-6">Radnik</th>
-                  <th className="p-4">Restoran</th>
-                  <th className="p-4">Period</th>
-                  <th className="p-4 text-center">Dana</th>
+                  <th className="p-4 pl-6">Mitarbeiter</th>
+                  <th className="p-4">Restaurant</th>
+                  <th className="p-4">Zeitraum</th>
+                  <th className="p-4 text-center">Tage</th>
                   <th className="p-4">Status</th>
-                  <th className="p-4 text-right pr-6">Akcija</th>
+                  <th className="p-4 text-right pr-6">Aktion</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -1146,7 +1149,7 @@ export default function AdminView({
                         }`}
                       >
                         {req.status === "CANCEL_PENDING"
-                          ? "TRAŽI PONIŠTENJE"
+                          ? "STORNIERUNG BEANTRAGT"
                           : statusLabel(req.status)}
                       </span>
                     </td>
@@ -1158,19 +1161,19 @@ export default function AdminView({
                               onClick={() => handleStatus(req.id, "APPROVED")}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg text-xs font-bold transition-colors"
                             >
-                              <Check size={14} /> Odobri
+                              <Check size={14} /> Genehmigen
                             </button>
                             <button
                               onClick={() => handleStatus(req.id, "RETURNED")}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-lg text-xs font-bold transition-colors"
                             >
-                              <RotateCcw size={14} /> Vrati
+                              <RotateCcw size={14} /> Zurück
                             </button>
                             <button
                               onClick={() => handleStatus(req.id, "REJECTED")}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
                             >
-                              <X size={14} /> Odbij
+                              <X size={14} /> Ablehnen
                             </button>
                           </>
                         )}
@@ -1188,13 +1191,13 @@ export default function AdminView({
                               onClick={() => handleStatus(req.id, "CANCELLED")}
                               className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-red-700 shadow-md active:scale-95"
                             >
-                              <Trash2 size={14} /> Odobri poništenje
+                              <Trash2 size={14} /> Stornierung genehmigen
                             </button>
                             <button
                               onClick={() => handleStatus(req.id, "APPROVED")}
                               className="flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-accent text-foreground rounded-lg text-[10px] font-bold uppercase"
                             >
-                              <RotateCcw size={14} /> Vrati (zadrži odobrenje)
+                              <RotateCcw size={14} /> Zurück (Genehmigung beibehalten)
                             </button>
                           </>
                         )}
@@ -1215,7 +1218,7 @@ export default function AdminView({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-card p-6 rounded-2xl shadow-sm border border-border h-fit">
               <h3 className="font-bold text-card-foreground mb-4 flex items-center gap-2">
-                <Calendar className="text-[#1a3826]" size={20} /> Novi Praznik
+                <Calendar className="text-[#1a3826]" size={20} /> Neuer Feiertag
               </h3>
               <div className="space-y-4">
                 <input
@@ -1226,7 +1229,7 @@ export default function AdminView({
                 />
                 <input
                   type="text"
-                  placeholder="Naziv Praznika"
+                  placeholder="Bezeichnung des Feiertags"
                   className="w-full border border-border p-3 rounded-xl outline-none text-sm font-bold text-foreground bg-card"
                   value={newBlockedReason}
                   onChange={(e) => setNewBlockedReason(e.target.value)}
@@ -1235,14 +1238,14 @@ export default function AdminView({
                   onClick={handleAddBlocked}
                   className="w-full bg-[#1a3826] hover:bg-[#142e1e] text-white py-3 rounded-xl font-bold uppercase text-xs shadow-md active:scale-95"
                 >
-                  Dodaj
+                  Hinzufügen
                 </button>
               </div>
             </div>
 
             <div className="md:col-span-2 bg-card p-6 rounded-2xl shadow-sm border border-border">
               <h3 className="font-bold text-card-foreground mb-4 uppercase tracking-tighter">
-                Kalendar Neradnih Dana ({selectedYear})
+                Kalender der Feiertage ({selectedYear})
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {blockedDays
@@ -1258,9 +1261,9 @@ export default function AdminView({
                       </div>
                       <button
                         onClick={async () => {
-                          if (confirm("Obrisati?")) {
+                          if (confirm("Löschen?")) {
                             await removeBlockedDay(d.id);
-                            toast.success("Praznik uklonjen.");
+                            toast.success("Feiertag entfernt.");
                             router.refresh();
                           }
                         }}
@@ -1272,7 +1275,7 @@ export default function AdminView({
                   ))}
                 {blockedDays.filter((d) => new Date(d.date).getFullYear() === selectedYear).length === 0 && (
                   <div className="col-span-full text-center py-10 text-muted-foreground italic">
-                    Nema definisanih praznika.
+                    Keine Feiertage definiert.
                   </div>
                 )}
               </div>

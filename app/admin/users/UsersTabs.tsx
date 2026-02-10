@@ -19,7 +19,7 @@ export default function UsersTabs() {
         }`}
       >
         <Users size={18} />
-        Lista Korisnika
+        Benutzerliste
       </Link>
       <Link
         href="/admin/users/roles"
@@ -30,7 +30,7 @@ export default function UsersTabs() {
         }`}
       >
         <SlidersHorizontal size={18} />
-        Konfiguracija Rola/Permisija
+        Rollen-/Berechtigungskonfiguration
       </Link>
     </div>
   );

@@ -17,10 +17,10 @@ export default async function TeamPage() {
     <div className="min-h-screen bg-background font-sans text-foreground">
       <div className="max-w-[1600px] mx-auto p-6 md:p-10">
         <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-1">
-          Moj <span className="text-[#FFC72C]">Tim</span>
+          Mein <span className="text-[#FFC72C]">Team</span>
         </h1>
         <p className="text-slate-500 text-sm font-medium mb-8">
-          Lista zaposlenika kojima ste direktni nadređeni
+          Liste der Mitarbeiter, für die Sie direkt verantwortlich sind.
         </p>
         <TeamPageClient initialTeam={team} />
       </div>

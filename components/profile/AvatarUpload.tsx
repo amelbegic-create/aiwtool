@@ -45,7 +45,7 @@ export default function AvatarUpload({
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      showToast("error", "Odaberite sliku (npr. JPG, PNG).");
+      showToast("error", "Bitte wählen Sie ein Bild (z. B. JPG, PNG).");
       return;
     }
     e.target.value = "";
@@ -55,13 +55,13 @@ export default function AvatarUpload({
       formData.set("file", file);
       const result = await uploadAvatar(formData);
       if (result.success) {
-        showToast("success", "Profilna slika je ažurirana.");
+        showToast("success", "Profilbild wurde aktualisiert.");
         onUpdate?.(result.url);
       } else {
-        showToast("error", result.error || "Greška pri uploadu.");
+        showToast("error", result.error || "Fehler beim Hochladen.");
       }
     } catch {
-      showToast("error", "Greška pri uploadu.");
+      showToast("error", "Fehler beim Hochladen.");
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export default function AvatarUpload({
         {currentImageUrl ? (
           <Image
             src={currentImageUrl}
-            alt="Profil"
+            alt="Profilbild"
             width={size}
             height={size}
             className="object-cover w-full h-full"

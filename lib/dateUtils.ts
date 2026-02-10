@@ -1,6 +1,6 @@
 /**
- * Europski format datuma: DD.MM.GGGG (npr. 01.02.2026).
- * Koristiti za sve prikaze datuma u aplikaciji.
+ * European/Austrian date format: DD.MM.YYYY (e.g. 15.02.2026).
+ * Used for all date displays (incl. de-AT locale).
  */
 export function formatDateDDMMGGGG(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;

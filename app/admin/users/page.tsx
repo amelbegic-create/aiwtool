@@ -31,7 +31,7 @@ export default async function UsersPage() {
 
   const formattedRestaurants = rawRestaurants.map((r) => ({
     id: r.id,
-    name: r.name || "Nepoznat restoran",
+    name: r.name || "Unbekannt",
   }));
 
   // ✅ šaljemo "plain" objekte u client (bez Date, bez spread u)
@@ -44,7 +44,7 @@ export default async function UsersPage() {
 
     return {
       id: u.id,
-      name: u.name || "Korisnik",
+      name: u.name || "Benutzer",
       email: u.email || "",
       role: u.role,
       departmentId: u.departmentId ?? null,

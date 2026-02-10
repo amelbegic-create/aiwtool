@@ -24,7 +24,7 @@ function SubmitButton({ children, disabled }: { children: React.ReactNode; disab
       className="inline-flex items-center justify-center gap-2 min-h-[44px] px-6 py-3 rounded-xl bg-[#1a3826] text-white font-semibold text-sm hover:bg-[#142d1f] transition-colors shadow-sm hover:shadow disabled:opacity-60 disabled:cursor-not-allowed"
     >
       {pending ? <Loader2 size={18} className="animate-spin" /> : null}
-      {pending ? "Spremanje…" : children}
+      {pending ? "Laden…" : children}
     </button>
   );
 }
@@ -38,7 +38,7 @@ function PasswordSubmitButton() {
       className="inline-flex items-center justify-center gap-2 min-h-[44px] px-6 py-3 rounded-xl bg-[#1a3826] text-white font-semibold text-sm hover:bg-[#142d1f] transition-colors shadow-sm hover:shadow disabled:opacity-60 disabled:cursor-not-allowed"
     >
       {pending ? <Loader2 size={18} className="animate-spin" /> : null}
-      {pending ? "Spremanje…" : <>Promijeni lozinku</>}
+      {pending ? "Laden…" : <>Passwort ändern</>}
     </button>
   );
 }
@@ -58,7 +58,7 @@ export default function ProfilePage() {
     const email = formData.get("email") as string;
     const result = await updateProfile({ name, email });
     if (result.success) {
-      setProfileMessage({ type: "success", text: "Profil ažuriran." });
+      setProfileMessage({ type: "success", text: "Profil erfolgreich aktualisiert." });
       updateSession?.();
     } else {
       setProfileMessage({ type: "error", text: result.error });
@@ -71,13 +71,13 @@ export default function ProfilePage() {
     const newPassword = formData.get("newPassword") as string;
     const confirm = formData.get("confirmPassword") as string;
     if (newPassword !== confirm) {
-      setPasswordMessage({ type: "error", text: "Nova lozinka i potvrda se ne podudaraju." });
+      setPasswordMessage({ type: "error", text: "Neues Passwort und Bestätigung stimmen nicht überein." });
       return;
     }
     const result = await changePassword(currentPassword, newPassword);
     if (result.success) {
-      toast.success("Lozinka promijenjena.");
-      setPasswordMessage({ type: "success", text: "Lozinka promijenjena." });
+      toast.success("Passwort erfolgreich geändert.");
+      setPasswordMessage({ type: "success", text: "Passwort erfolgreich geändert." });
     } else {
       setPasswordMessage({ type: "error", text: result.error });
     }
@@ -90,7 +90,7 @@ export default function ProfilePage() {
         ? "Admin"
         : user?.role === "MANAGER"
           ? "Manager"
-          : "Zaposlenik";
+          : "Mitarbeiter";
 
   return (
     <div className="min-h-screen bg-background">
@@ -98,10 +98,10 @@ export default function ProfilePage() {
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
-            Moj profil
+            Mein Profil
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Upravljajte ličnim podacima i sigurnošću računa.
+            Persönliche Daten und Kontosicherheit verwalten.
           </p>
         </div>
 
@@ -118,7 +118,7 @@ export default function ProfilePage() {
             </div>
             <div className="mt-6 w-full max-w-sm md:max-w-[400px] bg-card rounded-2xl border border-border shadow-sm overflow-hidden p-6 text-center lg:text-left">
               <h2 className="text-lg font-semibold text-card-foreground truncate">
-                {user?.name || "Korisnik"}
+                {user?.name || "Benutzer"}
               </h2>
               <p className="text-sm text-muted-foreground truncate mt-1">
                 {user?.email}
@@ -142,8 +142,8 @@ export default function ProfilePage() {
                     <User size={20} />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-card-foreground">Lični podaci</h3>
-                    <p className="text-sm text-muted-foreground">Ime i email adresa</p>
+                    <h3 className="text-base font-semibold text-card-foreground">Persönliche Daten</h3>
+                    <p className="text-sm text-muted-foreground">Vor- und Nachname, E-Mail-Adresse</p>
                   </div>
                 </div>
               </div>
@@ -161,7 +161,7 @@ export default function ProfilePage() {
                 )}
                 <div>
                   <label htmlFor="name" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                    Ime i prezime
+                    Vor- und Nachname
                   </label>
                   <div className="relative">
                     <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -170,14 +170,14 @@ export default function ProfilePage() {
                       name="name"
                       type="text"
                       defaultValue={user?.name ?? ""}
-                      placeholder="Ime i prezime"
+                      placeholder="Vor- und Nachname"
                       className="w-full min-h-[48px] pl-12 pr-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                     />
                   </div>
                 </div>
                 <div>
                   <label htmlFor="email" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                    Email
+                    E-Mail-Adresse
                   </label>
                   <div className="relative">
                     <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -186,7 +186,7 @@ export default function ProfilePage() {
                       name="email"
                       type="email"
                       defaultValue={user?.email ?? ""}
-                      placeholder="email@primjer.ba"
+                      placeholder="name@beispiel.at"
                       className="w-full min-h-[48px] pl-12 pr-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                     />
                   </div>
@@ -194,7 +194,7 @@ export default function ProfilePage() {
                 <div className="pt-2">
                   <SubmitButton>
                     <Save size={18} />
-                    Sačuvaj promjene
+                    Änderungen speichern
                   </SubmitButton>
                 </div>
               </form>
@@ -208,8 +208,8 @@ export default function ProfilePage() {
                     <Lock size={20} />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-card-foreground">Sigurnost</h3>
-                    <p className="text-sm text-muted-foreground">Promjena lozinke</p>
+                    <h3 className="text-base font-semibold text-card-foreground">Sicherheit</h3>
+                    <p className="text-sm text-muted-foreground">Passwort ändern</p>
                   </div>
                 </div>
               </div>
@@ -227,7 +227,7 @@ export default function ProfilePage() {
                 )}
                 <div>
                   <label htmlFor="currentPassword" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                    Trenutna lozinka
+                    Aktuelles Passwort
                   </label>
                   <input
                     id="currentPassword"
@@ -240,7 +240,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <label htmlFor="newPassword" className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                    Nova lozinka
+                    Neues Passwort
                   </label>
                   <input
                     id="newPassword"
@@ -248,7 +248,7 @@ export default function ProfilePage() {
                     type="password"
                     required
                     minLength={6}
-                    placeholder="Min. 6 znakova"
+                    placeholder="Mind. 6 Zeichen"
                     className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                   />
                 </div>
@@ -262,7 +262,7 @@ export default function ProfilePage() {
                     type="password"
                     required
                     minLength={6}
-                    placeholder="Ponovite novu lozinku"
+                    placeholder="Neues Passwort wiederholen"
                     className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition-colors"
                   />
                 </div>

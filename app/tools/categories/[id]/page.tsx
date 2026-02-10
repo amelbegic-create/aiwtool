@@ -26,18 +26,18 @@ const CATEGORY_META: Record<
   { title: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }
 > = {
   staff: {
-    title: "OSOBLJE",
-    subtitle: "SISTEMSKI MODULI / STAFF",
+    title: "Personal",
+    subtitle: "Systemmodule / Personal",
     icon: Users,
   },
   operations: {
-    title: "OPERATIONS",
-    subtitle: "SISTEMSKI MODULI / OPERATIONS",
+    title: "Operatives & Betrieb",
+    subtitle: "Systemmodule / Operations",
     icon: Settings2,
   },
   other: {
-    title: "OTHER",
-    subtitle: "SISTEMSKI MODULI / OTHER",
+    title: "Sonstiges",
+    subtitle: "Systemmodule / Sonstiges",
     icon: Layers,
   },
 };
@@ -72,7 +72,7 @@ function Card({
             </span>
           ) : (
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-              AKTIVNO
+              AKTIV
             </span>
           )}
         </div>
@@ -86,7 +86,7 @@ function Card({
           </p>
 
           <div className="mt-6 flex items-center justify-between">
-            <span className="text-xs font-black text-[#1a3826]">OTVORI</span>
+            <span className="text-xs font-black text-[#1a3826]">Öffnen</span>
             <div className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-white transition-colors">
               <ArrowRight
                 className="text-slate-400 group-hover:text-[#1a3826]"
@@ -133,26 +133,26 @@ export default async function ToolsCategoryPage({
     tools.push(
       {
         href: "/tools/vacations",
-        title: "GODIŠNJI ODMORI",
-        description: "Planer odsustva i odobrenja.",
+        title: "Urlaubsplanung",
+        description: "Abwesenheits- und Genehmigungsplanung.",
         icon: Palmtree,
       },
       {
         href: "/tools/PDS",
-        title: "PDS",
-        description: "Evaluacija performansi.",
+        title: "PDS (Beurteilung)",
+        description: "Mitarbeiterbeurteilung.",
         icon: ClipboardCheck,
       },
       {
         href: "/tools/rules",
-        title: "PRAVILA",
-        description: "Uputstva, pravila i procedure.",
+        title: "Richtlinien & Verfahren",
+        description: "Anweisungen, Richtlinien und Abläufe.",
         icon: BookOpenText,
       },
       {
         href: "/tools/bonusi",
-        title: "BONUSI",
-        description: "Administracija bonusa.",
+        title: "Prämien & Bonus",
+        description: "Bonusverwaltung.",
         icon: Gift,
         badge: "ADMIN",
         show: isAdmin,
@@ -164,14 +164,14 @@ export default async function ToolsCategoryPage({
     tools.push(
       {
         href: "/tools/productivity",
-        title: "PRODUKTIVNOST",
-        description: "Izvještaji i praćenje performansi restorana.",
+        title: "Produktivität",
+        description: "Berichte und Leistungsüberwachung der Restaurants.",
         icon: BarChart3,
       },
       {
         href: "/tools/labor-planner",
-        title: "LABOR PLANNER",
-        description: "Planiranje rada i smjena.",
+        title: "Personaleinsatzplanung",
+        description: "Arbeits- und Schichtplanung.",
         icon: CalendarClock,
       }
     );

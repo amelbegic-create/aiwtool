@@ -11,20 +11,20 @@ export default async function AdminHome() {
 
   const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok || pdsAccess.ok;
   if (!hasAnyAdminAccess) {
-    return <NoPermission moduleName="Admin panel" />;
+    return <NoPermission moduleName="Verwaltung" />;
   }
 
   const cards = [
     {
-      title: "Korisnici & Timovi",
-      desc: "Lista korisnika, kreiranje, dodjela restorana i permisija, konfiguracija rola.",
+      title: "Benutzer & Teams",
+      desc: "Benutzerliste, Anlegen, Zuweisung von Restaurants und Berechtigungen, Rollenkonfiguration.",
       href: "/admin/users",
       icon: Users,
       tag: "Users & RBAC",
     },
     {
-      title: "Restorani",
-      desc: "Dodavanje lokacija, uređivanje i status (aktivno/neaktivno).",
+      title: "Standortverwaltung",
+      desc: "Standorte anlegen, bearbeiten und Status (aktiv/inaktiv).",
       href: "/admin/restaurants",
       icon: Building2,
       tag: "Locations",
@@ -32,8 +32,8 @@ export default async function AdminHome() {
     ...(usersAccess.ok
       ? [
           {
-            title: "Moduli na dashboardu",
-            desc: "Označite koje module prikazati korisnicima u sekciji „Novi moduli“ na početnoj stranici.",
+            title: "Dashboard-Module",
+            desc: "Festlegen, welche Module Nutzern auf der Startseite angezeigt werden.",
             href: "/admin/dashboard-modules",
             icon: LayoutDashboard,
             tag: "Dashboard",
@@ -43,19 +43,19 @@ export default async function AdminHome() {
     ...(rulesAccess.ok
       ? [
           {
-            title: "Pravila i procedure",
-            desc: "Upravljanje pravilima, kategorijama, statistika čitanja, uređivanje i brisanje.",
+            title: "Richtlinien & Dokumente",
+            desc: "Verwaltung von Richtlinien, Kategorien, Lese-Statistik, Bearbeiten und Löschen.",
             href: "/admin/rules",
             icon: BookOpen,
-            tag: "Pravila",
+            tag: "Richtlinien",
           },
         ]
       : []),
     ...(pdsAccess.ok
       ? [
           {
-            title: "PDS obrasci",
-            desc: "Kreiranje i upravljanje PDS obrascima za jedan, više ili sve restorane.",
+            title: "Beurteilungsvorlagen",
+            desc: "PDS-Vorlagen für ein, mehrere oder alle Restaurants erstellen und verwalten.",
             href: "/admin/pds",
             icon: ClipboardList,
             tag: "PDS",
@@ -70,17 +70,17 @@ export default async function AdminHome() {
         <div className="flex items-end justify-between gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter">
-              ADMIN <span className="text-[#FFC72C]">PANEL</span>
+              VERWALTUNG
             </h1>
             <p className="text-muted-foreground text-sm font-semibold">
-              Upravljanje korisnicima, restoranima i pristupima
+              Benutzer, Standorte und Zugriffsrechte verwalten
             </p>
           </div>
 
           <div className="hidden md:flex items-center gap-2 text-xs font-black uppercase text-muted-foreground">
             <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-border">
               <ShieldCheck size={16} className="text-[#1a3826] dark:text-[#FFC72C]" />
-              Globalne permisije
+              Globale Berechtigungen
             </span>
           </div>
         </div>
@@ -113,7 +113,7 @@ export default async function AdminHome() {
                 </div>
 
                 <div className="mt-6 text-xs font-black uppercase tracking-widest text-[#1a3826] dark:text-[#FFC72C]">
-                  Otvori →
+                  Öffnen →
                 </div>
               </Link>
             );

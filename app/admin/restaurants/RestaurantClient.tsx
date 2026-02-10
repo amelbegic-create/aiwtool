@@ -56,7 +56,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
 
   const submit = async () => {
     try {
-      if (!form.code.trim() || !form.name.trim()) return alert("Code i naziv su obavezni.");
+      if (!form.code.trim() || !form.name.trim()) return alert("Store-Nummer und Name sind erforderlich.");
 
       if (!editing) {
         await createRestaurant({
@@ -83,7 +83,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
   };
 
   const del = async (id: string) => {
-    if (!confirm("Sigurno obrisati restoran?")) return;
+    if (!confirm("Restaurant wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
     try {
       await deleteRestaurant(id);
       router.refresh();
@@ -107,10 +107,10 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
-              ADMIN <span className="text-[#FFC72C]">RESTORANI</span>
+              STANDORTVERWALTUNG
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Kreiranje i održavanje lokacija (globalne postavke)
+              Standorte anlegen und verwalten (globale Einstellungen)
             </p>
           </div>
 
@@ -118,7 +118,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
             onClick={openCreate}
             className="inline-flex items-center gap-2 px-5 py-3 bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl text-xs font-black uppercase shadow-md active:scale-95"
           >
-            <Plus size={16} /> Novi restoran
+            <Plus size={16} /> Standort hinzufügen
           </button>
         </div>
 
@@ -127,18 +127,18 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Traži restoran..."
+            placeholder="Standort suchen…"
             className="bg-transparent outline-none text-sm font-bold text-foreground w-full"
           />
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden">
           <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase">
-            <div className="col-span-2">Code</div>
-            <div className="col-span-4">Naziv</div>
-            <div className="col-span-3">Grad</div>
+            <div className="col-span-2">Store-Nr.</div>
+            <div className="col-span-4">Name</div>
+            <div className="col-span-3">Stadt/Ort</div>
             <div className="col-span-1">Status</div>
-            <div className="col-span-2 text-right">Akcije</div>
+            <div className="col-span-2 text-right">Aktionen</div>
           </div>
 
           <div className="divide-y divide-slate-100">
@@ -168,7 +168,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
                         : "bg-red-50 text-red-700 border-red-100"
                     }`}
                   >
-                    {r.isActive ? "AKTIVNO" : "OFF"}
+                    {r.isActive ? "Aktiv" : "Inaktiv"}
                   </span>
                 </div>
 
@@ -192,7 +192,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
                   <button
                     onClick={() => del(r.id)}
                     className="p-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl"
-                    title="Obriši"
+                    title="Löschen"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -208,9 +208,9 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
               <div className="p-6 bg-slate-50 border-b border-border flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-black">
-                    {editing ? "Uredi restoran" : "Novi restoran"}
+                    {editing ? "Standort bearbeiten" : "Standort hinzufügen"}
                   </h2>
-                  <p className="text-xs text-muted-foreground font-medium">Code mora biti unikatan</p>
+                  <p className="text-xs text-muted-foreground font-medium">Store-Nummer muss eindeutig sein</p>
                 </div>
                 <button onClick={() => setOpen(false)} className="p-2 rounded-xl hover:bg-accent">
                   <X />
@@ -228,7 +228,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
                   <input
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Naziv"
+                    placeholder="Name"
                     className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                 </div>
@@ -237,7 +237,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
                   <input
                     value={form.city}
                     onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    placeholder="Grad"
+                    placeholder="Stadt/Ort"
                     className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                   <input
@@ -254,13 +254,13 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
                   onClick={() => setOpen(false)}
                   className="px-5 py-3 rounded-xl border border-border text-xs font-black uppercase text-muted-foreground hover:bg-accent"
                 >
-                  Odustani
+                  Abbrechen
                 </button>
                 <button
                   onClick={submit}
                   className="px-6 py-3 rounded-xl bg-[#1a3826] hover:bg-[#142e1e] text-white text-xs font-black uppercase shadow-md active:scale-95 inline-flex items-center gap-2"
                 >
-                  <Check size={16} /> Sačuvaj
+                  <Check size={16} /> Speichern
                 </button>
               </div>
             </div>

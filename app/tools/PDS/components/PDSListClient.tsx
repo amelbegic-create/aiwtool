@@ -28,7 +28,7 @@ export default function PDSListClient({ data, year, isManager }: Props) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
           <input 
             type="text" 
-            placeholder="Pretraži zaposlenika..." 
+            placeholder="Mitarbeiter suchen…" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#1a3826] w-64 transition-all"
@@ -36,18 +36,18 @@ export default function PDSListClient({ data, year, isManager }: Props) {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-2 py-1 rounded">
-            Prikazano: {filteredList.length}
+            Angezeigt: {filteredList.length}
           </span>
         </div>
       </div>
 
       {/* HEADER KOLONE */}
       <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-        <div className="col-span-4">Zaposlenik</div>
-        <div className="col-span-2">Uloga</div>
+        <div className="col-span-4">Mitarbeiter</div>
+        <div className="col-span-2">Rolle</div>
         <div className="col-span-2 text-center">Status</div>
-        <div className="col-span-2 text-center">Rezultat</div>
-        <div className="col-span-2 text-right">Akcija</div>
+        <div className="col-span-2 text-center">Ergebnis</div>
+        <div className="col-span-2 text-center">Aktionen</div>
       </div>
 
       {/* LISTA */}
@@ -89,19 +89,20 @@ export default function PDSListClient({ data, year, isManager }: Props) {
                     pds.status === 'RETURNED' ? 'bg-red-500' :
                     'bg-orange-500'
                   }`}></span>
-                  {pds.status === 'RETURNED' ? 'VRAĆENO' : pds.status === 'APPROVED' ? 'ODOBRENO' : pds.status}
+                  {pds.status === 'DRAFT' || pds.status === 'OPEN' || pds.status === 'IN_PROGRESS' ? 'Entwurf' : pds.status === 'SUBMITTED' || pds.status === 'PENDING' ? 'Eingereicht' : pds.status === 'APPROVED' ? 'Genehmigt' : pds.status === 'RETURNED' ? 'Zur Überarbeitung' : pds.status === 'ARCHIVED' ? 'Archiviert' : pds.status === 'COMPLETED' ? 'Abgeschlossen' : pds.status}
                 </span>
               </div>
               <div className="col-span-2 text-center">
                 <span className="text-sm font-black text-[#1a3826]">{pds.totalScore}</span>
                 <span className="text-[10px] text-slate-400 ml-1">pts</span>
               </div>
-              <div className="col-span-2 text-right">
+              <div className="col-span-2 flex justify-center">
                 <Link 
                   href={`/tools/PDS/${pds.id}`}
                   className="inline-block text-[10px] font-bold text-[#1a3826] bg-[#FFC72C] hover:bg-[#e6b225] px-4 py-2 rounded-lg transition-colors shadow-sm"
+                  title="Beurteilung öffnen"
                 >
-                  OTVORI
+                  ÖFFNEN
                 </Link>
               </div>
             </div>
@@ -111,8 +112,8 @@ export default function PDSListClient({ data, year, isManager }: Props) {
             <div className="inline-block p-4 rounded-full bg-slate-50 mb-3">
               <Search className="text-slate-300" size={32}/>
             </div>
-            <p className="text-sm font-bold text-slate-500">Nema pronađenih evaluacija za {year}.</p>
-            {isManager && <p className="text-xs text-slate-400 mt-1">Provjerite imate li definirana pravila za ovu godinu.</p>}
+            <p className="text-sm font-bold text-slate-500">Keine Beurteilungen gefunden.</p>
+            {isManager && <p className="text-xs text-slate-400 mt-1">Bitte prüfen Sie, ob für dieses Jahr Beurteilungsregeln definiert sind.</p>}
           </div>
         )}
       </div>

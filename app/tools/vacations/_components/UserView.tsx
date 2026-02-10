@@ -64,9 +64,16 @@ interface UserViewProps {
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
 
-// Normalizacija teksta za PDF (uklanja kvačice i specijalna slova)
+// Normalizacija teksta za PDF (umlaut → ae/oe/ue za Helvetica)
 function normalizeText(text: string): string {
   return text
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/Ä/g, "Ae")
+    .replace(/Ö/g, "Oe")
+    .replace(/Ü/g, "Ue")
+    .replace(/ß/g, "ss")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/g, "dj")
@@ -127,87 +134,83 @@ export default function UserView({
         // Glavni Naslov
         doc.setTextColor(255, 255, 255); 
         doc.setFontSize(22);
-        doc.text(normalizeText("IZVJESTAJ O GODISNJEM ODMORU"), 14, 24); 
+        doc.text(normalizeText("URLAUBSBERICHT"), 14, 24); 
         
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(255, 199, 44); 
-        doc.text(normalizeText(`Generirano: ${formatDate(new Date().toISOString())}`), 14, 32);
+        doc.text(normalizeText(`Erstellt: ${formatDate(new Date().toISOString())}`), 14, 32);
 
         // PODACI O KORISNIKU
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
-        doc.text(normalizeText(`Zaposlenik: ${userData.name}`), 14, 55);
+        doc.text(normalizeText(`Mitarbeiter: ${userData.name}`), 14, 55);
         doc.setFont("helvetica", "normal");
-        doc.text(normalizeText(`Email: ${userData.email}`), 14, 61);
-        doc.text(normalizeText(`Godina: ${selectedYear}`), 14, 67);
+        doc.text(normalizeText(`E-Mail: ${userData.email}`), 14, 61);
+        doc.text(normalizeText(`Jahr: ${selectedYear}`), 14, 67);
 
         // KARTICE STATISTIKE
         const startY = 80;
         const boxWidth = 55;
         const boxHeight = 25;
         
-        // Ukupno
+        // Gesamt
         doc.setFillColor(248, 250, 252);
         doc.setDrawColor(226, 232, 240);
         doc.rect(14, startY, boxWidth, boxHeight, 'FD');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-            doc.text(normalizeText("UKUPNO DANA"), 19, startY + 8);
+        doc.text(normalizeText("GESAMT TAGE"), 19, startY + 8);
         doc.setFontSize(16);
         doc.setTextColor(30, 41, 59);
         doc.setFont("helvetica", "bold");
         doc.text(`${total}`, 19, startY + 18);
 
-        // Iskorišteno
+        // Verbraucht
         doc.rect(14 + boxWidth + 10, startY, boxWidth, boxHeight, 'FD');
         doc.setFontSize(8);
         doc.setTextColor(22, 163, 74);
-        doc.text(normalizeText("ISKORISTENO"), 14 + boxWidth + 15, startY + 8);
+        doc.text(normalizeText("VERBRAUCHT"), 14 + boxWidth + 15, startY + 8);
         doc.setFontSize(16);
         doc.setTextColor(21, 128, 61);
         doc.text(`${used}`, 14 + boxWidth + 15, startY + 18);
 
-        // Preostalo
+        // Resturlaub
         doc.setFillColor(26, 56, 38);
         doc.rect(14 + (boxWidth + 10) * 2, startY, boxWidth, boxHeight, 'F');
         doc.setFontSize(8);
         doc.setTextColor(255, 199, 44);
-        doc.text(normalizeText("PREOSTALO"), 14 + (boxWidth + 10) * 2 + 5, startY + 8);
+        doc.text(normalizeText("RESTURLAUB"), 14 + (boxWidth + 10) * 2 + 5, startY + 8);
         doc.setFontSize(16);
         doc.text(`${remaining}`, 14 + (boxWidth + 10) * 2 + 5, startY + 18);
 
-        // TABLICA
+        // TABLICA: Von, Bis, Tage, Status
+        const statusToLabel: Record<string, string> = {
+          APPROVED: "Genehmigt",
+          REJECTED: "Abgelehnt",
+          PENDING: "Ausstehend",
+          RETURNED: "Zur Ueberarbeitung",
+          CANCEL_PENDING: "Stornierung ausstehend",
+          CANCELLED: "Storniert",
+        };
         const tableBody = myRequests.map(req => {
-          const period = `${formatDate(req.start)} - ${formatDate(req.end)}`;
-          const statusText =
-            req.status === "APPROVED"
-              ? "ODOBRENO"
-              : req.status === "REJECTED"
-              ? "ODBIJENO"
-              : req.status === "PENDING"
-              ? "NA CEKANJU"
-              : req.status === "RETURNED"
-              ? "VRACENO"
-              : req.status === "CANCEL_PENDING"
-              ? "CEKA PONISTENJE"
-              : "PONISTENO";
-
-          return [normalizeText(period), req.days, normalizeText(statusText)];
+          const statusText = statusToLabel[req.status] ?? req.status;
+          return [formatDate(req.start), formatDate(req.end), req.days, normalizeText(statusText)];
         });
 
         autoTable(doc, {
           startY: startY + 40,
-          head: [[normalizeText("Period"), normalizeText("Dana"), normalizeText("Status")]],
+          head: [[normalizeText("Von"), normalizeText("Bis"), normalizeText("Tage"), normalizeText("Status")]],
           body: tableBody,
           theme: "grid",
           headStyles: { fillColor: [26, 56, 38], textColor: [255, 255, 255], fontStyle: "bold" },
           styles: { fontSize: 10, cellPadding: 4, halign: "left" },
           columnStyles: {
-            0: { cellWidth: 90, halign: "left" },
-            1: { cellWidth: 30, halign: "right" },
-            2: { cellWidth: 60, halign: "left" },
+            0: { cellWidth: 45, halign: "left" },
+            1: { cellWidth: 45, halign: "left" },
+            2: { cellWidth: 25, halign: "right" },
+            3: { cellWidth: 55, halign: "left" },
           },
           alternateRowStyles: { fillColor: [248, 250, 252] },
         });
@@ -217,20 +220,20 @@ export default function UserView({
             doc.setPage(i);
             doc.setFontSize(8);
             doc.setTextColor(150);
-            doc.text('Generirano putem AIWServices Tools', 105, 290, { align: 'center' });
+            doc.text(normalizeText("Erstellt ueber AIWServices Tools"), 105, 290, { align: "center" });
         }
 
-        doc.save(`Godisnji_Izvjestaj_${selectedYear}_${userData.name.replace(/\s+/g, '_')}.pdf`);
+        doc.save(`Urlaubsbericht_${selectedYear}_${userData.name.replace(/\s+/g, "_").replace(/[^\w\-]/g, "")}.pdf`);
     } catch (error) {
         console.error(error);
-        alert("Greška pri generiranju PDF-a.");
+        alert("Fehler beim Erstellen der PDF.");
     } finally {
         setIsExporting(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!start || !end) return alert("Molimo odaberite početni i krajnji datum.");
+    if (!start || !end) return alert("Bitte wählen Sie Start- und Enddatum.");
 
     const startDate = new Date(start);
     startDate.setHours(0, 0, 0, 0);
@@ -238,28 +241,28 @@ export default function UserView({
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
     tomorrowDate.setHours(0, 0, 0, 0);
     if (startDate < tomorrowDate) {
-      return alert("Početni datum mora biti sutra ili kasnije. Ne možete poslati zahtjev za prošle dane.");
+      return alert("Das Startdatum muss morgen oder später liegen. Anträge für vergangene Tage sind nicht möglich.");
     }
     
     if (new Date(start).getFullYear() !== selectedYear) {
-        if(!confirm(`Upozorenje: Odabrali ste datume koji nisu u trenutno prikazanoj godini (${selectedYear}). Želite li nastaviti?`)) return;
+        if(!confirm(`Hinweis: Die gewählten Daten liegen nicht im angezeigten Jahr (${selectedYear}). Trotzdem fortfahren?`)) return;
     }
 
     setLoading(true);
     try {
       if (editingId) {
           await updateVacationRequest(editingId, { start, end });
-          toast.success("Zahtjev ažuriran.");
+          toast.success("Antrag aktualisiert.");
           setEditingId(null);
       } else {
           await createVacationRequest({ start, end });
-          toast.success("Zahtjev za godišnji poslan.");
+          toast.success("Antrag erfolgreich erstellt.");
       }
       setStart("");
       setEnd("");
       router.refresh();
     } catch (e: any) {
-      alert(e.message || "Došlo je do greške.");
+      alert(e.message || "Ein Fehler ist aufgetreten.");
     } finally {
       setLoading(false);
     }
@@ -273,10 +276,10 @@ export default function UserView({
   };
 
   const handleCancel = async (id: string) => {
-      if (confirm("Jeste li sigurni da želite poništiti ovaj odobreni godišnji odmor? Admin mora odobriti poništenje.")) {
+      if (confirm("Möchten Sie diesen genehmigten Urlaub wirklich stornieren? Ein Administrator muss die Stornierung genehmigen.")) {
           try {
               await cancelVacationRequest(id);
-              toast.success("Zahtjev za godišnji otkazan.");
+              toast.success("Urlaubsantrag storniert.");
               router.refresh();
           } catch (e: any) {
               alert(e.message);
@@ -292,10 +295,10 @@ export default function UserView({
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
                 <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">
-                    MOJ <span className="text-[#FFC72C]">GODIŠNJI</span>
+                    MEIN <span className="text-[#FFC72C]">URLAUB</span>
                 </h1>
                 <p className="text-muted-foreground text-sm font-medium">
-                    Pregled dana i slanje zahtjeva za <span className="font-bold text-foreground">{selectedYear}.</span> godinu
+                    Übersicht der Tage und Anträge für <span className="font-bold text-foreground">{selectedYear}</span>
                 </p>
             </div>
             
@@ -306,14 +309,14 @@ export default function UserView({
                     className="flex items-center gap-2 px-4 py-2 bg-[#FFC72C] hover:bg-[#e6b225] text-[#1a3826] rounded-xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 disabled:opacity-50"
                 >
                     {isExporting ? <Loader2 size={16} className="animate-spin"/> : <Download size={16} />}
-                    PDF IZVJEŠTAJ
+                    PDF-BERICHT
                 </button>
 
                 <div className="flex items-center gap-2">
                     {isPending && (
                         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                             <Loader2 size={14} className="animate-spin shrink-0" />
-                            Učitavanje…
+                            Laden…
                         </span>
                     )}
                     <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full">
@@ -344,7 +347,7 @@ export default function UserView({
             <div className="grid grid-cols-3 gap-4">
               <div className="bg-card p-6 rounded-2xl shadow-sm border border-border flex flex-col items-center justify-center">
                 <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  UKUPNO ({selectedYear})
+                  GESAMT ({selectedYear})
                 </div>
                 <div className="text-3xl font-black text-foreground">
                   {total}
@@ -352,7 +355,7 @@ export default function UserView({
               </div>
               <div className="bg-card p-6 rounded-2xl shadow-sm border border-border flex flex-col items-center justify-center">
                 <div className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-1">
-                  ISKORIŠTENO
+                  VERBRAUCHT
                 </div>
                 <div className="text-3xl font-black text-green-700">
                   {used}
@@ -360,7 +363,7 @@ export default function UserView({
               </div>
               <div className="bg-[#1a3826] p-6 rounded-2xl shadow-md border border-[#1a3826] flex flex-col items-center justify-center text-white">
                 <div className="text-[10px] font-black text-[#FFC72C] uppercase tracking-widest mb-1">
-                  PREOSTALO
+                  RESTURLAUB
                 </div>
                 <div className="text-3xl font-black text-[#FFC72C]">
                   {remaining}
@@ -372,16 +375,16 @@ export default function UserView({
             <div className={`bg-card p-8 rounded-3xl shadow-sm border transition-all ${editingId ? 'border-orange-300 dark:border-orange-600 ring-4 ring-orange-50 dark:ring-orange-950/50' : 'border-border'}`}>
               <h3 className="font-bold text-card-foreground mb-6 flex items-center gap-2 text-lg">
                 {editingId ? (
-                    <span className="text-orange-600 flex items-center gap-2"><Edit size={20}/> Uređivanje Zahtjeva</span>
+                    <span className="text-orange-600 flex items-center gap-2"><Edit size={20}/> Antrag bearbeiten</span>
                 ) : (
-                    <span className="flex items-center gap-2"><Calendar className="text-[#1a3826]" /> Novi Zahtjev</span>
+                    <span className="flex items-center gap-2"><Calendar className="text-[#1a3826]" /> Neuer Urlaubsantrag</span>
                 )}
               </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase mb-2 block">
-                    Datum Od (samo od sutra)
+                    Von (ab morgen)
                   </label>
                   <input
                     type="date"
@@ -393,7 +396,7 @@ export default function UserView({
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase mb-2 block">
-                    Datum Do
+                    Bis
                   </label>
                   <input
                     type="date"
@@ -411,7 +414,7 @@ export default function UserView({
                         onClick={() => { setEditingId(null); setStart(""); setEnd(""); }}
                         className="px-6 py-4 rounded-xl font-bold uppercase text-sm bg-muted text-muted-foreground hover:bg-accent transition-colors"
                       >
-                          Odustani
+                          Abbrechen
                       </button>
                   )}
                   <button
@@ -421,15 +424,14 @@ export default function UserView({
                         editingId ? "bg-orange-500 hover:bg-orange-600" : "bg-[#1a3826] hover:bg-[#142e1e]"
                     }`}
                   >
-                    {loading ? "Slanje..." : editingId ? "AŽURIRAJ I POŠALJI" : "POŠALJI ZAHTJEV"}
+                    {loading ? "Wird gesendet…" : editingId ? "AKTUALISIEREN UND SENDEN" : "ANTRAG STELLEN"}
                   </button>
               </div>
               
               <div className="mt-4 flex items-start gap-2 text-[11px] text-muted-foreground bg-muted/50 p-3 rounded-lg border border-border">
                 <Info size={14} className="shrink-0 mt-0.5" />
                 <p>
-                  Sistem automatski izuzima vikende i praznike iz proračuna dana.
-                  Molimo vas da planirate svoje odsustvo na vrijeme.
+                  Das System zieht Wochenenden und Feiertage automatisch ab. Bitte planen Sie Ihre Abwesenheit rechtzeitig.
                 </p>
               </div>
             </div>
@@ -437,7 +439,7 @@ export default function UserView({
             {/* PRAZNICI */}
             <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-3xl border border-red-100 dark:border-red-900/50">
               <h3 className="font-bold text-red-900 dark:text-red-200 mb-4 flex items-center gap-2">
-                <Info size={18} /> Neradni Dani ({selectedYear})
+                <Info size={18} /> Feiertage ({selectedYear})
               </h3>
               <div className="flex flex-wrap gap-2">
                 {blockedDays.filter(d => new Date(d.date).getFullYear() === selectedYear).map((day) => (
@@ -455,7 +457,7 @@ export default function UserView({
                 ))}
                 {blockedDays.filter(d => new Date(d.date).getFullYear() === selectedYear).length === 0 && (
                   <span className="text-xs text-muted-foreground italic">
-                    Nema unesenih praznika za ovu godinu.
+                    Keine Feiertage für dieses Jahr eingetragen.
                   </span>
                 )}
               </div>
@@ -465,7 +467,7 @@ export default function UserView({
           {/* MOJA HISTORIJA (DESNO) */}
           <div className="bg-card p-6 rounded-3xl shadow-sm border border-border h-fit">
             <h3 className="font-bold text-card-foreground mb-6 flex items-center gap-2">
-              <Clock className="text-[#1a3826] dark:text-[#FFC72C]" /> Moja Historija
+              <Clock className="text-[#1a3826] dark:text-[#FFC72C]" /> Verlauf
             </h3>
             
             <div className="space-y-4">
@@ -495,9 +497,12 @@ export default function UserView({
                           : "bg-blue-100 text-blue-700 border-blue-200"
                       }`}
                     >
-                      {req.status === "RETURNED" ? "VRAĆENO NA DORADU" : 
-                       req.status === "CANCEL_PENDING" ? "ČEKA PONIŠTENJE" :
-                       req.status === "CANCELLED" ? "PONIŠTENO" : req.status}
+                      {req.status === "APPROVED" ? "GENEHMIGT" :
+                       req.status === "REJECTED" ? "ABGELEHNT" :
+                       req.status === "PENDING" ? "AUSSTEHEND" :
+                       req.status === "RETURNED" ? "ZUR ÜBERARBEITUNG" : 
+                       req.status === "CANCEL_PENDING" ? "STORNIERUNG AUSSTEHEND" :
+                       req.status === "CANCELLED" ? "STORNIERT" : req.status}
                     </span>
                     
                     <div className="flex gap-1">
@@ -508,7 +513,7 @@ export default function UserView({
                                 deleteVacationRequest(req.id);
                             }}
                             className="text-muted-foreground hover:text-red-500 transition-colors p-1"
-                            title="Obriši"
+                            title="Löschen"
                         >
                             <Trash2 size={14} />
                         </button>
@@ -518,7 +523,7 @@ export default function UserView({
                             <button
                                 onClick={() => handleEdit(req)}
                                 className="text-orange-400 hover:text-orange-600 transition-colors p-1"
-                                title="Uredi zahtjev"
+                                title="Antrag bearbeiten"
                             >
                                 <Edit size={14} />
                             </button>
@@ -528,7 +533,7 @@ export default function UserView({
                             <button
                                 onClick={() => handleCancel(req.id)}
                                 className="text-red-300 hover:text-red-600 transition-colors p-1"
-                                title="Poništi odobreni zahtjev"
+                                title="Genehmigten Urlaub stornieren"
                             >
                                 <Undo2 size={14} />
                             </button>
@@ -543,7 +548,7 @@ export default function UserView({
                   
                   <div className="flex items-center gap-1 text-sm font-bold text-foreground">
                     <Briefcase size={14} className="text-muted-foreground" />
-                    {req.days} {req.days === 1 ? "dan" : "dana"}
+                    {req.days} {req.days === 1 ? "Tag" : "Tage"}
                   </div>
 
                   {req.status === "APPROVED" && (
@@ -566,7 +571,7 @@ export default function UserView({
               
               {myRequests.length === 0 && (
                 <div className="text-center py-10 text-muted-foreground italic text-sm">
-                  Nemate zahtjeva za {selectedYear}. godinu.
+                  Sie haben keine Anträge für das Jahr {selectedYear}.
                 </div>
               )}
             </div>

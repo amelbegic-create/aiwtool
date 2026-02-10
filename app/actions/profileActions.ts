@@ -12,7 +12,7 @@ type SessionUser = { id?: string; email?: string | null };
 async function requireSessionUserId(): Promise<string> {
   const session = await getServerSession(authOptions);
   const id = (session?.user as SessionUser)?.id;
-  if (!id) throw new Error("Niste prijavljeni.");
+  if (!id) throw new Error("Sie sind nicht angemeldet.");
   return id;
 }
 
@@ -21,10 +21,10 @@ export async function uploadAvatar(formData: FormData): Promise<{ success: true;
   try {
     const userId = await requireSessionUserId();
     const file = formData.get("file") as File | null;
-    if (!file?.size) return { success: false, error: "Nijedan fajl nije odabran." };
+    if (!file?.size) return { success: false, error: "Keine Datei ausgewählt." };
 
     const token = process.env.BLOB_READ_WRITE_TOKEN;
-    if (!token) return { success: false, error: "Blob token nije konfiguriran." };
+    if (!token) return { success: false, error: "Blob-Token ist nicht konfiguriert." };
 
     const blob = await put(`avatars/${userId}-${Date.now()}.${file.name.split(".").pop() || "jpg"}`, file, {
       access: "public",
@@ -41,7 +41,7 @@ export async function uploadAvatar(formData: FormData): Promise<{ success: true;
     revalidatePath("/");
     return { success: true, url: blob.url };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Greška pri uploadu.";
+    const message = e instanceof Error ? e.message : "Fehler beim Hochladen.";
     return { success: false, error: message };
   }
 }
@@ -58,7 +58,7 @@ export async function updateAvatar(url: string): Promise<{ success: true } | { s
     revalidatePath("/");
     return { success: true };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Greška pri ažuriranju avatara.";
+    const message = e instanceof Error ? e.message : "Fehler beim Aktualisieren des Avatars.";
     return { success: false, error: message };
   }
 }
@@ -73,9 +73,9 @@ export async function updateProfile(data: { name?: string; email?: string }): Pr
     const updateData: { name?: string | null; email?: string } = {};
     if (name !== undefined) updateData.name = name || null;
     if (email !== undefined) {
-      if (!email) return { success: false, error: "Email je obavezan." };
+      if (!email) return { success: false, error: "E-Mail ist erforderlich." };
       const existing = await prisma.user.findFirst({ where: { email, NOT: { id: userId } } });
-      if (existing) return { success: false, error: "Taj email već koristi drugi korisnik." };
+      if (existing) return { success: false, error: "Diese E-Mail-Adresse wird bereits von einem anderen Benutzer verwendet." };
       updateData.email = email;
     }
 
@@ -90,7 +90,7 @@ export async function updateProfile(data: { name?: string; email?: string }): Pr
     revalidatePath("/");
     return { success: true };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Greška pri ažuriranju profila.";
+    const message = e instanceof Error ? e.message : "Fehler beim Aktualisieren des Profils.";
     return { success: false, error: message };
   }
 }
@@ -103,13 +103,13 @@ export async function changePassword(
   try {
     const userId = await requireSessionUserId();
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
-    if (!user?.password) return { success: false, error: "Korisnik nije pronađen ili nema lozinku." };
+    if (!user?.password) return { success: false, error: "Benutzer nicht gefunden oder kein Passwort gesetzt." };
 
     const valid = await compare(currentPassword, user.password);
-    if (!valid) return { success: false, error: "Trenutna lozinka nije ispravna." };
+    if (!valid) return { success: false, error: "Das aktuelle Passwort ist falsch." };
 
     const trimmed = newPassword.trim();
-    if (trimmed.length < 6) return { success: false, error: "Nova lozinka mora imati najmanje 6 znakova." };
+    if (trimmed.length < 6) return { success: false, error: "Das neue Passwort muss mindestens 6 Zeichen haben." };
 
     const hashed = await hash(trimmed, 12);
     await prisma.user.update({
@@ -120,7 +120,7 @@ export async function changePassword(
     revalidatePath("/profile");
     return { success: true };
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Greška pri promjeni lozinke.";
+    const message = e instanceof Error ? e.message : "Fehler beim Ändern des Passworts.";
     return { success: false, error: message };
   }
 }

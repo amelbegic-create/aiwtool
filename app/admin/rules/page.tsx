@@ -6,7 +6,7 @@ import AdminRulesClient from "./AdminRulesClient";
 export default async function AdminRulesPage() {
   const access = await tryRequirePermission("rules:access");
   if (!access.ok) {
-    return <NoPermission moduleName="Pravila (admin)" />;
+    return <NoPermission moduleName="Richtlinien (Admin)" />;
   }
 
   const [rules, categories] = await Promise.all([

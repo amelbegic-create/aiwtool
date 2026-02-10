@@ -11,7 +11,7 @@ export default async function UsersLayout({
   const restaurantsAccess = usersAccess.ok ? usersAccess : await tryRequirePermission("restaurants:access");
 
   if (!restaurantsAccess.ok) {
-    return <NoPermission moduleName="Korisnici i restorani" />;
+    return <NoPermission moduleName="Benutzer & Restaurants" />;
   }
 
   return (
@@ -19,10 +19,10 @@ export default async function UsersLayout({
       <div className="max-w-[1600px] mx-auto space-y-6">
         <div>
           <h1 className="text-3xl md:text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
-            Korisnici <span className="text-[#FFC72C]">&</span> Timovi
+            Benutzer <span className="text-[#FFC72C]">&</span> Teams
           </h1>
           <p className="text-muted-foreground text-sm font-semibold mt-1">
-            Upravljanje korisnicima, restoranima i konfiguracija rola
+            Verwaltung von Benutzern, Restaurants und Rollenkonfiguration
           </p>
         </div>
         <UsersTabs />

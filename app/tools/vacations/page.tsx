@@ -17,7 +17,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
 
   const accessResult = await tryRequirePermission("vacation:access");
   if (!accessResult.ok) {
-    return <NoPermission moduleName="Godišnji odmori" />;
+    return <NoPermission moduleName="Urlaub" />;
   }
 
   const cookieStore = await cookies();
@@ -38,7 +38,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     },
   });
 
-  if (!user) return <div className="p-10 text-red-500">Korisnik nije pronađen.</div>;
+  if (!user) return <div className="p-10 text-red-500">Benutzer nicht gefunden.</div>;
 
   const searchParams = await props.searchParams;
   const currentYear = new Date().getFullYear();
@@ -169,7 +169,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       end: req.end,
       days: req.days,
       status: req.status,
-      restaurantName: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "N/A",
+      restaurantName: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "–",
       user: {
         id: req.user.id,
         name: req.user.name,
@@ -180,7 +180,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
 
     const usersStats = allUsers.map((u) => {
       const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
-      const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Nepoznat");
+      const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Unbekannt");
 
       const vaThis = u.vacationAllowances?.find((a) => a.year === selectedYear);
       const vaPrev = u.vacationAllowances?.find((a) => a.year === selectedYear - 1);
@@ -219,7 +219,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     });
 
     const reportRestaurantLabel =
-      reportRestaurantResult?.name ?? (activeRestaurantId && activeRestaurantId !== "all" ? `Restoran ${activeRestaurantId}` : "Svi restorani");
+      reportRestaurantResult?.name ?? (activeRestaurantId && activeRestaurantId !== "all" ? `Restaurant ${activeRestaurantId}` : "Alle Restaurants");
 
     const canRegisterOwnVacation =
       user.role === Role.SYSTEM_ARCHITECT ||

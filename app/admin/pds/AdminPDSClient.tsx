@@ -23,10 +23,10 @@ export default function AdminPDSClient({
   const router = useRouter();
 
   const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`Obrisati PDS obrazac "${title}"? Postojeći PDS zapisnici radnika neće biti obrisani.`)) return;
+    if (!confirm(`PDS-Vorlage "${title}" wirklich löschen? Bestehende PDS-Einträge der Mitarbeiter bleiben erhalten.`)) return;
     const res = await deletePDSTemplate(id);
     if (res.success) {
-      toast.success("PDS obrazac obrisan.");
+      toast.success("PDS-Vorlage gelöscht.");
       router.refresh();
     } else alert(res.error);
   };
@@ -57,7 +57,7 @@ export default function AdminPDSClient({
           {templates.length === 0 ? (
             <tr>
               <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
-                Nema PDS obrazaca. Kliknite &quot;Kreiraj Novi PDS&quot; za prvi obrazac.
+                Keine PDS-Vorlagen. Klicken Sie auf „Vorlage erstellen“ für die erste Vorlage.
               </td>
             </tr>
           ) : (
@@ -80,7 +80,7 @@ export default function AdminPDSClient({
                       t.isActive ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-muted-foreground"
                     }`}
                   >
-                    {t.isActive ? "Aktivan" : "Neaktivan"}
+                    {t.isActive ? "Aktiv" : "Inaktiv"}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -96,7 +96,7 @@ export default function AdminPDSClient({
                       type="button"
                       onClick={() => handleDelete(t.id, t.title)}
                       className="p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600"
-                      title="Obriši"
+                      title="Löschen"
                     >
                       <Trash2 size={16} />
                     </button>

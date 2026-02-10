@@ -115,11 +115,11 @@ export default function RolePresetsClient() {
     setIsSaving(false);
 
     if (!res.success) {
-      alert(res.error || "Greška pri snimanju.");
+      alert(res.error || "Fehler beim Speichern.");
       return;
     }
 
-    alert("Preset je sačuvan.");
+    alert("Vorlage gespeichert.");
   };
 
   return (
@@ -128,16 +128,16 @@ export default function RolePresetsClient() {
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
-              ROLE <span className="text-[#FFC72C]">PRESETI</span>
+              ROLLEN<span className="text-[#FFC72C]">VORLAGEN</span>
             </h1>
             <p className="text-muted-foreground text-sm font-semibold">
-              Podesi permisije po roli jednom – kreiranje korisnika će ih automatski dodeljivati.
+              Definieren Sie Berechtigungen pro Rolle einmal – bei der Benutzererstellung werden diese automatisch zugewiesen.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="bg-white border border-border rounded-2xl p-3">
-              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Rola</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Rolle</div>
               <select
                 value={activeRole}
                 onChange={(e) => setActiveRole(e.target.value as Role)}
@@ -159,11 +159,11 @@ export default function RolePresetsClient() {
                   isSaving || isLoading ? "bg-[#1a3826]/60 cursor-not-allowed" : "bg-[#1a3826] hover:bg-[#142e1e] active:scale-95"
                 }`}
               >
-                <Check size={16} /> {isSaving ? "Čuvam..." : "Sačuvaj"}
+                <Check size={16} /> {isSaving ? "Speichern…" : "Speichern"}
               </button>
             ) : (
               <div className="px-4 py-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold inline-flex items-center gap-2">
-                <ShieldCheck size={16} /> God-mode rola (permisije su uvek sve)
+                <ShieldCheck size={16} /> God-Mode-Rolle (alle Berechtigungen)
               </div>
             )}
           </div>
@@ -172,7 +172,7 @@ export default function RolePresetsClient() {
         {isGodMode(activeRole) ? (
           <div className="bg-white border border-border rounded-3xl p-6">
             <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm font-bold">
-              Za rolu <span className="font-black">{activeRole}</span> ne podešava se preset, jer sistem automatski daje sve permisije.
+              Für die Rolle <span className="font-black">{activeRole}</span> wird keine Vorlage gesetzt – das System vergibt automatisch alle Berechtigungen.
             </div>
           </div>
         ) : (
@@ -180,13 +180,13 @@ export default function RolePresetsClient() {
             <div className="p-5 bg-slate-50 border-b border-border flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div>
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground inline-flex items-center gap-2">
-                  <Layers size={14} /> Permisije
+                  <Layers size={14} /> Berechtigungen
                 </h3>
                 <p className="text-xs text-muted-foreground font-semibold mt-1">
-                  Levo odaberi modul, desno označi permisije • {globalSelected}/{globalTotal} ukupno
+                  Links Modul wählen, rechts Berechtigungen setzen • {globalSelected}/{globalTotal} insgesamt
                 </p>
                 {isLoading && (
-                  <p className="text-[11px] font-bold text-muted-foreground mt-2">Učitavam preset iz baze...</p>
+                  <p className="text-[11px] font-bold text-muted-foreground mt-2">Lade Vorlage…</p>
                 )}
               </div>
 
@@ -196,14 +196,14 @@ export default function RolePresetsClient() {
                   disabled={isLoading || isSaving}
                   className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[10px] font-black uppercase"
                 >
-                  Select all
+                  Alle auswählen
                 </button>
                 <button
                   onClick={() => setKeys([])}
                   disabled={isLoading || isSaving}
                   className="px-3 py-2 rounded-xl bg-white hover:bg-accent border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                 >
-                  <Eraser size={14} /> Clear all
+                  <Eraser size={14} /> Alle abwählen
                 </button>
               </div>
             </div>
@@ -216,7 +216,7 @@ export default function RolePresetsClient() {
                   <input
                     value={moduleQuery}
                     onChange={(e) => setModuleQuery(e.target.value)}
-                    placeholder="Traži modul..."
+                    placeholder="Modul suchen..."
                     className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                 </div>
@@ -236,7 +236,7 @@ export default function RolePresetsClient() {
                         <div className="font-black text-foreground">{g.title}</div>
                         {g.subtitle && <div className="text-xs text-muted-foreground font-semibold truncate">{g.subtitle}</div>}
                         <div className="text-[10px] font-black uppercase text-muted-foreground mt-2">
-                          {selected}/{g.items.length} odabrano
+                          {selected}/{g.items.length} ausgewählt
                         </div>
                       </button>
                     );
@@ -244,7 +244,7 @@ export default function RolePresetsClient() {
 
                   {modulesFiltered.length === 0 && (
                     <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
-                      Nema rezultata za ovaj upit.
+                      Keine Treffer.
                     </div>
                   )}
                 </div>
@@ -259,7 +259,7 @@ export default function RolePresetsClient() {
                       <div className="text-xs text-muted-foreground font-semibold">{activeModule.subtitle}</div>
                     )}
                     <div className="text-[10px] font-black uppercase text-muted-foreground mt-2">
-                      {activeSelected}/{activeKeys.length} odabrano u ovom modulu
+                      {activeSelected}/{activeKeys.length} in diesem Modul ausgewählt
                     </div>
                   </div>
 
@@ -273,7 +273,7 @@ export default function RolePresetsClient() {
                           : "bg-white text-foreground border-border hover:bg-accent"
                       }`}
                     >
-                      {activeAllOn ? "Sve" : "Označi sve"}
+                      {activeAllOn ? "Alle" : "Alle auswählen"}
                     </button>
 
                     <button
@@ -281,7 +281,7 @@ export default function RolePresetsClient() {
                       disabled={isLoading || isSaving}
                       className="px-3 py-2 rounded-xl bg-white hover:bg-accent border border-border text-[10px] font-black uppercase text-foreground inline-flex items-center gap-2"
                     >
-                      <Eraser size={14} /> Clear
+                      <Eraser size={14} /> Abwählen
                     </button>
                   </div>
                 </div>
@@ -291,7 +291,7 @@ export default function RolePresetsClient() {
                   <input
                     value={permQuery}
                     onChange={(e) => setPermQuery(e.target.value)}
-                    placeholder="Traži permisiju u ovom modulu..."
+                    placeholder="Berechtigung in diesem Modul suchen..."
                     className="w-full bg-white border border-border rounded-xl px-3 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
                 </div>
@@ -322,7 +322,7 @@ export default function RolePresetsClient() {
 
                   {activeItemsFiltered.length === 0 && (
                     <div className="p-6 rounded-2xl border border-border text-sm font-bold text-muted-foreground bg-white">
-                      Nema permisija za ovaj filter.
+                      Keine Berechtigungen für diesen Filter.
                     </div>
                   )}
                 </div>

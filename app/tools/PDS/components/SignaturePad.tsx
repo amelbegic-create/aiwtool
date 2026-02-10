@@ -59,7 +59,7 @@ export default function SignaturePad({ value, onChange, disabled, label }: Props
             type="button" 
             onClick={clear} 
             className="text-red-500 p-1 hover:bg-red-50 rounded-lg transition-all"
-            title="Obriši potpis"
+            title="Unterschrift löschen"
           >
             <Trash2 size={16} />
           </button>
@@ -71,7 +71,7 @@ export default function SignaturePad({ value, onChange, disabled, label }: Props
         {disabled ? (
             value ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={value} alt="Potpis" className="w-full h-full object-contain" />
+                <img src={value} alt="Unterschrift" className="w-full h-full object-contain" />
             ) : (
                 <div className="flex items-center justify-center h-full text-slate-300 text-xs italic">
                     Nije potpisano
@@ -89,7 +89,7 @@ export default function SignaturePad({ value, onChange, disabled, label }: Props
                 />
                 {!value && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-200 text-[10px] font-bold uppercase tracking-widest">
-                        Ovdje se potpišite
+                        Hier unterschreiben
                     </div>
                 )}
             </>

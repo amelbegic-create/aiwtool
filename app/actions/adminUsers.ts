@@ -64,7 +64,7 @@ export async function createUser(formData: FormData) {
     return { success: true };
   } catch (error) {
     console.error("Create error:", error);
-    return { success: false, error: "Greška pri kreiranju" };
+    return { success: false, error: "Fehler beim Erstellen." };
   }
 }
 
@@ -123,7 +123,7 @@ export async function updateUser(formData: FormData) {
     return { success: true };
   } catch (error) {
     console.error("Update error:", error);
-    return { success: false, error: "Greška pri ažuriranju" };
+    return { success: false, error: "Fehler beim Aktualisieren." };
   }
 }
 

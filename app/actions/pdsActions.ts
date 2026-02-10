@@ -17,10 +17,10 @@ const PDS_CREATE_ROLES = new Set(['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN']);
 async function requirePdsCreateRole() {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string })?.id;
-  if (!userId) throw new Error('Niste prijavljeni.');
+  if (!userId) throw new Error('Sie sind nicht angemeldet.');
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (!user || !PDS_CREATE_ROLES.has(String(user.role))) {
-    throw new Error('Neovlašteno: samo ADMIN (ili System Architect / Super Admin) mogu generisati PDS obrasce.');
+    throw new Error('Nicht berechtigt: Nur ADMIN (oder System Architect / Super Admin) können PDS-Vorlagen erstellen.');
   }
 }
 
@@ -104,7 +104,7 @@ export async function updatePDSTemplate(
     } else {
       targetRestaurantIds = restaurantIds.filter(Boolean);
       if (targetRestaurantIds.length === 0) {
-        return { success: false as const, error: 'Odaberite barem jedan restoran ili uključite "Svi restorani".' };
+        return { success: false as const, error: 'Bitte wählen Sie mindestens ein Restaurant oder aktivieren Sie „Alle Restaurants“.' };
       }
     }
 
@@ -125,7 +125,7 @@ export async function updatePDSTemplate(
     return { success: true as const };
   } catch (error) {
     console.error('updatePDSTemplate Error:', error);
-    return { success: false as const, error: 'Greška na serveru.' };
+    return { success: false as const, error: 'Serverfehler.' };
   }
 }
 
@@ -138,7 +138,7 @@ export async function deletePDSTemplate(id: string) {
     revalidatePath('/tools/PDS');
     return { success: true as const };
   } catch {
-    return { success: false as const, error: 'Greška pri brisanju.' };
+    return { success: false as const, error: 'Fehler beim Löschen.' };
   }
 }
 
@@ -186,7 +186,7 @@ export async function createPDSTemplate(params: {
     } else {
       targetRestaurantIds = restaurantIds.filter(Boolean);
       if (targetRestaurantIds.length === 0) {
-        return { success: false as const, error: 'Odaberite barem jedan restoran ili uključite "Svi restorani".' };
+        return { success: false as const, error: 'Bitte wählen Sie mindestens ein Restaurant oder aktivieren Sie „Alle Restaurants“.' };
       }
     }
 
@@ -248,7 +248,7 @@ export async function createPDSTemplate(params: {
     return { success: true as const, templateId: template.id, count };
   } catch (error) {
     console.error('createPDSTemplate Error:', error);
-    return { success: false as const, error: 'Greška na serveru.' };
+    return { success: false as const, error: 'Serverfehler.' };
   }
 }
 
@@ -281,12 +281,12 @@ export async function savePDSTemplate(
 ) {
   try {
     const restaurantId = await getActiveRestaurantId();
-    if (!restaurantId) return { success: false, error: 'Nije odabran restoran!' };
+    if (!restaurantId) return { success: false, error: 'Kein Restaurant ausgewählt!' };
 
     return createTemplate(year, [restaurantId], goals, scale, managerId);
   } catch (error) {
     console.error('Save Template Error:', error);
-    return { success: false, error: 'Greška na serveru.' };
+    return { success: false, error: 'Serverfehler.' };
   }
 }
 
@@ -294,7 +294,7 @@ export async function createBulkPDS(year: number, managerId: string) {
   try {
     await requirePdsCreateRole();
     const restaurantId = await getActiveRestaurantId();
-    if (!restaurantId) return { success: false, error: 'Nije odabran restoran!' };
+    if (!restaurantId) return { success: false, error: 'Kein Restaurant ausgewählt!' };
 
     const tpl = await getTemplateForRestaurantAndYear(restaurantId, year);
 
@@ -309,7 +309,7 @@ export async function createBulkPDS(year: number, managerId: string) {
     });
 
     if (restaurantUsers.length === 0) {
-      return { success: true, count: 0, message: 'Nema korisnika u restoranu.' };
+      return { success: true, count: 0, message: 'Keine Mitarbeiter im Restaurant.' };
     }
 
     let count = 0;
@@ -351,7 +351,7 @@ export async function createBulkPDS(year: number, managerId: string) {
     return { success: true, count };
   } catch (error) {
     console.error('createBulkPDS error:', error);
-    return { success: false, error: 'Greška na serveru.' };
+    return { success: false, error: 'Serverfehler.' };
   }
 }
 
@@ -452,10 +452,10 @@ export type SignRole = 'employee' | 'manager';
 export async function saveSignatureImage(pdsId: string, role: SignRole, imageDataUrl: string) {
   try {
     if (!imageDataUrl || !imageDataUrl.startsWith('data:image')) {
-      return { success: false, error: 'Potrebna je slika potpisa (canvas).' };
+      return { success: false, error: 'Unterschriftsbild (Canvas) erforderlich.' };
     }
     const pds = await db.pDS.findUnique({ where: { id: pdsId } });
-    if (!pds) return { success: false, error: 'PDS nije pronađen.' };
+    if (!pds) return { success: false, error: 'PDS nicht gefunden.' };
 
     const update: any = role === 'employee'
       ? { employeeSignature: imageDataUrl }
@@ -484,7 +484,7 @@ export async function saveSignatureImage(pdsId: string, role: SignRole, imageDat
     return { success: true };
   } catch (error) {
     console.error('saveSignatureImage error:', error);
-    return { success: false, error: 'Greška pri spremanju potpisa.' };
+    return { success: false, error: 'Fehler beim Speichern der Unterschrift.' };
   }
 }
 

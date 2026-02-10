@@ -17,7 +17,7 @@ export default async function PDSDetailPage(props: { params: Promise<{ id: strin
     include: { user: true }
   });
 
-  if (!pds) return <div className="p-10 text-center font-bold text-slate-500 uppercase tracking-widest">PDS dokument nije pronađen.</div>;
+  if (!pds) return <div className="p-10 text-center font-bold text-slate-500 uppercase tracking-widest">PDS-Dokument nicht gefunden.</div>;
 
   const isManager = ['ADMIN', 'MANAGER', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
   const safePds = JSON.parse(JSON.stringify(pds));
