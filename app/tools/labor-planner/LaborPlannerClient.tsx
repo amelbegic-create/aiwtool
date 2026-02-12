@@ -165,19 +165,23 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sinkronizacija s URL-om (npr. direktan link s restaurantId)
+  // Kad korisnik promijeni restoran u TopNav: cookie se ažurira, router.refresh() pošalje novi defaultRestaurantId – odmah prebaci na njega, ažuriraj URL i učitaj podatke iz baze
   useEffect(() => {
-    if (urlRestaurantId && urlRestaurantId !== selectedRestaurantId) {
+    if (!defaultRestaurantId) return;
+    if (defaultRestaurantId !== selectedRestaurantId) {
+      setSelectedRestaurantId(defaultRestaurantId);
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("restaurantId", defaultRestaurantId);
+      router.replace(`?${next.toString()}`, { scroll: false });
+    }
+  }, [defaultRestaurantId]); // Namjerno bez selectedRestaurantId – reagiraj samo na promjenu iz headera (cookie)
+
+  // Sinkronizacija s URL-om samo kad URL i cookie (header) se podudaraju – npr. direktan link ili prvi load
+  useEffect(() => {
+    if (urlRestaurantId && urlRestaurantId === defaultRestaurantId && urlRestaurantId !== selectedRestaurantId) {
       setSelectedRestaurantId(urlRestaurantId);
     }
-  }, [urlRestaurantId, selectedRestaurantId]);
-
-  // Kad korisnik promijeni restoran u TopNav: cookie se ažurira, router.refresh() pošalje novi defaultRestaurantId – odmah prebaci na njega i učitaj podatke iz baze
-  useEffect(() => {
-    if (defaultRestaurantId && defaultRestaurantId !== selectedRestaurantId) {
-      setSelectedRestaurantId(defaultRestaurantId);
-    }
-  }, [defaultRestaurantId]);
+  }, [urlRestaurantId, selectedRestaurantId, defaultRestaurantId]);
 
   // Dani u mjesecu – kratice na njemačkom (Mo, Di, …)
   const generateEmptyDays = useCallback((m: number, y: number, savedRows: SavedRow[] = []) => {
@@ -595,7 +599,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
       <div className="mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 print:hidden" style={{ maxWidth: "1600px" }}>
         <h1 className="text-4xl font-extrabold tracking-tight uppercase">
           <span style={{ color: COLORS.green }}>Personaleinsatz</span>{" "}
-          <span style={{ color: COLORS.yellow }}>{selectedRest ? selectedRest.code : "Planung"}</span>
+          <span style={{ color: COLORS.yellow }}>{selectedRest ? (selectedRest.name || selectedRest.code) : "Planung"}</span>
         </h1>
         <div className="flex gap-3">
           <button

@@ -11,6 +11,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { markRuleAsRead } from "@/app/actions/ruleActions";
 import { useRouter } from "next/navigation";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
@@ -213,8 +214,7 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                 Galerija ({rule.images.length})
               </p>
               <div className="relative rounded-lg overflow-hidden bg-muted aspect-video">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={rule.images[galleryIndex].url} alt={`Galerija ${galleryIndex + 1} od ${rule.images.length}`} className="w-full h-full object-contain" />
+                <Image src={rule.images[galleryIndex].url} alt={`Galerija ${galleryIndex + 1} od ${rule.images.length}`} fill className="object-contain" sizes="(max-width: 768px) 100vw, 640px" />
                 {rule.images.length > 1 && (
                   <>
                     <button
@@ -241,12 +241,11 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                     type="button"
                     onClick={() => setGalleryIndex(idx)}
                     className={cn(
-                      "h-14 w-14 rounded-lg overflow-hidden border-2 flex-shrink-0",
+                      "h-14 w-14 rounded-lg overflow-hidden border-2 flex-shrink-0 relative",
                       idx === galleryIndex ? "border-[#1a3826]" : "border-transparent opacity-70"
                     )}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img.url} alt={`Slika ${idx + 1}`} className="w-full h-full object-cover" />
+                    <Image src={img.url} alt={`Slika ${idx + 1}`} fill className="object-cover" sizes="56px" />
                   </button>
                 ))}
               </div>

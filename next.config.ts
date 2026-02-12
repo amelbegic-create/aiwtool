@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Ensures Vercel picks up latest commit (redeploy trigger)
 
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production",
+  },
+
   eslint: {
     ignoreDuringBuilds: true,
   },

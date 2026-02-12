@@ -1,7 +1,7 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
 import { ChevronDown, LayoutGrid, LogOut, User, UserCircle, Menu, X, Bell } from "lucide-react";
@@ -155,8 +155,12 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
             <UserCircle size={18} />
           </Link>
           <div className="flex items-center gap-1.5">
-            <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10" title="Moj Profil">
-               {session?.user?.image ? <img src={session.user.image} alt="User" className="h-full w-full object-cover" /> : <User size={16} />}
+            <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10 relative" title="Moj Profil">
+               {session?.user?.image ? (
+                 <Image src={session.user.image} alt="User" fill className="object-cover" sizes="32px" priority />
+               ) : (
+                 <User size={16} />
+               )}
             </Link>
             <button onClick={() => signOut({ callbackUrl: "/login" })} className="h-8 w-8 flex items-center justify-center text-white/30 hover:text-red-400 transition-colors ml-1"><LogOut size={16} /></button>
           </div>

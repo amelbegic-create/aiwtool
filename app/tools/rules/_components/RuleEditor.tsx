@@ -11,6 +11,7 @@ import {
   FileText,
   Settings,
 } from "lucide-react";
+import Image from "next/image";
 import {
   saveRule,
   uploadFile,
@@ -227,8 +228,7 @@ export default function RuleEditor({
                 <Loader2 size={32} className="animate-spin text-[#1a3826]" />
               ) : imageUrl ? (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
+                  <Image src={imageUrl} alt="Cover" fill className="object-cover" sizes="(max-width: 768px) 100vw, 640px" />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition">
                     <UploadCloud size={24} className="text-white" />
                   </div>

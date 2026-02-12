@@ -33,6 +33,7 @@ import type { RulePriority } from "@prisma/client";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
+import NextImage from "next/image";
 import TiptapYoutube from "@tiptap/extension-youtube";
 
 interface RuleEditorProps {
@@ -413,8 +414,7 @@ export default function RuleEditor({
                     <Loader2 size={28} className="animate-spin text-[#1a3826]" />
                   ) : imageUrl ? (
                     <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={imageUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
+                      <NextImage src={imageUrl} alt="Cover" fill className="object-cover" sizes="(max-width: 768px) 100vw, 400px" />
                       <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-2 p-3 opacity-0 hover:opacity-100 transition">
                         <button
                           type="button"
@@ -475,9 +475,8 @@ export default function RuleEditor({
                   <div className="flex flex-wrap gap-2 mb-2">
                     {galleryUrls.map((url, i) => (
                       <div key={`${url}-${i}`} className="relative group">
-                        <div className="w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={url} alt="" className="w-full h-full object-cover" />
+                        <div className="w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 relative">
+                          <NextImage src={url} alt="" fill className="object-cover" sizes="80px" />
                         </div>
                         <button
                           type="button"

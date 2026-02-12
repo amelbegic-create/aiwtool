@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import {
   BookOpen,
   Search,
@@ -1046,11 +1047,10 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
                                 {existingImages.slice(0, 12).map((img: any, idx: number) => (
                                   <div
                                     key={`${img?.url || idx}`}
-                                    className="aspect-square overflow-hidden rounded-xl border border-border bg-muted"
+                                    className="aspect-square overflow-hidden rounded-xl border border-border bg-muted relative"
                                     title={img?.url || "image"}
                                   >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={img?.url} alt="Existing" className="h-full w-full object-cover" />
+                                    <Image src={img?.url} alt="Existing" fill className="object-cover" sizes="120px" />
                                   </div>
                                 ))}
                               </div>

@@ -26,6 +26,8 @@ export default function LoginPage() {
       ? callbackUrl
       : DEFAULT_AFTER_LOGIN;
 
+  const inactiveLogout = searchParams.get("reason") === "inactivity";
+
   useEffect(() => {
     if (searchParams.get("error") === "CredentialsSignin") {
       alert("Ungültige Anmeldedaten. Bitte E-Mail und Passwort prüfen.");
@@ -93,6 +95,11 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {inactiveLogout && (
+            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+              Sie wurden aufgrund von Inaktivität abgemeldet.
+            </div>
+          )}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-foreground tracking-tight">
               Anmelden
@@ -164,7 +171,7 @@ export default function LoginPage() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-md
                              text-muted-foreground hover:text-foreground hover:bg-accent
                              transition-colors"
-                  aria-label={showPassword ? "Sakrij lozinku" : "Prikaži lozinku"}
+                  aria-label={showPassword ? "Passwort verbergen" : "Passwort anzeigen"}
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}

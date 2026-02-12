@@ -118,6 +118,7 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider>
+        {/* Inactivity watchdog (auto logout 10 min) lives in AuthProvider via AutoLogout */}
         <AuthProvider hasSession={!!session?.user}>
             {session?.user && (
                 <TopNavbar 

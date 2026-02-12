@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Search, User } from 'lucide-react';
 
 interface Props {
@@ -58,8 +59,7 @@ export default function PDSListClient({ data, year, isManager }: Props) {
               <div className="col-span-4 flex items-center gap-3">
                 <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold shadow-sm overflow-hidden relative">
                   {pds.user.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={pds.user.image} alt="User" className="h-full w-full object-cover"/>
+                    <Image src={pds.user.image} alt="User" fill className="object-cover" sizes="32px" />
                   ) : (
                     <User size={14}/>
                   )}

@@ -8,13 +8,13 @@ type Props = {
   hasSession?: boolean;
 };
 
-export default function AuthProvider({ children }: Props) {
+export default function AuthProvider({ children, hasSession }: Props) {
   return (
     <SessionProvider
       refetchInterval={5 * 60}
       refetchOnWindowFocus={false}
     >
-      <AutoLogout />
+      {hasSession && <AutoLogout />}
       {children}
     </SessionProvider>
   );

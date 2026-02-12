@@ -11,6 +11,7 @@ import {
   Dot,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 
 interface RulesGridProps {
@@ -204,13 +205,14 @@ export default function RulesGrid({
                     className="group bg-card rounded-xl border border-border shadow-sm hover:shadow-md hover:border-[#1a3826]/30 transition-all overflow-hidden flex flex-col"
                   >
                     {/* Cover – fiksna visina h-32; bez slike = mala ikonica */}
-                    <div className="h-32 w-full bg-muted overflow-hidden flex items-center justify-center">
+                    <div className="h-32 w-full bg-muted overflow-hidden flex items-center justify-center relative">
                       {cover ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
+                        <Image
                           src={cover}
                           alt=""
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          sizes="(max-width: 640px) 100vw, 320px"
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">

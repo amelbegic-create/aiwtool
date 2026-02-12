@@ -1,49 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { signOut, useSession } from "next-auth/react";
-
-const IDLE_MS = 10 * 60 * 1000; // 10 minuta
-
-const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
-  "mousemove",
-  "keydown",
-  "click",
-  "scroll",
-];
+import { useSession } from "next-auth/react";
+import { useInactivityLogout } from "@/hooks/useInactivityLogout";
 
 /**
  * Auto Logout: odjavi korisnika nakon 10 minuta neaktivnosti.
- * Prati: mousemove, keydown, click, scroll.
- * Učitava se unutar SessionProvider; aktivna je samo kad je korisnik logovan.
+ * Koristi useInactivityLogout hook s throttle-om (reset najviše 1x/s).
+ * Aktivna samo kad je korisnik autenticiran.
  */
 export default function AutoLogout() {
   const { status } = useSession();
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const enabled = status === "authenticated";
 
-  useEffect(() => {
-    if (status !== "authenticated") return;
-
-    const resetTimer = () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        void signOut({ callbackUrl: "/login" });
-      }, IDLE_MS);
-    };
-
-    resetTimer();
-
-    for (const ev of ACTIVITY_EVENTS) {
-      window.addEventListener(ev, resetTimer, { passive: true });
-    }
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      for (const ev of ACTIVITY_EVENTS) {
-        window.removeEventListener(ev, resetTimer as EventListener);
-      }
-    };
-  }, [status]);
+  useInactivityLogout(enabled);
 
   return null;
 }
