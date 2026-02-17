@@ -4,19 +4,21 @@ import "./globals.css";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import TopNavbar from "@/components/TopNavbar";
+import BottomNav from "@/components/BottomNav";
 import prisma from "@/lib/prisma";
 import { cookies } from "next/headers";
 import AuthProvider from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
 import { Role } from "@prisma/client";
+import { dict } from "@/translations";
 // UKLONIO SAM IMPORT switchRestaurant JER GA NE SMIJEMO KORISTITI OVDJE
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AIW Services",
-  description: "Enterprise Management System",
+  title: dict.app_title,
+  description: dict.app_description,
 };
 
 export default async function RootLayout({
@@ -51,12 +53,12 @@ export default async function RootLayout({
       } else {
           const relations = await prisma.restaurantUser.findMany({
               where: { userId },
-              include: { restaurant: true }
+              select: { restaurant: { select: { id: true, name: true, code: true } } },
           });
-          userRestaurants = relations.map(rel => ({
+          userRestaurants = relations.map((rel) => ({
               id: rel.restaurant.id,
               name: rel.restaurant.name,
-              code: rel.restaurant.code
+              code: rel.restaurant.code,
           }));
       }
 
@@ -118,16 +120,22 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider>
-        {/* Inactivity watchdog (auto logout 10 min) lives in AuthProvider via AutoLogout */}
-        <AuthProvider hasSession={!!session?.user}>
+        {/* Inactivity watchdog (10 min) + session: AutoLogoutProvider unutar AuthProvider */}
+        <AuthProvider>
             {session?.user && (
-                <TopNavbar 
-                    restaurants={userRestaurants} 
-                    activeRestaurantId={activeRestaurantId}
-                    notificationCount={pendingNotifications}
-                />
+                <>
+                    <TopNavbar 
+                        restaurants={userRestaurants} 
+                        activeRestaurantId={activeRestaurantId}
+                        notificationCount={pendingNotifications}
+                    />
+                    <main className="md:min-h-0 pb-20 md:pb-0 safe-area-b-mobile min-h-screen">
+                        {children}
+                    </main>
+                    <BottomNav />
+                </>
             )}
-            {children}
+            {!session?.user && children}
             <Toaster richColors position="top-center" closeButton />
         </AuthProvider>
         </ThemeProvider>

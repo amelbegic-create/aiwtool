@@ -7,6 +7,7 @@ interface RulesUserViewProps {
   initialRules: Array<{
     id: string;
     title: string;
+    content?: string | null;
     categoryId: string;
     category?: { name: string } | null;
     priority: string;
@@ -16,17 +17,20 @@ interface RulesUserViewProps {
     isRead?: boolean;
   }>;
   categories: Array<{ id: string; name: string }>;
+  canEdit?: boolean;
 }
 
 export default function RulesUserView({
   initialRules,
   categories,
+  canEdit = false,
 }: RulesUserViewProps) {
   return (
     <RulesGrid
       initialRules={initialRules}
       categories={categories}
       showReadStatus={true}
+      canEdit={canEdit}
     />
   );
 }

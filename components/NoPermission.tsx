@@ -24,18 +24,17 @@ export default function NoPermission({ moduleName, inDevelopment }: NoPermission
             </h1>
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               {showInDevelopment ? (
-                <>Ovaj modul je trenutno u fazi razvoja. Pokušajte ponovo kasnije ili obratite se administratoru.</>
+                <>Dieses Modul befindet sich derzeit in der Entwicklung. Bitte versuchen Sie es später erneut oder wenden Sie sich an den Administrator.</>
               ) : (
-                <>Trenutno nemate dodijeljene permisije za modul <span className="font-bold text-foreground">{moduleName}</span>.
-                Ako mislite da je ovo greška, obratite se administratoru.</>
+                <>Sie haben derzeit keine Berechtigung für das Modul <span className="font-bold text-foreground">{moduleName}</span>. Wenn Sie der Meinung sind, dass dies ein Fehler ist, wenden Sie sich bitte an den Administrator.</>
               )}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/dashboard" className="inline-flex items-center justify-center rounded-xl bg-[#1a3826] px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:opacity-95">
-                Nazad na Dashboard
+                Zurück zum Dashboard
               </Link>
               <Link href="/profile" className="inline-flex items-center justify-center rounded-xl border border-border bg-card px-4 py-2 text-xs font-black uppercase tracking-widest text-foreground hover:bg-accent">
-                Moj profil
+                Mein Profil
               </Link>
             </div>
           </div>

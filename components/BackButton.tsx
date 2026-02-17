@@ -26,7 +26,7 @@ export default function BackButton({ href, label }: BackButtonProps) {
       className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-sm hover:bg-accent transition"
     >
       <ArrowLeft className="h-3 w-3" />
-      {label ?? "Nazad"}
+      {label ?? "Zurück"}
     </button>
   );
 }

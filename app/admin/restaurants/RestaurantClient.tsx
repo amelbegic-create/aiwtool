@@ -9,9 +9,21 @@ import {
   updateRestaurant,
 } from "@/app/actions/restaurantAdminActions";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-type RestaurantRow = { id: string; code: string; name: string; city: string; address: string; isActive: boolean };
-export default function RestaurantClient({ restaurants }: { restaurants: RestaurantRow[] }) {
+type RestaurantRow = {
+  id: string;
+  code: string;
+  name: string;
+  city: string;
+  address: string;
+  isActive: boolean;
+};
+export default function RestaurantClient({
+  restaurants,
+}: {
+  restaurants: RestaurantRow[];
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
 
@@ -78,7 +90,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
       setOpen(false);
       router.refresh();
     } catch (e: any) {
-      alert(e.message || "Greška");
+      alert(e.message || "Fehler");
     }
   };
 
@@ -88,7 +100,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
       await deleteRestaurant(id);
       router.refresh();
     } catch (e: any) {
-      alert(e.message || "Greška");
+      alert(e.message || "Fehler");
     }
   };
 
@@ -97,7 +109,7 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
       await toggleRestaurantStatus(id, current);
       router.refresh();
     } catch (e: any) {
-      alert(e.message || "Greška");
+      alert(e.message || "Fehler");
     }
   };
 
@@ -114,12 +126,14 @@ export default function RestaurantClient({ restaurants }: { restaurants: Restaur
             </p>
           </div>
 
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl text-xs font-black uppercase shadow-md active:scale-95"
-          >
-            <Plus size={16} /> Standort hinzufügen
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={openCreate}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl text-xs font-black uppercase shadow-md active:scale-95"
+            >
+              <Plus size={16} /> Standort hinzufügen
+            </button>
+          </div>
         </div>
 
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-border flex items-center gap-3">

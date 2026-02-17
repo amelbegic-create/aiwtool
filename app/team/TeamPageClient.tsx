@@ -14,7 +14,7 @@ import {
   Loader2,
   ClipboardList,
 } from "lucide-react";
-import { getTeamMemberDetail, type TeamMemberRow, type TeamMemberDetail } from "@/app/actions/teamActions";
+import { getTeamMemberDetail, type TeamMemberRow, type TeamMemberDetail, type TeamMemberRowWithSupervisor } from "@/app/actions/teamActions";
 import { updateVacationStatus } from "@/app/actions/vacationActions";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: "Admin",
   ADMIN: "Admin",
   MANAGER: "Manager",
+  SHIFT_LEADER: "Shift Leader",
   CREW: "Crew",
 };
 
@@ -34,7 +35,15 @@ function pdsScoreColor(score: number | null): string {
   return "text-red-600 font-bold";
 }
 
-export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMemberRow[] }) {
+export default function TeamPageClient({
+  initialTeam,
+  treeData,
+  currentUserId,
+}: {
+  initialTeam: TeamMemberRow[];
+  treeData: TeamMemberRowWithSupervisor[];
+  currentUserId: string;
+}) {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TeamMemberDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -50,7 +59,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
       const d = await getTeamMemberDetail(userId);
       setDetail(d);
     } catch {
-      toast.error("Greška u učitavanju.");
+      toast.error("Fehler beim Laden.");
     } finally {
       setLoadingDetail(false);
     }
@@ -79,140 +88,180 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
     [detailUserId]
   );
 
-  if (initialTeam.length === 0) {
-    return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-16 text-center">
-        <div className="inline-flex h-20 w-20 rounded-full bg-slate-100 items-center justify-center mb-6">
-          <Users size={40} className="text-slate-400" />
-        </div>
-        <h2 className="text-xl font-bold text-slate-800 mb-2">Keine Mitarbeiter gefunden</h2>
-        <p className="text-slate-500 max-w-md mx-auto">
-          Diese Liste zeigt Mitarbeiter, für die Sie direkt verantwortlich sind (Supervisor).
-          Falls Sie hier jemanden erwarten, prüfen Sie die Zuständigkeiten im Admin-Bereich.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <>
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Zaposlenik
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Godišnji
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Zadnji PDS
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider w-24">
-                  Akcija
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {initialTeam.map((member) => (
-                <tr
-                  key={member.id}
-                  className="hover:bg-slate-50/50 transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-sm font-bold overflow-hidden shrink-0">
-                        {member.image ? (
-                          <Image
-                            src={member.image}
-                            alt=""
-                            width={40}
-                            height={40}
-                            className="object-cover"
-                          />
-                        ) : (
-                          (member.name || "?").charAt(0)
-                        )}
-                      </div>
-                      <div>
-                        <div className="font-bold text-slate-800">{member.name || "—"}</div>
-                        <span
-                          className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase"
-                          style={{
-                            backgroundColor: member.departmentColor
-                              ? `${member.departmentColor}20`
-                              : "#f1f5f9",
-                            color: member.departmentColor || "#64748b",
-                          }}
-                        >
-                          {ROLE_LABELS[member.role] || member.role}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {member.isOnVacationToday ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
-                        <Calendar size={12} /> Im Urlaub
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold">
-                        <Check size={12} /> Aktiv
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-24 rounded-full bg-slate-100 overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-[#1a3826]"
-                            style={{
-                              width: `${member.vacationTotal > 0 ? (member.vacationUsed / member.vacationTotal) * 100 : 0}%`,
-                            }}
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-slate-600">
-                          {member.vacationUsed}/{member.vacationTotal} Tage
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-500">
-                        Resturlaub: {member.vacationRemaining} Tage
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {member.lastPdsScore != null ? (
-                      <span className={pdsScoreColor(member.lastPdsScore)}>
-                        {member.lastPdsScore}
-                        {member.lastPdsGrade ? ` (${member.lastPdsGrade})` : ""}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => openDetail(member.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-[#1a3826] hover:text-white text-slate-700 text-xs font-bold transition-colors"
-                    >
-                      <Eye size={14} /> Details
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {initialTeam.length === 0 ? (
+        <div className="bg-white dark:bg-card rounded-xl md:rounded-2xl border border-slate-200 dark:border-border shadow-sm p-6 sm:p-12 md:p-16 text-center">
+          <div className="inline-flex h-20 w-20 rounded-full bg-slate-100 items-center justify-center mb-6">
+            <Users size={40} className="text-slate-400" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Keine Mitarbeiter gefunden</h2>
+          <p className="text-slate-500 max-w-md mx-auto">
+            Diese Liste zeigt Mitarbeiter, die Ihnen direkt unterstellt sind. Im Admin-Bereich können Sie die Zuordnung pro Benutzer festlegen.
+          </p>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Mobile: Card layout (< 768px) */}
+          <div className="md:hidden space-y-3">
+            {initialTeam.map((member) => (
+              <div
+                key={member.id}
+                className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-4"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-12 w-12 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-base font-bold overflow-hidden shrink-0">
+                    {member.image ? (
+                      <Image src={member.image} alt="" width={48} height={48} className="object-cover" />
+                    ) : (
+                      (member.name || "?").charAt(0)
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-800 truncate">{member.name || "—"}</div>
+                    <span
+                      className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-0.5"
+                      style={{
+                        backgroundColor: member.departmentColor ? `${member.departmentColor}20` : "#f1f5f9",
+                        color: member.departmentColor || "#64748b",
+                      }}
+                    >
+                      {ROLE_LABELS[member.role] || member.role}
+                    </span>
+                  </div>
+                  {member.isOnVacationToday ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold shrink-0">
+                      <Calendar size={14} /> Urlaub
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold shrink-0">
+                      <Check size={14} /> Aktiv
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm text-slate-600 mb-3">
+                  <span>Urlaub: {member.vacationUsed}/{member.vacationTotal} · Rest: {member.vacationRemaining} Tage</span>
+                  {member.lastPdsScore != null && (
+                    <span className={pdsScoreColor(member.lastPdsScore)}>
+                      PDS {member.lastPdsScore}{member.lastPdsGrade ? ` (${member.lastPdsGrade})` : ""}
+                    </span>
+                  )}
+                </div>
+                <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden mb-3">
+                  <div
+                    className="h-full rounded-full bg-[#1a3826] transition-all"
+                    style={{
+                      width: `${member.vacationTotal > 0 ? (member.vacationUsed / member.vacationTotal) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openDetail(member.id)}
+                  className="w-full min-h-[44px] flex items-center justify-center gap-2 rounded-xl bg-[#1a3826] text-white font-bold text-sm hover:bg-[#142e1e] active:scale-[0.98] transition-all touch-manipulation"
+                >
+                  <Eye size={18} /> Details
+                </button>
+              </div>
+            ))}
+          </div>
+          {/* Desktop: Table */}
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Mitarbeiter</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Urlaub</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Letztes PDS</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider w-24">Aktion</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {initialTeam.map((member) => (
+                    <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-sm font-bold overflow-hidden shrink-0">
+                            {member.image ? (
+                              <Image src={member.image} alt="" width={40} height={40} className="object-cover" />
+                            ) : (
+                              (member.name || "?").charAt(0)
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-800">{member.name || "—"}</div>
+                            <span
+                              className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                              style={{
+                                backgroundColor: member.departmentColor ? `${member.departmentColor}20` : "#f1f5f9",
+                                color: member.departmentColor || "#64748b",
+                              }}
+                            >
+                              {ROLE_LABELS[member.role] || member.role}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {member.isOnVacationToday ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
+                            <Calendar size={12} /> Im Urlaub
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold">
+                            <Check size={12} /> Aktiv
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-24 rounded-full bg-slate-100 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[#1a3826]"
+                                style={{
+                                  width: `${member.vacationTotal > 0 ? (member.vacationUsed / member.vacationTotal) * 100 : 0}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs font-medium text-slate-600">
+                              {member.vacationUsed}/{member.vacationTotal} Tage
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-500">Resturlaub: {member.vacationRemaining} Tage</div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {member.lastPdsScore != null ? (
+                          <span className={pdsScoreColor(member.lastPdsScore)}>
+                            {member.lastPdsScore}
+                            {member.lastPdsGrade ? ` (${member.lastPdsGrade})` : ""}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => openDetail(member.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-[#1a3826] hover:text-white text-slate-700 text-xs font-bold transition-colors min-h-[44px]"
+                        >
+                          <Eye size={14} /> Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
-      {/* Slide-over Sheet */}
+      {/* Slide-over Sheet: full screen on mobile, panel on desktop */}
       {detailUserId != null && (
         <>
           <div
@@ -221,22 +270,22 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
             aria-hidden
           />
           <div
-            className="fixed top-0 right-0 bottom-0 w-full max-w-2xl bg-white shadow-2xl z-50 flex flex-col"
+            className="fixed top-0 right-0 bottom-0 w-full md:max-w-2xl bg-white shadow-2xl z-50 flex flex-col safe-area-t safe-area-b-mobile"
             role="dialog"
             aria-modal="true"
             aria-labelledby="team-detail-title"
           >
-            <div className="flex items-center justify-between gap-4 p-4 border-b border-slate-200 bg-[#1a3826]">
-              <h2 id="team-detail-title" className="text-lg font-black text-white truncate">
-                {detail?.name || "Laden..."}
+            <div className="flex items-center justify-between gap-4 p-4 border-b border-slate-200 bg-[#1a3826] min-h-[56px] safe-area-t">
+              <h2 id="team-detail-title" className="text-lg font-black text-white truncate flex-1 min-w-0">
+                {detail?.name || "Wird geladen…"}
               </h2>
               <button
                 type="button"
                 onClick={closeDetail}
-                className="p-2 rounded-lg text-white/80 hover:bg-white/20 transition"
+                className="flex-shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-white/80 hover:bg-white/20 active:bg-white/30 transition touch-manipulation"
                 aria-label="Schließen"
               >
-                <X size={20} />
+                <X size={24} />
               </button>
             </div>
 
@@ -265,7 +314,7 @@ export default function TeamPageClient({ initialTeam }: { initialTeam: TeamMembe
                   ))}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-8">
                   {activeTab === "pregled" && (
                     <div className="space-y-6">
                       <div className="flex flex-col items-center gap-3">

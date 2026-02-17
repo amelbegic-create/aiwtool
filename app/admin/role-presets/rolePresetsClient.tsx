@@ -6,7 +6,7 @@ import { PERMISSIONS, GOD_MODE_ROLES } from "@/lib/permissions";
 import { Check, Eraser, Layers, Search, ShieldCheck } from "lucide-react";
 import { getRolePermissionPreset, saveRolePermissionPreset } from "../../actions/rolePresetActions";
 
-const roles: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "CREW"];
+const roles: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"];
 
 function isGodMode(role: Role) {
   return GOD_MODE_ROLES.has(String(role));

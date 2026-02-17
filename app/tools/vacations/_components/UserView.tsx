@@ -288,8 +288,8 @@ export default function UserView({
   };
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
-      <div className={`max-w-6xl mx-auto space-y-8 transition-opacity duration-150 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
+    <div className="min-h-screen bg-background px-4 py-5 sm:p-6 md:p-10 font-sans text-foreground">
+      <div className={`max-w-6xl mx-auto space-y-6 sm:space-y-8 transition-opacity duration-150 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
         
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
@@ -319,13 +319,13 @@ export default function UserView({
                             Laden…
                         </span>
                     )}
-                    <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full">
+                    <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full gap-0.5">
                         {years.map(y => (
                             <button
                                 key={y}
                                 onClick={() => handleYearChange(y)}
                                 disabled={isPending}
-                                className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                                className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap touch-manipulation ${
                                     selectedYear === y 
                                     ? "bg-[#1a3826] text-white shadow-md" 
                                     : "text-muted-foreground hover:bg-accent"
@@ -391,7 +391,7 @@ export default function UserView({
                     value={start}
                     onChange={(e) => setStart(e.target.value)}
                     min={tomorrow}
-                    className="w-full border border-border p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors"
+                    className="w-full border border-border p-3 sm:p-4 min-h-[44px] rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors text-base touch-manipulation"
                   />
                 </div>
                 <div>
@@ -403,16 +403,16 @@ export default function UserView({
                     value={end}
                     onChange={(e) => setEnd(e.target.value)}
                     min={start || undefined}
-                    className="w-full border border-border p-4 rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors"
+                    className="w-full border border-border p-3 sm:p-4 min-h-[44px] rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors text-base touch-manipulation"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                   {editingId && (
                       <button 
                         onClick={() => { setEditingId(null); setStart(""); setEnd(""); }}
-                        className="px-6 py-4 rounded-xl font-bold uppercase text-sm bg-muted text-muted-foreground hover:bg-accent transition-colors"
+                        className="min-h-[44px] px-6 py-3 rounded-xl font-bold uppercase text-sm bg-muted text-muted-foreground hover:bg-accent transition-colors touch-manipulation"
                       >
                           Abbrechen
                       </button>
@@ -420,7 +420,7 @@ export default function UserView({
                   <button
                     onClick={handleSubmit}
                     disabled={loading}
-                    className={`flex-1 text-white py-4 rounded-xl font-black uppercase text-sm shadow-md active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed ${
+                    className={`flex-1 min-h-[44px] text-white py-3 rounded-xl font-black uppercase text-sm shadow-md active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed touch-manipulation ${
                         editingId ? "bg-orange-500 hover:bg-orange-600" : "bg-[#1a3826] hover:bg-[#142e1e]"
                     }`}
                   >

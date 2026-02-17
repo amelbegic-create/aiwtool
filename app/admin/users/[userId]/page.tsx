@@ -1,22 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Role } from "@prisma/client";
 import { requirePermission } from "@/lib/access";
 import prisma from "@/lib/prisma";
+import { Role } from "@prisma/client";
 import { getDepartments } from "@/app/actions/departmentActions";
 import UserForm, { UserFormInitialData } from "../_components/UserForm";
 
-const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
-
 export const dynamic = "force-dynamic";
 
-const ROLE_RANK: Record<string, number> = {
-  SYSTEM_ARCHITECT: 1,
-  SUPER_ADMIN: 2,
-  MANAGER: 3,
-  ADMIN: 4,
-  CREW: 5,
-};
+const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
 
 interface PageProps {
   params: Promise<{ userId: string }>;
@@ -27,7 +19,7 @@ export default async function EditUserPage({ params }: PageProps) {
 
   const { userId } = await params;
 
-  const [user, restaurants, allUsers, departments] = await Promise.all([
+  const [user, restaurants, supervisors, departments] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -71,21 +63,19 @@ export default async function EditUserPage({ params }: PageProps) {
     email: user.email || "",
     role: user.role,
     departmentId: user.departmentId ?? null,
+    supervisorId: user.supervisorId ?? null,
     vacationAllowances,
     restaurantIds,
     primaryRestaurantId,
-    supervisorId: user.supervisorId ?? null,
     permissions: user.permissions || [],
   };
 
-  const supervisorCandidates = allUsers
-    .filter((u) => u.id !== userId && u.role && ROLE_RANK[u.role] < 5)
-    .map((u) => ({
-      id: u.id,
-      name: u.name || "Korisnik",
-      email: u.email || "",
-      role: u.role,
-    }));
+  const eligibleSupervisors = supervisors.map((s) => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    role: s.role,
+  }));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -100,7 +90,7 @@ export default async function EditUserPage({ params }: PageProps) {
           href="/admin/users"
           className="inline-flex items-center min-h-[44px] text-sm font-bold text-slate-600 hover:text-[#1a3826] transition-colors"
         >
-          ← Nazad na listu
+          ← Zurück zur Liste
         </Link>
       </div>
       <UserForm
@@ -110,7 +100,7 @@ export default async function EditUserPage({ params }: PageProps) {
           code: r.code,
         }))}
         departments={departments.map((d) => ({ id: d.id, name: d.name, color: d.color, restaurantId: d.restaurantId }))}
-        supervisorCandidates={supervisorCandidates}
+        eligibleSupervisors={eligibleSupervisors}
         initialData={initialData}
       />
     </div>

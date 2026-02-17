@@ -70,9 +70,9 @@ export async function getRules(restaurantId?: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return [];
 
-  const user = await prisma.user.findUnique({ 
+  const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    include: { restaurants: true }
+    include: { restaurants: { select: { restaurantId: true } } },
   });
   if (!user) return [];
 
@@ -82,7 +82,7 @@ export async function getRules(restaurantId?: string) {
   let whereClause: Prisma.RuleWhereInput = { ...statusFilter };
 
   if (!isBoss) {
-    const userRestaurantIds = user.restaurants.map(r => r.restaurantId);
+    const userRestaurantIds = (user.restaurants || []).map((r) => r.restaurantId);
     whereClause = {
         ...whereClause,
         OR: [

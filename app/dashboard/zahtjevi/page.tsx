@@ -1,4 +1,4 @@
-// app/dashboard/zahtjevi/page.tsx – Zahtjevi na čekanju
+// app/dashboard/zahtjevi/page.tsx – Offene Anfragen
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -68,8 +68,8 @@ export default async function ZahtjeviPage() {
   if (pendingMine > 0) {
     items.push({
       id: "vacation",
-      title: "Godišnji odmor",
-      description: `${pendingMine} zahtjev(a) na čekanju`,
+      title: "Jahresurlaub",
+      description: `${pendingMine} ausstehende Urlaubsanträge`,
       href: "/tools/vacations",
       count: pendingMine,
       icon: Palmtree,
@@ -80,8 +80,8 @@ export default async function ZahtjeviPage() {
   if (pdsPending > 0) {
     items.push({
       id: "pds",
-      title: "PDS evaluacija",
-      description: "Zahtijeva Vašu pažnju",
+      title: "PDS-Bewertung",
+      description: "Erfordert Ihre Aufmerksamkeit",
       href: "/tools/PDS",
       count: pdsPending,
       icon: ClipboardCheck,
@@ -92,8 +92,8 @@ export default async function ZahtjeviPage() {
   if (isAdmin && totalPendingAdmin > 0) {
     items.push({
       id: "admin-vacation",
-      title: "Zahtjevi na odobrenje",
-      description: `${totalPendingAdmin} čeka odobrenje`,
+      title: "Anträge zur Genehmigung",
+      description: `${totalPendingAdmin} warten auf Genehmigung`,
       href: "/tools/vacations",
       count: totalPendingAdmin,
       icon: ShieldCheck,
@@ -125,20 +125,20 @@ export default async function ZahtjeviPage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-background font-sans text-foreground">
-      <main className="mx-auto max-w-4xl px-4 py-6 md:py-10">
+      <main className="mx-auto max-w-4xl px-4 py-6 md:py-10 safe-area-l safe-area-r">
         <Link
           href="/dashboard"
-          className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 transition-colors hover:text-[#1a3826]"
+          className="mb-8 inline-flex items-center gap-2 min-h-[44px] py-2 text-sm font-semibold text-slate-600 transition-colors hover:text-[#1a3826] touch-manipulation"
         >
-          <ChevronLeft size={18} /> Nazad na dashboard
+          <ChevronLeft size={18} /> Zurück zum Dashboard
         </Link>
 
         <div className="mb-10">
           <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-3xl">
-            Zahtjevi na čekanju
+            Offene Anfragen
           </h1>
           <p className="mt-2 text-sm text-slate-600">
-            Pregledajte stavke i otvorite odgovarajući modul
+            Prüfen Sie die Einträge und öffnen Sie das passende Modul.
           </p>
         </div>
 
@@ -147,13 +147,13 @@ export default async function ZahtjeviPage() {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
               <Inbox size={32} />
             </div>
-            <p className="text-base font-semibold text-slate-700">Nemate zahtjeva na čekanju</p>
-            <p className="mt-1 text-sm text-slate-500">Sve je u redu. Pristupite modulima na dashboardu.</p>
+            <p className="text-base font-semibold text-slate-700">Sie haben keine offenen Anfragen.</p>
+            <p className="mt-1 text-sm text-slate-500">Alles in Ordnung. Nutzen Sie die Module im Dashboard.</p>
             <Link
               href="/dashboard"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#1a3826] px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#0c1f15]"
+              className="mt-6 inline-flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-[#1a3826] px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-[#0c1f15] active:scale-[0.98] touch-manipulation"
             >
-              Povratak na dashboard <ArrowRight size={16} />
+              Zurück zum Dashboard <ArrowRight size={16} />
             </Link>
           </div>
         ) : (
@@ -165,7 +165,7 @@ export default async function ZahtjeviPage() {
                 <Link
                   key={item.id}
                   href={item.href}
-                  className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-300"
+                  className="group flex flex-col rounded-xl md:rounded-2xl border border-slate-200 dark:border-border bg-white dark:bg-card p-5 sm:p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-xl hover:border-slate-300 active:scale-[0.99] touch-manipulation min-h-[120px]"
                 >
                   <div className="flex items-start justify-between">
                     <div
@@ -176,7 +176,7 @@ export default async function ZahtjeviPage() {
                     <span
                       className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${accent.badge}`}
                     >
-                      {item.count} {item.count === 1 ? "zahtjev" : "zahtjeva"}
+                      {item.count} {item.count === 1 ? "Anfrage" : "Anfragen"}
                     </span>
                   </div>
                   <h2 className="mt-5 text-lg font-black text-slate-900 group-hover:text-[#1a3826] transition-colors">
@@ -186,17 +186,17 @@ export default async function ZahtjeviPage() {
                   {item.vacationRows && item.vacationRows.length > 0 && (
                     <ul className="mt-3 space-y-1.5 max-h-32 overflow-y-auto">
                       {item.vacationRows.map((row, i) => (
-                        <li key={i} className="text-xs font-semibold text-slate-700 truncate" title={`${row.restaurantName} – ${row.userName} – Novi zahtjev`}>
+                        <li key={i} className="text-xs font-semibold text-slate-700 truncate" title={`${row.restaurantName} – ${row.userName} – Neue Anfrage`}>
                           <span className="text-[#1a3826]">{row.restaurantName}</span>
                           <span className="text-slate-400 mx-1">–</span>
                           <span>{row.userName}</span>
-                          <span className="text-slate-400 ml-1">– Novi zahtjev</span>
+                          <span className="text-slate-400 ml-1">– Neue Anfrage</span>
                         </li>
                       ))}
                     </ul>
                   )}
                   <div className="mt-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#1a3826]">
-                    Otvori modul
+                    Modul öffnen
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 transition-colors group-hover:bg-[#1a3826]/10">
                       <ArrowRight size={14} className="text-slate-500 group-hover:text-[#1a3826]" />
                     </span>

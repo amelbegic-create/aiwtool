@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
+import { computeCarryOverForYear, VACATION_YEAR_MIN } from "@/lib/vacationCarryover";
 
 /** Stealth: SYSTEM_ARCHITECT se ne prikazuje u "Mom Timu". */
 const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
@@ -36,7 +37,11 @@ export type TeamMemberRow = {
   lastPdsGrade: string | null;
   lastPdsYear: number | null;
   lastPdsId: string | null;
+  /** Optional: set when DB has orgChartSubtitle column */
+  orgChartSubtitle?: string | null;
 };
+
+export type TeamMemberRowWithSupervisor = TeamMemberRow & { supervisorId: string | null };
 
 export type TeamMemberDetail = TeamMemberRow & {
   vacationRequests: {
@@ -66,6 +71,9 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
   });
   const seeAllAsTeam = dbUser && isGodModeRole(dbUser.role);
 
+  const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
+  const rangeEnd = endOfYear;
+
   const subordinates = await prisma.user.findMany({
     where: seeAllAsTeam
       ? { isActive: true, ...STEALTH_ROLE_FILTER }
@@ -81,8 +89,8 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
         select: { start: true, end: true, days: true },
       },
       vacationAllowances: {
-        where: { year: { in: [currentYear, currentYear - 1] } },
-        select: { year: true, days: true, carriedOverDays: true },
+        where: { year: { gte: VACATION_YEAR_MIN, lte: currentYear } },
+        select: { year: true, days: true },
       },
       pdsList: {
         orderBy: { year: "desc" },
@@ -93,34 +101,46 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
     orderBy: { name: "asc" },
   });
 
-  const prevYearUsed = await prisma.vacationRequest
-    .groupBy({
-      by: ["userId"],
+  const usedByUserByYear = await prisma.vacationRequest
+    .findMany({
       where: {
         status: "APPROVED",
-        start: { gte: `${currentYear - 1}-01-01`, lte: `${currentYear - 1}-12-31` },
+        start: { gte: rangeStart, lte: rangeEnd },
       },
-      _sum: { days: true },
+      select: { userId: true, start: true, days: true },
     })
-    .then((rows) => new Map(rows.map((r) => [r.userId, r._sum.days ?? 0])));
+    .then((rows) => {
+      const map = new Map<string, Map<number, number>>();
+      for (const r of rows) {
+        const y = Number(String(r.start).slice(0, 4));
+        if (y >= VACATION_YEAR_MIN && y <= currentYear) {
+          let userMap = map.get(r.userId);
+          if (!userMap) {
+            userMap = new Map();
+            map.set(r.userId, userMap);
+          }
+          userMap.set(y, (userMap.get(y) ?? 0) + r.days);
+        }
+      }
+      return map;
+    });
 
   return subordinates.map((u) => {
     const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
-    const vaThis = u.vacationAllowances?.find((a) => a.year === currentYear);
-    const vaPrev = u.vacationAllowances?.find((a) => a.year === currentYear - 1);
-    const usedPrev = prevYearUsed.get(u.id) ?? 0;
-    let total: number;
-    if (vaThis) {
-      total = (vaThis.days ?? 0) + (vaThis.carriedOverDays ?? 0);
-    } else {
-      const allowance = u.vacationEntitlement ?? 20;
-      if (vaPrev) {
-        const totalPrev = (vaPrev.days ?? 0) + (vaPrev.carriedOverDays ?? 0);
-        total = allowance + Math.max(0, totalPrev - usedPrev);
-      } else {
-        total = allowance + (u.vacationCarryover ?? 0);
-      }
+    const allowancesByYear = new Map<number, { days: number }>();
+    for (const a of u.vacationAllowances ?? []) {
+      allowancesByYear.set(a.year, { days: Math.max(0, a.days ?? 0) });
     }
+    const usedByYear = usedByUserByYear.get(u.id) ?? new Map<number, number>();
+    const defaultAllowance = u.vacationEntitlement ?? 20;
+    const defaultCarryover = Math.max(0, Math.floor(Number(u.vacationCarryover) ?? 0));
+    const { total } = computeCarryOverForYear(
+      allowancesByYear,
+      usedByYear,
+      defaultAllowance,
+      defaultCarryover,
+      currentYear
+    );
     const remaining = Math.max(0, total - used);
 
     const isOnVacationToday = u.vacations.some(
@@ -153,6 +173,119 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
   });
 }
 
+/** Placeholder: optional user subtitle. Returns ok so UI does not break. */
+export async function updateOrgChartSubtitle(
+  _userId: string,
+  _subtitle: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  return { ok: true };
+}
+
+/**
+ * Flat list of all active users with supervisorId (for tree view on Mein Team).
+ */
+export async function getTeamTreeData(): Promise<TeamMemberRowWithSupervisor[]> {
+  const session = await getServerSession(authOptions);
+  if (!(session?.user as { id?: string })?.id) return [];
+
+  const idsToFetch = await prisma.user.findMany({
+    where: { isActive: true, ...STEALTH_ROLE_FILTER },
+    select: { id: true },
+  }).then((rows) => rows.map((r) => r.id));
+
+  const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
+  const rangeEnd = endOfYear;
+  const usedByUserByYear = await prisma.vacationRequest
+    .findMany({
+      where: {
+        status: "APPROVED",
+        start: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: { userId: true, start: true, days: true },
+    })
+    .then((rows) => {
+      const map = new Map<string, Map<number, number>>();
+      for (const r of rows) {
+        const y = Number(String(r.start).slice(0, 4));
+        if (y >= VACATION_YEAR_MIN && y <= currentYear) {
+          let userMap = map.get(r.userId);
+          if (!userMap) {
+            userMap = new Map();
+            map.set(r.userId, userMap);
+          }
+          userMap.set(y, (userMap.get(y) ?? 0) + r.days);
+        }
+      }
+      return map;
+    });
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: [...idsToFetch] } },
+    include: {
+      department: { select: { name: true, color: true } },
+      vacations: {
+        where: {
+          status: "APPROVED",
+          start: { lte: endOfYear },
+          end: { gte: startOfYear },
+        },
+        select: { start: true, end: true, days: true },
+      },
+      vacationAllowances: {
+        where: { year: { gte: VACATION_YEAR_MIN, lte: currentYear } },
+        select: { year: true, days: true },
+      },
+      pdsList: {
+        orderBy: { year: "desc" },
+        take: 1,
+        select: { id: true, year: true, totalScore: true, finalGrade: true, status: true },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return users.map((u) => {
+    const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
+    const allowancesByYear = new Map<number, { days: number }>();
+    for (const a of u.vacationAllowances ?? []) {
+      allowancesByYear.set(a.year, { days: Math.max(0, a.days ?? 0) });
+    }
+    const usedByYear = usedByUserByYear.get(u.id) ?? new Map<number, number>();
+    const defaultAllowance = u.vacationEntitlement ?? 20;
+    const defaultCarryover = Math.max(0, Math.floor(Number(u.vacationCarryover) ?? 0));
+    const { total } = computeCarryOverForYear(
+      allowancesByYear,
+      usedByYear,
+      defaultAllowance,
+      defaultCarryover,
+      currentYear
+    );
+    const remaining = Math.max(0, total - used);
+    const isOnVacationToday = u.vacations.some(
+      (v) => todayStr >= v.start && todayStr <= v.end
+    );
+    const lastPds = u.pdsList[0];
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      image: u.image,
+      role: u.role,
+      department: u.department?.name ?? null,
+      departmentColor: u.department?.color ?? null,
+      isOnVacationToday,
+      vacationUsed: used,
+      vacationTotal: total,
+      vacationRemaining: remaining,
+      lastPdsScore: lastPds?.totalScore ?? null,
+      lastPdsGrade: lastPds?.finalGrade ?? null,
+      lastPdsYear: lastPds?.year ?? null,
+      lastPdsId: lastPds?.id ?? null,
+      supervisorId: u.supervisorId,
+    };
+  });
+}
+
 export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDetail | null> {
   const session = await getServerSession(authOptions);
   const currentUserId = (session?.user as { id?: string })?.id;
@@ -181,8 +314,8 @@ export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDet
         select: { start: true, end: true, days: true },
       },
       vacationAllowances: {
-        where: { year: { in: [currentYear, currentYear - 1] } },
-        select: { year: true, days: true, carriedOverDays: true },
+        where: { year: { gte: VACATION_YEAR_MIN, lte: currentYear } },
+        select: { year: true, days: true },
       },
       pdsList: {
         orderBy: { year: "desc" },
@@ -201,30 +334,40 @@ export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDet
   });
 
   const used = user.vacations.reduce((sum, v) => sum + v.days, 0);
-  const vaThis = user.vacationAllowances?.find((a) => a.year === currentYear);
-  const vaPrev = user.vacationAllowances?.find((a) => a.year === currentYear - 1);
-  const usedPrev = (await prisma.vacationRequest.groupBy({
-    by: ["userId"],
-    where: {
-      userId: user.id,
-      status: "APPROVED",
-      start: { gte: `${currentYear - 1}-01-01`, lte: `${currentYear - 1}-12-31` },
-    },
-    _sum: { days: true },
-  }))[0]?._sum.days ?? 0;
-
-  let total: number;
-  if (vaThis) {
-    total = (vaThis.days ?? 0) + (vaThis.carriedOverDays ?? 0);
-  } else {
-    const allowance = user.vacationEntitlement ?? 20;
-    if (vaPrev) {
-      const totalPrev = (vaPrev.days ?? 0) + (vaPrev.carriedOverDays ?? 0);
-      total = allowance + Math.max(0, totalPrev - usedPrev);
-    } else {
-      total = allowance + (user.vacationCarryover ?? 0);
-    }
+  const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
+  const rangeEnd = endOfYear;
+  const usedByYear = await prisma.vacationRequest
+    .findMany({
+      where: {
+        userId: user.id,
+        status: "APPROVED",
+        start: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: { start: true, days: true },
+    })
+    .then((rows) => {
+      const map = new Map<number, number>();
+      for (const r of rows) {
+        const y = Number(String(r.start).slice(0, 4));
+        if (y >= VACATION_YEAR_MIN && y <= currentYear) {
+          map.set(y, (map.get(y) ?? 0) + r.days);
+        }
+      }
+      return map;
+    });
+  const allowancesByYear = new Map<number, { days: number }>();
+  for (const a of user.vacationAllowances ?? []) {
+    allowancesByYear.set(a.year, { days: Math.max(0, a.days ?? 0) });
   }
+  const defaultAllowance = user.vacationEntitlement ?? 20;
+  const defaultCarryover = Math.max(0, Math.floor(Number(user.vacationCarryover) ?? 0));
+  const { total } = computeCarryOverForYear(
+    allowancesByYear,
+    usedByYear,
+    defaultAllowance,
+    defaultCarryover,
+    currentYear
+  );
   const remaining = Math.max(0, total - used);
   const isOnVacationToday = user.vacations.some(
     (v) => todayStr >= v.start && todayStr <= v.end

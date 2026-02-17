@@ -46,7 +46,7 @@ export default function SelectRestaurantClient({ restaurants, userName }: Client
   if (loading) return (
     <div className="min-h-screen bg-[#1a3826] flex flex-col items-center justify-center">
       <Loader2 className="text-white animate-spin mb-4" size={40} />
-      <p className="text-emerald-200/50 font-bold uppercase tracking-widest text-xs">Preusmjeravanje...</p>
+      <p className="text-emerald-200/50 font-bold uppercase tracking-widest text-xs">Weiterleitung...</p>
     </div>
   );
 

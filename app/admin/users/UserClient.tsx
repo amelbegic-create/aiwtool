@@ -38,7 +38,6 @@ interface UserProps {
   restaurantIds?: string[];
   vacationEntitlement: number;
   vacationCarryover: number;
-  supervisorId?: string | null;
   vacationAllowances?: AllowancesMap;
   isActive?: boolean;
 }
@@ -68,10 +67,11 @@ const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "Abteilungsleiter",
   ADMIN: "Management",
   MANAGER: "Restaurant Manager",
+  SHIFT_LEADER: "Shift Leader",
   CREW: "Crew",
 };
 
-const roles: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "CREW"];
+const roles: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"];
 
 function isGodMode(role: Role) {
   return GOD_MODE_ROLES.has(String(role));
@@ -116,7 +116,6 @@ export default function UserClient({ users = [], restaurants = [], departments =
     restaurantIds: [] as string[],
     primaryRestaurantId: "" as string,
     permissions: [] as string[],
-    supervisorId: "" as string,
     vacationAllowances: YEARS.reduce((acc, y) => {
       acc[y] = 0;
       return acc;
@@ -193,7 +192,6 @@ export default function UserClient({ users = [], restaurants = [], departments =
       restaurantIds: [],
       primaryRestaurantId: "",
       permissions: [],
-      supervisorId: "",
       vacationAllowances: YEARS.reduce((acc, y) => {
         acc[y] = 0;
         return acc;
@@ -237,7 +235,6 @@ export default function UserClient({ users = [], restaurants = [], departments =
       restaurantIds: u.restaurantIds || [],
       primaryRestaurantId: fallbackPrimary,
       permissions: u.permissions || [],
-      supervisorId: String(u.supervisorId || ""),
       vacationAllowances: allowanceMap,
     });
 
@@ -284,7 +281,6 @@ export default function UserClient({ users = [], restaurants = [], departments =
       restaurantIds: formData.restaurantIds,
       primaryRestaurantId: formData.primaryRestaurantId,
       permissions: formData.permissions,
-      supervisorId: formData.supervisorId ? formData.supervisorId : null,
       vacationAllowances: vacationAllowancesArray,
     };
 
@@ -624,28 +620,6 @@ export default function UserClient({ users = [], restaurants = [], departments =
                                   {d.name}
                                 </option>
                               ))}
-                            </select>
-                          </div>
-
-                          {/* ✅ NOVO: Nadređeni */}
-                          <div className="space-y-2 pt-2">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground inline-flex items-center gap-2">
-                              <UserCog size={14} /> Vorgesetzter
-                            </div>
-                            <select
-                              value={formData.supervisorId}
-                              onChange={(e) => setFormData({ ...formData, supervisorId: e.target.value })}
-                              disabled={isSaving}
-                              className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826] bg-white"
-                            >
-                              <option value="">Kein Vorgesetzter</option>
-                              {supervisorOptions
-                                .filter((s) => s.id !== formData.id) // ne može sam sebi biti nadređeni
-                                .map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    {s.name} • {ROLE_LABELS[s.role]} • {s.email}
-                                  </option>
-                                ))}
                             </select>
                           </div>
 

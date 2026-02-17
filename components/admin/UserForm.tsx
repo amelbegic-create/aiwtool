@@ -11,7 +11,7 @@ const brandFont = Kanit({ subsets: ["latin"], weight: ["600", "800", "900"] });
 
 const AVAILABLE_PERMISSIONS = [
   { id: 'view_dashboard', label: 'Dashboard', desc: 'Statistika' },
-  { id: 'manage_vacations', label: 'Godišnji Odmori', desc: 'Upravljanje' },
+  { id: 'manage_vacations', label: 'Jahresurlaub', desc: 'Verwaltung' },
   { id: 'view_productivity', label: 'Produktivnost', desc: 'CL Izvještaji' },
   { id: 'view_labor', label: 'Labor Planner', desc: 'Budžet' },
   { id: 'manage_evaluations', label: 'Evaluacije', desc: 'Ocjenjivanje' },
@@ -152,7 +152,7 @@ export default function UserForm({ restaurants, initialData, onClose }: UserForm
 
         {/* 3. ULOGA & BENEFITI */}
         <div className="p-8 border-b border-border">
-            <h3 className="text-sm font-black text-foreground uppercase mb-6 flex gap-2"><Shield className="text-[#FFC72C]"/> Pozicija & Godišnji</h3>
+            <h3 className="text-sm font-black text-foreground uppercase mb-6 flex gap-2"><Shield className="text-[#FFC72C]"/> Position & Jahresurlaub</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                     <div>
@@ -207,10 +207,10 @@ export default function UserForm({ restaurants, initialData, onClose }: UserForm
             {onClose ? (
                 <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl font-bold text-muted-foreground hover:bg-slate-100">Zatvori</button>
             ) : (
-                <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-xl font-bold text-muted-foreground hover:bg-slate-100">Nazad</button>
+                <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-xl font-bold text-muted-foreground hover:bg-slate-100">Zurück</button>
             )}
             <button type="submit" disabled={isLoading} className="bg-[#1a3826] text-white px-8 py-3 rounded-xl font-black uppercase text-xs tracking-wider hover:bg-[#142d1f] shadow-lg shadow-[#1a3826]/20 transition-all">
-                {isLoading ? "Spremanje..." : (initialData ? "SAČUVAJ IZMJENE" : "KREIRAJ KORISNIKA")}
+                {isLoading ? "Speichern…" : (initialData ? "ÄNDERUNGEN SPEICHERN" : "BENUTZER ANLEGEN")}
             </button>
         </div>
       </form>

@@ -82,7 +82,7 @@ export default async function GlobalRuleDetailsPage(props: PageProps) {
             <div className="flex items-center gap-4">
                 <Link href="/rules/global" className="text-slate-400 hover:text-slate-900 flex items-center gap-1 transition">
                     <ArrowLeft className="w-5 h-5" />
-                    <span className="text-sm font-medium">Nazad</span>
+                    <span className="text-sm font-medium">Zurück</span>
                 </Link>
                 <div className="h-6 w-px bg-slate-200"></div>
                 <h1 className="text-sm font-bold text-slate-800">Globalna Politika</h1>

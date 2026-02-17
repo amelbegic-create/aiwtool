@@ -699,7 +699,7 @@ export default function AdminView({
       setSelectedDeptNamesForExport([]);
       setDeptExportModalOpen(true);
     } catch {
-      alert("Greška pri dohvatu podataka za export po odjelima.");
+      alert("Fehler beim Abrufen der Exportdaten nach Abteilungen.");
     } finally {
       setLoadingDeptExport(false);
     }
@@ -777,7 +777,7 @@ export default function AdminView({
   const years = [2025, 2026, 2027, 2028, 2029, 2030];
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
+    <div className="min-h-screen bg-background px-4 py-5 sm:p-6 md:p-10 font-sans text-foreground">
       <div className={`max-w-[1600px] mx-auto space-y-8 transition-opacity duration-150 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
         {/* HEADER */}
         <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
@@ -814,10 +814,10 @@ export default function AdminView({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border">
+            <div className="flex flex-wrap bg-card p-1 rounded-xl shadow-sm border border-border gap-1">
               <button
                 onClick={() => setActiveTab("STATS")}
-                className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                className={`min-h-[44px] px-4 py-2.5 rounded-lg text-xs font-bold transition-all touch-manipulation ${
                   activeTab === "STATS" ? "bg-[#FFC72C] text-[#1a3826]" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
@@ -826,7 +826,7 @@ export default function AdminView({
 
               <button
                 onClick={() => setActiveTab("REQUESTS")}
-                className={`relative px-5 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                className={`relative min-h-[44px] px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 touch-manipulation ${
                   activeTab === "REQUESTS" ? "bg-[#1a3826] text-white" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
@@ -841,7 +841,7 @@ export default function AdminView({
 
               <button
                 onClick={() => setActiveTab("BLOCKED")}
-                className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all ${
+                className={`min-h-[44px] px-4 py-2.5 rounded-lg text-xs font-bold transition-all touch-manipulation ${
                   activeTab === "BLOCKED" ? "bg-[#1a3826] text-white" : "text-muted-foreground hover:bg-accent"
                 }`}
               >
@@ -1039,177 +1039,308 @@ export default function AdminView({
           </div>
         )}
 
-        {/* STATS TABLE */}
+        {/* STATS: Mobile cards + Desktop table */}
         {activeTab === "STATS" && (
-          <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-            <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/80 border-b border-border text-[10px] font-black text-muted-foreground uppercase">
-              <div className="col-span-3">Mitarbeiter</div>
-              <div className="col-span-3">Restaurants</div>
-              <div className="col-span-4 grid grid-cols-4 text-center">
-                <span>Vortrag</span>
-                <span>Gesamt</span>
-                <span>Verbraucht</span>
-                <span>Resturlaub</span>
-              </div>
-              <div className="col-span-2 text-right">Bericht</div>
-            </div>
-            <div className="divide-y divide-border">
+          <div className="bg-card rounded-xl md:rounded-2xl shadow-sm border border-border overflow-hidden">
+            {/* Mobile: Card layout */}
+            <div className="md:hidden divide-y divide-border">
               {filteredStats.map((u) => (
-                <div
-                  key={u.id}
-                  className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent/50 transition-colors"
-                >
-                  <div className="col-span-3 flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold">
+                <div key={u.id} className="p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-sm font-bold shrink-0">
                       {(u.name || "K").charAt(0)}
                     </div>
-                    <div>
-                      <div className="font-bold text-sm text-foreground">{u.name}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-foreground truncate">{u.name}</div>
                       <div className="text-[10px] text-muted-foreground uppercase">{u.department}</div>
                     </div>
                   </div>
-
-                  <div className="col-span-3 flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1">
                     {u.restaurantNames.map((r, i) => (
-                      <span
-                        key={i}
-                        className="text-[9px] bg-muted px-2 py-1 rounded border border-border"
-                      >
+                      <span key={i} className="text-[10px] bg-muted px-2 py-1 rounded border border-border">
                         {r}
                       </span>
                     ))}
                   </div>
-
-                  <div className="col-span-4 grid grid-cols-4 text-center font-bold text-sm">
-                    <span className="text-muted-foreground">{u.carriedOver ?? 0}</span>
-                    <span className="text-muted-foreground">{u.total}</span>
-                    <span className="text-green-600">{u.used}</span>
-                    <span className="text-orange-500">{u.remaining}</span>
+                  <div className="grid grid-cols-4 gap-2 text-center text-sm font-bold">
+                    <div>
+                      <div className="text-[10px] text-muted-foreground uppercase">Vortrag</div>
+                      <div>{u.carriedOver ?? 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-muted-foreground uppercase">Gesamt</div>
+                      <div>{u.total}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-green-600 uppercase">Verbr.</div>
+                      <div className="text-green-600">{u.used}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-orange-500 uppercase">Rest</div>
+                      <div className="text-orange-500">{u.remaining}</div>
+                    </div>
                   </div>
-
-                  <div className="col-span-2 text-right">
-                    <button
-                      onClick={() => exportIndividualReport(u)}
-                      className="bg-muted hover:bg-accent text-foreground px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase"
-                    >
-                      <FileText size={14} /> PDF
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => exportIndividualReport(u)}
+                    className="w-full min-h-[44px] bg-muted hover:bg-accent text-foreground rounded-xl font-bold text-xs uppercase inline-flex items-center justify-center gap-2 touch-manipulation"
+                  >
+                    <FileText size={14} /> PDF-Bericht
+                  </button>
                 </div>
               ))}
+            </div>
+            {/* Desktop: Table */}
+            <div className="hidden md:block">
+              <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/80 border-b border-border text-[10px] font-black text-muted-foreground uppercase">
+                <div className="col-span-3">Mitarbeiter</div>
+                <div className="col-span-3">Restaurants</div>
+                <div className="col-span-4 grid grid-cols-4 text-center">
+                  <span>Vortrag</span>
+                  <span>Gesamt</span>
+                  <span>Verbraucht</span>
+                  <span>Resturlaub</span>
+                </div>
+                <div className="col-span-2 text-right">Bericht</div>
+              </div>
+              <div className="divide-y divide-border">
+                {filteredStats.map((u) => (
+                  <div
+                    key={u.id}
+                    className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="col-span-3 flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold">
+                        {(u.name || "K").charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-foreground">{u.name}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">{u.department}</div>
+                      </div>
+                    </div>
+                    <div className="col-span-3 flex flex-wrap gap-1">
+                      {u.restaurantNames.map((r, i) => (
+                        <span key={i} className="text-[9px] bg-muted px-2 py-1 rounded border border-border">
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="col-span-4 grid grid-cols-4 text-center font-bold text-sm">
+                      <span className="text-muted-foreground">{u.carriedOver ?? 0}</span>
+                      <span className="text-muted-foreground">{u.total}</span>
+                      <span className="text-green-600">{u.used}</span>
+                      <span className="text-orange-500">{u.remaining}</span>
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <button
+                        onClick={() => exportIndividualReport(u)}
+                        className="bg-muted hover:bg-accent text-foreground px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase min-h-[44px]"
+                      >
+                        <FileText size={14} /> PDF
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* REQUESTS TABLE */}
+        {/* REQUESTS: Mobile cards + Desktop table */}
         {activeTab === "REQUESTS" && (
-          <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-            <table className="w-full text-left">
-              <thead className="bg-muted/80 text-muted-foreground font-bold text-xs uppercase">
-                <tr>
-                  <th className="p-4 pl-6">Mitarbeiter</th>
-                  <th className="p-4">Restaurant</th>
-                  <th className="p-4">Zeitraum</th>
-                  <th className="p-4 text-center">Tage</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right pr-6">Aktion</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredRequests.map((req) => (
-                  <tr
-                    key={req.id}
-                    className={`transition-colors ${
-                      req.status === "CANCELLED" ? "bg-muted/50 opacity-75" : "hover:bg-accent/50"
+          <div className="bg-card rounded-xl md:rounded-2xl shadow-sm border border-border overflow-hidden">
+            {/* Mobile: Card layout */}
+            <div className="md:hidden divide-y divide-border">
+              {filteredRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className={`p-4 ${req.status === "CANCELLED" ? "bg-muted/50 opacity-75" : ""}`}
+                >
+                  <div className="font-bold text-foreground">{req.user.name}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{req.user.email}</div>
+                  <div className="text-sm font-semibold text-[#1a3826] mt-1">
+                    {req.restaurantName ?? req.user.mainRestaurant}
+                  </div>
+                  <div className="text-sm font-mono text-muted-foreground mt-1">
+                    {formatDate(req.start)} ➜ {formatDate(req.end)} · {req.days} Tage
+                  </div>
+                  <span
+                    className={`inline-block mt-2 px-2 py-1 rounded text-[10px] font-bold border ${
+                      req.status === "APPROVED"
+                        ? "bg-green-50 text-green-600 border-green-100"
+                        : req.status === "CANCEL_PENDING"
+                        ? "bg-red-50 text-red-600 border-red-200 animate-pulse"
+                        : req.status === "REJECTED"
+                        ? "bg-red-50 text-red-600 border-red-100"
+                        : "bg-blue-50 text-blue-600 border-blue-100"
                     }`}
                   >
-                    <td className="p-4 pl-6">
-                      <div className="font-bold text-sm text-foreground">{req.user.name}</div>
-                      <div className="text-[10px] text-muted-foreground">{req.user.email}</div>
-                    </td>
-                    <td className="p-4">
-                      <span className="text-sm font-semibold text-[#1a3826]">
-                        {req.restaurantName ?? req.user.mainRestaurant}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm font-mono text-muted-foreground">
-                      {formatDate(req.start)} <span className="text-muted-foreground/70">➜</span> {formatDate(req.end)}
-                    </td>
-                    <td className="p-4 text-center font-bold text-foreground">{req.days}</td>
-                    <td className="p-4">
-                      <span
-                        className={`px-2 py-1 rounded text-[10px] font-bold border ${
-                          req.status === "APPROVED"
-                            ? "bg-green-50 text-green-600 border-green-100"
-                            : req.status === "CANCEL_PENDING"
-                            ? "bg-red-50 text-red-600 border-red-200 animate-pulse"
-                            : req.status === "REJECTED"
-                            ? "bg-red-50 text-red-600 border-red-100"
-                            : "bg-blue-50 text-blue-600 border-blue-100"
-                        }`}
-                      >
-                        {req.status === "CANCEL_PENDING"
-                          ? "STORNIERUNG BEANTRAGT"
-                          : statusLabel(req.status)}
-                      </span>
-                    </td>
-                    <td className="p-4 pr-6 text-right">
-                      <div className="flex justify-end gap-2 flex-wrap">
-                        {req.status === "PENDING" && (
-                          <>
-                            <button
-                              onClick={() => handleStatus(req.id, "APPROVED")}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg text-xs font-bold transition-colors"
-                            >
-                              <Check size={14} /> Genehmigen
-                            </button>
-                            <button
-                              onClick={() => handleStatus(req.id, "RETURNED")}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-lg text-xs font-bold transition-colors"
-                            >
-                              <RotateCcw size={14} /> Zurück
-                            </button>
-                            <button
-                              onClick={() => handleStatus(req.id, "REJECTED")}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
-                            >
-                              <X size={14} /> Ablehnen
-                            </button>
-                          </>
-                        )}
-                        {req.status === "REJECTED" && (
+                    {req.status === "CANCEL_PENDING" ? "STORNIERUNG BEANTRAGT" : statusLabel(req.status)}
+                  </span>
+                  <div className="flex flex-col gap-2 mt-3">
+                    {req.status === "PENDING" && (
+                      <>
+                        <button
+                          onClick={() => handleStatus(req.id, "APPROVED")}
+                          className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-bold transition-colors touch-manipulation"
+                        >
+                          <Check size={18} /> Genehmigen
+                        </button>
+                        <div className="grid grid-cols-2 gap-2">
                           <button
-                            onClick={() => handleStatus(req.id, "PENDING")}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent text-foreground rounded-lg text-xs font-bold transition-colors"
+                            onClick={() => handleStatus(req.id, "RETURNED")}
+                            className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-xl text-xs font-bold transition-colors touch-manipulation"
                           >
-                            <RotateCcw size={14} /> Vrati na čekanju
+                            <RotateCcw size={16} /> Zurück
                           </button>
-                        )}
-                        {req.status === "CANCEL_PENDING" && (
-                          <>
-                            <button
-                              onClick={() => handleStatus(req.id, "CANCELLED")}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-red-700 shadow-md active:scale-95"
-                            >
-                              <Trash2 size={14} /> Stornierung genehmigen
-                            </button>
-                            <button
-                              onClick={() => handleStatus(req.id, "APPROVED")}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-muted hover:bg-accent text-foreground rounded-lg text-[10px] font-bold uppercase"
-                            >
-                              <RotateCcw size={14} /> Zurück (Genehmigung beibehalten)
-                            </button>
-                          </>
-                        )}
-                        {req.status === "CANCELLED" && (
-                          <span className="text-[10px] font-bold text-muted-foreground">PONIŠTENO</span>
-                        )}
-                      </div>
-                    </td>
+                          <button
+                            onClick={() => handleStatus(req.id, "REJECTED")}
+                            className="min-h-[44px] inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-xl text-xs font-bold transition-colors touch-manipulation"
+                          >
+                            <X size={16} /> Ablehnen
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {req.status === "REJECTED" && (
+                      <button
+                        onClick={() => handleStatus(req.id, "PENDING")}
+                        className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-muted hover:bg-accent text-foreground rounded-xl text-sm font-bold transition-colors touch-manipulation"
+                      >
+                        <RotateCcw size={18} /> Vrati na čekanju
+                      </button>
+                    )}
+                    {req.status === "CANCEL_PENDING" && (
+                      <>
+                        <button
+                          onClick={() => handleStatus(req.id, "CANCELLED")}
+                          className="min-h-[44px] w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-xl text-sm font-black uppercase hover:bg-red-700 touch-manipulation"
+                        >
+                          <Trash2 size={18} /> Stornierung genehmigen
+                        </button>
+                        <button
+                          onClick={() => handleStatus(req.id, "APPROVED")}
+                          className="min-h-[44px] w-full flex items-center justify-center gap-2 px-4 py-3 bg-muted hover:bg-accent text-foreground rounded-xl text-xs font-bold touch-manipulation"
+                        >
+                          <RotateCcw size={16} /> Zurück (beibehalten)
+                        </button>
+                      </>
+                    )}
+                    {req.status === "CANCELLED" && (
+                      <span className="text-xs font-bold text-muted-foreground py-2 block">PONIŠTENO</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop: Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-muted/80 text-muted-foreground font-bold text-xs uppercase">
+                  <tr>
+                    <th className="p-4 pl-6">Mitarbeiter</th>
+                    <th className="p-4">Restaurant</th>
+                    <th className="p-4">Zeitraum</th>
+                    <th className="p-4 text-center">Tage</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right pr-6">Aktion</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredRequests.map((req) => (
+                    <tr
+                      key={req.id}
+                      className={`transition-colors ${
+                        req.status === "CANCELLED" ? "bg-muted/50 opacity-75" : "hover:bg-accent/50"
+                      }`}
+                    >
+                      <td className="p-4 pl-6">
+                        <div className="font-bold text-sm text-foreground">{req.user.name}</div>
+                        <div className="text-[10px] text-muted-foreground">{req.user.email}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-sm font-semibold text-[#1a3826]">
+                          {req.restaurantName ?? req.user.mainRestaurant}
+                        </span>
+                      </td>
+                      <td className="p-4 text-sm font-mono text-muted-foreground">
+                        {formatDate(req.start)} <span className="text-muted-foreground/70">➜</span> {formatDate(req.end)}
+                      </td>
+                      <td className="p-4 text-center font-bold text-foreground">{req.days}</td>
+                      <td className="p-4">
+                        <span
+                          className={`px-2 py-1 rounded text-[10px] font-bold border ${
+                            req.status === "APPROVED"
+                              ? "bg-green-50 text-green-600 border-green-100"
+                              : req.status === "CANCEL_PENDING"
+                              ? "bg-red-50 text-red-600 border-red-200 animate-pulse"
+                              : req.status === "REJECTED"
+                              ? "bg-red-50 text-red-600 border-red-100"
+                              : "bg-blue-50 text-blue-600 border-blue-100"
+                          }`}
+                        >
+                          {req.status === "CANCEL_PENDING"
+                            ? "STORNIERUNG BEANTRAGT"
+                            : statusLabel(req.status)}
+                        </span>
+                      </td>
+                      <td className="p-4 pr-6 text-right">
+                        <div className="flex justify-end gap-2 flex-wrap">
+                          {req.status === "PENDING" && (
+                            <>
+                              <button
+                                onClick={() => handleStatus(req.id, "APPROVED")}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-green-50 hover:bg-green-100 text-green-600 rounded-lg text-xs font-bold transition-colors"
+                              >
+                                <Check size={14} /> Genehmigen
+                              </button>
+                              <button
+                                onClick={() => handleStatus(req.id, "RETURNED")}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-lg text-xs font-bold transition-colors"
+                              >
+                                <RotateCcw size={14} /> Zurück
+                              </button>
+                              <button
+                                onClick={() => handleStatus(req.id, "REJECTED")}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors"
+                              >
+                                <X size={14} /> Ablehnen
+                              </button>
+                            </>
+                          )}
+                          {req.status === "REJECTED" && (
+                            <button
+                              onClick={() => handleStatus(req.id, "PENDING")}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-muted hover:bg-accent text-foreground rounded-lg text-xs font-bold transition-colors"
+                            >
+                              <RotateCcw size={14} /> Vrati na čekanju
+                            </button>
+                          )}
+                          {req.status === "CANCEL_PENDING" && (
+                            <>
+                              <button
+                                onClick={() => handleStatus(req.id, "CANCELLED")}
+                                className="flex items-center gap-2 px-3 py-1.5 min-h-[44px] bg-red-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-red-700 shadow-md active:scale-95"
+                              >
+                                <Trash2 size={14} /> Stornierung genehmigen
+                              </button>
+                              <button
+                                onClick={() => handleStatus(req.id, "APPROVED")}
+                                className="flex items-center gap-2 px-3 py-1.5 min-h-[44px] bg-muted hover:bg-accent text-foreground rounded-lg text-[10px] font-bold uppercase"
+                              >
+                                <RotateCcw size={14} /> Zurück (Genehmigung beibehalten)
+                              </button>
+                            </>
+                          )}
+                          {req.status === "CANCELLED" && (
+                            <span className="text-[10px] font-bold text-muted-foreground">PONIŠTENO</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

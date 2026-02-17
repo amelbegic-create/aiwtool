@@ -9,6 +9,7 @@ import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
 import RestaurantSwitcher from "./RestaurantSwitcher";
+import { dict } from "@/translations";
 interface UserWithRole {
   name?: string | null;
   email?: string | null;
@@ -19,8 +20,8 @@ interface UserWithRole {
 const brandFont = Kanit({ subsets: ["latin"], weight: ["600", "800", "900"] });
 
 const CATEGORY_LABELS: Record<string, string> = {
-  general: "Dashboard",
-  staff: "Personal",
+  general: dict.nav_dashboard,
+  staff: dict.nav_staff_tools,
   operations: "Operations",
   other: "Other",
 };
@@ -53,19 +54,33 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
 
   return (
     <>
-    <header className="bg-[#1a3826] text-white shadow-xl h-16 shrink-0 relative z-50 transition-all border-b border-white/5">
-      <div className="h-full max-w-[1920px] mx-auto px-4 md:px-6 flex justify-between items-center">
+    <header className="sticky top-0 z-50 shrink-0 bg-[#1a3826] text-white shadow-lg border-b border-white/5 safe-area-t">
+      <div className="h-14 md:h-16 max-w-[1920px] mx-auto px-3 md:px-6 flex justify-between items-center">
         
         {/* LIJEVA: HAMBURGER (mobile) + LOGO */}
-        <div className="flex items-center gap-3 md:gap-6">
-            {/* Hamburger - samo na mobilnim */}
-            <button
-              className="md:hidden flex h-11 w-11 items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors -ml-1"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Menü öffnen"
-            >
-              <Menu size={24} />
-            </button>
+        <div className="flex items-center gap-1 md:gap-6">
+            {/* Hamburger + Notifications (mobile only) */}
+            <div className="md:hidden flex items-center gap-0.5">
+              <button
+                className="flex h-11 w-11 min-w-[44px] items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors touch-manipulation"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Menü öffnen"
+              >
+                <Menu size={24} />
+              </button>
+              <Link
+                href="/dashboard/zahtjevi"
+                className="relative flex h-11 w-11 min-w-[44px] items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors touch-manipulation"
+                aria-label={dict.nav_requests_pending}
+              >
+                <Bell size={20} />
+                {notificationCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </span>
+                )}
+              </Link>
+            </div>
             <Link href="/dashboard" onClick={closeMenu} className={`flex items-baseline gap-2 hover:opacity-80 transition-all select-none ${brandFont.className}`}>
                 <h1 className="text-xl md:text-2xl tracking-tighter text-white uppercase font-black">AIW</h1>
                 <p className="text-xs md:text-sm text-[#FFC72C] tracking-[0.1em] uppercase font-extrabold">Services</p>
@@ -135,7 +150,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
           <Link
             href="/dashboard/zahtjevi"
             className="relative h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
-            aria-label="Zahtjevi na čekanju"
+            aria-label={dict.nav_requests_pending}
           >
             <Bell size={16} />
             {notificationCount > 0 && (
@@ -155,7 +170,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
             <UserCircle size={18} />
           </Link>
           <div className="flex items-center gap-1.5">
-            <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10 relative" title="Moj Profil">
+            <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10 relative" title={dict.nav_profile_tooltip}>
                {session?.user?.image ? (
                  <Image src={session.user.image} alt="User" fill className="object-cover" sizes="32px" priority />
                ) : (

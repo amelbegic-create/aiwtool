@@ -48,7 +48,7 @@ export default async function RestaurantsPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div>
             <Link href="/dashboard" className="inline-flex items-center gap-2 text-slate-500 text-sm font-medium hover:text-[#1a3826] mb-2 transition-colors">
-               <ArrowLeft className="w-4 h-4" /> Nazad na Dashboard
+               <ArrowLeft className="w-4 h-4" /> Zurück zum Dashboard
             </Link>
             <h1 className="text-2xl font-bold text-slate-900">Mreža Restorana</h1>
             <p className="text-slate-500 text-sm mt-1">

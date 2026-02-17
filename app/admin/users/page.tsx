@@ -15,7 +15,7 @@ export default async function UsersPage() {
     where: STEALTH_ROLE_FILTER,
     orderBy: { createdAt: "desc" },
     include: {
-      restaurants: true,
+      restaurants: { select: { restaurantId: true } },
       department: { select: { id: true, name: true } },
       vacationAllowances: {
         where: { year: { in: YEARS } },
@@ -54,7 +54,6 @@ export default async function UsersPage() {
       vacationEntitlement: u.vacationEntitlement ?? 20,
       vacationCarryover: u.vacationCarryover ?? 0,
       restaurantIds: (u.restaurants || []).map((rr) => rr.restaurantId),
-      supervisorId: u.supervisorId || null,
       vacationAllowances: allowanceMap,
     };
   });

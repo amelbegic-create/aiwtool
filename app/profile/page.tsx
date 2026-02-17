@@ -94,7 +94,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14 safe-area-l safe-area-r">
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">

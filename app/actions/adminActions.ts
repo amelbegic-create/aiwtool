@@ -15,10 +15,10 @@ type CreateUserInput = {
   password: string;
   role: Role;
   departmentId?: string | null;
+  supervisorId?: string | null;
   permissions?: string[];
   restaurantIds?: string[];
   primaryRestaurantId?: string | null;
-  supervisorId?: string | null;
   vacationEntitlement?: number;
   vacationCarryover?: number;
   vacationAllowances?: VacationAllowanceRow[];
@@ -31,10 +31,10 @@ type UpdateUserInput = {
   password?: string;
   role: Role;
   departmentId?: string | null;
+  supervisorId?: string | null;
   permissions?: string[];
   restaurantIds?: string[];
   primaryRestaurantId?: string | null;
-  supervisorId?: string | null;
   vacationEntitlement?: number;
   vacationCarryover?: number;
   vacationAllowances?: VacationAllowanceRow[];
@@ -42,81 +42,6 @@ type UpdateUserInput = {
 
 function normalizeEmail(email: string) {
   return String(email || "").trim().toLowerCase();
-}
-
-// --- ROLE HIJERARHIJA (1-5) ---
-// 1. SYSTEM_ARCHITECT (Root) - nema nadređenog
-// 2. SUPER_ADMIN (Abteilungsleiter) - nema nadređenog
-// 3. MANAGER (Restaurant Manager) - mora imati nadređenog
-// 4. ADMIN (Management) - mora imati nadređenog
-// 5. CREW (Office/Crew) - mora imati nadređenog
-function roleRank(role: Role): number {
-  switch (role) {
-    case "SYSTEM_ARCHITECT":
-      return 1;
-    case "SUPER_ADMIN":
-      return 2;
-    case "MANAGER":
-      return 3;
-    case "ADMIN":
-      return 4;
-    case "CREW":
-      return 5;
-    default:
-      return 99;
-  }
-}
-
-function roleRequiresSupervisor(role: Role) {
-  return roleRank(role) >= 3;
-}
-
-async function validateAndResolveSupervisorId(args: {
-  role: Role;
-  supervisorId: string | null;
-  selfId?: string | null;
-}) {
-  const { role, supervisorId, selfId } = args;
-
-  // Role 1/2 nikad nemaju nadređenog
-  if (!roleRequiresSupervisor(role)) return null;
-
-  // Ako nije odabran nadređeni: dozvoli samo ako u bazi nema nijednog mogućeg nadređenog (npr. prvi korisnik)
-  if (!supervisorId || supervisorId.trim() === "") {
-    const possibleSupervisors = await prisma.user.count({
-      where: {
-        isActive: true,
-        ...(selfId ? { id: { not: selfId } } : {}),
-        role: { in: ["SUPER_ADMIN", "MANAGER", "ADMIN"] },
-      },
-    });
-    if (possibleSupervisors > 0) {
-      throw new Error("Za odabranu rolu nadređeni je obavezan.");
-    }
-    return null;
-  }
-
-  if (selfId && supervisorId === selfId) {
-    throw new Error("Korisnik ne može sam sebi biti nadređeni.");
-  }
-
-  const sup = await prisma.user.findUnique({
-    where: { id: supervisorId },
-    select: { id: true, role: true, isActive: true },
-  });
-
-  if (!sup) throw new Error("Odabrani nadređeni ne postoji.");
-  if (sup.isActive === false) throw new Error("Odabrani nadređeni nije aktivan.");
-  if (sup.role === "SYSTEM_ARCHITECT") throw new Error("Odabrani nadređeni nije dostupan.");
-
-  const supRank = roleRank(sup.role);
-  const meRank = roleRank(role);
-
-  if (!(supRank < meRank)) {
-    throw new Error("Odabrani nadređeni mora imati višu rolu od korisnika.");
-  }
-
-  return sup.id;
 }
 
 export async function createUser(input: CreateUserInput) {
@@ -137,12 +62,6 @@ export async function createUser(input: CreateUserInput) {
   const passwordHash = await bcrypt.hash(input.password, 10);
   const restaurantIds = Array.isArray(input.restaurantIds) ? input.restaurantIds : [];
 
-  const supervisorIdFinal = await validateAndResolveSupervisorId({
-    role: input.role,
-    supervisorId: input.supervisorId ?? null,
-    selfId: null,
-  });
-
   let created: { id: string };
   try {
     created = await prisma.$transaction(async (tx) => {
@@ -153,8 +72,8 @@ export async function createUser(input: CreateUserInput) {
           password: passwordHash,
           role: input.role,
           departmentId: input.departmentId ?? null,
+          supervisorId: input.supervisorId && input.supervisorId.trim() ? input.supervisorId.trim() : null,
           permissions: Array.isArray(input.permissions) ? input.permissions : [],
-          supervisorId: supervisorIdFinal,
           vacationEntitlement: Number.isFinite(Number(input.vacationEntitlement)) ? Number(input.vacationEntitlement) : 20,
           vacationCarryover: Number.isFinite(Number(input.vacationCarryover)) ? Number(input.vacationCarryover) : 0,
           isActive: true,
@@ -214,20 +133,14 @@ export async function updateUser(input: UpdateUserInput) {
 
   const restaurantIds = Array.isArray(input.restaurantIds) ? input.restaurantIds : [];
 
-  const supervisorIdFinal = await validateAndResolveSupervisorId({
-    role: input.role,
-    supervisorId: input.supervisorId ?? null,
-    selfId: input.id,
-  });
-
   await prisma.$transaction(async (tx) => {
     const data: Prisma.UserUncheckedUpdateInput = {
       name: input.name.trim(),
       email,
       role: input.role,
       departmentId: input.departmentId ?? null,
+      supervisorId: input.supervisorId != null && input.supervisorId.trim() !== "" ? input.supervisorId.trim() : null,
       permissions: Array.isArray(input.permissions) ? input.permissions : [],
-      supervisorId: supervisorIdFinal,
       vacationEntitlement: Number.isFinite(Number(input.vacationEntitlement)) ? Number(input.vacationEntitlement) : undefined,
       vacationCarryover: Number.isFinite(Number(input.vacationCarryover)) ? Number(input.vacationCarryover) : undefined,
     };

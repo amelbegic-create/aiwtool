@@ -1,7 +1,8 @@
-"use client";
+\"use client\";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { dict } from "@/translations";
 import {
   Search,
   Bell,
@@ -196,44 +197,53 @@ export default function DashboardClient(props: DashboardClientProps) {
       {/* MAIN */}
       <main className="flex-1 p-6 md:p-10 max-w-[1600px] mx-auto w-full space-y-10 relative z-0">
         {/* HERO */}
-        <div className="relative overflow-hidden bg-[#1a3826] rounded-[2.5rem] p-10 md:p-12 shadow-2xl shadow-emerald-900/30 text-white flex flex-col md:flex-row justify-between items-center gap-8 z-0">
+          <div className="relative overflow-hidden bg-[#1a3826] rounded-[2.5rem] p-10 md:p-12 shadow-2xl shadow-emerald-900/30 text-white flex flex-col md:flex-row justify-between items-center gap-8 z-0">
           <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none z-[-1]"></div>
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none z-[-1]"></div>
 
           <div className="relative z-10 max-w-2xl">
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold text-[#FFC72C] mb-4 border border-white/10">
               <span className="w-2 h-2 rounded-full bg-[#FFC72C] animate-pulse"></span>
-              Sistem aktivan
+              {dict.dashboard_hero_chip}
             </div>
 
             <h1 className="text-4xl md:text-5xl font-black tracking-tighter mb-4 leading-tight">
-              Dobrodošao, <span className="text-[#FFC72C]">{props.userFirstName}</span>.
+              Willkommen, <span className="text-[#FFC72C]">{props.userFirstName}</span>.
             </h1>
 
             <p className="text-emerald-100/80 text-lg font-medium max-w-lg leading-relaxed">
-              Imate <strong className="text-white">{props.pendingMine}</strong> zahtjeva na čekanju i Vaš trenutni PDS skor je{" "}
-              <strong className="text-white">{props.pdsScore}</strong>.
+              {dict.dashboard_hero_subtitle}
             </p>
           </div>
 
           <div className="flex gap-4 relative z-10 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
             <div className="bg-white/10 backdrop-blur-md border border-white/10 p-5 rounded-2xl min-w-[140px] flex flex-col items-center text-center hover:bg-white/20 transition-all cursor-default">
-              <span className="text-emerald-100/60 text-[10px] font-black uppercase tracking-widest mb-1">Godišnji</span>
+              <span className="text-emerald-100/60 text-[10px] font-black uppercase tracking-widest mb-1">
+                {dict.dashboard_tile_vacation_label}
+              </span>
               <span className="text-3xl font-black text-white">{props.vacationLeft}</span>
-              <span className="text-xs font-bold text-emerald-200">Dana ostalo</span>
+              <span className="text-xs font-bold text-emerald-200">
+                {dict.dashboard_tile_vacation_sub}
+              </span>
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/10 p-5 rounded-2xl min-w-[140px] flex flex-col items-center text-center hover:bg-white/20 transition-all cursor-default">
-              <span className="text-emerald-100/60 text-[10px] font-black uppercase tracking-widest mb-1">PDS Skor</span>
+              <span className="text-emerald-100/60 text-[10px] font-black uppercase tracking-widest mb-1">
+                {dict.dashboard_tile_pds_label}
+              </span>
               <span className="text-3xl font-black text-[#FFC72C]">{props.pdsScore}</span>
               <span className="text-xs font-bold text-emerald-200">{props.pdsStatus}</span>
             </div>
 
             {props.showAdminHeroTile && (
               <div className="bg-[#FFC72C] text-[#1a3826] p-5 rounded-2xl min-w-[140px] flex flex-col items-center text-center shadow-lg shadow-yellow-500/20">
-                <span className="opacity-60 text-[10px] font-black uppercase tracking-widest mb-1">Zahtjevi</span>
+                <span className="opacity-60 text-[10px] font-black uppercase tracking-widest mb-1">
+                  {dict.dashboard_tile_requests_label}
+                </span>
                 <span className="text-3xl font-black">{props.pendingAdmin}</span>
-                <span className="text-xs font-bold opacity-80">Na čekanju</span>
+                <span className="text-xs font-bold opacity-80">
+                  {dict.dashboard_tile_requests_sub}
+                </span>
               </div>
             )}
           </div>
@@ -243,7 +253,7 @@ export default function DashboardClient(props: DashboardClientProps) {
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
           <div className="xl:col-span-3 space-y-6">
             <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
-              <LayoutDashboard className="text-[#1a3826]" size={20} /> MOJI ALATI
+              <LayoutDashboard className="text-[#1a3826]" size={20} /> {dict.dashboard_section_my_tools}
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -366,7 +376,7 @@ export default function DashboardClient(props: DashboardClientProps) {
 
                 {props.recentVacations.length === 0 && (
                   <div className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    Trenutno nema aktivnosti za godišnje odmore.
+                    Derzeit keine Aktivitäten für Jahresurlaub.
                   </div>
                 )}
               </div>

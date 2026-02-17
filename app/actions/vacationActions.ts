@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/access";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
 import { cookies } from "next/headers";
 import { Role } from "@prisma/client";
+import { VACATION_YEAR_MIN, computeCarryOverForYear } from "@/lib/vacationCarryover";
 
 /** Session user shape from next-auth (id from our callback). */
 type SessionUser = { id?: string };
@@ -49,9 +50,8 @@ export async function getGlobalVacationStats(year: number) {
 
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year}-12-31`;
-  const prevYear = year - 1;
-  const startPrev = `${prevYear}-01-01`;
-  const endPrev = `${prevYear}-12-31`;
+  const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
+  const rangeEnd = `${year}-12-31`;
 
   const allUsers = await prisma.user.findMany({
     where: { isActive: true, role: { not: "SYSTEM_ARCHITECT" } },
@@ -69,8 +69,8 @@ export async function getGlobalVacationStats(year: number) {
         select: { days: true },
       },
       vacationAllowances: {
-        where: { year: { in: [year, prevYear] } },
-        select: { year: true, days: true, carriedOverDays: true },
+        where: { year: { gte: VACATION_YEAR_MIN, lte: year } },
+        select: { year: true, days: true },
       },
       restaurants: { select: { restaurant: { select: { name: true } } } },
     },
@@ -92,39 +92,47 @@ export async function getGlobalVacationStats(year: number) {
     },
   });
 
-  const prevYearUsedByUser = await prisma.vacationRequest
-    .groupBy({
-      by: ["userId"],
+  const usedByUserByYear = await prisma.vacationRequest
+    .findMany({
       where: {
         status: "APPROVED",
-        start: { gte: startPrev, lte: endPrev },
+        start: { gte: rangeStart, lte: rangeEnd },
       },
-      _sum: { days: true },
+      select: { userId: true, start: true, days: true },
     })
-    .then((rows) => new Map(rows.map((r) => [r.userId, r._sum.days ?? 0])));
+    .then((rows) => {
+      const map = new Map<string, Map<number, number>>();
+      for (const r of rows) {
+        const y = Number(String(r.start).slice(0, 4));
+        if (y >= VACATION_YEAR_MIN && y <= year) {
+          let userMap = map.get(r.userId);
+          if (!userMap) {
+            userMap = new Map();
+            map.set(r.userId, userMap);
+          }
+          userMap.set(y, (userMap.get(y) ?? 0) + r.days);
+        }
+      }
+      return map;
+    });
 
   const usersStats = allUsers.map((u) => {
     const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
     const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Nepoznat");
-    const vaThis = u.vacationAllowances?.find((a) => a.year === year);
-    const vaPrev = u.vacationAllowances?.find((a) => a.year === prevYear);
-    const usedPrev = prevYearUsedByUser.get(u.id) ?? 0;
-
-    let allowance: number;
-    let carriedOver: number;
-    if (vaThis) {
-      allowance = vaThis.days ?? 0;
-      carriedOver = vaThis.carriedOverDays ?? 0;
-    } else {
-      allowance = u.vacationEntitlement ?? 20;
-      if (vaPrev) {
-        const totalPrev = (vaPrev.days ?? 0) + (vaPrev.carriedOverDays ?? 0);
-        carriedOver = Math.max(0, totalPrev - usedPrev);
-      } else {
-        carriedOver = u.vacationCarryover ?? 0;
-      }
+    const allowancesByYear = new Map<number, { days: number }>();
+    for (const a of u.vacationAllowances ?? []) {
+      allowancesByYear.set(a.year, { days: Math.max(0, a.days ?? 0) });
     }
-    const total = allowance + carriedOver;
+    const usedByYear = usedByUserByYear.get(u.id) ?? new Map<number, number>();
+    const defaultAllowance = u.vacationEntitlement ?? 20;
+    const defaultCarryover = Math.max(0, Math.floor(Number(u.vacationCarryover) || 0));
+    const { allowance, carriedOver, total } = computeCarryOverForYear(
+      allowancesByYear,
+      usedByYear,
+      defaultAllowance,
+      defaultCarryover,
+      year
+    );
     const remaining = total - used;
 
     return {
@@ -207,7 +215,7 @@ async function calculateVacationDays(start: string, end: string, restaurantId: s
   return totalDays;
 }
 
-/** Live carry-over: za godinu Y koristi Base(Y) + max(0, Total(Y-1) - Used(Y-1)). Eksportovano za stranicu godišnjih. */
+/** Višegodišnji prenos: za godinu Y koristi Base(Y) + preostalo iz svih godina od VACATION_YEAR_MIN do Y-1. */
 export async function getUserTotalForYear(userId: string, year: number) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -215,39 +223,30 @@ export async function getUserTotalForYear(userId: string, year: number) {
       vacationEntitlement: true,
       vacationCarryover: true,
       vacationAllowances: {
-        where: { year: { in: [year, year - 1] } },
-        select: { year: true, days: true, carriedOverDays: true },
+        where: { year: { gte: VACATION_YEAR_MIN, lte: year } },
+        select: { year: true, days: true },
       },
     },
   });
   if (!user) throw new Error("Benutzer nicht gefunden.");
 
-  const vaThis = user.vacationAllowances?.find((a) => a.year === year);
-  const vaPrev = user.vacationAllowances?.find((a) => a.year === year - 1);
-  const usedPrev =
-    vaPrev != null
-      ? await getUsedApprovedDaysForYear(userId, year - 1)
-      : 0;
-
-  let allowance: number;
-  let carryover: number;
-  if (vaThis) {
-    allowance =
-      vaThis.days != null && Number.isFinite(Number(vaThis.days))
-        ? Math.max(0, Math.floor(Number(vaThis.days)))
-        : (user.vacationEntitlement ?? 20);
-    carryover = Math.max(0, Math.floor(Number(vaThis.carriedOverDays) || 0));
-  } else {
-    allowance = user.vacationEntitlement ?? 20;
-    if (vaPrev) {
-      const totalPrev = (vaPrev.days ?? 0) + (vaPrev.carriedOverDays ?? 0);
-      carryover = Math.max(0, totalPrev - usedPrev);
-    } else {
-      carryover = Math.max(0, Math.floor(Number(user.vacationCarryover) || 0));
-    }
+  const allowancesByYear = new Map<number, { days: number }>();
+  for (const a of user.vacationAllowances ?? []) {
+    const d = a.days != null && Number.isFinite(Number(a.days)) ? Math.max(0, Math.floor(Number(a.days))) : 0;
+    allowancesByYear.set(a.year, { days: d });
   }
-  const total = allowance + carryover;
-  return { total, allowance, carryover };
+  const usedByYear = await getUsedByYearForUser(userId, VACATION_YEAR_MIN, year);
+  const defaultAllowance = user.vacationEntitlement ?? 20;
+  const defaultCarryover = Math.max(0, Math.floor(Number(user.vacationCarryover) || 0));
+
+  const result = computeCarryOverForYear(
+    allowancesByYear,
+    usedByYear,
+    defaultAllowance,
+    defaultCarryover,
+    year
+  );
+  return { total: result.total, allowance: result.allowance, carryover: result.carriedOver };
 }
 
 async function getUsedApprovedDaysForYear(userId: string, year: number) {
@@ -262,6 +261,32 @@ async function getUsedApprovedDaysForYear(userId: string, year: number) {
     select: { days: true },
   });
   return approved.reduce((sum, r) => sum + r.days, 0);
+}
+
+/** Vraća Map<year, usedDays> za approved zahtjeve u rasponu [yearMin, yearMax]. */
+async function getUsedByYearForUser(
+  userId: string,
+  yearMin: number,
+  yearMax: number
+): Promise<Map<number, number>> {
+  const start = `${yearMin}-01-01`;
+  const end = `${yearMax}-12-31`;
+  const approved = await prisma.vacationRequest.findMany({
+    where: {
+      userId,
+      status: "APPROVED",
+      start: { gte: start, lte: end },
+    },
+    select: { start: true, days: true },
+  });
+  const byYear = new Map<number, number>();
+  for (const r of approved) {
+    const y = Number(String(r.start).slice(0, 4));
+    if (y >= yearMin && y <= yearMax) {
+      byYear.set(y, (byYear.get(y) ?? 0) + r.days);
+    }
+  }
+  return byYear;
 }
 
 /** Role koji mogu sami sebi odmah odobriti godišnji (self-service) – bez notifikacija. */
@@ -282,15 +307,10 @@ export async function createVacationRequest(data: {
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    select: { id: true, supervisorId: true, isActive: true, role: true },
+    select: { id: true, isActive: true, role: true },
   });
   if (!user) throw new Error("Benutzer nicht gefunden.");
   if (user.isActive === false) throw new Error("Benutzer ist nicht aktiv.");
-
-  // ✅ chain-of-command: za role 3-5 nadređeni mora postojati (osim self-service admina)
-  if (!isGodModeRole(user.role as Role) && !user.supervisorId) {
-    throw new Error("Kein Vorgesetzter für Ihr Profil hinterlegt. Bitte wenden Sie sich an den Administrator.");
-  }
 
   const restaurantId = await resolveRestaurantIdForSessionUser(sessionUserId);
 
@@ -323,7 +343,7 @@ export async function createVacationRequest(data: {
   await prisma.vacationRequest.create({
     data: {
       userId: user.id,
-      supervisorId: user.supervisorId || null,
+      supervisorId: null,
       restaurantId,
       start: data.start,
       end: data.end,
@@ -343,7 +363,7 @@ export async function updateVacationRequest(id: string, data: { start: string; e
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    select: { id: true, supervisorId: true, role: true },
+    select: { id: true, role: true },
   });
   if (!user) throw new Error("Fehler.");
 
@@ -383,7 +403,6 @@ export async function updateVacationRequest(id: string, data: { start: string; e
       end: data.end,
       days: totalDays,
       status: "PENDING",
-      supervisorId: user.supervisorId || null,
     },
   });
 
@@ -429,7 +448,7 @@ export async function updateVacationStatus(requestId: string, status: string) {
   const isAdmin = actingUser.role === "ADMIN";
 
   if (!god && !isAdmin) {
-    if (req.supervisorId !== actingUser.id) {
+    if (req.supervisorId != null && req.supervisorId !== actingUser.id) {
       throw new Error("Sie sind nicht berechtigt, diesen Antrag zu genehmigen. Bitte wenden Sie sich an den Administrator.");
     }
     if (actingUser.role === "MANAGER") {

@@ -14,10 +14,12 @@ export default async function RestaurantsPage() {
   });
 
   const formatted = restaurants.map((r) => ({
-    ...r,
+    id: r.id,
+    code: r.code,
     name: r.name || "Unbekannt",
     city: r.city || "",
     address: r.address || "",
+    isActive: r.isActive,
   }));
 
   return <RestaurantClient restaurants={formatted} />;

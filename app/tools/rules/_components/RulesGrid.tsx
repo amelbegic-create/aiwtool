@@ -6,18 +6,24 @@ import {
   Search,
   CheckCircle2,
   Image as ImageIcon,
-  AlertTriangle,
   Calendar,
-  Dot,
+  Users,
+  Settings,
+  Layers,
+  FileText,
+  Plus,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface RulesGridProps {
   initialRules: Array<{
     id: string;
     title: string;
+    content?: string | null;
     categoryId: string;
     category?: { name: string } | null;
     priority: string;
@@ -28,53 +34,62 @@ interface RulesGridProps {
   }>;
   categories: Array<{ id: string; name: string }>;
   showReadStatus?: boolean;
+  canEdit?: boolean;
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+function stripPreview(content: string | null | undefined, maxLen: number): string {
+  if (!content) return "";
+  const text = content
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[#*`\[\]()]/g, "")
+    .trim();
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen).trim() + "…";
+}
+
 function priorityMeta(p: string) {
   if (p === "URGENT")
-    return {
-      label: "HITNO",
-      chip: "bg-red-50 text-red-700 border-red-200",
-      dot: "bg-red-500",
-    };
+    return { label: "Dringend", chip: "bg-red-100 text-red-800 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800" };
   if (p === "MANDATORY")
-    return {
-      label: "OBAVEZNO",
-      chip: "bg-[#FFC72C]/20 text-[#1a3826] border-[#FFC72C]/40",
-      dot: "bg-[#FFC72C]",
-    };
-  return {
-    label: "INFO",
-    chip: "bg-blue-50 text-blue-700 border-blue-200",
-    dot: "bg-blue-500",
-  };
+    return { label: "Pflicht", chip: "bg-[#FFC72C]/20 text-[#1a3826] border-[#FFC72C]/40 dark:border-[#FFC72C]/30" };
+  return { label: "Info", chip: "bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800" };
+}
+
+const CATEGORY_ICONS: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
+  Personal: Users,
+  "Operatives & Betrieb": Settings,
+  Operatives: Settings,
+  Sonstiges: Layers,
+};
+
+function getCategoryIcon(categoryName: string | null | undefined) {
+  if (!categoryName) return FileText;
+  return CATEGORY_ICONS[categoryName] ?? BookOpen;
 }
 
 export default function RulesGrid({
   initialRules,
   categories,
   showReadStatus = true,
+  canEdit = false,
 }: RulesGridProps) {
   const [rules] = useState(initialRules);
-  const [activeCategory, setActiveCategory] = useState("SVE");
+  const [activeCategory, setActiveCategory] = useState("alle");
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredRules = useMemo(() => {
     return rules.filter((r) => {
-      const matchesCat = activeCategory === "SVE" || r.categoryId === activeCategory;
-      const matchesSearch = r.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCat = activeCategory === "alle" || r.categoryId === activeCategory;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch = !q || r.title.toLowerCase().includes(q) || (r.content && r.content.toLowerCase().includes(q));
       return matchesCat && matchesSearch;
     });
   }, [rules, activeCategory, searchQuery]);
-
-  const activeCatName =
-    activeCategory === "SVE"
-      ? "Sve kategorije"
-      : categories.find((c) => c.id === activeCategory)?.name || "Kategorija";
 
   const unreadCount = useMemo(
     () => (showReadStatus ? filteredRules.filter((r) => !r.isRead).length : 0),
@@ -86,79 +101,101 @@ export default function RulesGrid({
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground pb-24">
-      {/* HEADER – Compact: title + search + pills u jednom bloku */}
-      <div className="border-b border-border bg-card">
-        <div className="max-w-[1600px] mx-auto px-4 md:px-8 lg:px-10 py-4 md:py-5">
+      {/* Breadcrumbs */}
+      <div className="border-b border-border bg-card/50">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-3">
+          <nav className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Link href="/dashboard" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
+              Tools
+            </Link>
+            <ChevronRight size={14} className="opacity-60" />
+            <span className="font-medium text-foreground">Regeln</span>
+          </nav>
+        </div>
+      </div>
+
+      {/* Sticky Search + Title + Actions */}
+      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 py-4">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="h-9 w-9 rounded-lg bg-[#1a3826] text-[#FFC72C] flex items-center justify-center shrink-0">
-                  <BookOpen size={18} strokeWidth={2} />
+                <div className="h-10 w-10 rounded-xl bg-[#1a3826] text-[#FFC72C] flex items-center justify-center shrink-0">
+                  <BookOpen size={20} strokeWidth={2} />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg md:text-xl font-bold text-[#1a3826] tracking-tight truncate">
-                    Pravila & Procedure
+                  <h1 className="text-lg md:text-xl font-bold text-[#1a3826] dark:text-[#FFC72C] tracking-tight truncate">
+                    Richtlinien & Verfahren
                   </h1>
                   <p className="text-xs text-muted-foreground truncate">
                     {showReadStatus && unreadCount > 0 ? (
-                      <span className="font-semibold text-red-600 inline-flex items-center gap-1.5">
+                      <span className="font-semibold text-red-600 dark:text-red-400 inline-flex items-center gap-1.5">
                         <span className="relative flex h-2 w-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
                         </span>
-                        {unreadCount} nepročitano
+                        {unreadCount} ungelesen
                       </span>
                     ) : (
-                      "Interni dokumenti i procedure"
+                      "Anweisungen und Abläufe"
                     )}
                   </p>
                 </div>
               </div>
-              <div className="w-full sm:w-56 md:w-64 flex-shrink-0">
-                <div className="bg-muted rounded-lg border border-border px-3 py-2 flex items-center gap-2 min-h-[36px]">
-                  <Search size={16} className="text-muted-foreground shrink-0" />
-                  <input
-                    type="text"
-                    placeholder="Pretraži…"
-                    className="w-full bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  {searchQuery.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery("")}
-                      className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-muted hover:bg-accent text-muted-foreground transition"
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-              </div>
+              {canEdit && (
+                <Link
+                  href="/admin/rules"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] text-white text-sm font-bold hover:bg-[#142e1e] dark:bg-[#FFC72C] dark:text-[#1a3826] dark:hover:bg-[#e0af25] transition-colors min-h-[44px] touch-manipulation"
+                >
+                  <Plus size={18} /> Neue Regel
+                </Link>
+              )}
             </div>
 
-            {/* Pills – horizontalno scrollabilne kategorije */}
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+            {/* Search – full width, min 44px */}
+            <div className="rounded-xl border border-border bg-muted/50 focus-within:ring-2 focus-within:ring-[#1a3826]/20 dark:focus-within:ring-[#FFC72C]/20 flex items-center gap-3 px-4 py-3 min-h-[44px]">
+              <Search size={20} className="text-muted-foreground shrink-0" />
+              <input
+                type="search"
+                placeholder="Suche…"
+                className="flex-1 min-w-0 bg-transparent outline-none text-base text-foreground placeholder:text-muted-foreground min-h-[24px]"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Suche"
+              />
+              {searchQuery.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="text-xs font-bold uppercase px-2 py-1.5 rounded-lg bg-muted hover:bg-accent text-muted-foreground transition min-h-[36px]"
+                >
+                  Löschen
+                </button>
+              )}
+            </div>
+
+            {/* Horizontal category filter */}
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1 min-h-[44px] items-center">
               <button
-                onClick={() => setActiveCategory("SVE")}
+                onClick={() => setActiveCategory("alle")}
                 className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-semibold transition-all shrink-0",
-                  activeCategory === "SVE"
-                    ? "bg-[#1a3826] text-white"
-                    : "bg-muted text-muted-foreground hover:bg-muted"
+                  "px-4 py-2.5 rounded-full text-sm font-semibold transition-all shrink-0 min-h-[44px] touch-manipulation",
+                  activeCategory === "alle"
+                    ? "bg-[#1a3826] text-white dark:bg-[#FFC72C] dark:text-[#1a3826]"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
                 )}
               >
-                SVE
+                Alle
               </button>
               {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0",
+                    "px-4 py-2.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0 min-h-[44px] touch-manipulation",
                     activeCategory === cat.id
-                      ? "bg-[#1a3826] text-white"
-                      : "bg-muted text-muted-foreground hover:bg-muted"
+                      ? "bg-[#1a3826] text-white dark:bg-[#FFC72C] dark:text-[#1a3826]"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
                   {cat.name}
@@ -169,96 +206,114 @@ export default function RulesGrid({
         </div>
       </div>
 
-      {/* SADRŽAJ – Compact grid */}
-      <div className="max-w-[1600px] mx-auto px-4 md:px-8 lg:px-10 py-5">
-        {filteredRules.length === 0 ? (
-          <div className="bg-card rounded-xl border border-border shadow-sm p-8 text-center">
-            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center mx-auto mb-2">
-              <AlertTriangle size={20} className="text-muted-foreground" />
-            </div>
-            <h2 className="text-base font-bold text-foreground">Nema pravila za prikaz</h2>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-              Promijenite kategoriju ili pretragu.
-            </p>
-          </div>
-        ) : (
-          <>
-            <p className="text-xs font-medium text-muted-foreground mb-4">
-              <span className="font-semibold text-foreground">{filteredRules.length}</span>{" "}
-              {filteredRules.length === 1 ? "pravilo" : "pravila"}
-              {activeCategory !== "SVE" && (
-                <span className="ml-1.5">
-                  <Dot className="inline w-3 h-3 align-middle" />
-                  {activeCatName}
-                </span>
-              )}
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredRules.map((rule) => {
+      {/* Content */}
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6">
+        <AnimatePresence mode="wait">
+          {filteredRules.length === 0 ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="rounded-2xl border border-border bg-card shadow-sm p-10 md:p-14 text-center"
+            >
+              <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                <Search size={28} className="text-muted-foreground" />
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Keine Ergebnisse gefunden</h2>
+              <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+                Ändern Sie die Kategorie oder den Suchbegriff.
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="grid"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            >
+              {filteredRules.map((rule, index) => {
                 const pr = priorityMeta(rule.priority);
                 const cover = coverUrl(rule);
+                const Icon = getCategoryIcon(rule.category?.name ?? undefined);
+                const preview = stripPreview(rule.content, 100);
                 return (
-                  <Link
-                    href={`/tools/rules/${rule.id}`}
+                  <motion.div
                     key={rule.id}
-                    className="group bg-card rounded-xl border border-border shadow-sm hover:shadow-md hover:border-[#1a3826]/30 transition-all overflow-hidden flex flex-col"
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.03, duration: 0.2 }}
                   >
-                    {/* Cover – fiksna visina h-32; bez slike = mala ikonica */}
-                    <div className="h-32 w-full bg-muted overflow-hidden flex items-center justify-center relative">
-                      {cover ? (
-                        <Image
-                          src={cover}
-                          alt=""
-                          fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-105"
-                          sizes="(max-width: 640px) 100vw, 320px"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
-                          <ImageIcon size={16} className="text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-2.5 flex flex-col flex-1 min-w-0">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 w-fit px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border mb-1.5",
-                          pr.chip
+                    <Link
+                      href={`/tools/rules/${rule.id}`}
+                      className="group block h-full bg-card rounded-2xl border border-border shadow-sm hover:shadow-lg hover:border-[#1a3826]/20 dark:hover:border-[#FFC72C]/30 transition-all overflow-hidden min-h-[44px] touch-manipulation"
+                    >
+                      <div className="h-36 w-full bg-muted overflow-hidden flex items-center justify-center relative">
+                        {cover ? (
+                          <Image
+                            src={cover}
+                            alt=""
+                            fill
+                            className="object-cover transition-transform duration-300 group-hover:scale-105"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          />
+                        ) : (
+                          <div className="h-14 w-14 rounded-2xl bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 text-[#1a3826] dark:text-[#FFC72C] flex items-center justify-center">
+                            <Icon size={28} />
+                          </div>
                         )}
-                      >
-                        <span className={cn("inline-block h-1 w-1 rounded-full", pr.dot)} />
-                        {pr.label}
-                      </span>
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#1a3826] transition-colors line-clamp-2 leading-snug">
-                        {rule.title}
-                      </h3>
-                      {/* Footer: datum + status u text-xs */}
-                      <div className="mt-auto pt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1 shrink-0 min-w-0">
-                          <Calendar size={12} className="text-muted-foreground shrink-0" />
-                          {formatDateDDMMGGGG(rule.createdAt)}
-                        </span>
-                        {showReadStatus &&
-                          (rule.isRead ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600 shrink-0">
-                              <CheckCircle2 size={12} />
-                              <span className="font-medium">Pročitano</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-red-600 shrink-0 font-medium">
-                              <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                              Novo
-                            </span>
-                          ))}
                       </div>
-                    </div>
-                  </Link>
+                      <div className="p-4 flex flex-col flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border",
+                              pr.chip
+                            )}
+                          >
+                            {pr.label}
+                          </span>
+                          {rule.category?.name && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-[#1a3826]/10 text-[#1a3826] dark:bg-[#FFC72C]/20 dark:text-[#FFC72C] border border-[#1a3826]/20 dark:border-[#FFC72C]/30">
+                              {rule.category.name}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="text-base font-bold text-foreground group-hover:text-[#1a3826] dark:group-hover:text-[#FFC72C] transition-colors line-clamp-2 leading-snug">
+                          {rule.title}
+                        </h3>
+                        {preview && (
+                          <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                            {preview}
+                          </p>
+                        )}
+                        <div className="mt-auto pt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1 shrink-0">
+                            <Calendar size={12} />
+                            {formatDateDDMMGGGG(rule.createdAt)}
+                          </span>
+                          {showReadStatus &&
+                            (rule.isRead ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 shrink-0">
+                                <CheckCircle2 size={12} />
+                                <span className="font-medium">Gelesen</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 shrink-0 font-medium">
+                                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                                Neu
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+                    </Link>
+                  </motion.div>
                 );
               })}
-            </div>
-          </>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

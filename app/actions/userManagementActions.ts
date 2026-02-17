@@ -6,31 +6,6 @@ import { Role } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { requirePermission } from "@/lib/access";
 
-const ROLE_RANK: Record<string, number> = {
-  SYSTEM_ARCHITECT: 1,
-  SUPER_ADMIN: 2,
-  MANAGER: 3,
-  ADMIN: 4,
-  CREW: 5,
-};
-
-function roleRequiresSupervisor(role: string) {
-  return (ROLE_RANK[role] ?? 99) >= 3;
-}
-
-async function validateSupervisor(role: string, supervisorId: string | null, selfId?: string) {
-  if (!roleRequiresSupervisor(role)) return null;
-  if (!supervisorId) throw new Error("Nadređeni je obavezan za ovu rolu.");
-  if (selfId && supervisorId === selfId) throw new Error("Korisnik ne može sam sebi biti nadređeni.");
-  const sup = await prisma.user.findUnique({ where: { id: supervisorId }, select: { id: true, role: true, isActive: true } });
-  if (!sup) throw new Error("Odabrani nadređeni ne postoji.");
-  if (!sup.isActive) throw new Error("Odabrani nadređeni nije aktivan.");
-  const supRank = ROLE_RANK[sup.role] ?? 99;
-  const myRank = ROLE_RANK[role] ?? 99;
-  if (supRank >= myRank) throw new Error("Nadređeni mora imati višu rolu.");
-  return sup.id;
-}
-
 type CreateSmartUserInput = {
   firstName: string;
   lastName: string;
@@ -43,7 +18,6 @@ type CreateSmartUserInput = {
   permissions?: string[];
   restaurantIds?: string[];
   primaryRestaurantId?: string | null;
-  supervisorId?: string | null;
 };
 
 type UpdateSmartUserInput = {
@@ -59,7 +33,6 @@ type UpdateSmartUserInput = {
   permissions?: string[];
   restaurantIds?: string[];
   primaryRestaurantId?: string | null;
-  supervisorId?: string | null;
 };
 
 function buildName(firstName: string, lastName: string) {
@@ -104,7 +77,6 @@ export async function createSmartUser(data: CreateSmartUserInput) {
 
   const hashed = await hash(data.password, 12);
   const { ids, primary } = normalizeRestaurants(data.restaurantIds, data.primaryRestaurantId ?? null);
-  const supervisorId = await validateSupervisor(data.role, data.supervisorId ?? null);
 
   const created = await prisma.user.create({
     data: {
@@ -116,7 +88,6 @@ export async function createSmartUser(data: CreateSmartUserInput) {
       vacationEntitlement: data.vacationEntitlement ?? 20,
       vacationCarryover: data.vacationCarryover ?? 0,
       permissions: data.permissions ?? [],
-      supervisorId,
       restaurants:
         ids.length > 0
           ? {
@@ -144,7 +115,6 @@ export async function updateSmartUser(data: UpdateSmartUserInput) {
 
   const email = data.email.trim().toLowerCase();
   const { ids, primary } = normalizeRestaurants(data.restaurantIds, data.primaryRestaurantId ?? null);
-  const supervisorId = await validateSupervisor(data.role, data.supervisorId ?? null, data.id);
 
   await prisma.$transaction([
     prisma.restaurantUser.deleteMany({ where: { userId: data.id } }),
@@ -159,7 +129,6 @@ export async function updateSmartUser(data: UpdateSmartUserInput) {
         vacationCarryover: data.vacationCarryover ?? 0,
         permissions: { set: data.permissions ?? [] },
         password: data.password?.trim() ? await hash(data.password, 12) : undefined,
-        supervisorId,
       },
     }),
   ]);

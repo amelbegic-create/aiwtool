@@ -15,6 +15,7 @@ import {
   BarChart3,
   CalendarClock,
   BookOpenText,
+  ChevronRight,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -58,9 +59,9 @@ function Card({
   return (
     <Link
       href={href}
-      className="group bg-white rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all"
+      className="group block bg-white dark:bg-card rounded-2xl md:rounded-[2rem] border border-slate-200 dark:border-border shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-[0.99] transition-all touch-manipulation min-h-[140px]"
     >
-      <div className="p-8 h-full flex flex-col justify-between">
+      <div className="p-5 sm:p-8 h-full flex flex-col justify-between">
         <div className="flex items-start justify-between">
           <div className="h-14 w-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center">
             <Icon className="text-[#1a3826]" />
@@ -181,17 +182,25 @@ export default async function ToolsCategoryPage({
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
-      <main className="max-w-[1600px] mx-auto w-full px-6 md:px-10 py-10">
+      <main className="max-w-[1600px] mx-auto w-full px-4 md:px-10 py-6 md:py-10">
+        {/* Breadcrumbs */}
+        <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+          <Link href="/dashboard" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
+            Tools
+          </Link>
+          <ChevronRight size={14} className="opacity-60" />
+          <span className="font-medium text-foreground">{meta.title}</span>
+        </nav>
         {/* Header */}
-        <div className="flex items-center gap-5 pb-8 border-b border-slate-200">
-          <div className="h-14 w-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-            <HeaderIcon className="text-[#1a3826]" />
+        <div className="flex items-center gap-5 pb-8 border-b border-border">
+          <div className="h-14 w-14 rounded-2xl bg-card border border-border flex items-center justify-center shadow-sm">
+            <HeaderIcon className="text-[#1a3826] dark:text-[#FFC72C]" />
           </div>
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
               {meta.title}
             </h1>
-            <p className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+            <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
               {meta.subtitle}
             </p>
           </div>

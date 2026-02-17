@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail, Loader2, Eye, EyeOff, KeyRound } from "lucide-react";
 import { Kanit } from "next/font/google";
+import { dict } from "@/translations";
 const brandFont = Kanit({
   subsets: ["latin"],
   weight: ["600", "800", "900"],
@@ -26,11 +27,15 @@ export default function LoginPage() {
       ? callbackUrl
       : DEFAULT_AFTER_LOGIN;
 
-  const inactiveLogout = searchParams.get("reason") === "inactivity";
+  const timeoutLogout =
+    searchParams.get("timeout") === "true" ||
+    searchParams.get("reason") === "inactivity" ||
+    searchParams.get("error") === "SessionRequired";
+  const [dismissTimeoutAlert, setDismissTimeoutAlert] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("error") === "CredentialsSignin") {
-      alert("Ungültige Anmeldedaten. Bitte E-Mail und Passwort prüfen.");
+      alert(dict.login_error_credentials);
     }
   }, [searchParams]);
 
@@ -47,7 +52,7 @@ export default function LoginPage() {
         redirect: true,
       });
     } catch {
-      alert("Fehler bei der Anmeldung. Bitte erneut versuchen.");
+      alert(dict.login_error_generic);
     } finally {
       setLoading(false);
     }
@@ -72,11 +77,11 @@ export default function LoginPage() {
           </div>
           <div className="mt-12 space-y-8">
             <p className="text-emerald-100/90 text-lg font-medium leading-relaxed max-w-sm">
-              Enterprise-Managementsystem für McDonald&apos;s Österreich.
+              {dict.login_brand_subtitle}
             </p>
             <div className="h-px w-16 bg-[#FFC72C]/40 rounded-full" />
             <p className="text-emerald-200/60 text-sm font-medium">
-              Melden Sie sich mit Ihren offiziellen Zugangsdaten an.
+              {dict.login_brand_hint}
             </p>
           </div>
         </div>
@@ -95,17 +100,32 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {inactiveLogout && (
-            <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/50 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-              Sie wurden aufgrund von Inaktivität abgemeldet.
+          {timeoutLogout && !dismissTimeoutAlert && (
+            <div
+              role="alert"
+              className="mb-6 rounded-xl border-2 border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/60 px-4 py-4 shadow-sm"
+            >
+              <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                {dict.login_timeout_title}
+              </p>
+              <p className="mt-1 text-xs text-red-700 dark:text-red-300">
+                {dict.login_timeout_subtitle}
+              </p>
+              <button
+                type="button"
+                onClick={() => setDismissTimeoutAlert(true)}
+                className="mt-3 w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                {dict.login_timeout_button}
+              </button>
             </div>
           )}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-foreground tracking-tight">
-              Anmelden
+              {dict.login_title}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Melden Sie sich bei Ihrem Konto an
+              {dict.login_subtitle}
             </p>
           </div>
 
@@ -203,10 +223,10 @@ export default function LoginPage() {
               {loading ? (
                 <span className="inline-flex items-center gap-2">
                   <Loader2 size={18} className="animate-spin" />
-                  Laden…
+                  {dict.login_btn_loading}
                 </span>
               ) : (
-                "Einloggen"
+                dict.login_btn_label
               )}
             </button>
           </form>

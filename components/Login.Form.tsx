@@ -24,7 +24,7 @@ export default function LoginForm() {
       });
 
       if (res?.error) {
-        setError("Pogrešan email ili lozinka");
+        setError("E-Mail oder Passwort ist falsch.");
         setLoading(false);
       } else {
         // --- FIX: OVDJE JE BILA PROMJENA ---
@@ -33,7 +33,7 @@ export default function LoginForm() {
         router.push("/dashboard");
       }
     } catch {
-      setError("Greška prilikom prijave.");
+      setError("Fehler bei der Anmeldung.");
       setLoading(false);
     }
   };
@@ -42,12 +42,12 @@ export default function LoginForm() {
     <div className="bg-card p-8 rounded-xl shadow-2xl w-full max-w-md border border-border">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-extrabold text-[#1a3826]">AIW Services</h1>
-        <p className="text-gray-400 text-sm mt-2">Prijavite se za pristup</p>
+        <p className="text-gray-400 text-sm mt-2">Melden Sie sich an, um Zugriff zu erhalten</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">E-Mail</label>
           <input
             type="email"
             value={email}
@@ -59,7 +59,7 @@ export default function LoginForm() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Lozinka</label>
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Passwort</label>
           <input
             type="password"
             value={password}
@@ -81,7 +81,7 @@ export default function LoginForm() {
           disabled={loading}
           className="w-full bg-[#1a3826] hover:bg-[#142e1e] text-white py-3 rounded-lg font-bold transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
         >
-          {loading ? "Prijava..." : "Prijavi se"}
+          {loading ? "Anmeldung..." : "Anmelden"}
         </button>
       </form>
     </div>

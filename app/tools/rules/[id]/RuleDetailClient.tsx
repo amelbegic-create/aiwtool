@@ -9,6 +9,7 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  Share2,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -72,7 +73,7 @@ function mdToHtml(md: string) {
       out.push(t);
       continue;
     }
-    out.push(`<p class="text-foreground leading-relaxed text-sm">${t}</p>`);
+    out.push(`<p class="text-foreground leading-relaxed text-base">${t}</p>`);
   }
   return out.join("\n");
 }
@@ -135,33 +136,78 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
     router.refresh();
   };
 
+  const handleShare = async () => {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const title = rule.title;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, url });
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url);
+        }
+      }
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-16">
-      {/* Kompaktna traka */}
-      <div className="sticky top-0 z-20 bg-card border-b border-border">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      {/* Breadcrumbs */}
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
+        <div className="max-w-4xl mx-auto px-4 py-3">
+          <nav className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+            <Link href="/dashboard" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
+              Tools
+            </Link>
+            <ChevronRight size={14} className="opacity-60" />
+            <Link href="/tools/rules" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
+              Regeln
+            </Link>
+            {rule.category?.name && (
+              <>
+                <ChevronRight size={14} className="opacity-60" />
+                <span className="text-foreground font-medium">{rule.category.name}</span>
+              </>
+            )}
+          </nav>
+        </div>
+      </div>
+
+      {/* Action bar */}
+      <div className="border-b border-border bg-card">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <Link
             href="/tools/rules"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-[#1a3826]"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] min-h-[44px] items-center touch-manipulation"
           >
-            <ArrowLeft size={16} /> Natrag
+            <ArrowLeft size={18} /> Zurück
           </Link>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded-md bg-muted text-muted-foreground text-xs font-medium">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-muted/50 hover:bg-muted text-sm font-semibold min-h-[44px] touch-manipulation"
+              title="Teilen"
+            >
+              <Share2 size={18} /> Teilen
+            </button>
+            <span className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium">
               {rule.category?.name}
             </span>
             {isRead ? (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-medium">
-                <CheckCircle2 size={12} /> Pročitano
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+                <CheckCircle2 size={14} /> Gelesen
               </span>
             ) : (
               <button
                 type="button"
                 onClick={handleRead}
                 disabled={isMarking}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#1a3826] text-white text-xs font-semibold hover:bg-[#142e1e] disabled:opacity-70"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] text-sm font-semibold hover:opacity-90 disabled:opacity-70 min-h-[44px] touch-manipulation"
               >
-                {isMarking ? "..." : <><CheckCircle2 size={12} /> Označi pročitano</>}
+                {isMarking ? "…" : <><CheckCircle2 size={14} /> Als gelesen markieren</>}
               </button>
             )}
           </div>
@@ -185,13 +231,14 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                 {fmtDate(rule.createdAt)}
               </span>
               {rule.updatedAt && (
-                <span>Ažurirano: {fmtDate(rule.updatedAt)}</span>
+                <span>Aktualisiert: {fmtDate(rule.updatedAt)}</span>
               )}
             </div>
           </header>
 
           <div
-            className="prose prose-slate max-w-none prose-p:text-foreground prose-p:text-sm prose-headings:text-slate-900 prose-headings:font-bold prose-a:text-[#1a3826] prose-strong:text-slate-900 rounded-xl border border-border bg-card p-6 shadow-sm"
+            className="prose prose-slate max-w-none prose-p:text-foreground prose-p:text-base prose-headings:text-slate-900 dark:prose-headings:text-foreground prose-headings:font-bold prose-a:text-[#1a3826] dark:prose-a:text-[#FFC72C] prose-strong:text-slate-900 dark:prose-strong:text-foreground prose-base rounded-xl border border-border bg-card p-6 shadow-sm text-base"
+            style={{ fontSize: "1rem" }}
             dangerouslySetInnerHTML={{ __html: ruleContentToHtml(rule.content) }}
           />
 
@@ -211,7 +258,7 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
           {hasImages && (
             <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                Galerija ({rule.images.length})
+                Galerie ({rule.images.length})
               </p>
               <div className="relative rounded-lg overflow-hidden bg-muted aspect-video">
                 <Image src={rule.images[galleryIndex].url} alt={`Galerija ${galleryIndex + 1} od ${rule.images.length}`} fill className="object-contain" sizes="(max-width: 768px) 100vw, 640px" />
@@ -258,7 +305,7 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
           <aside className="lg:w-64 shrink-0">
             <div className="lg:sticky lg:top-20 rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                Dokumenti ({pdfs.length})
+                Dokumente ({pdfs.length})
               </p>
               <div className="space-y-2">
                 {pdfs.map((u, idx) => (
@@ -267,11 +314,12 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                     href={u}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-2 p-2.5 rounded-lg bg-muted hover:bg-muted border border-slate-100 transition"
+                    className="flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-muted hover:bg-accent border border-border transition touch-manipulation"
                   >
-                    <FileText size={16} className="text-red-500 shrink-0" />
+                    <FileText size={18} className="text-red-500 shrink-0" />
                     <span className="text-sm font-medium text-foreground truncate flex-1">PDF {idx + 1}</span>
-                    <Download size={14} className="text-muted-foreground shrink-0" />
+                    <span className="text-xs font-bold text-muted-foreground uppercase">Öffnen</span>
+                    <Download size={16} className="text-muted-foreground shrink-0" />
                   </a>
                 ))}
               </div>

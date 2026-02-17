@@ -13,7 +13,7 @@ type Props = { initialHighlights: Highlight[] };
 
 /** Display label for module – maps legacy Croatian labels from DB to German */
 const MODULE_LABEL_DE: Record<string, string> = {
-  "Godišnji Odmori": "Jahresurlaub",
+  "Jahresurlaub": "Jahresurlaub",
   "Pravila & Procedure": "Richtlinien & Dokumente",
   "Pravila": "Richtlinien",
 };

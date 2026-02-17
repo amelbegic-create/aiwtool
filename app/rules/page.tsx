@@ -24,14 +24,14 @@ export default async function RulesPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8">
             <div>
                  <Link href="/dashboard" className="inline-flex items-center gap-2 text-slate-500 text-sm font-medium hover:text-[#1a3826] mb-2 transition-colors">
-                   <ArrowLeft className="w-4 h-4" /> Nazad na Dashboard
+                   <ArrowLeft className="w-4 h-4" /> Zurück zum Dashboard
                 </Link>
-                <h1 className="text-2xl font-bold text-slate-900">Baza Znanja</h1>
-                <p className="text-slate-500 mt-1">Službeni pravilnici, procedure i upute za rad.</p>
+                <h1 className="text-2xl font-bold text-slate-900">Wissensdatenbank</h1>
+                <p className="text-slate-500 mt-1">Offizielle Richtlinien, Prozesse und Arbeitsanweisungen.</p>
             </div>
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input type="text" placeholder="Pretraži dokumente..." className="h-10 pl-10 pr-4 rounded-md border border-slate-200 w-64 text-sm focus:ring-1 focus:ring-[#1a3826] bg-white" />
+                <input type="text" placeholder="Dokumente durchsuchen..." className="h-10 pl-10 pr-4 rounded-md border border-slate-200 w-64 text-sm focus:ring-1 focus:ring-[#1a3826] bg-white" />
             </div>
         </div>
 

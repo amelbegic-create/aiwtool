@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Mail, Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 import { Kanit } from "next/font/google";
+import { resetPassword } from "@/app/actions/passwordResetActions";
 
 const brandFont = Kanit({ subsets: ["latin"], weight: ["600", "800", "900"] });
 
@@ -19,27 +20,14 @@ export default function ZaboravljenaLozinkaPage() {
     setLoading(true);
     setError("");
 
-    try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
+    const result = await resetPassword(email.trim().toLowerCase());
 
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        setError(data.error || "Greška pri slanju. Pokušajte ponovo.");
-        setLoading(false);
-        return;
-      }
-
+    if (result.success) {
       setSent(true);
-    } catch {
-      setError("Greška pri povezivanju. Pokušajte ponovo.");
-    } finally {
-      setLoading(false);
+    } else {
+      setError(result.error ?? "Beim Senden ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.");
     }
+    setLoading(false);
   };
 
   return (
@@ -55,7 +43,7 @@ export default function ZaboravljenaLozinkaPage() {
             href="/login"
             className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-emerald-200/80 hover:text-white transition-colors"
           >
-            <ArrowLeft size={18} /> Nazad na prijavu
+            <ArrowLeft size={18} /> Zurück zur Anmeldung
           </Link>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-8 shadow-xl">
@@ -63,7 +51,7 @@ export default function ZaboravljenaLozinkaPage() {
               <div className={`${brandFont.className} text-4xl font-black text-white`}>AIW</div>
               <p className="text-[#FFC72C] text-lg font-bold tracking-wider uppercase mt-1">Services</p>
               <p className="mt-4 text-sm font-medium text-emerald-100/80 uppercase tracking-widest">
-                Zaboravljena lozinka
+                Passwort vergessen
               </p>
             </div>
 
@@ -71,29 +59,29 @@ export default function ZaboravljenaLozinkaPage() {
               <div className="text-center py-4">
                 <CheckCircle className="mx-auto mb-4 text-emerald-400" size={48} />
                 <p className="text-white font-medium mb-2">
-                  Provjerite Vaš email. Ako je adresa registrovana, poslali smo Vam link za reset lozinke.
+                  E-Mail wurde gesendet. Wenn die Adresse registriert ist, haben Sie einen Link zum Zurücksetzen des Passworts erhalten.
                 </p>
                 <p className="text-sm text-emerald-200/70">
-                  Link ističe za 1 sat. Provjerite i spam folder.
+                  Der Link ist 1 Stunde gültig. Bitte prüfen Sie auch den Spam-Ordner.
                 </p>
                 <Link
                   href="/login"
                   className="mt-6 inline-block rounded-xl bg-[#FFC72C] text-[#0c1f15] px-6 py-3 font-bold text-sm hover:bg-[#FFD54F] transition-colors"
                 >
-                  Povratak na prijavu
+                  Zurück zur Anmeldung
                 </Link>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-emerald-200/70 uppercase tracking-wider mb-2">
-                    Email adresa
+                    E-Mail-Adresse
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={20} />
                     <input
                       type="email"
-                      placeholder="ime@mcdonalds.ba"
+                      placeholder="name@mcdonalds.at"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -114,10 +102,10 @@ export default function ZaboravljenaLozinkaPage() {
                 >
                   {loading ? (
                     <>
-                      <Loader2 size={18} className="animate-spin" /> Slanje…
+                      <Loader2 size={18} className="animate-spin" /> Wird gesendet…
                     </>
                   ) : (
-                    "Pošalji link za reset"
+                    "Link zum Zurücksetzen senden"
                   )}
                 </button>
               </form>

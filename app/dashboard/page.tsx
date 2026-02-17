@@ -2,36 +2,22 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
+import { Role } from "@prisma/client";
 import Link from "next/link";
-import { Bell, ChevronRight, FileText, Sparkles, CalendarDays, Users } from "lucide-react";
-import { formatDateDDMMGGGG } from "@/lib/dateUtils";
+import { ChevronRight, Sparkles, CalendarDays, UsersRound } from "lucide-react";
 import QuickActionsCard from "@/components/dashboard/QuickActionsCard";
 import DashboardModuleIcons from "@/components/dashboard/DashboardModuleIcons";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAllowedQuickActions } from "@/lib/dashboard";
 import { getDashboardHighlights } from "@/app/actions/dashboardHighlightActions";
+import { dict } from "@/translations";
 
 export const dynamic = "force-dynamic";
 
 function getGreeting(): string {
   const h = new Date().getHours();
-  if (h >= 5 && h < 12) return "Guten Morgen";
-  if (h >= 12 && h < 18) return "Guten Tag";
-  return "Willkommen zurück";
-}
-
-async function getRecentRules(): Promise<{ id: string; title: string; createdAt: Date }[]> {
-  try {
-    const rules = await prisma.rule.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      select: { id: true, title: true, createdAt: true },
-    });
-    return rules;
-  } catch {
-    return [];
-  }
+  if (h >= 5 && h < 12) return dict.dashboard_greeting_morning;
+  if (h >= 12 && h < 18) return dict.dashboard_greeting_day;
+  return dict.dashboard_greeting_default;
 }
 
 async function getVacationDaysSummary(userId: string) {
@@ -59,6 +45,18 @@ async function getVacationDaysSummary(userId: string) {
   return { total, used, remaining: Math.max(0, total - used) };
 }
 
+async function getTeamCount(userId: string, role: string): Promise<number> {
+  const godRoles = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+  if (godRoles.includes(role as Role)) {
+    return prisma.user.count({
+      where: { isActive: true, role: { not: Role.SYSTEM_ARCHITECT } },
+    });
+  }
+  return prisma.user.count({
+    where: { supervisorId: userId, isActive: true },
+  });
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/login");
@@ -69,10 +67,10 @@ export default async function DashboardPage() {
   });
   if (!dbUser) redirect("/login");
 
-  const [recentRules, highlights, vacationSummary] = await Promise.all([
-    getRecentRules(),
+  const [highlights, vacationSummary, teamCount] = await Promise.all([
     getDashboardHighlights(),
     getVacationDaysSummary(dbUser.id),
+    getTeamCount(dbUser.id, String(dbUser.role)),
   ]);
 
   const quickActions = getAllowedQuickActions(
@@ -86,23 +84,23 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
       <header className="bg-[#1a3826] text-white">
-        <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-10">
-          <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#1a3826]">
-            <div className="absolute top-0 right-0 w-72 h-72 bg-white/5 rounded-full blur-3xl -mr-24 -mt-24" />
-            <div className="absolute bottom-0 left-0 w-56 h-56 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-20 -mb-20" />
-            <div className="relative z-10 flex flex-col gap-4 pr-2">
+        <div className="mx-auto max-w-6xl px-4 py-5 md:py-8 md:px-8 md:py-10">
+          <div className="relative overflow-hidden rounded-xl md:rounded-3xl bg-[#1a3826]">
+            <div className="absolute top-0 right-0 w-48 h-48 md:w-72 md:h-72 bg-white/5 rounded-full blur-3xl -mr-16 md:-mr-24 -mt-16 md:-mt-24" />
+            <div className="absolute bottom-0 left-0 w-40 h-40 md:w-56 md:h-56 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-16 md:-ml-20 -mb-16 md:-mb-20" />
+            <div className="relative z-10 flex flex-col gap-2 md:gap-4 pr-2">
               <div className="min-w-0 pl-1">
-                <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white leading-tight">
+                <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white leading-tight">
                   {greeting},{" "}
                   <span className="text-[#FFC72C]">{firstName}</span>
-                  <span className="ml-3 inline-flex items-center align-middle">
-                    <span className="rounded-lg bg-[#FFC72C] px-3 py-1 text-sm font-bold text-[#1a3826] shadow-sm">
+                  <span className="ml-2 md:ml-3 inline-flex items-center align-middle">
+                    <span className="rounded-lg bg-[#FFC72C] px-2.5 py-0.5 md:px-3 md:py-1 text-xs md:text-sm font-bold text-[#1a3826] shadow-sm">
                       {roleLabel}
                     </span>
                   </span>
                 </h1>
-                <p className="mt-3 text-base font-medium text-emerald-100/90 pl-4 md:pl-5">
-                  Operative Übersicht und Schnellzugriff auf Module.
+                <p className="mt-2 md:mt-3 text-sm md:text-base font-medium text-emerald-100/90 pl-0 md:pl-5">
+                  {dict.dashboard_hero_subtitle}
                 </p>
               </div>
             </div>
@@ -110,121 +108,98 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Godišnji odmor – gore, prva kartica */}
-          <div className="lg:col-span-4">
-            <Card className="border-border shadow-sm rounded-xl overflow-hidden h-full">
-              <CardHeader className="pb-2 px-6">
-                <CardTitle className="text-base font-bold text-card-foreground flex items-center gap-2">
-                  <CalendarDays size={18} className="text-[#1a3826] dark:text-[#FFC72C]" />
-                  Urlaubsstatus
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-6 pt-0">
-                {vacationSummary ? (
-                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <span className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] tabular-nums">
-                      {vacationSummary.remaining} <span className="text-sm font-semibold text-muted-foreground">Resturlaub</span>
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      (Gesamtanspruch {vacationSummary.total}, Verbraucht {vacationSummary.used})
-                    </span>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Daten nicht verfügbar.</p>
-                )}
-                <Link
-                  href="/tools/vacations"
-                  className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
-                >
-                  Urlaub öffnen <ChevronRight size={14} />
-                </Link>
-              </CardContent>
-            </Card>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 md:px-8 md:py-10 safe-area-l safe-area-r">
+        <div className="grid grid-cols-1 gap-6 md:gap-8 lg:grid-cols-12">
+          {/* Hero: Urlaubsstatus – veliki broj, gradijent, jak CTA */}
+          <div className="lg:col-span-5">
+            <Link
+              href="/tools/vacations"
+              className="group block h-full rounded-2xl md:rounded-3xl overflow-hidden border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50 via-white to-[#1a3826]/5 dark:from-[#1a3826]/20 dark:via-background dark:to-[#1a3826]/10 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="relative p-6 md:p-8 min-h-[200px] flex flex-col justify-between">
+                <div className="absolute top-4 right-4 md:top-6 md:right-6 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <CalendarDays className="h-24 w-24 md:h-32 md:w-32 text-[#1a3826] dark:text-[#FFC72C]" />
+                </div>
+                <div className="relative">
+                  <p className="text-sm font-bold uppercase tracking-wider text-[#1a3826]/70 dark:text-[#FFC72C]/80">
+                    {dict.dashboard_vacation_status_label}
+                  </p>
+                  {vacationSummary ? (
+                    <>
+                      <p className="mt-2 text-4xl md:text-5xl lg:text-6xl font-black tabular-nums text-[#1a3826] dark:text-[#FFC72C]">
+                        {vacationSummary.remaining}
+                      </p>
+                      <p className="mt-1 text-base font-semibold text-muted-foreground">
+                        {dict.dashboard_vacation_status_rest}
+                      </p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        von {vacationSummary.total} · Verbraucht {vacationSummary.used}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-lg text-muted-foreground">
+                      {dict.dashboard_vacation_status_not_available}
+                    </p>
+                  )}
+                </div>
+                <div className="relative mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] group-hover:gap-3 transition-all">
+                  {dict.dashboard_vacation_status_open_cta}{" "}
+                  <ChevronRight size={18} className="group-hover:translate-x-0.5" />
+                </div>
+              </div>
+            </Link>
           </div>
-          <div className="lg:col-span-8">
+          <div className="lg:col-span-7">
             <QuickActionsCard actions={quickActions} />
           </div>
+          {/* Mein Team – velika naglašena kartica s brojem */}
           <div className="lg:col-span-4">
             <Link
               href="/team"
-              className="block h-full rounded-xl border border-[#FFC72C]/30 bg-[#FFC72C]/10 dark:bg-[#FFC72C]/15 hover:bg-[#FFC72C]/20 dark:hover:bg-[#FFC72C]/25 shadow-sm hover:shadow-md transition-all p-6 group"
+              className="group block h-full rounded-2xl md:rounded-3xl overflow-hidden border border-amber-200/60 dark:border-amber-500/30 bg-gradient-to-br from-amber-50 via-yellow-50/50 to-amber-100/80 dark:from-amber-950/50 dark:via-yellow-950/30 dark:to-amber-900/40 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 p-6 md:p-8 min-h-[180px]"
             >
-              <div className="flex flex-col items-center justify-center text-center min-h-[140px] gap-3">
-                <div className="h-14 w-14 rounded-2xl bg-[#FFC72C] text-[#1a3826] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Users size={28} strokeWidth={2.5} />
+              <div className="flex flex-col h-full justify-between">
+                <div className="flex items-start justify-between">
+                  <div className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-gradient-to-br from-[#FFC72C] to-amber-400 text-[#1a3826] flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
+                    <UsersRound size={28} strokeWidth={2} className="md:w-8 md:h-8" />
+                  </div>
+                  {teamCount > 0 && (
+                    <span className="rounded-full bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 px-3 py-1 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C]">
+                      {teamCount} {teamCount === 1 ? "Mitarbeiter" : "Mitarbeiter"}
+                    </span>
+                  )}
                 </div>
                 <div>
-                  <p className="text-lg font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">Mein Team</p>
-                  <p className="text-xs font-medium text-muted-foreground mt-0.5">Mitarbeiter unter meiner Aufsicht</p>
+                  <p className="text-lg md:text-xl font-black text-[#1a3826] dark:text-amber-100 uppercase tracking-tight">
+                    {dict.dashboard_team_card_title}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {dict.dashboard_team_card_subtitle}
+                  </p>
                 </div>
-                <span className="text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] inline-flex items-center gap-1">
-                  Öffnen <ChevronRight size={14} />
+                <span className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] dark:text-amber-300 group-hover:gap-3 transition-all">
+                  {dict.dashboard_team_card_link} <ChevronRight size={16} />
                 </span>
               </div>
             </Link>
           </div>
-          {/* Moduli dodani iz admin panela – kao ikonice (mjesto gdje su bili zahtjevi) */}
+          {/* Module auf der Startseite – grid s hover lift */}
           <div className="lg:col-span-8">
-            <Card className="border-border shadow-sm rounded-xl overflow-hidden">
-              <CardHeader className="pb-2 px-6">
-                <CardTitle className="text-base font-bold text-card-foreground flex items-center gap-2">
+            <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-md overflow-hidden">
+              <div className="px-6 py-4 border-b border-border bg-muted/30">
+                <h2 className="text-base font-bold text-card-foreground flex items-center gap-2">
                   <Sparkles size={18} className="text-[#FFC72C]" />
                   Module auf der Startseite
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-6 pt-0">
+                </h2>
+              </div>
+              <div className="p-6">
                 {highlights.length > 0 ? (
                   <DashboardModuleIcons highlights={highlights} />
                 ) : (
-                  <p className="text-sm text-muted-foreground py-2">Keine Module hinzugefügt. Admin kann sie im Admin-Bereich hinzufügen.</p>
+                  <p className="text-sm text-muted-foreground py-4">Keine Module hinzugefügt. Admin kann sie im Admin-Bereich hinzufügen.</p>
                 )}
-              </CardContent>
-            </Card>
-          </div>
-          <div className="lg:col-span-12">
-            <Card className="border-border shadow-sm rounded-xl overflow-hidden">
-              <CardHeader className="pb-2 px-6">
-                <CardTitle className="text-base font-bold text-card-foreground flex items-center gap-2">
-                  <Bell size={18} className="text-[#1a3826] dark:text-[#FFC72C]" />
-                  Benachrichtigungen / Richtlinien
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-6 pb-6 pt-0">
-                {recentRules.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 px-4 rounded-xl border border-dashed border-border bg-muted/50">
-                    <FileText size={40} className="text-muted-foreground mb-3" />
-                    <p className="text-sm font-semibold text-muted-foreground">Keine neuen Benachrichtigungen</p>
-                    <p className="text-xs text-muted-foreground mt-1">Hier werden die neuesten Richtlinien und Benachrichtigungen angezeigt.</p>
-                    <Link
-                      href="/tools/rules"
-                      className="mt-4 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline inline-flex items-center gap-1"
-                    >
-                      Richtlinien öffnen <ChevronRight size={14} />
-                    </Link>
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {recentRules.map((rule) => (
-                      <li key={rule.id}>
-                        <Link
-                          href={`/tools/rules/${rule.id}`}
-                          className="flex items-center justify-between gap-4 p-3 rounded-xl border border-border bg-muted/50 hover:bg-accent/50 hover:border-[#1a3826]/20 dark:hover:border-[#FFC72C]/30 transition-colors group"
-                        >
-                          <span className="text-sm font-semibold text-foreground group-hover:text-[#1a3826] dark:group-hover:text-[#FFC72C] truncate">
-                            {rule.title}
-                          </span>
-                          <span className="text-xs font-medium text-muted-foreground shrink-0">
-                            {formatDateDDMMGGGG(rule.createdAt)}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </div>
       </main>

@@ -115,7 +115,7 @@ export default function PDSForm({
         }
       }
     } catch {
-      alert("Greška na serveru.");
+      alert("Serverfehler.");
     }
     setSaving(false);
   };
@@ -518,7 +518,7 @@ export default function PDSForm({
           className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#1a3826] text-white font-bold hover:bg-[#142d1f] disabled:opacity-50"
         >
           <Save size={18} />
-          {saving ? "Spremanje…" : isEdit ? "Sačuvaj izmjene" : "Kreiraj PDS"}
+          {saving ? "Speichern…" : isEdit ? "Änderungen speichern" : "PDS anlegen"}
         </button>
       </div>
     </form>

@@ -26,13 +26,13 @@ export default function Error({
           </div>
           <div className="flex-1">
             <h1 className="text-xl font-black text-slate-900 tracking-tight">
-              {isPermissionError ? "Nemate pristup ovom modulu" : "Modul trenutno je u izradi"}
+              {isPermissionError ? "Kein Zugriff auf dieses Modul" : "Modul befindet sich im Aufbau"}
             </h1>
             <p className="mt-2 text-sm text-slate-600 leading-relaxed">
               {isPermissionError ? (
-                <>Trenutno nemate dodijeljene permisije za ovaj modul. Ako mislite da je ovo greška, obratite se administratoru.</>
+                <>Sie haben derzeit keine Berechtigung für dieses Modul. Wenn Sie der Meinung sind, dass dies ein Fehler ist, wenden Sie sich bitte an den Administrator.</>
               ) : (
-                <>Došlo je do neočekivane greške. Pokušajte ponovo kasnije ili obratite se administratoru.</>
+                <>Es ist ein unerwarteter Fehler aufgetreten. Bitte versuchen Sie es später erneut oder wenden Sie sich an den Administrator.</>
               )}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
@@ -40,13 +40,13 @@ export default function Error({
                 onClick={reset}
                 className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50"
               >
-                Pokušaj ponovo
+                Erneut versuchen
               </button>
               <Link
                 href="/dashboard"
                 className="inline-flex items-center justify-center rounded-xl bg-[#1a3826] px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:opacity-95"
               >
-                Nazad na Dashboard
+                Zurück zum Dashboard
               </Link>
             </div>
           </div>

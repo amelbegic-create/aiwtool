@@ -15,6 +15,7 @@ enum Role {
   SUPER_ADMIN
   ADMIN
   MANAGER
+  SHIFT_LEADER
   CREW
 }
 
@@ -87,7 +88,7 @@ model User {
   vacationEntitlement Int       @default(20)
   vacationCarryover   Int       @default(0)
 
-  // Nadređeni (self-relation)
+  // Nadređeni (za Mein Team i odobravanje godišnjeg)
   supervisorId        String?
   supervisor          User?     @relation("UserSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
   subordinates        User[]    @relation("UserSupervisor")
@@ -95,7 +96,7 @@ model User {
   // Godišnji po godinama (VacationAllowance = dinamička lista godina)
   vacationAllowances  VacationAllowance[]
 
-  restaurants         RestaurantUser[]
+  restaurants              RestaurantUser[]
   evaluations         EvaluationSubmission[]
   vacations           VacationRequest[]      // zahtjevi koje je korisnik kreirao
   supervisedVacations VacationRequest[] @relation("VacationSupervisor") // ✅ NOVO: zahtjevi koji dolaze ovom korisniku na odobrenje
@@ -165,6 +166,14 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
 }
 
 // --- ROLE PERMISSION PRESETS ---

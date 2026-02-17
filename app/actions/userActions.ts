@@ -34,7 +34,7 @@ export async function getUsersByRestaurant(restaurantId: string) {
 // 2. KREIRAJ ILI AŽURIRAJ KORISNIKA (MULTI-RESTORAN PODRŠKA)
 export async function upsertUser(data: any, restaurantIds: string[]) {
   try {
-    const { id, name, email, password, role, departmentId, entitlement, carryover, permissions, supervisorId } = data;
+    const { id, name, email, password, role, departmentId, entitlement, carryover, permissions } = data;
 
     let hashedPassword = undefined;
     if (password && password.length > 0) {
@@ -62,7 +62,6 @@ export async function upsertUser(data: any, restaurantIds: string[]) {
           vacationEntitlement: Number(entitlement || 0),
           vacationCarryover: Number(carryover || 0),
           permissions: perms,
-          supervisorId: supervisorId && String(supervisorId).trim() ? supervisorId : null,
           ...(hashedPassword && { password: hashedPassword }),
           restaurants: {
             deleteMany: {},
@@ -87,7 +86,6 @@ export async function upsertUser(data: any, restaurantIds: string[]) {
           vacationEntitlement: Number(entitlement || 20),
           vacationCarryover: Number(carryover || 0),
           permissions: perms,
-          supervisorId: supervisorId && String(supervisorId).trim() ? supervisorId : null,
           restaurants: {
             create: restaurantConnections,
           },

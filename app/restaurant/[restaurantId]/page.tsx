@@ -55,7 +55,7 @@ export default async function RestaurantDashboard({ params }: PageProps) {
           href="/restaurants"
           className="inline-flex items-center gap-2 text-slate-500 text-sm font-bold hover:text-[#1a3826] mb-6 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Nazad na Mrežu Restorana
+          <ArrowLeft className="w-4 h-4" /> Zurück zum Restaurant-Netzwerk
         </Link>
 
         {/* HEADER RESTORANA */}

@@ -20,7 +20,7 @@ if (typeof process !== "undefined" && process.env.NODE_ENV === "development" && 
  * - Normalizes session/JWT shape to match `types/next-auth.d.ts`.
  */
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  session: { strategy: "jwt", maxAge: 30 * 60 }, // 30 minuta – hard limit na serveru ako klijentski timer zakaže
   pages: { signIn: "/login", error: "/login" },
   secret: process.env.NEXTAUTH_SECRET,
 

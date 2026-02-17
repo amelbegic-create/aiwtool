@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getUserTotalForYear } from "@/app/actions/vacationActions";
+import { computeCarryOverForYear, VACATION_YEAR_MIN } from "@/lib/vacationCarryover";
 
 export default async function VacationPage(props: { searchParams: Promise<{ year?: string }> }) {
   const session = await getServerSession(authOptions);
@@ -93,10 +94,10 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       };
     }
 
-    const prevYearStart = `${selectedYear - 1}-01-01`;
-    const prevYearEnd = `${selectedYear - 1}-12-31`;
+    const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
+    const rangeEnd = `${selectedYear}-12-31`;
 
-    const [blockedDaysRaw, allRequestsRaw, allUsers, prevYearUsedRows, reportRestaurantResult] = await Promise.all([
+    const [blockedDaysRaw, allRequestsRaw, allUsers, usedByUserByYearRows, reportRestaurantResult] = await Promise.all([
       blockedDaysPromise,
       prisma.vacationRequest.findMany({
         where: requestWhereClause,
@@ -135,8 +136,8 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
           },
           restaurants: { select: { restaurantId: true, restaurant: { select: { name: true } } } },
           vacationAllowances: {
-            where: { year: { in: [selectedYear, selectedYear - 1] } },
-            select: { year: true, days: true, carriedOverDays: true },
+            where: { year: { gte: VACATION_YEAR_MIN, lte: selectedYear } },
+            select: { year: true, days: true },
           },
         },
         orderBy: { name: "asc" },
@@ -144,9 +145,9 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       prisma.vacationRequest.findMany({
         where: {
           status: "APPROVED",
-          start: { gte: prevYearStart, lte: prevYearEnd },
+          start: { gte: rangeStart, lte: rangeEnd },
         },
-        select: { userId: true, days: true },
+        select: { userId: true, start: true, days: true },
       }),
       activeRestaurantId && activeRestaurantId !== "all"
         ? prisma.restaurant.findUnique({
@@ -158,9 +159,17 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
 
     const blockedDays = blockedDaysRaw.map((d) => ({ id: d.id, date: d.date, reason: d.reason }));
 
-    const prevYearUsedByUser = new Map<string, number>();
-    for (const row of prevYearUsedRows) {
-      prevYearUsedByUser.set(row.userId, (prevYearUsedByUser.get(row.userId) ?? 0) + row.days);
+    const usedByUserByYear = new Map<string, Map<number, number>>();
+    for (const row of usedByUserByYearRows) {
+      const y = Number(String(row.start).slice(0, 4));
+      if (y >= VACATION_YEAR_MIN && y <= selectedYear) {
+        let userMap = usedByUserByYear.get(row.userId);
+        if (!userMap) {
+          userMap = new Map();
+          usedByUserByYear.set(row.userId, userMap);
+        }
+        userMap.set(y, (userMap.get(y) ?? 0) + row.days);
+      }
     }
 
     const allRequests = allRequestsRaw.map((req) => ({
@@ -181,30 +190,21 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     const usersStats = allUsers.map((u) => {
       const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
       const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Unbekannt");
-
-      const vaThis = u.vacationAllowances?.find((a) => a.year === selectedYear);
-      const vaPrev = u.vacationAllowances?.find((a) => a.year === selectedYear - 1);
-      const usedPrev = prevYearUsedByUser.get(u.id) ?? 0;
-
-      let allowance: number;
-      let carriedOver: number;
-      if (vaThis) {
-        allowance =
-          vaThis.days != null && Number.isFinite(Number(vaThis.days))
-            ? Math.max(0, Math.floor(Number(vaThis.days)))
-            : u.vacationEntitlement ?? 20;
-        carriedOver = Math.max(0, Math.floor(Number(vaThis.carriedOverDays) ?? 0));
-      } else {
-        allowance = u.vacationEntitlement ?? 20;
-        if (vaPrev) {
-          const totalPrev = (vaPrev.days ?? 0) + (vaPrev.carriedOverDays ?? 0);
-          carriedOver = Math.max(0, totalPrev - usedPrev);
-        } else {
-          carriedOver = Math.max(0, Math.floor(Number(u.vacationCarryover) ?? 0));
-        }
+      const allowancesByYear = new Map<number, { days: number }>();
+      for (const a of u.vacationAllowances ?? []) {
+        const d = a.days != null && Number.isFinite(Number(a.days)) ? Math.max(0, Math.floor(Number(a.days))) : 0;
+        allowancesByYear.set(a.year, { days: d });
       }
-      const total = allowance + carriedOver;
-
+      const usedByYear = usedByUserByYear.get(u.id) ?? new Map<number, number>();
+      const defaultAllowance = u.vacationEntitlement ?? 20;
+      const defaultCarryover = Math.max(0, Math.floor(Number(u.vacationCarryover) ?? 0));
+      const { allowance, carriedOver, total } = computeCarryOverForYear(
+        allowancesByYear,
+        usedByYear,
+        defaultAllowance,
+        defaultCarryover,
+        selectedYear
+      );
       return {
         id: u.id,
         name: u.name,

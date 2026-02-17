@@ -97,7 +97,7 @@ export default function BonusToolClient({ initialState }: Props) {
                   saving && "opacity-60 cursor-wait",
                 )}
               >
-                {saving ? "Spremanje..." : "Snimi"}
+                {saving ? "Speichern…" : "Speichern"}
               </button>
             </div>
           </div>

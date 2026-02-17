@@ -20,17 +20,19 @@ const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: "Abteilungsleiter",
   ADMIN: "Management",
   MANAGER: "Restaurant Manager",
+  SHIFT_LEADER: "Šef smjene / Shift Leader",
   CREW: "Crew",
 };
 
-const ROLE_ORDER: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "CREW"];
+const ROLE_ORDER: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"];
 
 const ROLE_RANK: Record<string, number> = {
   SYSTEM_ARCHITECT: 1,
   SUPER_ADMIN: 2,
-  MANAGER: 3,
-  ADMIN: 4,
-  CREW: 5,
+  ADMIN: 3,
+  MANAGER: 4,
+  SHIFT_LEADER: 5,
+  CREW: 6,
 };
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
@@ -41,20 +43,17 @@ const createSchema = (isEdit: boolean) =>
     lastName: z.string().min(1, "Nachname ist erforderlich"),
     email: z.string().email("Ungültige E-Mail-Adresse"),
     password: isEdit ? z.string().optional() : z.string().min(6, "Passwort mindestens 6 Zeichen"),
-    role: z.enum(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "CREW"]),
+    role: z.enum(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"]),
     departmentId: z.string().optional().nullable(),
+    supervisorId: z.string().optional().nullable(),
     restaurantIds: z.array(z.string()).optional(),
     primaryRestaurantId: z.string().optional().nullable(),
-    supervisorId: z.string().optional().nullable(),
   });
 
 type FormValues = z.infer<ReturnType<typeof createSchema>>;
 
 type VacationRow = { year: number; days: number };
 
-function roleRequiresSupervisor(role: string) {
-  return (ROLE_RANK[role] ?? 99) >= 3;
-}
 function roleRequiresRestaurant(role: string) {
   return role !== "SYSTEM_ARCHITECT";
 }
@@ -73,24 +72,26 @@ export interface UserFormInitialData {
   email: string;
   role: Role;
   departmentId: string | null;
+  supervisorId: string | null;
   vacationAllowances: VacationRow[];
   restaurantIds: string[];
   primaryRestaurantId: string | null;
-  supervisorId: string | null;
   permissions: string[];
 }
+
+export type EligibleSupervisor = { id: string; name: string | null; email: string | null; role: string };
 
 interface UserFormProps {
   restaurants: { id: string; name: string | null; code: string }[];
   departments: DepartmentOption[];
-  supervisorCandidates: { id: string; name: string; email: string; role: string }[];
+  eligibleSupervisors?: EligibleSupervisor[];
   initialData?: UserFormInitialData | null;
 }
 
 export default function UserForm({
   restaurants,
   departments,
-  supervisorCandidates,
+  eligibleSupervisors = [],
   initialData,
 }: UserFormProps) {
   const router = useRouter();
@@ -140,25 +141,14 @@ export default function UserForm({
       password: "",
       role: initialData?.role ?? "CREW",
       departmentId: initialData?.departmentId ?? null,
+      supervisorId: initialData?.supervisorId ?? null,
       restaurantIds: initialData?.restaurantIds ?? [],
       primaryRestaurantId: initialData?.primaryRestaurantId ?? null,
-      supervisorId: initialData?.supervisorId ?? null,
     },
   });
 
   const role = form.watch("role") || "CREW";
   const requiresRestaurant = roleRequiresRestaurant(role);
-  const requiresSupervisor = roleRequiresSupervisor(role);
-
-  // MANAGER: samo SYSTEM_ARCHITECT, SUPER_ADMIN, ADMIN. CREW: + MANAGER.
-  const SUPERVISOR_ROLES_FOR_MANAGER: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN"];
-  const SUPERVISOR_ROLES_FOR_CREW: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER"];
-  const eligibleSupervisors = supervisorCandidates.filter((s) => {
-    if (isEdit && s.id === initialData?.id) return false;
-    if (role === "MANAGER") return SUPERVISOR_ROLES_FOR_MANAGER.includes(s.role as Role);
-    if (role === "CREW") return SUPERVISOR_ROLES_FOR_CREW.includes(s.role as Role);
-    return false;
-  });
 
   useEffect(() => {
     const sub = form.watch((_, { name }) => {
@@ -169,7 +159,6 @@ export default function UserForm({
           setIsLoadingPreset(false);
           if (res.success) setPermissionKeys(res.data.keys);
         });
-        if (!roleRequiresSupervisor(r)) form.setValue("supervisorId", null);
         if (!roleRequiresRestaurant(r)) form.setValue("restaurantIds", []);
       }
     });
@@ -213,7 +202,7 @@ export default function UserForm({
         setNewDeptColor("#1a3826");
       }
     } catch {
-      alert("Greška pri kreiranju odjela.");
+      alert("Fehler beim Erstellen der Abteilung.");
     }
     setIsCreatingDept(false);
   };
@@ -278,11 +267,6 @@ export default function UserForm({
       form.setError("restaurantIds", { message: "Bitte mindestens ein Restaurant auswählen" });
       return;
     }
-    // Nadređeni obavezan samo ako postoji barem jedan mogući nadređeni u listi
-    if (requiresSupervisor && eligibleSupervisors.length > 0 && !data.supervisorId) {
-      form.setError("supervisorId", { message: "Nadređeni je obavezan za ovu rolu" });
-      return;
-    }
     if (!isEdit && !data.password) {
       form.setError("password", { message: "Passwort ist erforderlich" });
       return;
@@ -301,10 +285,10 @@ export default function UserForm({
           password: data.password?.trim() || undefined,
           role: data.role as Role,
           departmentId: data.departmentId || null,
+          supervisorId: data.supervisorId || null,
           permissions: permissionKeys,
           restaurantIds,
           primaryRestaurantId,
-          supervisorId: data.supervisorId || null,
           vacationAllowances,
         });
       } else {
@@ -314,10 +298,10 @@ export default function UserForm({
           password: data.password!,
           role: data.role as Role,
           departmentId: data.departmentId || null,
+          supervisorId: data.supervisorId || null,
           permissions: permissionKeys,
           restaurantIds,
           primaryRestaurantId,
-          supervisorId: data.supervisorId || null,
           vacationAllowances,
         });
       }
@@ -454,6 +438,23 @@ export default function UserForm({
                   </button>
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nadređeni (Vorgesetzter)</label>
+                <select
+                  {...form.register("supervisorId")}
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                >
+                  <option value="">— Keiner —</option>
+                  {eligibleSupervisors
+                    .filter((s) => !isEdit || s.id !== initialData?.id)
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name || s.email || s.id} ({ROLE_LABELS[s.role] || s.role})
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-0.5">Für Mein Team und Urlaubsfreigabe</p>
+              </div>
             </div>
 
             {requiresRestaurant && (
@@ -502,34 +503,6 @@ export default function UserForm({
               </div>
             )}
 
-            {requiresSupervisor && (
-              <div className="mt-4">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Vorgesetzter (Pflicht)
-                </label>
-                <Controller
-                  name="supervisorId"
-                  control={form.control}
-                  render={({ field }) => (
-                    <select
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value || null)}
-                      className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                    >
-                      <option value="">— Odaberi nadređenog —</option>
-                      {eligibleSupervisors.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} ({ROLE_LABELS[s.role] || s.role})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                />
-                {form.formState.errors.supervisorId && (
-                  <p className="text-red-500 text-xs mt-1">{form.formState.errors.supervisorId.message}</p>
-                )}
-              </div>
-            )}
           </div>
 
           {/* C: Godišnji odmor (dinamička lista) */}
@@ -718,7 +691,7 @@ export default function UserForm({
               {form.formState.isSubmitting ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  {isEdit ? "Spremanje…" : "Kreiranje…"}
+                  {isEdit ? "Speichern…" : "Erstellen…"}
                 </>
               ) : isEdit ? (
                 "Sačuvaj izmjene"

@@ -24,7 +24,14 @@ export async function createRestaurant(data: { code: string; name: string; city?
   revalidatePath("/admin/users");
 }
 
-export async function updateRestaurant(data: { id: string; code: string; name: string; city?: string; address?: string; isActive?: boolean }) {
+export async function updateRestaurant(data: {
+  id: string;
+  code: string;
+  name: string;
+  city?: string;
+  address?: string;
+  isActive?: boolean;
+}) {
   await requirePermission("restaurants:edit");
 
   await prisma.restaurant.update({
