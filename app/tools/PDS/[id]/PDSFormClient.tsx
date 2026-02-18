@@ -81,23 +81,24 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.text(`${pds.user?.email ?? ''} • ${pds.user?.role ?? ''}`, margin, y);
       y += 8;
 
-      // Ukupna ocjena istaknuta, ispod nje bodovi
+      // Ukupna ocjena u istom bloku kao ime (desno), da ne "pobjegne"
       const boxW = 42;
       const boxH = 28;
+      const boxTop = Math.max(28, y - 18);
       doc.setFillColor(26, 56, 38);
-      doc.roundedRect(w - margin - boxW, 26, boxW, boxH, 2, 2, 'F');
+      doc.roundedRect(w - margin - boxW, boxTop, boxW, boxH, 2, 2, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(255, 199, 44);
-      doc.text('BEWERTUNG', w - margin - boxW + 4, 36);
+      doc.text('BEWERTUNG', w - margin - boxW + 4, boxTop + 8);
       doc.setFontSize(14);
       doc.setTextColor(255, 255, 255);
-      doc.text(finalGrade ?? '–', w - margin - boxW + 4, 45);
+      doc.text(finalGrade ?? '–', w - margin - boxW + 4, boxTop + 17);
       doc.setFontSize(8);
       doc.setTextColor(255, 199, 44);
-      doc.text(`Punkte: ${totalScore}`, w - margin - boxW + 4, 52);
+      doc.text(`Punkte: ${totalScore}`, w - margin - boxW + 4, boxTop + 24);
 
-      y = 42;
+      y = Math.max(y, boxTop + boxH + 6);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
@@ -165,36 +166,66 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       y += 10;
 
       if (y > 260) { doc.addPage(); y = 20; }
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text('UNTERSCHRIFTEN', margin, y);
-      y += 7;
+
+      // Potpisi: lijevo Mitarbeiter, desno Manager. Za System Architect korisnika ne prikazujemo blok potpisa.
+      const isSystemArchitectUser = pds.user?.role === 'SYSTEM_ARCHITECT';
+      const pageW = doc.internal.pageSize.getWidth();
       const sigImgW = 45;
       const sigImgH = 22;
-      const empSigImg = typeof pds.employeeSignature === 'string' && pds.employeeSignature.startsWith('data:image') ? pds.employeeSignature : null;
-      const mgrSigImg = typeof pds.managerSignature === 'string' && pds.managerSignature.startsWith('data:image') ? pds.managerSignature : null;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      doc.text('Unterschrift Mitarbeiter:', margin, y);
-      if (empSigImg) {
-        try { doc.addImage(empSigImg, 'PNG', margin, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', margin, y + 8); }
-        y += sigImgH + 6;
+      const leftX = margin;
+      const rightX = pageW - margin - sigImgW;
+      const empSigImg =
+        typeof pds.employeeSignature === 'string' && pds.employeeSignature.startsWith('data:image')
+          ? pds.employeeSignature
+          : null;
+      const mgrSigImg =
+        typeof pds.managerSignature === 'string' && pds.managerSignature.startsWith('data:image')
+          ? pds.managerSignature
+          : null;
+
+      if (!isSystemArchitectUser) {
+        let sigY = y;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text('UNTERSCHRIFTEN', margin, sigY);
+        sigY += 7;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+
+        // Mitarbeiter – lijevo
+        doc.text('Unterschrift Mitarbeiter:', leftX, sigY);
+        if (empSigImg) {
+          try {
+            doc.addImage(empSigImg, 'PNG', leftX, sigY + 2, sigImgW, sigImgH);
+          } catch {
+            doc.text('________________', leftX, sigY + 8);
+          }
+        } else {
+          doc.text('________________', leftX, sigY + 5);
+        }
+
+        // Manager – desno
+        doc.text('Unterschrift Manager:', rightX, sigY);
+        if (mgrSigImg) {
+          try {
+            doc.addImage(mgrSigImg, 'PNG', rightX, sigY + 2, sigImgW, sigImgH);
+          } catch {
+            doc.text('________________', rightX, sigY + 8);
+          }
+        } else {
+          doc.text('________________', rightX, sigY + 5);
+        }
+
+        sigY += sigImgH + 12;
+        doc.setFontSize(7);
+        doc.text('Erstellt: ' + formatDateDDMMGGGG(new Date()), margin, sigY + 5);
       } else {
-        doc.text('________________', margin, y + 5);
-        y += 14;
+        // System Architect – samo datum, bez potpisa
+        doc.setFontSize(7);
+        doc.text('Erstellt: ' + formatDateDDMMGGGG(new Date()), margin, y + 5);
       }
-      doc.text('Unterschrift Manager:', margin, y);
-      if (mgrSigImg) {
-        try { doc.addImage(mgrSigImg, 'PNG', margin, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', margin, y + 8); }
-        y += sigImgH + 6;
-      } else {
-        doc.text('________________', margin, y + 5);
-        y += 14;
-      }
-      y += 4;
-      doc.setFontSize(7);
-      doc.text('Erstellt: ' + formatDateDDMMGGGG(new Date()), margin, y + 5);
 
       doc.save(`PDS_Beurteilung_${(pds.user?.name ?? 'Mitarbeiter').replace(/\s+/g, '_').replace(/[^\w\-]/g, '')}_${pds.year}.pdf`);
     } catch (error) {

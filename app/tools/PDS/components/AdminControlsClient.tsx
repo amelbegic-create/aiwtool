@@ -2,11 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, Play, Edit, Globe, Store } from 'lucide-react';
+import { Trash2, Play, Globe, Store } from 'lucide-react';
 import { createBulkPDS, deleteAllPDSForYear, getGlobalPDSForExport } from '../../../actions/pdsActions';
 import { toast } from 'sonner';
-import SettingsModal from './SettingsModal';
-import type { PDSGoal, PDSScaleLevel } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -35,7 +33,6 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportingRestaurant, setExportingRestaurant] = useState(false);
   const [exportingGlobal, setExportingGlobal] = useState(false);
 
@@ -163,12 +160,6 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
     <>
       <div className="flex flex-wrap gap-2">
         <button
-          onClick={() => setSettingsOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-[#1a3826] text-[#1a3826] rounded-xl text-xs font-bold hover:bg-[#1a3826] hover:text-[#FFC72C] transition-colors shadow-sm"
-        >
-          <Edit size={14} className="stroke-[3px]" /> REGELN BEARBEITEN
-        </button>
-        <button
           onClick={handleGenerate}
           disabled={isGenerating}
           className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-xl text-xs font-bold hover:bg-[#142e1e] disabled:opacity-60 transition-colors shadow-sm"
@@ -203,17 +194,6 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
           {isDeleting ? <span className="animate-spin">↻</span> : <Trash2 size={14} />}
         </button>
       </div>
-
-      {settingsOpen && (
-        <SettingsModal
-          year={selectedYear}
-          initialGoals={(template?.goals as PDSGoal[]) ?? []}
-          initialScale={(template?.scale as PDSScaleLevel[]) ?? []}
-          restaurants={restaurants}
-          currentUserId={currentUserId}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
     </>
   );
 }

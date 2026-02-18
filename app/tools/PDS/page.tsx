@@ -35,7 +35,6 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   });
   const isAdminOrGod = ['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
   const isManager = currentUser?.role === 'MANAGER';
-  const isManagerView = isAdminOrGod || isManager;
   const managerRestaurantIds = (currentUser?.restaurants ?? []).map((r) => r.restaurantId);
 
   const restaurants = await prisma.restaurant.findMany({
@@ -62,13 +61,15 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   const selectedYear = searchParams.year ? parseInt(searchParams.year) : new Date().getFullYear();
 
   const template = await getTemplateForRestaurantAndYear(allowedRestaurantId, selectedYear);
-  
+
+  // Admin/SuperAdmin/System Architect: vide sve PDS-eve za restoran i godinu.
+  // Svi ostali (MANAGER, CREW, ...) vide samo svoj PDS za tu godinu.
   const pdsList = await db.pDS.findMany({
-    where: isManagerView
+    where: isAdminOrGod
       ? { year: selectedYear, restaurantId: allowedRestaurantId }
-      : { userId: currentUser?.id, year: selectedYear },
+      : { userId: currentUser!.id, year: selectedYear },
     include: { user: true },
-    orderBy: { user: { name: 'asc' } }
+    orderBy: { user: { name: 'asc' } },
   });
 
   const safeTemplate = template ? JSON.parse(JSON.stringify(template)) : null;
@@ -118,11 +119,11 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
           </div>
         </div>
 
-        {/* LISTA ZAPOSLENIKA (Klijentska komponenta za search) */}
+        {/* LISTA ZAPOSLENIKA (Klijentska komponenta za search) – manager vidi samo sebe, admini vide sve */}
         <PDSListClient 
             data={safePdsList} 
             year={selectedYear} 
-            isManager={isManagerView} 
+            isManager={isAdminOrGod} 
         />
       </div>
     </div>
