@@ -150,40 +150,32 @@ export default function UserView({
         doc.text(normalizeText(`E-Mail: ${userData.email}`), 14, 61);
         doc.text(normalizeText(`Jahr: ${selectedYear}`), 14, 67);
 
-        // KARTICE STATISTIKE
+        // KARTICE STATISTIKE – sve zelene s bijelim slovima, centrirane na stranici
         const startY = 80;
-        const boxWidth = 55;
-        const boxHeight = 25;
-        
-        // Gesamt
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(226, 232, 240);
-        doc.rect(14, startY, boxWidth, boxHeight, 'FD');
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text(normalizeText("GESAMT TAGE"), 19, startY + 8);
-        doc.setFontSize(16);
-        doc.setTextColor(30, 41, 59);
-        doc.setFont("helvetica", "bold");
-        doc.text(`${total}`, 19, startY + 18);
+        const boxWidth = 44;
+        const boxGap = 8;
+        const boxHeight = 20;
+        const pageW = doc.internal.pageSize.getWidth();
+        const boxesTotalWidth = boxWidth * 3 + boxGap * 2;
+        const boxStartX = (pageW - boxesTotalWidth) / 2;
+        const green = [26, 56, 38] as [number, number, number];
+        const white = [255, 255, 255] as [number, number, number];
 
-        // Verbraucht
-        doc.rect(14 + boxWidth + 10, startY, boxWidth, boxHeight, 'FD');
-        doc.setFontSize(8);
-        doc.setTextColor(22, 163, 74);
-        doc.text(normalizeText("VERBRAUCHT"), 14 + boxWidth + 15, startY + 8);
-        doc.setFontSize(16);
-        doc.setTextColor(21, 128, 61);
-        doc.text(`${used}`, 14 + boxWidth + 15, startY + 18);
+        const drawGreenBox = (x: number, label: string, value: string) => {
+          doc.setFillColor(...green);
+          doc.rect(x, startY, boxWidth, boxHeight, "F");
+          doc.setFontSize(7);
+          doc.setTextColor(...white);
+          doc.setFont("helvetica", "normal");
+          doc.text(normalizeText(label), x + boxWidth / 2, startY + 6, { align: "center" });
+          doc.setFontSize(14);
+          doc.setFont("helvetica", "bold");
+          doc.text(value, x + boxWidth / 2, startY + 15, { align: "center" });
+        };
 
-        // Resturlaub
-        doc.setFillColor(26, 56, 38);
-        doc.rect(14 + (boxWidth + 10) * 2, startY, boxWidth, boxHeight, 'F');
-        doc.setFontSize(8);
-        doc.setTextColor(255, 199, 44);
-        doc.text(normalizeText("RESTURLAUB"), 14 + (boxWidth + 10) * 2 + 5, startY + 8);
-        doc.setFontSize(16);
-        doc.text(`${remaining}`, 14 + (boxWidth + 10) * 2 + 5, startY + 18);
+        drawGreenBox(boxStartX, "GESAMT TAGE", `${total}`);
+        drawGreenBox(boxStartX + boxWidth + boxGap, "VERBRAUCHT", `${used}`);
+        drawGreenBox(boxStartX + (boxWidth + boxGap) * 2, "RESTURLAUB", `${remaining}`);
 
         // TABLICA: Von, Bis, Tage, Status
         const statusToLabel: Record<string, string> = {
@@ -204,13 +196,13 @@ export default function UserView({
           head: [[normalizeText("Von"), normalizeText("Bis"), normalizeText("Tage"), normalizeText("Status")]],
           body: tableBody,
           theme: "grid",
-          headStyles: { fillColor: [26, 56, 38], textColor: [255, 255, 255], fontStyle: "bold" },
-          styles: { fontSize: 10, cellPadding: 4, halign: "left" },
+          headStyles: { fillColor: [26, 56, 38], textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
+          styles: { fontSize: 10, cellPadding: 4, halign: "center" },
           columnStyles: {
-            0: { cellWidth: 45, halign: "left" },
-            1: { cellWidth: 45, halign: "left" },
-            2: { cellWidth: 25, halign: "right" },
-            3: { cellWidth: 55, halign: "left" },
+            0: { cellWidth: 45, halign: "center" },
+            1: { cellWidth: 45, halign: "center" },
+            2: { cellWidth: 25, halign: "center" },
+            3: { cellWidth: 55, halign: "center" },
           },
           alternateRowStyles: { fillColor: [248, 250, 252] },
         });

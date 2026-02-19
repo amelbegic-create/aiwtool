@@ -5,10 +5,10 @@ import prisma from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import Link from "next/link";
 import { ChevronRight, Sparkles, CalendarDays, UsersRound } from "lucide-react";
-import QuickActionsCard from "@/components/dashboard/QuickActionsCard";
+import DashboardChangelogCard from "@/components/dashboard/DashboardChangelogCard";
 import DashboardModuleIcons from "@/components/dashboard/DashboardModuleIcons";
-import { getAllowedQuickActions } from "@/lib/dashboard";
 import { getDashboardHighlights } from "@/app/actions/dashboardHighlightActions";
+import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
 import { dict } from "@/translations";
 
 export const dynamic = "force-dynamic";
@@ -67,16 +67,13 @@ export default async function DashboardPage() {
   });
   if (!dbUser) redirect("/login");
 
-  const [highlights, vacationSummary, teamCount] = await Promise.all([
+  const [highlights, vacationSummary, teamCount, changelog] = await Promise.all([
     getDashboardHighlights(),
     getVacationDaysSummary(dbUser.id),
     getTeamCount(dbUser.id, String(dbUser.role)),
+    getDashboardChangelog(),
   ]);
 
-  const quickActions = getAllowedQuickActions(
-    String(dbUser.role),
-    dbUser.permissions ?? []
-  );
   const greeting = getGreeting();
   const firstName = (dbUser.name || (session.user as { name?: string }).name || "Benutzer").split(" ")[0];
   const roleLabel = String(dbUser.role || "CREW");
@@ -150,7 +147,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
           <div className="lg:col-span-7">
-            <QuickActionsCard actions={quickActions} />
+            <DashboardChangelogCard initial={changelog} />
           </div>
           {/* Mein Team – velika naglašena kartica s brojem */}
           <div className="lg:col-span-4">

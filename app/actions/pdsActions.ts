@@ -120,6 +120,25 @@ export async function updatePDSTemplate(
       }
     });
 
+    // Ažuriraj sve PDS zapise za ovu godinu i ciljane restorane: nova skala + preračunati finalGrade
+    const affectedPds = await db.pDS.findMany({
+      where: { year, restaurantId: { in: targetRestaurantIds } },
+      select: { id: true, goals: true }
+    });
+    for (const pds of affectedPds) {
+      const goals = (pds.goals ?? []) as Array<{ points?: number }>;
+      const totalScore = goals.reduce((acc, g) => acc + (Number(g?.points) || 0), 0);
+      const finalGrade = getFinalGradeFromScale(totalScore, scale);
+      await db.pDS.update({
+        where: { id: pds.id },
+        data: {
+          scale: scale as unknown as Prisma.InputJsonValue,
+          totalScore,
+          finalGrade
+        }
+      });
+    }
+
     revalidatePath('/admin/pds');
     revalidatePath('/tools/PDS');
     return { success: true as const };
@@ -303,13 +322,30 @@ export async function createBulkPDS(year: number, managerId: string) {
     const goals: PDSGoal[] = (tpl.goals ?? []) as unknown as PDSGoal[];
     const scale: PDSScaleLevel[] = (tpl.scale ?? []) as unknown as PDSScaleLevel[];
 
+    const EXCLUDED_PDS_ROLES = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'] as const;
+
     const restaurantUsers = await prisma.restaurantUser.findMany({
-      where: { restaurantId, user: { isActive: true } },
+      where: {
+        restaurantId,
+        user: {
+          isActive: true,
+          role: { notIn: [...EXCLUDED_PDS_ROLES] }
+        }
+      },
       include: { user: true }
     });
 
+    // Obriši postojeće PDS zapise za SYSTEM_ARCHITECT, ADMIN, SUPER_ADMIN u ovoj godini i restoranu
+    await db.pDS.deleteMany({
+      where: {
+        year,
+        restaurantId,
+        user: { role: { in: [...EXCLUDED_PDS_ROLES] } }
+      }
+    });
+
     if (restaurantUsers.length === 0) {
-      return { success: true, count: 0, message: 'Keine Mitarbeiter im Restaurant.' };
+      return { success: true, count: 0, message: 'Keine Mitarbeiter im Restaurant (außer System Architect/Admin/Super Admin).' };
     }
 
     let count = 0;
@@ -493,7 +529,18 @@ export interface PDSExportRow {
   restaurantName: string;
   finalGrade: string | null;
   totalScore: number;
+  status: string;
 }
+
+const PDS_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Entwurf',
+  OPEN: 'Offen',
+  IN_PROGRESS: 'In Bearbeitung',
+  SUBMITTED: 'Eingereicht',
+  RETURNED: 'Zurückgegeben',
+  APPROVED: 'Genehmigt',
+  COMPLETED: 'Abgeschlossen'
+};
 
 export async function getGlobalPDSForExport(year: number): Promise<PDSExportRow[]> {
   const session = await getServerSession(authOptions);
@@ -520,6 +567,36 @@ export async function getGlobalPDSForExport(year: number): Promise<PDSExportRow[
     userName: p.user?.name ?? 'N/A',
     restaurantName: p.restaurant?.name ?? p.restaurant?.code ?? 'N/A',
     finalGrade: p.finalGrade ?? null,
-    totalScore: p.totalScore ?? 0
+    totalScore: p.totalScore ?? 0,
+    status: PDS_STATUS_LABELS[p.status] ?? p.status
   }));
+}
+
+/** Puna lista PDS za globalni export (isti format kao po restoranu: goals, komentari, potpisi, user+supervisor, restaurant). */
+export async function getFullPDSListForGlobalExport(year: number) {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { id?: string })?.id;
+  const where: { year: number; restaurantId?: { in: string[] }; user?: { role?: { notIn: string[] } } } = { year };
+  if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, restaurants: { select: { restaurantId: true } } },
+    });
+    if (user?.role === 'MANAGER' && user.restaurants?.length) {
+      where.restaurantId = { in: user.restaurants.map((r) => r.restaurantId) };
+    }
+  }
+  const EXCLUDED_PDS_ROLES = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'];
+  if (!where.restaurantId) {
+    where.user = { role: { notIn: EXCLUDED_PDS_ROLES } };
+  }
+  const list = await prisma.pDS.findMany({
+    where,
+    include: {
+      user: { include: { supervisor: { select: { name: true } } } },
+      restaurant: { select: { name: true, code: true } }
+    },
+    orderBy: [{ restaurant: { name: 'asc' } }, { user: { name: 'asc' } }]
+  });
+  return JSON.parse(JSON.stringify(list));
 }

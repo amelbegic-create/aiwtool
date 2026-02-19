@@ -23,7 +23,7 @@ export default async function AdminPDSEditPage({
 }) {
   const accessResult = await tryRequirePermission("pds:access");
   if (!accessResult.ok) {
-    return <NoPermission moduleName="PDS obrasci" />;
+    return <NoPermission moduleName="PDS-Vorlagen" />;
   }
 
   const { id } = await params;
@@ -54,11 +54,11 @@ export default async function AdminPDSEditPage({
             href="/admin/pds"
             className="text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] font-medium text-sm"
           >
-            ← Povratak na listu
+            ← Zurück zur Liste
           </Link>
         </div>
         <h1 className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">
-          Uredi PDS obrazac
+          PDS-Vorlage bearbeiten
         </h1>
         <PDSForm
           restaurants={restaurants}

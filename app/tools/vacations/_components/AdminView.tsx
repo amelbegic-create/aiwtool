@@ -32,13 +32,13 @@ import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 // --- TIPOVI ---
 type TabType = "STATS" | "REQUESTS" | "BLOCKED";
 
-interface BlockedDay {
+export interface BlockedDay {
   id: string;
   date: string;
   reason: string | null;
 }
 
-interface UserStat {
+export interface UserStat {
   id: string;
   name: string | null;
   email?: string | null;
@@ -52,7 +52,7 @@ interface UserStat {
   remaining: number;
 }
 
-interface RequestWithUser {
+export interface RequestWithUser {
   id: string;
   start: string;
   end: string;
@@ -138,7 +138,7 @@ function statusLabel(s: string) {
 }
 
 // ===============================
-// Jedinstveni header za sve PDF exporte (redizajn: godina ogromna žuta, naziv restorana velik, naslov siv)
+// PDF header: AIW Services, ispod njega restoran (manji), zatim Urlaubsübersicht; desno samo godina u bijelom boxu. Adresa se ne prikazuje.
 // ===============================
 function drawPdfHeader(
   doc: jsPDF,
@@ -158,16 +158,16 @@ function drawPdfHeader(
   let y = 12;
   doc.setTextColor(255, 199, 44);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
+  doc.setFontSize(26);
   doc.text("AIW Services", 14, y);
   y += 10;
 
   if (opts.restaurantName) {
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
-    doc.text(opts.restaurantName, 14, y);
-    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.text(String(opts.restaurantName).trim() || "–", 14, y);
+    y += 7;
   }
 
   doc.setFontSize(10);
@@ -179,25 +179,327 @@ function drawPdfHeader(
   if (opts.year != null) {
     const yearStr = String(opts.year);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(28);
+    doc.setFontSize(20);
     const textW = doc.getTextWidth(yearStr);
-    const padding = 8;
+    const padding = 6;
     const boxW = textW + padding * 2;
-    const boxH = 20;
+    const boxH = 16;
     const boxX = pageW - 14 - boxW;
     const boxY = (headerHeight - boxH) / 2;
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, "F");
     doc.setTextColor(26, 56, 38);
-    doc.text(yearStr, boxX + boxW / 2, boxY + boxH / 2 + 3, { align: "center" });
+    doc.text(yearStr, boxX + boxW / 2, boxY + boxH / 2 + 2, { align: "center" });
   }
+}
 
-  if (opts.subtitle) {
+// --- Exportirane PDF funkcije za view stranice (sve podatke primaju kao argumente) ---
+export function exportTablePDFWithData(
+  stats: UserStat[],
+  year: number,
+  reportRestaurantLabel?: string
+) {
+  const doc = new jsPDF();
+  drawPdfHeader(doc, {
+    title: "Urlaubsübersicht",
+    subtitle: reportRestaurantLabel || undefined,
+    restaurantName: reportRestaurantLabel,
+    year,
+    headerHeight: 38,
+  });
+  const restaurantDisplay = (names: string[]) =>
+    names.length > 2 ? "Alle Restaurants" : names.join(", ");
+  const data = stats.map((u) => [
+    u.name || "N/A",
+    (u.department || "N/A").toString(),
+    restaurantDisplay(u.restaurantNames),
+    u.carriedOver ?? 0,
+    u.total,
+    u.used,
+    u.remaining,
+  ]);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const tableWidth = pageWidth - margin * 2;
+  autoTable(doc, {
+    startY: 50,
+    head: [["Name", "Abteilung", "Restaurants", "Vortrag", "Gesamt", "Verbraucht", "Resturlaub"]],
+    body: data,
+    theme: "plain",
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      textColor: [15, 23, 42],
+      overflow: "linebreak",
+      lineWidth: 0.1,
+      lineColor: [0, 0, 0],
+    },
+    headStyles: {
+      fillColor: [248, 250, 252],
+      textColor: [15, 23, 42],
+      fontStyle: "bold",
+      halign: "center",
+      lineWidth: 0.1,
+      lineColor: [0, 0, 0],
+      fontSize: 8,
+      overflow: "linebreak",
+      cellPadding: 3,
+    },
+    bodyStyles: {
+      fillColor: false,
+      textColor: [15, 23, 42],
+      lineWidth: 0.1,
+      lineColor: [0, 0, 0],
+    },
+    columnStyles: {
+      0: { halign: "left", fontStyle: "bold", cellWidth: tableWidth * 0.22 },
+      1: { halign: "center", cellWidth: tableWidth * 0.12 },
+      2: { halign: "left", cellWidth: tableWidth * 0.18 },
+      3: { halign: "center", cellWidth: tableWidth * 0.13 },
+      4: { halign: "center", cellWidth: tableWidth * 0.09 },
+      5: { halign: "center", cellWidth: tableWidth * 0.14 },
+      6: { halign: "center", cellWidth: tableWidth * 0.12 },
+    },
+    alternateRowStyles: { fillColor: [252, 253, 254] },
+    margin: { left: margin, right: margin },
+  });
+  doc.save(`Tabelle_Urlaub_${year}.pdf`);
+}
+
+export function exportIndividualReportWithData(
+  user: UserStat,
+  allRequests: RequestWithUser[],
+  year: number
+) {
+  const doc = new jsPDF();
+  const userRequests = allRequests.filter((r) => r.user.id === user.id);
+  drawPdfHeader(doc, {
+    title: "Urlaubsübersicht",
+    subtitle: `Erstellt: ${formatDate(new Date().toISOString())}`,
+    restaurantName: user.restaurantNames?.[0] ?? undefined,
+    year,
+  });
+  const margin = 14;
+  doc.setTextColor(15, 23, 42);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(`Mitarbeiter: ${user.name || "N/A"}`, margin, 45);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`E-Mail: ${user.email || "N/A"}`, margin, 52);
+  doc.text(`Abteilung: ${user.department || "N/A"}`, margin, 58);
+
+  const startY = 66;
+  const boxW = 32;
+  const boxH = 12;
+  const boxGap = 3;
+  const pageW = doc.internal.pageSize.getWidth();
+  const boxesTotalWidth = boxW * 3 + boxGap * 2;
+  const boxStartX = (pageW - boxesTotalWidth) / 2;
+  const boxCenterX = (x: number) => x + boxW / 2;
+  const greenBg = [26, 56, 38] as [number, number, number];
+
+  doc.setFillColor(...greenBg);
+  doc.setDrawColor(...greenBg);
+  doc.roundedRect(boxStartX, startY, boxW, boxH, 1.5, 1.5, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(5.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text("GESAMT", boxCenterX(boxStartX), startY + 3.5, { align: "center" });
+  doc.setFontSize(10);
+  doc.text(String(user.total), boxCenterX(boxStartX), startY + 9, { align: "center" });
+
+  doc.setFillColor(...greenBg);
+  doc.setDrawColor(...greenBg);
+  doc.roundedRect(boxStartX + boxW + boxGap, startY, boxW, boxH, 1.5, 1.5, "FD");
+  doc.setFontSize(5.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text("VERBRAUCHT", boxCenterX(boxStartX + boxW + boxGap), startY + 3.5, { align: "center" });
+  doc.setFontSize(10);
+  doc.text(String(user.used), boxCenterX(boxStartX + boxW + boxGap), startY + 9, { align: "center" });
+
+  doc.setFillColor(...greenBg);
+  doc.setDrawColor(...greenBg);
+  doc.roundedRect(boxStartX + (boxW + boxGap) * 2, startY, boxW, boxH, 1.5, 1.5, "FD");
+  doc.setFontSize(5.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text("RESTURLAUB", boxCenterX(boxStartX + (boxW + boxGap) * 2), startY + 3.5, { align: "center" });
+  doc.setFontSize(10);
+  doc.text(String(user.remaining), boxCenterX(boxStartX + (boxW + boxGap) * 2), startY + 9, { align: "center" });
+
+  const tableBody = userRequests.map((req) => [
+    formatDate(req.start),
+    formatDate(req.end),
+    req.days,
+    statusLabel(req.status),
+  ]);
+  const tableWidth = pageW - margin * 2;
+  autoTable(doc, {
+    startY: startY + 22,
+    head: [["Von", "Bis", "Tage", "Status"]],
+    body: tableBody,
+    theme: "plain",
+    styles: { fontSize: 10, cellPadding: 5, textColor: [15, 23, 42], lineWidth: 0.1, lineColor: [0, 0, 0], halign: "center" },
+    headStyles: {
+      fillColor: [26, 56, 38],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      halign: "center",
+      lineWidth: 0.1,
+      lineColor: [0, 0, 0],
+    },
+    bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0], halign: "center" },
+    columnStyles: {
+      0: { halign: "center", cellWidth: tableWidth * 0.28 },
+      1: { halign: "center", cellWidth: tableWidth * 0.28 },
+      2: { halign: "center", cellWidth: tableWidth * 0.14 },
+      3: { halign: "center", cellWidth: tableWidth * 0.30 },
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    margin: { left: margin, right: margin },
+  });
+  const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
+  doc.save(`Bericht_${safeName}_${year}.pdf`);
+}
+
+export function exportTimelinePDFWithData(
+  stats: UserStat[],
+  requests: RequestWithUser[],
+  blockedDays: BlockedDay[],
+  year: number,
+  reportRestaurantLabel?: string,
+  filename?: string
+) {
+  const doc = new jsPDF("l", "mm", "a3");
+  const width = doc.internal.pageSize.getWidth();
+  const height = doc.internal.pageSize.getHeight();
+  const marginLeft = 62;
+  const marginRight = 14;
+  const marginBottom = 18;
+  const gridWidth = width - marginLeft - marginRight;
+  const monthWidth = gridWidth / 12;
+  const rowHeight = 9;
+  drawPdfHeader(doc, {
+    title: "Übersichtsplan und Verteilung",
+    subtitle: reportRestaurantLabel || undefined,
+    year,
+    headerHeight: 42,
+  });
+  const contentStartY = 58;
+  const months = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
+  doc.setFillColor(248, 250, 252);
+  doc.rect(marginLeft, contentStartY - 12, gridWidth, 12, "F");
+  doc.setTextColor(51, 65, 85);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  months.forEach((m, i) => {
+    const x = marginLeft + i * monthWidth;
+    doc.text(m, x + monthWidth / 2, contentStartY - 5, { align: "center" });
+  });
+  const gridColor: [number, number, number] = [203, 213, 225];
+  const gridLineWidth = 0.25;
+  let currentY = contentStartY;
+  const nameColumnLeft = 10;
+  const drawRowSeparator = (y: number) => {
+    doc.setDrawColor(...gridColor);
+    doc.setLineWidth(gridLineWidth);
+    doc.line(nameColumnLeft, y, width - marginRight, y);
+  };
+  const drawVerticalGridLines = (rowTop: number, rowBottom: number) => {
+    doc.setDrawColor(...gridColor);
+    doc.setLineWidth(gridLineWidth);
+    for (let i = 0; i <= 12; i++) {
+      const x = marginLeft + i * monthWidth;
+      doc.line(x, rowTop, x, rowBottom);
+    }
+  };
+  stats.forEach((user) => {
+    if (currentY > height - marginBottom) {
+      doc.addPage();
+      drawPdfHeader(doc, {
+        title: "Übersichtsplan und Verteilung",
+        subtitle: reportRestaurantLabel || undefined,
+        year,
+        headerHeight: 42,
+      });
+      doc.setFillColor(248, 250, 252);
+      doc.rect(marginLeft, contentStartY - 12, gridWidth, 12, "F");
+      doc.setTextColor(51, 65, 85);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      months.forEach((m, i) => {
+        const x = marginLeft + i * monthWidth;
+        doc.text(m, x + monthWidth / 2, contentStartY - 5, { align: "center" });
+      });
+      currentY = contentStartY;
+    }
+    doc.setDrawColor(...gridColor);
+    doc.setLineWidth(gridLineWidth);
+    doc.line(nameColumnLeft, currentY, nameColumnLeft, currentY + rowHeight);
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.setTextColor(203, 213, 225);
-    doc.setFont("helvetica", "normal");
-    doc.text(opts.subtitle, 14, headerHeight - 4);
-  }
+    doc.setTextColor(15, 23, 42);
+    doc.text(user.name || "N/A", 12, currentY + 6);
+    drawVerticalGridLines(currentY, currentY + rowHeight);
+    drawRowSeparator(currentY + rowHeight);
+    const userRequests = requests.filter((r) => r.user.id === user.id && r.status === "APPROVED");
+    const depRGB = resolveDeptRGB(user);
+    userRequests.forEach((req) => {
+      const start = new Date(req.start);
+      const end = new Date(req.end);
+      if (start.getFullYear() !== year) return;
+      const startX = marginLeft + start.getMonth() * monthWidth + (start.getDate() / 31) * monthWidth;
+      const endX = marginLeft + end.getMonth() * monthWidth + (end.getDate() / 31) * monthWidth;
+      const barW = Math.max(endX - startX, 2);
+      doc.setFillColor(depRGB[0], depRGB[1], depRGB[2]);
+      doc.rect(startX, currentY + 2, barW, rowHeight - 4, "F");
+      blockedDays.forEach((blocked) => {
+        const bDate = new Date(blocked.date);
+        if (bDate >= start && bDate <= end && bDate.getFullYear() === year) {
+          const holidayX = marginLeft + bDate.getMonth() * monthWidth + (bDate.getDate() / 31) * monthWidth;
+          doc.setDrawColor(220, 38, 38);
+          doc.setLineWidth(0.5);
+          doc.line(holidayX, currentY + 2, holidayX, currentY + rowHeight - 2);
+        }
+      });
+    });
+    currentY += rowHeight;
+  });
+  const deptMap = new Map<string, { name: string; rgb: RGB }>();
+  stats.forEach((u) => {
+    const name = u.department?.trim() || "N/A";
+    if (!deptMap.has(name)) deptMap.set(name, { name, rgb: resolveDeptRGB(u) });
+  });
+  const deptLegendItems = Array.from(deptMap.values());
+  let legendY = currentY + 12;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text("Rote Linie = Feiertag innerhalb des Urlaubs.", 15, legendY);
+  legendY += 10;
+  const boxW = 5;
+  const boxH = 3.5;
+  const gap = 2;
+  const itemGap = 28;
+  let legendX = 15;
+  deptLegendItems.forEach((item) => {
+    const label = item.name;
+    const labelW = doc.getTextWidth(label);
+    if (legendX + boxW + gap + labelW > width - marginRight) {
+      legendY += 6;
+      legendX = 15;
+    }
+    doc.setFillColor(item.rgb[0], item.rgb[1], item.rgb[2]);
+    doc.rect(legendX, legendY - boxH, boxW, boxH, "F");
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.2);
+    doc.rect(legendX, legendY - boxH, boxW, boxH, "S");
+    doc.setTextColor(15, 23, 42);
+    doc.text(label, legendX + boxW + gap, legendY - 0.5);
+    legendX += boxW + gap + labelW + itemGap;
+  });
+  doc.save(filename ?? `Uebersichtsplan_${year}.pdf`);
 }
 
 export default function AdminView({
@@ -312,59 +614,53 @@ export default function AdminView({
       year: selectedYear,
     });
 
-    // Card: Mitarbeiter
+    const margin = 14;
+    const pageW = doc.internal.pageSize.getWidth();
+    const tableWidth = pageW - margin * 2;
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text(`Mitarbeiter: ${user.name || "N/A"}`, 14, 45);
-
+    doc.text(`Mitarbeiter: ${user.name || "N/A"}`, margin, 45);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
-    doc.text(`E-Mail: ${user.email || "N/A"}`, 14, 52);
-    doc.text(`Abteilung: ${user.department || "N/A"}`, 14, 58);
+    doc.text(`E-Mail: ${user.email || "N/A"}`, margin, 52);
+    doc.text(`Abteilung: ${user.department || "N/A"}`, margin, 58);
 
-    // KPI boxovi – smanjeni, svi brojevi crni, centrirani
     const startY = 66;
-    const boxW = 48;
-    const boxH = 18;
-    const boxGap = 5;
-
+    const boxW = 32;
+    const boxH = 12;
+    const boxGap = 3;
     const boxCenterX = (x: number) => x + boxW / 2;
+    const greenBg = [26, 56, 38] as [number, number, number];
 
-    // Gesamt
-    doc.setFillColor(241, 245, 249);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(14, startY, boxW, boxH, 2, 2, "FD");
+    doc.setFillColor(...greenBg);
+    doc.setDrawColor(...greenBg);
+    doc.roundedRect(margin, startY, boxW, boxH, 1.5, 1.5, "FD");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(71, 85, 105);
-    doc.text("GESAMT", boxCenterX(14), startY + 5.5, { align: "center" });
-    doc.setFontSize(14);
-    doc.setTextColor(15, 23, 42);
-    doc.text(String(user.total), boxCenterX(14), startY + 13, { align: "center" });
-
-    // Verbraucht
-    doc.setFillColor(255, 199, 44);
-    doc.setDrawColor(230, 180, 40);
-    doc.roundedRect(14 + boxW + boxGap, startY, boxW, boxH, 2, 2, "FD");
-    doc.setFontSize(7);
-    doc.setTextColor(26, 56, 38);
-    doc.text("VERBRAUCHT", boxCenterX(14 + boxW + boxGap), startY + 5.5, { align: "center" });
-    doc.setFontSize(14);
-    doc.setTextColor(15, 23, 42);
-    doc.text(String(user.used), boxCenterX(14 + boxW + boxGap), startY + 13, { align: "center" });
-
-    // Resturlaub
-    doc.setFillColor(26, 56, 38);
-    doc.setDrawColor(26, 56, 38);
-    doc.roundedRect(14 + (boxW + boxGap) * 2, startY, boxW, boxH, 2, 2, "FD");
-    doc.setFontSize(7);
+    doc.setFontSize(5.5);
     doc.setTextColor(255, 255, 255);
-    doc.text("RESTURLAUB", boxCenterX(14 + (boxW + boxGap) * 2), startY + 5.5, { align: "center" });
-    doc.setFontSize(14);
-    doc.setTextColor(15, 23, 42);
-    doc.text(String(user.remaining), boxCenterX(14 + (boxW + boxGap) * 2), startY + 13, { align: "center" });
+    doc.text("GESAMT", boxCenterX(margin), startY + 3.5, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(String(user.total), boxCenterX(margin), startY + 9, { align: "center" });
+
+    doc.setFillColor(...greenBg);
+    doc.setDrawColor(...greenBg);
+    doc.roundedRect(margin + boxW + boxGap, startY, boxW, boxH, 1.5, 1.5, "FD");
+    doc.setFontSize(5.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text("VERBRAUCHT", boxCenterX(margin + boxW + boxGap), startY + 3.5, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(String(user.used), boxCenterX(margin + boxW + boxGap), startY + 9, { align: "center" });
+
+    doc.setFillColor(...greenBg);
+    doc.setDrawColor(...greenBg);
+    doc.roundedRect(margin + (boxW + boxGap) * 2, startY, boxW, boxH, 1.5, 1.5, "FD");
+    doc.setFontSize(5.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text("RESTURLAUB", boxCenterX(margin + (boxW + boxGap) * 2), startY + 3.5, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(String(user.remaining), boxCenterX(margin + (boxW + boxGap) * 2), startY + 9, { align: "center" });
 
     const tableBody = userRequests.map((req) => [
       formatDate(req.start),
@@ -375,16 +671,17 @@ export default function AdminView({
 
     // Clean tabela: bez “teškog grida”
     autoTable(doc, {
-      startY: startY + 26,
+      startY: startY + 22,
       head: [["Von", "Bis", "Tage", "Status"]],
       body: tableBody,
       theme: "plain",
       styles: {
         fontSize: 10,
-        cellPadding: 4,
+        cellPadding: 5,
         textColor: [15, 23, 42],
         lineWidth: 0.1,
         lineColor: [0, 0, 0],
+        halign: "center",
       },
       headStyles: {
         fillColor: [26, 56, 38],
@@ -394,15 +691,15 @@ export default function AdminView({
         lineWidth: 0.1,
         lineColor: [0, 0, 0],
       },
-      bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0] },
+      bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0], halign: "center" },
       columnStyles: {
-        0: { halign: "left", cellWidth: 45 },
-        1: { halign: "left", cellWidth: 45 },
-        2: { halign: "center", cellWidth: 20 },
-        3: { halign: "center", cellWidth: 50 },
+        0: { halign: "center", cellWidth: tableWidth * 0.28 },
+        1: { halign: "center", cellWidth: tableWidth * 0.28 },
+        2: { halign: "center", cellWidth: tableWidth * 0.14 },
+        3: { halign: "center", cellWidth: tableWidth * 0.30 },
       },
       alternateRowStyles: { fillColor: [248, 250, 252] },
-      margin: { left: 14, right: 14 },
+      margin: { left: margin, right: margin },
     });
 
     const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
@@ -853,7 +1150,7 @@ export default function AdminView({
               <button
                 type="button"
                 onClick={() => setMyVacationModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm border border-emerald-700/30 transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-[#1a3826] text-white hover:bg-[#142e1e] shadow-sm transition-all"
               >
                 <CalendarPlus size={16} />
                 Meinen Urlaub eintragen
@@ -879,15 +1176,15 @@ export default function AdminView({
             {activeTab === "STATS" && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => exportTablePDF()}
-                  className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-xs font-bold text-foreground hover:bg-accent transition-all"
+                  onClick={() => router.push(`/tools/vacations/view/table?year=${selectedYear}`)}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e]"
                 >
                   <FileSpreadsheet size={16} /> TABELLE
                 </button>
 
                 <button
                   onClick={() => exportTimelinePDF()}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#FFC72C] hover:bg-[#e0af25] rounded-lg text-xs font-black text-[#1a3826] transition-all"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e]"
                 >
                   <FileBarChart size={16} /> PLAN (AKTUELL)
                 </button>
@@ -903,7 +1200,7 @@ export default function AdminView({
                 <button
                   onClick={handleOpenDeptExportModal}
                   disabled={loadingDeptExport}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 dark:bg-slate-600 text-white rounded-lg text-xs font-black transition-all hover:bg-slate-800 dark:hover:bg-slate-500 disabled:opacity-70"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e] disabled:opacity-70"
                 >
                   <FileBarChart size={16} />
                   {loadingDeptExport ? "LADEN…" : "EXPORT NACH ABTEILUNGEN"}
@@ -1081,8 +1378,8 @@ export default function AdminView({
                     </div>
                   </div>
                   <button
-                    onClick={() => exportIndividualReport(u)}
-                    className="w-full min-h-[44px] bg-muted hover:bg-accent text-foreground rounded-xl font-bold text-xs uppercase inline-flex items-center justify-center gap-2 touch-manipulation"
+                    onClick={() => router.push(`/tools/vacations/report/${u.id}?year=${selectedYear}`)}
+                    className="w-full min-h-[44px] bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl font-bold text-xs uppercase inline-flex items-center justify-center gap-2 touch-manipulation"
                   >
                     <FileText size={14} /> PDF-Bericht
                   </button>
@@ -1132,8 +1429,8 @@ export default function AdminView({
                     </div>
                     <div className="col-span-2 text-right">
                       <button
-                        onClick={() => exportIndividualReport(u)}
-                        className="bg-muted hover:bg-accent text-foreground px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase min-h-[44px]"
+                        onClick={() => router.push(`/tools/vacations/report/${u.id}?year=${selectedYear}`)}
+                        className="bg-[#1a3826] hover:bg-[#142e1e] text-white px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase min-h-[44px]"
                       >
                         <FileText size={14} /> PDF
                       </button>

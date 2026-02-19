@@ -1,7 +1,7 @@
 import { 
-  Users, LayoutDashboard, ShieldCheck, PlaneTakeoff, 
-  Briefcase, Settings, ClipboardList, Clock, TrendingUp,
-  BookOpen, // Dodana ikona za pravila
+  Users, LayoutDashboard, PlaneTakeoff, 
+  Briefcase, ClipboardList, Clock, TrendingUp,
+  BookOpen,
   Gift,
 } from "lucide-react";
 
@@ -9,7 +9,6 @@ export const TOOL_CATEGORIES = [
   { id: 'general', label: 'ALLGEMEIN', icon: LayoutDashboard },
   { id: 'staff', label: 'PERSONAL', icon: Users },
   { id: 'operations', label: 'OPERATIONEN', icon: Briefcase },
-  { id: 'other', label: 'SONSTIGES', icon: Settings }
 ];
 
 export const APP_TOOLS = [
@@ -22,8 +21,6 @@ export const APP_TOOLS = [
   // OPERATIONEN
   { id: 'labor-planner', name: 'Personaleinsatzplanung', href: '/tools/labor-planner', icon: Clock, category: 'operations' },
   { id: 'productivity', name: 'Produktivität', href: '/tools/productivity', icon: TrendingUp, category: 'operations' },
-  // SONSTIGES – Admin
-  { id: 'admin-panel', name: 'Einstellungen', href: '/admin', icon: ShieldCheck, category: 'other' }
 ];
 
 /** Permission key potreban za pristup modulu (za brze akcije i highlight). */

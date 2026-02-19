@@ -14,7 +14,7 @@ export default async function PDSDetailPage(props: { params: Promise<{ id: strin
   
   const pds = await (prisma as any).pDS.findUnique({
     where: { id: params.id },
-    include: { user: true }
+    include: { user: { include: { supervisor: { select: { name: true, email: true } } } } }
   });
 
   if (!pds) return <div className="p-10 text-center font-bold text-slate-500 uppercase tracking-widest">PDS-Dokument nicht gefunden.</div>;

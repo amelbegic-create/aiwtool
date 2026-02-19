@@ -114,6 +114,8 @@ model User {
   // BONUS TOOL: zapisi po bonus ciklusu
   bonusEntries        BonusEntry[]
 
+  dashboardChangelogUpdates DashboardChangelog[]
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }
@@ -174,6 +176,17 @@ model PasswordResetToken {
   token     String   @unique
   expires   DateTime
   createdAt DateTime @default(now())
+}
+
+// Ein Eintrag: Aktuelle Änderungen auf dem Dashboard (nur SYSTEM_ARCHITECT darf bearbeiten).
+model DashboardChangelog {
+  id          String    @id @default(cuid())
+  content     String    @db.Text
+  updatedAt   DateTime  @updatedAt
+  updatedById String?
+  updatedBy   User?     @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("dashboard_changelog")
 }
 
 // --- ROLE PERMISSION PRESETS ---

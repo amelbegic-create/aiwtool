@@ -64,11 +64,16 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
 
   // Admin/SuperAdmin/System Architect: vide sve PDS-eve za restoran i godinu.
   // Svi ostali (MANAGER, CREW, ...) vide samo svoj PDS za tu godinu.
+  const EXCLUDED_PDS_ROLES = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'] as const;
   const pdsList = await db.pDS.findMany({
     where: isAdminOrGod
-      ? { year: selectedYear, restaurantId: allowedRestaurantId }
+      ? {
+          year: selectedYear,
+          restaurantId: allowedRestaurantId,
+          user: { role: { notIn: [...EXCLUDED_PDS_ROLES] } },
+        }
       : { userId: currentUser!.id, year: selectedYear },
-    include: { user: true },
+    include: { user: { include: { supervisor: { select: { name: true } } } } },
     orderBy: { user: { name: 'asc' } },
   });
 

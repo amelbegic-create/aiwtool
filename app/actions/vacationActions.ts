@@ -166,6 +166,276 @@ export async function getGlobalVacationStats(year: number) {
   return { usersStats, allRequests };
 }
 
+/** Jedan korisnik: stat + svi zahtjevi (svi statusi) za godinu – za report/[userId] stranicu. */
+export async function getVacationReportForUser(userId: string, year: number) {
+  await requirePermission("vacation:access");
+
+  const startOfYear = `${year}-01-01`;
+  const endOfYear = `${year}-12-31`;
+  const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
+  const rangeEnd = `${year}-12-31`;
+
+  const [userRow, requestsRaw, usedByYearRows] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        vacationEntitlement: true,
+        vacationCarryover: true,
+        department: { select: { name: true, color: true } },
+        vacations: {
+          where: { status: "APPROVED", start: { gte: startOfYear, lte: endOfYear } },
+          select: { days: true },
+        },
+        restaurants: { select: { restaurant: { select: { name: true } } } },
+        vacationAllowances: {
+          where: { year: { gte: VACATION_YEAR_MIN, lte: year } },
+          select: { year: true, days: true },
+        },
+      },
+    }),
+    prisma.vacationRequest.findMany({
+      where: { userId, start: { gte: startOfYear, lte: endOfYear } },
+      select: {
+        id: true,
+        start: true,
+        end: true,
+        days: true,
+        status: true,
+        restaurant: { select: { name: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            restaurants: { take: 1, select: { restaurant: { select: { name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.vacationRequest.findMany({
+      where: { userId, status: "APPROVED", start: { gte: rangeStart, lte: rangeEnd } },
+      select: { start: true, days: true },
+    }),
+  ]);
+
+  if (!userRow) return null;
+
+  const usedByYear = new Map<number, number>();
+  for (const r of usedByYearRows) {
+    const y = Number(String(r.start).slice(0, 4));
+    if (y >= VACATION_YEAR_MIN && y <= year) {
+      usedByYear.set(y, (usedByYear.get(y) ?? 0) + r.days);
+    }
+  }
+  const allowancesByYear = new Map<number, { days: number }>();
+  for (const a of userRow.vacationAllowances ?? []) {
+    const d = a.days != null && Number.isFinite(Number(a.days)) ? Math.max(0, Math.floor(Number(a.days))) : 0;
+    allowancesByYear.set(a.year, { days: d });
+  }
+  const defaultAllowance = userRow.vacationEntitlement ?? 20;
+  const defaultCarryover = Math.max(0, Math.floor(Number(userRow.vacationCarryover) ?? 0));
+  const { total, carriedOver } = computeCarryOverForYear(
+    allowancesByYear,
+    usedByYear,
+    defaultAllowance,
+    defaultCarryover,
+    year
+  );
+  const used = userRow.vacations.reduce((sum, v) => sum + v.days, 0);
+  const userStat = {
+    id: userRow.id,
+    name: userRow.name,
+    email: userRow.email,
+    restaurantNames: userRow.restaurants.map((r) => r.restaurant.name || "Unbekannt"),
+    department: userRow.department?.name ?? null,
+    departmentColor: userRow.department?.color ?? null,
+    carriedOver,
+    total,
+    used,
+    remaining: total - used,
+  };
+
+  const requests = requestsRaw.map((req) => ({
+    id: req.id,
+    start: req.start,
+    end: req.end,
+    days: req.days,
+    status: req.status,
+    restaurantName: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "–",
+    user: {
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email,
+      mainRestaurant: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "N/A",
+    },
+  }));
+
+  return { userStat, requests };
+}
+
+/** Dohvat podataka za admin view (tablica, plan) – koristi glavna stranica i view/table, view/plan. */
+export async function getVacationAdminData(
+  selectedYear: number,
+  activeRestaurantId: string | undefined,
+  sessionUserId: string
+) {
+  await requirePermission("vacation:access");
+
+  const user = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    select: { id: true, role: true, restaurants: { select: { restaurantId: true } } },
+  });
+  if (!user) throw new Error("Benutzer nicht gefunden.");
+
+  const isGodMode = isGodModeRole(user.role as Role);
+  const startOfYear = `${selectedYear}-01-01`;
+  const endOfYear = `${selectedYear}-12-31`;
+  const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
+  const rangeEnd = `${selectedYear}-12-31`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userWhereClause: any = { isActive: true, role: { not: "SYSTEM_ARCHITECT" } };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const requestWhereClause: any = { start: { gte: startOfYear, lte: endOfYear } };
+
+  if (activeRestaurantId && activeRestaurantId !== "all") {
+    userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
+    requestWhereClause.user = { restaurants: { some: { restaurantId: activeRestaurantId } } };
+  } else if (!isGodMode) {
+    const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
+    userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
+    requestWhereClause.user = { restaurants: { some: { restaurantId: { in: myRestaurantIds } } } };
+  }
+
+  const blockedDaysWhere =
+    activeRestaurantId && activeRestaurantId !== "all" ? { restaurantId: activeRestaurantId } : undefined;
+
+  const [blockedDaysRaw, allRequestsRaw, allUsers, usedByUserByYearRows, reportRestaurantResult] = await Promise.all([
+    prisma.blockedDay.findMany({
+      where: blockedDaysWhere,
+      orderBy: { date: "asc" },
+    }),
+    prisma.vacationRequest.findMany({
+      where: requestWhereClause,
+      select: {
+        id: true,
+        start: true,
+        end: true,
+        days: true,
+        status: true,
+        restaurant: { select: { name: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            restaurants: { take: 1, select: { restaurant: { select: { name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.user.findMany({
+      where: userWhereClause,
+      select: {
+        id: true,
+        name: true,
+        vacationEntitlement: true,
+        vacationCarryover: true,
+        department: { select: { name: true, color: true } },
+        vacations: {
+          where: { status: "APPROVED", start: { gte: startOfYear, lte: endOfYear } },
+          select: { days: true },
+        },
+        restaurants: { select: { restaurantId: true, restaurant: { select: { name: true } } } },
+        vacationAllowances: {
+          where: { year: { gte: VACATION_YEAR_MIN, lte: selectedYear } },
+          select: { year: true, days: true },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.vacationRequest.findMany({
+      where: { status: "APPROVED", start: { gte: rangeStart, lte: rangeEnd } },
+      select: { userId: true, start: true, days: true },
+    }),
+    activeRestaurantId && activeRestaurantId !== "all"
+      ? prisma.restaurant.findUnique({ where: { id: activeRestaurantId }, select: { name: true } })
+      : Promise.resolve(null),
+  ]);
+
+  const blockedDays = blockedDaysRaw.map((d) => ({ id: d.id, date: d.date, reason: d.reason }));
+
+  const usedByUserByYear = new Map<string, Map<number, number>>();
+  for (const row of usedByUserByYearRows) {
+    const y = Number(String(row.start).slice(0, 4));
+    if (y >= VACATION_YEAR_MIN && y <= selectedYear) {
+      let userMap = usedByUserByYear.get(row.userId);
+      if (!userMap) {
+        userMap = new Map();
+        usedByUserByYear.set(row.userId, userMap);
+      }
+      userMap.set(y, (userMap.get(y) ?? 0) + row.days);
+    }
+  }
+
+  const allRequests = allRequestsRaw.map((req) => ({
+    id: req.id,
+    start: req.start,
+    end: req.end,
+    days: req.days,
+    status: req.status,
+    restaurantName: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "–",
+    user: {
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email,
+      mainRestaurant: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "N/A",
+    },
+  }));
+
+  const usersStats = allUsers.map((u) => {
+    const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
+    const restaurantNames = u.restaurants.map((r) => r.restaurant.name || "Unbekannt");
+    const allowancesByYear = new Map<number, { days: number }>();
+    for (const a of u.vacationAllowances ?? []) {
+      const d = a.days != null && Number.isFinite(Number(a.days)) ? Math.max(0, Math.floor(Number(a.days))) : 0;
+      allowancesByYear.set(a.year, { days: d });
+    }
+    const usedByYear = usedByUserByYear.get(u.id) ?? new Map<number, number>();
+    const defaultAllowance = u.vacationEntitlement ?? 20;
+    const defaultCarryover = Math.max(0, Math.floor(Number(u.vacationCarryover) ?? 0));
+    const { allowance, carriedOver, total } = computeCarryOverForYear(
+      allowancesByYear,
+      usedByYear,
+      defaultAllowance,
+      defaultCarryover,
+      selectedYear
+    );
+    return {
+      id: u.id,
+      name: u.name,
+      restaurantNames,
+      department: u.department?.name ?? null,
+      departmentColor: u.department?.color ?? null,
+      carriedOver,
+      total,
+      used,
+      remaining: total - used,
+    };
+  });
+
+  const reportRestaurantLabel =
+    reportRestaurantResult?.name ??
+    (activeRestaurantId && activeRestaurantId !== "all" ? `Restaurant ${activeRestaurantId}` : "Alle Restaurants");
+
+  return { usersStats, allRequests, blockedDays, reportRestaurantLabel };
+}
+
 // --- BLOKIRANI DANI ---
 export async function addBlockedDay(date: string, reason: string) {
   await requirePermission("vacation:blocked_days");
@@ -334,6 +604,21 @@ export async function createVacationRequest(data: {
 
   if (totalDays > remaining) {
     throw new Error(`Nicht genügend Urlaubstage verfügbar. Verbleibend: ${remaining} Tage.`);
+  }
+
+  // Preklapanje: zabrani novi zahtjev ako već postoji odobren ili na čekanju za isti period
+  const overlapping = await prisma.vacationRequest.findFirst({
+    where: {
+      userId: user.id,
+      status: { in: ["APPROVED", "PENDING"] },
+      start: { lte: data.end },
+      end: { gte: data.start },
+    },
+  });
+  if (overlapping) {
+    throw new Error(
+      "Für diesen Zeitraum existiert bereits ein genehmigter oder ausstehender Urlaubsantrag."
+    );
   }
 
   // Self-service: SYSTEM_ARCHITECT / SUPER_ADMIN / ADMIN odmah APPROVED, bez notifikacija

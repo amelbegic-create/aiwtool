@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminPDSPage() {
   const accessResult = await tryRequirePermission("pds:access");
   if (!accessResult.ok) {
-    return <NoPermission moduleName="Beurteilungsvorlagen" />;
+    return <NoPermission moduleName="PDS-Vorlagen" />;
   }
 
   let templates: Awaited<ReturnType<typeof listPDSTemplatesForAdmin>> = [];
@@ -25,7 +25,7 @@ export default async function AdminPDSPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">
-              Beurteilungsvorlagen
+              PDS-Vorlagen
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               PDS-Vorlagen für ein, mehrere oder alle Restaurants erstellen und verwalten.

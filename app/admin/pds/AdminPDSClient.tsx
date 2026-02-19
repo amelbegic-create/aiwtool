@@ -23,7 +23,7 @@ export default function AdminPDSClient({
   const router = useRouter();
 
   const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`PDS-Vorlage "${title}" wirklich löschen? Bestehende PDS-Einträge der Mitarbeiter bleiben erhalten.`)) return;
+    if (!confirm(`PDS-Vorlage „${title}" wirklich löschen? Bestehende PDS-Einträge der Mitarbeiter bleiben erhalten.`)) return;
     const res = await deletePDSTemplate(id);
     if (res.success) {
       toast.success("PDS-Vorlage gelöscht.");
@@ -67,7 +67,7 @@ export default function AdminPDSClient({
                 <td className="px-4 py-3 text-muted-foreground">{t.year}</td>
                 <td className="px-4 py-3 text-slate-700">
                   {t.isGlobal ? (
-                    <span className="font-medium text-[#1a3826]">SVI RESTORANI</span>
+                    <span className="font-medium text-[#1a3826]">ALLE RESTAURANTS</span>
                   ) : (
                     t.restaurantNames.length > 0
                       ? t.restaurantNames.join(", ")

@@ -1,6 +1,6 @@
 import { tryRequirePermission } from "@/lib/access";
 import Link from "next/link";
-import { Users, Building2, ShieldCheck, BookOpen, LayoutDashboard, ClipboardList } from "lucide-react";
+import { Users, Building2, ShieldCheck, BookOpen, LayoutDashboard, ClipboardList, FileText } from "lucide-react";
 import NoPermission from "@/components/NoPermission";
 
 export default async function AdminHome() {
@@ -36,6 +36,13 @@ export default async function AdminHome() {
             desc: "Festlegen, welche Module Nutzern auf der Startseite angezeigt werden.",
             href: "/admin/dashboard-modules",
             icon: LayoutDashboard,
+            tag: "Dashboard",
+          },
+          {
+            title: "Aktuelle Änderungen",
+            desc: "Text für die Startseite: Was wurde umgesetzt? Nur Sie (System Architect) können bearbeiten.",
+            href: "/admin/dashboard-text",
+            icon: FileText,
             tag: "Dashboard",
           },
         ]

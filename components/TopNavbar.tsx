@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, UserCircle, Menu, X, Bell } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings } from "lucide-react";
 import { useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
@@ -48,6 +48,8 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
     role === 'SUPER_ADMIN' || 
     role === 'ADMIN' || 
     role === 'MANAGER';
+
+  const hasAdminPrivileges = role === 'SYSTEM_ARCHITECT' || role === 'SUPER_ADMIN' || role === 'ADMIN';
 
   // Sakrij navbar na login stranici
   if (pathname === "/login" || pathname === "/select-restaurant") return null;
@@ -159,16 +161,18 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
               </span>
             )}
           </Link>
-          {/* Schnellzugriff Mein Profil */}
-          <Link
-            href="/profile"
-            onClick={closeMenu}
-            className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
-            title="Mein Profil"
-            aria-label="Mein Profil"
-          >
-            <UserCircle size={18} />
-          </Link>
+          {/* Admin panel – samo za ADMIN / SUPER_ADMIN / SYSTEM_ARCHITECT */}
+          {hasAdminPrivileges && (
+            <Link
+              href="/admin"
+              onClick={closeMenu}
+              className="h-8 w-8 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 flex items-center justify-center transition-all border border-red-400/30"
+              title="Admin Panel / Einstellungen"
+              aria-label="Admin Panel"
+            >
+              <Settings size={18} />
+            </Link>
+          )}
           <div className="flex items-center gap-1.5">
             <Link href="/profile" onClick={closeMenu} className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white hover:text-[#1a3826] text-white overflow-hidden flex items-center justify-center transition-all border border-white/10 relative" title={dict.nav_profile_tooltip}>
                {session?.user?.image ? (
