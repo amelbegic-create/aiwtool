@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getVacationAdminData } from "@/app/actions/vacationActions";
+import { getHolidaysForYear } from "@/app/actions/holidayActions";
 import VacationTableView from "../_VacationTableView";
 
 export default async function VacationPlanPage(props: {
@@ -31,10 +32,13 @@ export default async function VacationPlanPage(props: {
     Math.max(2025, Number.isFinite(Number(searchParams.year)) ? Number(searchParams.year) : currentYear)
   );
 
-  const { usersStats, allRequests, blockedDays, reportRestaurantLabel } = await getVacationAdminData(
-    year,
-    activeRestaurantId,
-    sessionUserId
+  const [adminData, globalHolidays] = await Promise.all([
+    getVacationAdminData(year, activeRestaurantId, sessionUserId),
+    getHolidaysForYear(year),
+  ]);
+  const { usersStats, allRequests, blockedDays, reportRestaurantLabel } = adminData;
+  const globalHolidayDates = globalHolidays.map(
+    (h) => `${year}-${String(h.m).padStart(2, "0")}-${String(h.d).padStart(2, "0")}`
   );
 
   return (
@@ -45,6 +49,7 @@ export default async function VacationPlanPage(props: {
       selectedYear={year}
       reportRestaurantLabel={reportRestaurantLabel}
       viewType="plan"
+      globalHolidayDates={globalHolidayDates}
     />
   );
 }

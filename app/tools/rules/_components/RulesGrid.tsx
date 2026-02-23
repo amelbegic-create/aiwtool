@@ -109,7 +109,7 @@ export default function RulesGrid({
               Tools
             </Link>
             <ChevronRight size={14} className="opacity-60" />
-            <span className="font-medium text-foreground">Regeln</span>
+            <span className="font-medium text-foreground">Bedienungsanleitungen</span>
           </nav>
         </div>
       </div>
@@ -125,7 +125,7 @@ export default function RulesGrid({
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-lg md:text-xl font-bold text-[#1a3826] dark:text-[#FFC72C] tracking-tight truncate">
-                    Richtlinien & Verfahren
+                    Bedienungsanleitungen
                   </h1>
                   <p className="text-xs text-muted-foreground truncate">
                     {showReadStatus && unreadCount > 0 ? (

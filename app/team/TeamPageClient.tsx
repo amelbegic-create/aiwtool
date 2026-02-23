@@ -19,15 +19,6 @@ import { updateVacationStatus } from "@/app/actions/vacationActions";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 import { toast } from "sonner";
 
-const ROLE_LABELS: Record<string, string> = {
-  SYSTEM_ARCHITECT: "SA",
-  SUPER_ADMIN: "Admin",
-  ADMIN: "Admin",
-  MANAGER: "Manager",
-  SHIFT_LEADER: "Shift Leader",
-  CREW: "Crew",
-};
-
 function pdsScoreColor(score: number | null): string {
   if (score == null) return "text-slate-400";
   if (score >= 80) return "text-emerald-600 font-bold";
@@ -126,7 +117,7 @@ export default function TeamPageClient({
                         color: member.departmentColor || "#64748b",
                       }}
                     >
-                      {ROLE_LABELS[member.role] || member.role}
+                      {member.department || "—"}
                     </span>
                   </div>
                   {member.isOnVacationToday ? (
@@ -199,7 +190,7 @@ export default function TeamPageClient({
                                 color: member.departmentColor || "#64748b",
                               }}
                             >
-                              {ROLE_LABELS[member.role] || member.role}
+                              {member.department || "—"}
                             </span>
                           </div>
                         </div>

@@ -116,8 +116,23 @@ model User {
 
   dashboardChangelogUpdates DashboardChangelog[]
 
+  ideas                Idea[]
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+// Ideenbox: Vorschläge von Mitarbeitern an System Architect / AL
+model Idea {
+  id        String   @id @default(cuid())
+  text      String   @db.Text
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
 }
 
 model VacationAllowance {
@@ -319,8 +334,17 @@ model LaborReport {
   budgetCost   Float      @default(0)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+}
 
-  @@unique([restaurantId, month, year])
+// Globalni praznici (Feiertage) – jedinstveno na nivou sajta, koriste Labor Planner i ostali moduli
+model Holiday {
+  id        String   @id @default(cuid())
+  day       Int      // 1–31
+  month     Int      // 1–12
+  label     String?  // npr. "Neujahr"
+  year      Int?     // null = svake godine; inače samo za tu godinu
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model VacationRequest {
@@ -486,6 +510,50 @@ model DashboardHighlight {
   order       Int      @default(0)  // manji = više gore
 
   @@index([addedAt])
+}
+
+// --- FIRMEN & PARTNER (Dobavljači i servisi) ---
+// Kategorije odjela – admin ih dodaje i mijenja (nije hardcodirano)
+model PartnerCategoryModel {
+  id        String          @id @default(cuid())
+  name      String          // npr. "IT", "Haus Technik", "Ostalo"
+  icon      String?         // ime Lucide ikone, npr. "Cpu", "Wrench"
+  sortOrder Int             @default(0)
+  companies PartnerCompany[]
+
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@map("partner_category")
+}
+
+model PartnerCompany {
+  id                 String                @id @default(cuid())
+  categoryId         String?                // opcionalno dok se ne migriraju stari podaci
+  category           PartnerCategoryModel? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  companyName        String
+  logoUrl            String?               // logo / naslovnica firme (URL slike)
+  serviceDescription String?               @db.Text
+  notes              String?               @db.Text
+  contacts           PartnerContact[]
+
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([categoryId])
+}
+
+
+model PartnerContact {
+  id               String         @id @default(cuid())
+  partnerCompanyId String
+  partnerCompany   PartnerCompany @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
+  contactName      String
+  phone            String?
+  email            String?
+  role             String?
+
+  @@index([partnerCompanyId])
 }
 
 // --- BONUS TOOL MODELI ---

@@ -60,6 +60,8 @@ interface UserViewProps {
   myRequests: VacationRequest[];
   blockedDays: BlockedDay[];
   selectedYear: number;
+  /** Globalni praznici za godinu (iz Admin panela) */
+  globalHolidays?: { d: number; m: number }[];
 }
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
@@ -85,6 +87,7 @@ export default function UserView({
   myRequests,
   blockedDays,
   selectedYear,
+  globalHolidays = [],
 }: UserViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -428,28 +431,28 @@ export default function UserView({
               </div>
             </div>
 
-            {/* PRAZNICI */}
+            {/* PRAZNICI (iz Admin panela) */}
             <div className="bg-red-50 dark:bg-red-950/30 p-6 rounded-3xl border border-red-100 dark:border-red-900/50">
               <h3 className="font-bold text-red-900 dark:text-red-200 mb-4 flex items-center gap-2">
                 <Info size={18} /> Feiertage ({selectedYear})
               </h3>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                Feiertage werden zentral im Admin-Panel verwaltet.
+              </p>
               <div className="flex flex-wrap gap-2">
-                {blockedDays.filter(d => new Date(d.date).getFullYear() === selectedYear).map((day) => (
+                {globalHolidays.map((h, i) => (
                   <div
-                    key={day.id}
-                    className="bg-card dark:bg-red-950/20 px-3 py-2 rounded-lg border border-red-100 dark:border-red-900/50 shadow-sm flex items-center gap-2"
+                    key={`${h.d}-${h.m}-${i}`}
+                    className="bg-card dark:bg-red-950/20 px-3 py-2 rounded-lg border border-red-100 dark:border-red-900/50 shadow-sm"
                   >
-                    <span className="text-xs font-bold text-foreground">
-                      {day.reason}
-                    </span>
-                    <span className="text-[10px] font-mono text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 rounded">
-                      {formatDate(day.date)}
+                    <span className="text-[10px] font-mono text-red-500 dark:text-red-400">
+                      {h.d}.{h.m}.{selectedYear}
                     </span>
                   </div>
                 ))}
-                {blockedDays.filter(d => new Date(d.date).getFullYear() === selectedYear).length === 0 && (
+                {globalHolidays.length === 0 && (
                   <span className="text-xs text-muted-foreground italic">
-                    Keine Feiertage für dieses Jahr eingetragen.
+                    Keine Feiertage für dieses Jahr eingetragen (Admin-Panel prüfen).
                   </span>
                 )}
               </div>

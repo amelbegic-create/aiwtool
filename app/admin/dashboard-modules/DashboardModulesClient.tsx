@@ -14,8 +14,8 @@ type Props = { initialHighlights: Highlight[] };
 /** Display label for module – maps legacy Croatian labels from DB to German */
 const MODULE_LABEL_DE: Record<string, string> = {
   "Jahresurlaub": "Jahresurlaub",
-  "Pravila & Procedure": "Richtlinien & Dokumente",
-  "Pravila": "Richtlinien",
+  "Pravila & Procedure": "Bedienungsanleitungen",
+  "Pravila": "Bedienungsanleitungen",
 };
 
 function displayModuleLabel(label: string): string {

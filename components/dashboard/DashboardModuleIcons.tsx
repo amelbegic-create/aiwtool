@@ -9,6 +9,7 @@ import {
   TrendingUp,
   ShieldCheck,
   UsersRound,
+  Building2,
   LucideIcon,
 } from "lucide-react";
 import { APP_TOOLS } from "@/lib/tools/tools-config";
@@ -20,6 +21,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   rules: BookMarked,
   "labor-planner": Clock,
   productivity: TrendingUp,
+  partners: Building2,
   "admin-panel": ShieldCheck,
 };
 
@@ -30,6 +32,7 @@ const ICON_STYLES: Record<string, string> = {
   rules: "from-emerald-500/20 to-teal-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-500/30",
   "labor-planner": "from-orange-500/20 to-amber-500/20 text-orange-700 dark:text-orange-400 border-orange-200/50 dark:border-orange-500/30",
   productivity: "from-rose-500/20 to-pink-500/20 text-rose-700 dark:text-rose-400 border-rose-200/50 dark:border-rose-500/30",
+  partners: "from-blue-500/20 to-sky-500/20 text-blue-700 dark:text-blue-400 border-blue-200/50 dark:border-blue-500/30",
   "admin-panel": "from-slate-500/20 to-zinc-500/20 text-slate-700 dark:text-slate-400 border-slate-200/50 dark:border-slate-500/30",
 };
 

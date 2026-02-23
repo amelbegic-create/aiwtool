@@ -146,8 +146,8 @@ export default async function ToolsCategoryPage({
       },
       {
         href: "/tools/rules",
-        title: "Richtlinien & Verfahren",
-        description: "Anweisungen, Richtlinien und Abläufe.",
+        title: "Bedienungsanleitungen",
+        description: "Anweisungen und Abläufe.",
         icon: BookOpenText,
       },
       {

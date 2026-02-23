@@ -75,6 +75,8 @@ interface AdminViewProps {
   reportRestaurantLabel?: string;
   /** Prikaži dugme "Registruj Moj Godišnji" (samo za SYSTEM_ARCHITECT, SUPER_ADMIN, ADMIN) */
   canRegisterOwnVacation?: boolean;
+  /** Globalni praznici za godinu (iz Admin panela) */
+  globalHolidays?: { d: number; m: number }[];
 }
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
@@ -363,14 +365,24 @@ export function exportIndividualReportWithData(
   doc.save(`Bericht_${safeName}_${year}.pdf`);
 }
 
+/** Datumi praznika za crvenu liniju: niz ISO stringova (YYYY-MM-DD) ili iz BlockedDay. */
+function holidayDatesFromBlockedDays(blockedDays: BlockedDay[], year: number): string[] {
+  return blockedDays
+    .filter((d) => new Date(d.date).getFullYear() === year)
+    .map((d) => d.date);
+}
+
 export function exportTimelinePDFWithData(
   stats: UserStat[],
   requests: RequestWithUser[],
   blockedDays: BlockedDay[],
   year: number,
   reportRestaurantLabel?: string,
-  filename?: string
+  filename?: string,
+  /** Ako proslijeđeno, koristi se za crvenu liniju (Feiertag); inače blockedDays */
+  holidayDates?: string[]
 ) {
+  const datesForRedLine = holidayDates ?? holidayDatesFromBlockedDays(blockedDays, year);
   const doc = new jsPDF("l", "mm", "a3");
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
@@ -454,8 +466,8 @@ export function exportTimelinePDFWithData(
       const barW = Math.max(endX - startX, 2);
       doc.setFillColor(depRGB[0], depRGB[1], depRGB[2]);
       doc.rect(startX, currentY + 2, barW, rowHeight - 4, "F");
-      blockedDays.forEach((blocked) => {
-        const bDate = new Date(blocked.date);
+      datesForRedLine.forEach((dateStr) => {
+        const bDate = new Date(dateStr);
         if (bDate >= start && bDate <= end && bDate.getFullYear() === year) {
           const holidayX = marginLeft + bDate.getMonth() * monthWidth + (bDate.getDate() / 31) * monthWidth;
           doc.setDrawColor(220, 38, 38);
@@ -509,6 +521,7 @@ export default function AdminView({
   selectedYear,
   reportRestaurantLabel,
   canRegisterOwnVacation = false,
+  globalHolidays: globalHolidaysProp = [],
 }: AdminViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -522,6 +535,9 @@ export default function AdminView({
       router.push(`/tools/vacations?year=${y}`);
     });
   };
+
+  const globalHolidays = globalHolidaysProp ?? [];
+
   const [deptExportModalOpen, setDeptExportModalOpen] = useState(false);
   const [deptExportData, setDeptExportData] = useState<{
     usersStats: UserStat[];
@@ -530,7 +546,7 @@ export default function AdminView({
   const [loadingDeptExport, setLoadingDeptExport] = useState(false);
   const [selectedDeptNamesForExport, setSelectedDeptNamesForExport] = useState<string[]>([]);
 
-  // State za praznike
+  // State za gesperrte Tage (BlockedDay); globalni praznici dolaze iz props (globalHolidays)
   const [newBlockedDate, setNewBlockedDate] = useState("");
   const [newBlockedReason, setNewBlockedReason] = useState("");
 
@@ -914,9 +930,12 @@ export default function AdminView({
         doc.setFillColor(depRGB[0], depRGB[1], depRGB[2]);
         doc.rect(startX, currentY + 2, barW, rowHeight - 4, "F");
 
-        // praznici unutar bara: tanka crvena linija
-        blockedDays.forEach((blocked) => {
-          const bDate = new Date(blocked.date);
+        // praznici unutar bara: tanka crvena linija (globalni praznici iz Admin)
+        const holidayDatesForPdf = globalHolidays.map(
+          (h) => `${selectedYear}-${String(h.m).padStart(2, "0")}-${String(h.d).padStart(2, "0")}`
+        );
+        holidayDatesForPdf.forEach((dateStr) => {
+          const bDate = new Date(dateStr);
           if (bDate >= start && bDate <= end && bDate.getFullYear() === selectedYear) {
             const holidayX =
               marginLeft +
@@ -1641,12 +1660,39 @@ export default function AdminView({
           </div>
         )}
 
-        {/* BLOCKED DAYS */}
+        {/* BLOCKED: globalni praznici (iz Admin) + gesperrte Tage (Standort) */}
         {activeTab === "BLOCKED" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Globalni praznici – iz Admin panela, samo za pregled */}
+            <div className="lg:col-span-2 bg-card p-6 rounded-2xl shadow-sm border border-border">
+              <h3 className="font-bold text-card-foreground mb-4 flex items-center gap-2">
+                <Calendar className="text-[#1a3826] dark:text-[#FFC72C]" size={20} /> Feiertage ({selectedYear}) – aus Admin
+              </h3>
+              <p className="text-xs text-muted-foreground mb-3">
+                Diese Feiertage werden zentral im Admin-Panel unter „Feiertage“ verwaltet und gelten für alle Module.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {globalHolidays.map((h, i) => {
+                  const dateStr = `${selectedYear}-${String(h.m).padStart(2, "0")}-${String(h.d).padStart(2, "0")}`;
+                  return (
+                    <div
+                      key={`${h.d}-${h.m}-${i}`}
+                      className="bg-muted/50 dark:bg-muted/30 px-3 py-2 rounded-lg border border-border text-sm font-medium text-foreground"
+                    >
+                      {h.d}.{h.m}.{selectedYear}
+                    </div>
+                  );
+                })}
+                {globalHolidays.length === 0 && (
+                  <span className="text-sm text-muted-foreground italic">Keine Feiertage für dieses Jahr (Admin-Panel prüfen).</span>
+                )}
+              </div>
+            </div>
+
+            {/* Gesperrte Tage (Standort) – BlockedDay, dodavanje/brisanje */}
             <div className="bg-card p-6 rounded-2xl shadow-sm border border-border h-fit">
               <h3 className="font-bold text-card-foreground mb-4 flex items-center gap-2">
-                <Calendar className="text-[#1a3826]" size={20} /> Neuer Feiertag
+                <Calendar className="text-[#1a3826] dark:text-[#FFC72C]" size={20} /> Neuer gesperrter Tag
               </h3>
               <div className="space-y-4">
                 <input
@@ -1657,54 +1703,50 @@ export default function AdminView({
                 />
                 <input
                   type="text"
-                  placeholder="Bezeichnung des Feiertags"
+                  placeholder="z. B. Betriebsurlaub"
                   className="w-full border border-border p-3 rounded-xl outline-none text-sm font-bold text-foreground bg-card"
                   value={newBlockedReason}
                   onChange={(e) => setNewBlockedReason(e.target.value)}
                 />
                 <button
                   onClick={handleAddBlocked}
-                  className="w-full bg-[#1a3826] hover:bg-[#142e1e] text-white py-3 rounded-xl font-bold uppercase text-xs shadow-md active:scale-95"
+                  className="w-full bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] hover:opacity-90 text-white py-3 rounded-xl font-bold uppercase text-xs shadow-md active:scale-95"
                 >
                   Hinzufügen
                 </button>
               </div>
-            </div>
-
-            <div className="md:col-span-2 bg-card p-6 rounded-2xl shadow-sm border border-border">
-              <h3 className="font-bold text-card-foreground mb-4 uppercase tracking-tighter">
-                Kalender der Feiertage ({selectedYear})
+              <h3 className="font-bold text-card-foreground mt-6 mb-2 uppercase tracking-tighter text-sm">
+                Gesperrte Tage (Standort) {selectedYear}
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="space-y-2 max-h-48 overflow-y-auto">
                 {blockedDays
                   .filter((d) => new Date(d.date).getFullYear() === selectedYear)
                   .map((d) => (
                     <div
                       key={d.id}
-                      className="flex justify-between items-center p-4 bg-red-50 border border-red-100 rounded-xl group"
+                      className="flex justify-between items-center p-3 bg-muted/50 dark:bg-muted/30 rounded-lg border border-border group"
                     >
-                      <div>
-                        <div className="font-bold text-red-900 text-sm">{d.reason}</div>
-                        <div className="text-xs text-red-500 font-mono mt-1">{formatDate(d.date)}</div>
+                      <div className="text-sm font-medium truncate">{d.reason ?? "—"}</div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-muted-foreground font-mono">{formatDate(d.date)}</span>
+                        <button
+                          onClick={async () => {
+                            if (confirm("Löschen?")) {
+                              await removeBlockedDay(d.id);
+                              toast.success("Eintrag entfernt.");
+                              router.refresh();
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                          title="Löschen"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
-                      <button
-                        onClick={async () => {
-                          if (confirm("Löschen?")) {
-                            await removeBlockedDay(d.id);
-                            toast.success("Feiertag entfernt.");
-                            router.refresh();
-                          }
-                        }}
-                        className="text-red-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={16} />
-                      </button>
                     </div>
                   ))}
                 {blockedDays.filter((d) => new Date(d.date).getFullYear() === selectedYear).length === 0 && (
-                  <div className="col-span-full text-center py-10 text-muted-foreground italic">
-                    Keine Feiertage definiert.
-                  </div>
+                  <p className="text-xs text-muted-foreground italic py-2">Keine weiteren gesperrten Tage.</p>
                 )}
               </div>
             </div>

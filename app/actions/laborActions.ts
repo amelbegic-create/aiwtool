@@ -4,11 +4,21 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 export interface LaborDayInput {
-  umsatz?: string;
-  prod?: string;
+  bruttoUmsatz?: string;
+  nettoUmsatz?: string;
+  geplanteProduktivitaetPct?: string;
+  produktiveStd?: string;
   sfStd?: string;
   hmStd?: string;
+  nzEuro?: string;
+  extraStd?: string;
+  /** @deprecated use bruttoUmsatz */
+  umsatz?: string;
+  /** @deprecated use geplanteProduktivitaetPct / produktiveStd */
+  prod?: string;
+  /** @deprecated use nzEuro */
   nz?: string;
+  /** @deprecated use extraStd */
   extra?: string;
   [key: string]: string | undefined;
 }
@@ -18,6 +28,8 @@ export interface LaborInputs {
   vacationStd?: string;
   sickStd?: string;
   extraUnprodStd?: string;
+  koefficientBruttoNetto?: string;
+  foerderung?: string;
   taxAustria?: string;
   budgetUmsatz?: string;
   budgetCL?: string;
@@ -85,6 +97,23 @@ export async function saveLaborData(
   } catch (error) {
     console.error("saveLaborData:", error);
     return { success: false, error: "Fehler beim Speichern." };
+  }
+}
+
+/** Brisanje podataka za restoran + mjesec + godinu. */
+export async function deleteLaborData(restaurantId: string, month: number, year: number) {
+  if (!restaurantId) return { success: false, error: "Restaurant fehlt." };
+  try {
+    await prisma.laborReport.deleteMany({
+      where: { restaurantId, month, year },
+    });
+    revalidatePath("/tools/labor-planner");
+    return { success: true };
+  } catch (error: unknown) {
+    const isNotFound = error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "P2025";
+    if (isNotFound) return { success: true };
+    console.error("deleteLaborData:", error);
+    return { success: false, error: "Fehler beim Löschen." };
   }
 }
 

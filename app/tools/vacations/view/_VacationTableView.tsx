@@ -15,6 +15,8 @@ interface Props {
   selectedYear: number;
   reportRestaurantLabel?: string;
   viewType: "table" | "plan";
+  /** Datumi globalnih praznika (ISO) za crvenu liniju u PDF-u */
+  globalHolidayDates?: string[];
 }
 
 export default function VacationTableView({
@@ -24,6 +26,7 @@ export default function VacationTableView({
   selectedYear,
   reportRestaurantLabel,
   viewType,
+  globalHolidayDates = [],
 }: Props) {
   const handleTablePDF = () => {
     exportTablePDFWithData(usersStats, selectedYear, reportRestaurantLabel);
@@ -36,7 +39,8 @@ export default function VacationTableView({
       blockedDays,
       selectedYear,
       reportRestaurantLabel,
-      viewType === "plan" ? `Uebersichtsplan_${selectedYear}.pdf` : undefined
+      viewType === "plan" ? `Uebersichtsplan_${selectedYear}.pdf` : undefined,
+      globalHolidayDates.length > 0 ? globalHolidayDates : undefined
     );
   };
 

@@ -10,6 +10,7 @@ import { cookies } from "next/headers";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getUserTotalForYear, getVacationAdminData } from "@/app/actions/vacationActions";
+import { getHolidaysForYear } from "@/app/actions/holidayActions";
 
 export default async function VacationPage(props: { searchParams: Promise<{ year?: string }> }) {
   const session = await getServerSession(authOptions);
@@ -55,11 +56,11 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
   const isManagerView = isGodMode || isAdmin;
 
   if (isManagerView) {
-    const { usersStats, allRequests, blockedDays, reportRestaurantLabel } = await getVacationAdminData(
-      selectedYear,
-      activeRestaurantId,
-      sessionUserId
-    );
+    const [adminData, globalHolidays] = await Promise.all([
+      getVacationAdminData(selectedYear, activeRestaurantId, sessionUserId),
+      getHolidaysForYear(selectedYear),
+    ]);
+    const { usersStats, allRequests, blockedDays, reportRestaurantLabel } = adminData;
     const canRegisterOwnVacation =
       user.role === Role.SYSTEM_ARCHITECT ||
       user.role === Role.SUPER_ADMIN ||
@@ -73,6 +74,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         selectedYear={selectedYear}
         reportRestaurantLabel={reportRestaurantLabel}
         canRegisterOwnVacation={canRegisterOwnVacation}
+        globalHolidays={globalHolidays}
       />
     );
   }
@@ -85,7 +87,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     orderBy: { date: "asc" },
   });
 
-  const [blockedDaysRaw, myRequestsRaw, myTotalResult] = await Promise.all([
+  const [blockedDaysRaw, myRequestsRaw, myTotalResult, globalHolidays] = await Promise.all([
     blockedDaysPromise,
     prisma.vacationRequest.findMany({
       where: {
@@ -96,6 +98,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       orderBy: { createdAt: "desc" },
     }),
     getUserTotalForYear(sessionUserId, selectedYear),
+    getHolidaysForYear(selectedYear),
   ]);
 
   const blockedDays = blockedDaysRaw.map((d) => ({ id: d.id, date: d.date, reason: d.reason }));
@@ -130,6 +133,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       myRequests={myRequests}
       blockedDays={blockedDays}
       selectedYear={selectedYear}
+      globalHolidays={globalHolidays}
     />
   );
 }

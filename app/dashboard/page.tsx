@@ -4,14 +4,24 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import Link from "next/link";
-import { ChevronRight, Sparkles, CalendarDays, UsersRound } from "lucide-react";
+import { ChevronRight, Sparkles, CalendarDays, UsersRound, Building2, AlertCircle, RefreshCw } from "lucide-react";
 import DashboardChangelogCard from "@/components/dashboard/DashboardChangelogCard";
 import DashboardModuleIcons from "@/components/dashboard/DashboardModuleIcons";
+import DeineIdeeCard from "@/components/dashboard/DeineIdeeCard";
 import { getDashboardHighlights } from "@/app/actions/dashboardHighlightActions";
 import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
 import { dict } from "@/translations";
 
 export const dynamic = "force-dynamic";
+
+function isDbUnreachable(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code: string }).code === "P1001"
+  );
+}
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -61,18 +71,74 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/login");
 
-  const dbUser = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { id: true, name: true, role: true, permissions: true },
-  });
+  let dbUser: Awaited<ReturnType<typeof prisma.user.findUnique>>;
+  try {
+    dbUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, name: true, role: true, permissions: true },
+    });
+  } catch (e) {
+    if (isDbUnreachable(e)) {
+      return (
+        <div className="min-h-screen bg-background font-sans text-foreground flex items-center justify-center p-4">
+          <div className="max-w-md w-full rounded-2xl border border-amber-200 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30 p-8 text-center shadow-lg">
+            <div className="mx-auto w-14 h-14 rounded-full bg-amber-200/80 dark:bg-amber-500/20 flex items-center justify-center mb-4">
+              <AlertCircle className="w-7 h-7 text-amber-700 dark:text-amber-400" />
+            </div>
+            <h1 className="text-xl font-bold text-foreground mb-2">Baza podataka nije dostupna</h1>
+            <p className="text-muted-foreground text-sm mb-6">
+              Server baze (Neon) je privremeno nedostupan ili se budi iz stanja mirovanja. Provjerite da li je projekt u Neon dashboardu aktivan i pokušajte ponovo za nekoliko sekundi.
+            </p>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] px-5 py-2.5 font-bold text-sm hover:opacity-90 transition-opacity"
+            >
+              <RefreshCw size={18} /> Osvježi stranicu
+            </Link>
+          </div>
+        </div>
+      );
+    }
+    throw e;
+  }
+
   if (!dbUser) redirect("/login");
 
-  const [highlights, vacationSummary, teamCount, changelog] = await Promise.all([
-    getDashboardHighlights(),
-    getVacationDaysSummary(dbUser.id),
-    getTeamCount(dbUser.id, String(dbUser.role)),
-    getDashboardChangelog(),
-  ]);
+  let highlights: Awaited<ReturnType<typeof getDashboardHighlights>>;
+  let vacationSummary: Awaited<ReturnType<typeof getVacationDaysSummary>>;
+  let teamCount: number;
+  let changelog: Awaited<ReturnType<typeof getDashboardChangelog>>;
+  try {
+    [highlights, vacationSummary, teamCount, changelog] = await Promise.all([
+      getDashboardHighlights(),
+      getVacationDaysSummary(dbUser.id),
+      getTeamCount(dbUser.id, String(dbUser.role)),
+      getDashboardChangelog(),
+    ]);
+  } catch (e) {
+    if (isDbUnreachable(e)) {
+      return (
+        <div className="min-h-screen bg-background font-sans text-foreground flex items-center justify-center p-4">
+          <div className="max-w-md w-full rounded-2xl border border-amber-200 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30 p-8 text-center shadow-lg">
+            <div className="mx-auto w-14 h-14 rounded-full bg-amber-200/80 dark:bg-amber-500/20 flex items-center justify-center mb-4">
+              <AlertCircle className="w-7 h-7 text-amber-700 dark:text-amber-400" />
+            </div>
+            <h1 className="text-xl font-bold text-foreground mb-2">Baza podataka nije dostupna</h1>
+            <p className="text-muted-foreground text-sm mb-6">
+              Server baze (Neon) je privremeno nedostupan ili se budi iz stanja mirovanja. Provjerite da li je projekt u Neon dashboardu aktivan i pokušajte ponovo za nekoliko sekundi.
+            </p>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] px-5 py-2.5 font-bold text-sm hover:opacity-90 transition-opacity"
+            >
+              <RefreshCw size={18} /> Osvježi stranicu
+            </Link>
+          </div>
+        </div>
+      );
+    }
+    throw e;
+  }
 
   const greeting = getGreeting();
   const firstName = (dbUser.name || (session.user as { name?: string }).name || "Benutzer").split(" ")[0];
@@ -197,6 +263,36 @@ export default async function DashboardPage() {
                 )}
               </div>
             </div>
+          </div>
+          {/* Firmen und Partner */}
+          <div className="lg:col-span-4">
+            <Link
+              href="/tools/partners"
+              className="group block h-full rounded-2xl md:rounded-3xl overflow-hidden border border-blue-200/60 dark:border-blue-500/30 bg-gradient-to-br from-blue-50 via-sky-50/50 to-blue-100/80 dark:from-blue-950/50 dark:via-sky-950/30 dark:to-blue-900/40 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 p-6 md:p-8 min-h-[180px]"
+            >
+              <div className="flex flex-col h-full justify-between">
+                <div className="flex items-start justify-between">
+                  <div className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-400 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
+                    <Building2 size={28} strokeWidth={2} className="md:w-8 md:h-8" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-lg md:text-xl font-black text-[#1a3826] dark:text-sky-100 uppercase tracking-tight">
+                    Firmen und Partner
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    Wichtige Kontakte und Serviceunternehmen
+                  </p>
+                </div>
+                <span className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] dark:text-sky-300 group-hover:gap-3 transition-all">
+                  Öffnen <ChevronRight size={16} />
+                </span>
+              </div>
+            </Link>
+          </div>
+          {/* Deine Idee – Ideenbox für Mitarbeiter */}
+          <div className="lg:col-span-4">
+            <DeineIdeeCard />
           </div>
         </div>
       </main>

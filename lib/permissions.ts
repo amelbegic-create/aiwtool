@@ -83,6 +83,27 @@ export const PERMISSIONS: PermissionGroup[] = [
     ],
   },
   {
+    id: "partners",
+    title: "Firmen und Partner",
+    subtitle: "Lieferanten und Serviceunternehmen – Zugriff und Verwaltung",
+    items: [
+      { key: "partners:access", label: "Zugriff auf Liste der Firmen und Partner" },
+      { key: "partners:manage", label: "Firmen hinzufügen, bearbeiten und löschen" },
+    ],
+  },
+  {
+    id: "holidays",
+    title: "Feiertage",
+    subtitle: "Globale Feiertage für Arbeitsplaner und andere Module",
+    items: [{ key: "holidays:manage", label: "Feiertage verwalten" }],
+  },
+  {
+    id: "ideenbox",
+    title: "Ideenbox",
+    subtitle: "Vorschläge von Mitarbeitern lesen und verwalten",
+    items: [{ key: "ideenbox:access", label: "Ideenbox lesen & verwalten" }],
+  },
+  {
     id: "admin",
     title: "Verwaltung",
     subtitle: "Benutzer, Restaurants, Berechtigungen und System",

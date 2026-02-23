@@ -163,7 +163,7 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
             </Link>
             <ChevronRight size={14} className="opacity-60" />
             <Link href="/tools/rules" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
-              Regeln
+              Bedienungsanleitungen
             </Link>
             {rule.category?.name && (
               <>

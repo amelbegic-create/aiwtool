@@ -21,7 +21,7 @@ export default async function RulesPage() {
 
   const accessResult = await tryRequirePermission("rules:access");
   if (!accessResult.ok) {
-    return <NoPermission moduleName="Richtlinien & Verfahren" />;
+    return <NoPermission moduleName="Bedienungsanleitungen" />;
   }
 
   const [rules, categories, dbUser] = await Promise.all([

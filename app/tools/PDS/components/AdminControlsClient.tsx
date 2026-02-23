@@ -253,7 +253,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
         doc.rect(yearBoxX, 9, yearBoxW, yearBoxH, 'F');
         doc.setTextColor(0, 0, 0);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
+        doc.setFontSize(14);
         doc.text(String(exportYear), yearBoxX + yearBoxW / 2, 9 + yearBoxH / 2 + 1.5, { align: 'center' });
       };
 
@@ -280,7 +280,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
 
         doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
+        doc.setFontSize(20);
         doc.text(name, margin, y);
         y += 6;
         doc.setFont('helvetica', 'normal');
@@ -303,11 +303,11 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
         const boxTop = Math.max(28, y - 18);
         doc.setFillColor(26, 56, 38);
         doc.rect(w - margin - boxW, boxTop, boxW, boxH, 'F');
+        const boxCenterX = w - margin - boxW / 2;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(255, 199, 44);
-        doc.text('BEWERTUNG', w - margin - boxW + 4, boxTop + 8);
-        const boxCenterX = w - margin - boxW / 2;
+        doc.text('BEWERTUNG', boxCenterX, boxTop + 8, { align: 'center' });
         doc.setFontSize(18);
         doc.setTextColor(255, 255, 255);
         doc.text(String(finalGrade), boxCenterX, boxTop + 18, { align: 'center' });
@@ -552,7 +552,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
         doc.rect(yearBoxX, 9, yearBoxW, yearBoxH, 'F');
         doc.setTextColor(0, 0, 0);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
+        doc.setFontSize(14);
         doc.text(String(exportYear), yearBoxX + yearBoxW / 2, 9 + yearBoxH / 2 + 1.5, { align: 'center' });
       };
 
@@ -578,7 +578,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
 
         doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(16);
+        doc.setFontSize(20);
         doc.text(name, margin, y);
         y += 6;
         doc.setFont('helvetica', 'normal');
@@ -596,11 +596,11 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
         const boxTop = Math.max(28, y - 18);
         doc.setFillColor(26, 56, 38);
         doc.rect(w - margin - boxW, boxTop, boxW, boxH, 'F');
+        const boxCenterX = w - margin - boxW / 2;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(255, 199, 44);
-        doc.text('BEWERTUNG', w - margin - boxW + 4, boxTop + 8);
-        const boxCenterX = w - margin - boxW / 2;
+        doc.text('BEWERTUNG', boxCenterX, boxTop + 8, { align: 'center' });
         doc.setFontSize(18);
         doc.setTextColor(255, 255, 255);
         doc.text(String(finalGrade), boxCenterX, boxTop + 18, { align: 'center' });

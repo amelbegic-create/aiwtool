@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getLaborData, saveLaborData } from "@/app/actions/laborActions";
+import { getLaborData, saveLaborData, deleteLaborData } from "@/app/actions/laborActions";
 
 export async function POST(req: Request) {
   try {
@@ -54,6 +54,37 @@ export async function GET(req: Request) {
     console.error("Labor GET:", error);
     return NextResponse.json(
       { success: false, error: "Fehler beim Laden." },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const year = Number(searchParams.get("year"));
+  const month = Number(searchParams.get("month"));
+  const restaurant = searchParams.get("restaurant");
+
+  if (!year || !month || !restaurant) {
+    return NextResponse.json(
+      { success: false, error: "Parameter fehlen." },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const result = await deleteLaborData(restaurant, month, year);
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Labor DELETE:", error);
+    return NextResponse.json(
+      { success: false, error: "Fehler beim Löschen." },
       { status: 500 }
     );
   }

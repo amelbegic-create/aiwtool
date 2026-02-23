@@ -3,6 +3,7 @@ import {
   Briefcase, ClipboardList, Clock, TrendingUp,
   BookOpen,
   Gift,
+  Building2,
 } from "lucide-react";
 
 export const TOOL_CATEGORIES = [
@@ -16,11 +17,12 @@ export const APP_TOOLS = [
   { id: 'team', name: 'Mein Team', href: '/team', icon: Users, category: 'staff' },
   { id: 'vacations', name: 'Urlaubsplanung', href: '/tools/vacations', icon: PlaneTakeoff, category: 'staff' },
   { id: 'PDS', name: 'PDS (Beurteilung)', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
-  { id: 'rules', name: 'Richtlinien & Verfahren', href: '/tools/rules', icon: BookOpen, category: 'staff' },
+  { id: 'rules', name: 'Bedienungsanleitungen', href: '/tools/rules', icon: BookOpen, category: 'staff' },
   { id: 'bonus', name: 'Prämien & Bonus', href: '/tools/bonusi', icon: Gift, category: 'staff' },
   // OPERATIONEN
   { id: 'labor-planner', name: 'Personaleinsatzplanung', href: '/tools/labor-planner', icon: Clock, category: 'operations' },
   { id: 'productivity', name: 'Produktivität', href: '/tools/productivity', icon: TrendingUp, category: 'operations' },
+  { id: 'partners', name: 'Firmen und Partner', href: '/tools/partners', icon: Building2, category: 'operations' },
 ];
 
 /** Permission key potreban za pristup modulu (za brze akcije i highlight). */
@@ -31,5 +33,6 @@ export const TOOL_PERMISSION: Record<string, string> = {
   'bonus': 'bonus:access',
   'labor-planner': 'labor:access',
   'productivity': 'productivity:access',
+  'partners': 'partners:access',
   'admin-panel': 'users:access',
 };

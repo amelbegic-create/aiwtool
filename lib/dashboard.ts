@@ -23,7 +23,7 @@ export function getAllowedQuickActions(
   if (isAdmin) {
     return [
       { id: "vacations", label: "Neue Anfrage", href: "/tools/vacations", iconKey: "FilePlus" },
-      { id: "rules", label: "Richtlinien", href: "/tools/rules", iconKey: "BookOpen" },
+      { id: "rules", label: "Bedienungsanleitungen", href: "/tools/rules", iconKey: "BookOpen" },
     ];
   }
 
