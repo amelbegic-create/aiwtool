@@ -35,8 +35,9 @@ const ADMIN_RULES_ROLES = new Set<string>(["ADMIN", "MANAGER"]);
 
 export function hasPermission(role: string, permissions: string[], required: string) {
   if (GOD_MODE_ROLES.has(String(role))) return true;
+  if (required === "partners:access") return true; // svi prijavljeni mogu gledati
   if (required.startsWith("rules:") && ADMIN_RULES_ROLES.has(String(role))) return true;
-  // Admin/Manager imaju pristup Partner modulu; svi prijavljeni mogu gledati (partners:access)
+  // Admin/Manager imaju pristup Partner modulu (manage); access je gore
   if (required.startsWith("partners:") && ADMIN_RULES_ROLES.has(String(role))) return true;
   return Array.isArray(permissions) && permissions.includes(required);
 }
