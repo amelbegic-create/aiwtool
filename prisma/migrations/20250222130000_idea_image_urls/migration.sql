@@ -1,0 +1,10 @@
+-- AlterTable Idea: add missing columns (imageUrls, imageNames, pdf, legacy attachment)
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "attachmentUrl" TEXT;
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "attachmentName" TEXT;
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "attachmentType" TEXT;
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "attachmentSize" INTEGER;
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "imageUrls" TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "imageNames" TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "pdfUrl" TEXT;
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "pdfName" TEXT;
+ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "pdfSize" INTEGER;

@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { requirePermission } from "@/lib/access";
-import { hasPermission } from "@/lib/access";
 import { put } from "@vercel/blob";
 
 export type PartnerContactInput = {
@@ -34,15 +33,11 @@ export async function getPartners() {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    select: { id: true, role: true, permissions: true },
+    select: { id: true },
   });
   if (!user) return [];
 
-  const canAccess =
-    hasPermission(String(user.role), user.permissions || [], "partners:access") ||
-    hasPermission(String(user.role), user.permissions || [], "partners:manage");
-  if (!canAccess) return [];
-
+  // Lista partnera vidljiva svim prijavljenim korisnicima
   return prisma.partnerCompany.findMany({
     orderBy: { companyName: "asc" },
     include: { contacts: true, category: true },
@@ -70,13 +65,9 @@ export async function getPartnerCategories() {
 
   const user = await prisma.user.findUnique({
     where: { email: session.user.email },
-    select: { role: true, permissions: true },
+    select: { id: true },
   });
   if (!user) return [];
-  const canAccess =
-    hasPermission(String(user.role), user.permissions || [], "partners:access") ||
-    hasPermission(String(user.role), user.permissions || [], "partners:manage");
-  if (!canAccess) return [];
 
   let list = await prisma.partnerCategoryModel.findMany({
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
