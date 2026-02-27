@@ -28,6 +28,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
+import { openPdfInSameTab } from "@/lib/pdfUtils";
 
 // --- TIPOVI ---
 type TabType = "STATS" | "REQUESTS" | "BLOCKED";
@@ -265,7 +266,7 @@ export function exportTablePDFWithData(
     alternateRowStyles: { fillColor: [252, 253, 254] },
     margin: { left: margin, right: margin },
   });
-  doc.save(`Tabelle_Urlaub_${year}.pdf`);
+  openPdfInSameTab(doc);
 }
 
 export function exportIndividualReportWithData(
@@ -275,60 +276,78 @@ export function exportIndividualReportWithData(
 ) {
   const doc = new jsPDF();
   const userRequests = allRequests.filter((r) => r.user.id === user.id);
+
+  // Gornji brending header (AIW Services + godina) ostaje isti
   drawPdfHeader(doc, {
     title: "Urlaubsübersicht",
     subtitle: `Erstellt: ${formatDate(new Date().toISOString())}`,
     restaurantName: user.restaurantNames?.[0] ?? undefined,
     year,
   });
+
   const margin = 14;
+  const pageW = doc.internal.pageSize.getWidth();
+  const contentWidth = pageW - margin * 2;
+
+  // --- INFO + STAT KARTICA (modernija, nije više centrirana u sred stranice) ---
+  const cardTop = 46;
+  const cardHeight = 34;
+  const cardPaddingX = 10;
+  const cardPaddingY = 7;
+
+  doc.setFillColor(248, 250, 252); // bg-slate-50
+  doc.setDrawColor(226, 232, 240); // border-slate-200
+  doc.roundedRect(margin, cardTop, contentWidth, cardHeight, 4, 4, "FD");
+
+  // Lijeva strana: podaci o zaposleniku
+  let textX = margin + cardPaddingX;
+  let textY = cardTop + cardPaddingY + 2;
+
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text(`Mitarbeiter: ${user.name || "N/A"}`, margin, 45);
+  doc.setFontSize(11);
+  doc.text(user.name || "N/A", textX, textY);
+
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text(`E-Mail: ${user.email || "N/A"}`, margin, 52);
-  doc.text(`Abteilung: ${user.department || "N/A"}`, margin, 58);
+  textY += 6;
+  doc.text(`E-Mail: ${user.email || "N/A"}`, textX, textY);
+  textY += 5;
+  doc.text(`Abteilung: ${user.department || "N/A"}`, textX, textY);
 
-  const startY = 66;
-  const boxW = 32;
-  const boxH = 12;
-  const boxGap = 3;
-  const pageW = doc.internal.pageSize.getWidth();
-  const boxesTotalWidth = boxW * 3 + boxGap * 2;
-  const boxStartX = (pageW - boxesTotalWidth) / 2;
-  const boxCenterX = (x: number) => x + boxW / 2;
-  const greenBg = [26, 56, 38] as [number, number, number];
+  // Desna strana: tri mala statistička boxa u jednoj liniji
+  const statsLabelFontSize = 6;
+  const statsValueFontSize = 11;
+  const statsBoxWidth = 30;
+  const statsBoxHeight = 16;
+  const statsBoxGap = 4;
+  const statsTotalWidth = statsBoxWidth * 3 + statsBoxGap * 2;
+  const statsStartX = margin + contentWidth - cardPaddingX - statsTotalWidth;
+  const statsY = cardTop + cardPaddingY + 1;
+  const statsBg: [number, number, number] = [26, 56, 38]; // McD green
 
-  doc.setFillColor(...greenBg);
-  doc.setDrawColor(...greenBg);
-  doc.roundedRect(boxStartX, startY, boxW, boxH, 1.5, 1.5, "FD");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(5.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text("GESAMT", boxCenterX(boxStartX), startY + 3.5, { align: "center" });
-  doc.setFontSize(10);
-  doc.text(String(user.total), boxCenterX(boxStartX), startY + 9, { align: "center" });
+  const drawStatBox = (x: number, label: string, value: string | number) => {
+    doc.setFillColor(...statsBg);
+    doc.setDrawColor(...statsBg);
+    doc.roundedRect(x, statsY, statsBoxWidth, statsBoxHeight, 2, 2, "FD");
 
-  doc.setFillColor(...greenBg);
-  doc.setDrawColor(...greenBg);
-  doc.roundedRect(boxStartX + boxW + boxGap, startY, boxW, boxH, 1.5, 1.5, "FD");
-  doc.setFontSize(5.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text("VERBRAUCHT", boxCenterX(boxStartX + boxW + boxGap), startY + 3.5, { align: "center" });
-  doc.setFontSize(10);
-  doc.text(String(user.used), boxCenterX(boxStartX + boxW + boxGap), startY + 9, { align: "center" });
+    const centerX = x + statsBoxWidth / 2;
 
-  doc.setFillColor(...greenBg);
-  doc.setDrawColor(...greenBg);
-  doc.roundedRect(boxStartX + (boxW + boxGap) * 2, startY, boxW, boxH, 1.5, 1.5, "FD");
-  doc.setFontSize(5.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text("RESTURLAUB", boxCenterX(boxStartX + (boxW + boxGap) * 2), startY + 3.5, { align: "center" });
-  doc.setFontSize(10);
-  doc.text(String(user.remaining), boxCenterX(boxStartX + (boxW + boxGap) * 2), startY + 9, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(statsLabelFontSize);
+    doc.setTextColor(209, 213, 219); // slate-300
+    doc.text(label, centerX, statsY + 5, { align: "center" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(statsValueFontSize);
+    doc.setTextColor(255, 255, 255);
+    doc.text(String(value), centerX, statsY + 12, { align: "center" });
+  };
+
+  drawStatBox(statsStartX, "GESAMT", user.total);
+  drawStatBox(statsStartX + statsBoxWidth + statsBoxGap, "VERBRAUCHT", user.used);
+  drawStatBox(statsStartX + (statsBoxWidth + statsBoxGap) * 2, "RESTURLAUB", user.remaining);
 
   const tableBody = userRequests.map((req) => [
     formatDate(req.start),
@@ -336,22 +355,48 @@ export function exportIndividualReportWithData(
     req.days,
     statusLabel(req.status),
   ]);
-  const tableWidth = pageW - margin * 2;
+
+  const tableWidth = contentWidth;
+
+  // --- Tabela: Von / Bis / Tage / Status ---
+  // Zaobljeni žuti header ispod kartice
+  const headerTop = cardTop + cardHeight + 14;
+  const headerHeight = 9;
+
+  // Žuta pozadina sa zaobljenim gornjim uglovima
+  doc.setFillColor(255, 199, 44); // AIW yellow
+  doc.setDrawColor(255, 199, 44);
+  doc.roundedRect(margin, headerTop, tableWidth, headerHeight, 3, 3, "F");
+
+  const tableStartY = headerTop + 2; // niži offset – ukupno niži header
+
   autoTable(doc, {
-    startY: startY + 22,
+    startY: tableStartY,
     head: [["Von", "Bis", "Tage", "Status"]],
     body: tableBody,
     theme: "plain",
-    styles: { fontSize: 10, cellPadding: 5, textColor: [15, 23, 42], lineWidth: 0.1, lineColor: [0, 0, 0], halign: "center" },
+    styles: {
+      fontSize: 10,
+      cellPadding: 5,
+      textColor: [15, 23, 42],
+      lineWidth: 0.1,
+      lineColor: [229, 231, 235], // light grid
+      halign: "center",
+    },
     headStyles: {
-      fillColor: [26, 56, 38],
-      textColor: [255, 255, 255],
+      // Žuti header sa crnim, boldiranim slovima
+      fillColor: [255, 199, 44], // AIW yellow
+      textColor: [0, 0, 0],
       fontStyle: "bold",
       halign: "center",
-      lineWidth: 0.1,
-      lineColor: [0, 0, 0],
+      lineWidth: 0,
+      lineColor: [255, 199, 44],
     },
-    bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0], halign: "center" },
+    bodyStyles: {
+      lineWidth: 0.1,
+      lineColor: [229, 231, 235],
+      halign: "center",
+    },
     columnStyles: {
       0: { halign: "center", cellWidth: tableWidth * 0.28 },
       1: { halign: "center", cellWidth: tableWidth * 0.28 },
@@ -362,7 +407,7 @@ export function exportIndividualReportWithData(
     margin: { left: margin, right: margin },
   });
   const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
-  doc.save(`Bericht_${safeName}_${year}.pdf`);
+  openPdfInSameTab(doc);
 }
 
 /** Datumi praznika za crvenu liniju: niz ISO stringova (YYYY-MM-DD) ili iz BlockedDay. */
@@ -511,7 +556,7 @@ export function exportTimelinePDFWithData(
     doc.text(label, legendX + boxW + gap, legendY - 0.5);
     legendX += boxW + gap + labelW + itemGap;
   });
-  doc.save(filename ?? `Uebersichtsplan_${year}.pdf`);
+  openPdfInSameTab(doc);
 }
 
 export default function AdminView({
@@ -719,7 +764,7 @@ export default function AdminView({
     });
 
     const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
-    doc.save(`Bericht_${safeName}_${selectedYear}.pdf`);
+    openPdfInSameTab(doc);
   };
 
   // =====================================================================
@@ -796,7 +841,7 @@ export default function AdminView({
       margin: { left: margin, right: margin },
     });
 
-    doc.save(`Tabelle_Urlaub_${selectedYear}.pdf`);
+    openPdfInSameTab(doc);
   };
 
   // =====================================================================
@@ -991,7 +1036,7 @@ export default function AdminView({
       legendX += boxW + gap + labelW + itemGap;
     });
 
-    doc.save(filename ?? `Uebersichtsplan_${selectedYear}.pdf`);
+    openPdfInSameTab(doc);
   };
 
   const handleGlobalExport = async () => {

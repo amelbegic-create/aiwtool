@@ -10,6 +10,7 @@ import {
 } from "@/app/actions/restaurantAdminActions";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 type RestaurantRow = {
   id: string;
@@ -99,8 +100,9 @@ export default function RestaurantClient({
     try {
       await deleteRestaurant(id);
       router.refresh();
+      toast.success("Restaurant gelöscht.");
     } catch (e: any) {
-      alert(e.message || "Fehler");
+      toast.error(e.message || "Fehler");
     }
   };
 
@@ -108,8 +110,9 @@ export default function RestaurantClient({
     try {
       await toggleRestaurantStatus(id, current);
       router.refresh();
+      toast.success(current ? "Restaurant deaktiviert." : "Restaurant aktiviert.");
     } catch (e: any) {
-      alert(e.message || "Fehler");
+      toast.error(e.message || "Fehler");
     }
   };
 
@@ -119,9 +122,9 @@ export default function RestaurantClient({
         <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-border pb-6">
           <div>
             <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
-              STANDORTVERWALTUNG
+              STANDORT <span className="text-[#FFC72C]">VERWALTUNG</span>
             </h1>
-            <p className="text-muted-foreground text-sm font-medium">
+            <p className="text-muted-foreground text-sm font-semibold mt-1">
               Standorte anlegen und verwalten (globale Einstellungen)
             </p>
           </div>

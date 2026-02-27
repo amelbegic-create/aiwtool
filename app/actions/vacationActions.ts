@@ -9,6 +9,7 @@ import { GOD_MODE_ROLES } from "@/lib/permissions";
 import { cookies } from "next/headers";
 import { Role } from "@prisma/client";
 import { VACATION_YEAR_MIN, computeCarryOverForYear } from "@/lib/vacationCarryover";
+import { IS_VACATION_ROLLOUT_PHASE, getEarliestAllowedVacationStart } from "@/lib/vacationConfig";
 
 /** Session user shape from next-auth (id from our callback). */
 type SessionUser = { id?: string };
@@ -584,14 +585,24 @@ export async function createVacationRequest(data: {
 
   const restaurantId = await resolveRestaurantIdForSessionUser(sessionUserId);
 
-  // Zahtjev mora biti od sutra – ne može se uzeti od jučer ili danas
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
+  // Ograničenje unosa: rollout faza dozvoljava od 01.01. tekuće godine,
+  // standardna faza dozvoljava max. 1 mjesec unazad.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const earliestAllowed = getEarliestAllowedVacationStart(today);
   const startDate = new Date(data.start);
   startDate.setHours(0, 0, 0, 0);
-  if (startDate < tomorrow) {
-    throw new Error("Das Startdatum muss morgen oder später liegen. Anträge für vergangene Tage sind nicht möglich.");
+
+  if (startDate < earliestAllowed) {
+    const formatted = earliestAllowed.toLocaleDateString("de-AT");
+    if (IS_VACATION_ROLLOUT_PHASE) {
+      throw new Error(
+        `Im Rollout-Modus können Urlaubsanträge nur ab ${formatted} (01.01.${today.getFullYear()}) gestellt werden.`
+      );
+    }
+    throw new Error(
+      `Urlaubsanträge können höchstens 1 Monat rückwirkend gestellt werden (ab ${formatted}).`
+    );
   }
 
   const totalDays = await calculateVacationDays(data.start, data.end, restaurantId);
@@ -657,14 +668,24 @@ export async function updateVacationRequest(id: string, data: { start: string; e
   if (request.userId !== user.id) throw new Error("Das ist nicht Ihr Antrag.");
   if (request.status !== "PENDING") throw new Error("Nur Anträge mit Status „Ausstehend“ können bearbeitet werden.");
 
-  // Zahtjev mora biti od sutra – ne može se uzeti od jučer ili danas
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
+  // Ograničenje unosa: rollout faza dozvoljava od 01.01. tekuće godine,
+  // standardna faza dozvoljava max. 1 mjesec unazad.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const earliestAllowed = getEarliestAllowedVacationStart(today);
   const startDate = new Date(data.start);
   startDate.setHours(0, 0, 0, 0);
-  if (startDate < tomorrow) {
-    throw new Error("Das Startdatum muss morgen oder später liegen. Anträge für vergangene Tage sind nicht möglich.");
+
+  if (startDate < earliestAllowed) {
+    const formatted = earliestAllowed.toLocaleDateString("de-AT");
+    if (IS_VACATION_ROLLOUT_PHASE) {
+      throw new Error(
+        `Im Rollout-Modus können Urlaubsanträge nur ab ${formatted} (01.01.${today.getFullYear()}) gestellt werden.`
+      );
+    }
+    throw new Error(
+      `Urlaubsanträge können höchstens 1 Monat rückwirkend gestellt werden (ab ${formatted}).`
+    );
   }
 
   const restaurantId = request.restaurantId;

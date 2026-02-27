@@ -28,6 +28,8 @@ import { Role } from "@prisma/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
+import { openPdfInSameTab } from "@/lib/pdfUtils";
+import { IS_VACATION_ROLLOUT_PHASE, getEarliestAllowedVacationStart } from "@/lib/vacationConfig";
 
 interface VacationRequest {
   id: string;
@@ -106,11 +108,15 @@ export default function UserView({
     });
   };
 
-  const tomorrow = (() => {
-    const t = new Date();
-    t.setDate(t.getDate() + 1);
-    return t.toISOString().split("T")[0];
+  // Frontend ograničenje: dozvoljeni datumi prema rollout / standard režimu.
+  const earliestStartDateISO = (() => {
+    const earliest = getEarliestAllowedVacationStart(new Date());
+    return earliest.toISOString().split("T")[0];
   })();
+
+  const startLabelHint = IS_VACATION_ROLLOUT_PHASE
+    ? `Von (ab 01.01.${new Date().getFullYear()} – Rollout)`
+    : "Von (max. 1 Monat zurück)";
 
   // Koristimo vrijednosti iz page.tsx koje pravilno računaju vacationAllowances po godini
   const used = userData.usedThisYear;
@@ -218,7 +224,7 @@ export default function UserView({
             doc.text(normalizeText("Erstellt ueber AIWServices Tools"), 105, 290, { align: "center" });
         }
 
-        doc.save(`Urlaubsbericht_${selectedYear}_${userData.name.replace(/\s+/g, "_").replace(/[^\w\-]/g, "")}.pdf`);
+        openPdfInSameTab(doc);
     } catch (error) {
         console.error(error);
         alert("Fehler beim Erstellen der PDF.");
@@ -232,11 +238,16 @@ export default function UserView({
 
     const startDate = new Date(start);
     startDate.setHours(0, 0, 0, 0);
-    const tomorrowDate = new Date();
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    tomorrowDate.setHours(0, 0, 0, 0);
-    if (startDate < tomorrowDate) {
-      return alert("Das Startdatum muss morgen oder später liegen. Anträge für vergangene Tage sind nicht möglich.");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const earliestAllowed = getEarliestAllowedVacationStart(today);
+
+    if (startDate < earliestAllowed) {
+      const formatted = earliestAllowed.toLocaleDateString("de-AT");
+      const message = IS_VACATION_ROLLOUT_PHASE
+        ? `Im Rollout-Modus können Anträge nur ab ${formatted} (01.01.${today.getFullYear()}) gestellt werden.`
+        : `Urlaubsanträge können höchstens 1 Monat rückwirkend gestellt werden (ab ${formatted}).`;
+      return alert(message);
     }
     
     if (new Date(start).getFullYear() !== selectedYear) {
@@ -284,54 +295,58 @@ export default function UserView({
 
   return (
     <div className="min-h-screen bg-background px-4 py-5 sm:p-6 md:p-10 font-sans text-foreground">
-      <div className={`max-w-6xl mx-auto space-y-6 sm:space-y-8 transition-opacity duration-150 ${isPending ? "opacity-60 pointer-events-none" : ""}`}>
-        
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-            <div>
-                <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">
-                    MEIN <span className="text-[#FFC72C]">URLAUB</span>
-                </h1>
-                <p className="text-muted-foreground text-sm font-medium">
-                    Übersicht der Tage und Anträge für <span className="font-bold text-foreground">{selectedYear}</span>
-                </p>
-            </div>
-            
-            <div className="flex flex-col items-end gap-2">
-                <button
-                    onClick={generateUserPDF}
-                    disabled={isExporting}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#FFC72C] hover:bg-[#e6b225] text-[#1a3826] rounded-xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 disabled:opacity-50"
-                >
-                    {isExporting ? <Loader2 size={16} className="animate-spin"/> : <Download size={16} />}
-                    PDF-BERICHT
-                </button>
+      <div
+        className={`max-w-6xl mx-auto space-y-6 sm:space-y-8 transition-opacity duration-150 ${
+          isPending ? "opacity-60 pointer-events-none" : ""
+        }`}
+      >
+        {/* HEADER – unificirani stil kao ADMIN URLAUB */}
+        <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
+              MEIN <span className="text-[#FFC72C]">URLAUB</span>
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium">
+              Übersicht der Tage und Anträge für{" "}
+              <span className="font-bold text-foreground">{selectedYear}</span>
+            </p>
+          </div>
 
-                <div className="flex items-center gap-2">
-                    {isPending && (
-                        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                            <Loader2 size={14} className="animate-spin shrink-0" />
-                            Laden…
-                        </span>
-                    )}
-                    <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full gap-0.5">
-                        {years.map(y => (
-                            <button
-                                key={y}
-                                onClick={() => handleYearChange(y)}
-                                disabled={isPending}
-                                className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap touch-manipulation ${
-                                    selectedYear === y 
-                                    ? "bg-[#1a3826] text-white shadow-md" 
-                                    : "text-muted-foreground hover:bg-accent"
-                                } disabled:opacity-70`}
-                            >
-                                {y}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={generateUserPDF}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-[#FFC72C] hover:bg-[#e6b225] text-[#1a3826] rounded-xl text-xs font-black uppercase shadow-sm transition-all active:scale-95 disabled:opacity-50"
+            >
+              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+              PDF-BERICHT
+            </button>
+
+            <div className="flex items-center gap-2">
+              {isPending && (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin shrink-0" />
+                  Laden…
+                </span>
+              )}
+              <div className="flex bg-card p-1 rounded-xl shadow-sm border border-border overflow-x-auto max-w-full gap-0.5">
+                {years.map((y) => (
+                  <button
+                    key={y}
+                    onClick={() => handleYearChange(y)}
+                    disabled={isPending}
+                    className={`min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap touch-manipulation ${
+                      selectedYear === y
+                        ? "bg-[#1a3826] text-white shadow-md"
+                        : "text-muted-foreground hover:bg-accent"
+                    } disabled:opacity-70`}
+                  >
+                    {y}
+                  </button>
+                ))}
+              </div>
             </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -379,13 +394,13 @@ export default function UserView({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase mb-2 block">
-                    Von (ab morgen)
+                    {startLabelHint}
                   </label>
                   <input
                     type="date"
                     value={start}
                     onChange={(e) => setStart(e.target.value)}
-                    min={tomorrow}
+                    min={earliestStartDateISO}
                     className="w-full border border-border p-3 sm:p-4 min-h-[44px] rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors text-base touch-manipulation"
                   />
                 </div>
@@ -403,11 +418,11 @@ export default function UserView({
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 justify-end mt-6">
                   {editingId && (
                       <button 
                         onClick={() => { setEditingId(null); setStart(""); setEnd(""); }}
-                        className="min-h-[44px] px-6 py-3 rounded-xl font-bold uppercase text-sm bg-muted text-muted-foreground hover:bg-accent transition-colors touch-manipulation"
+                        className="min-h-[44px] px-6 py-3 rounded-sm font-bold uppercase text-sm bg-muted text-muted-foreground hover:bg-accent transition-colors touch-manipulation"
                       >
                           Abbrechen
                       </button>
@@ -415,9 +430,7 @@ export default function UserView({
                   <button
                     onClick={handleSubmit}
                     disabled={loading}
-                    className={`flex-1 min-h-[44px] text-white py-3 rounded-xl font-black uppercase text-sm shadow-md active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed touch-manipulation ${
-                        editingId ? "bg-orange-500 hover:bg-orange-600" : "bg-[#1a3826] hover:bg-[#142e1e]"
-                    }`}
+                    className="min-h-[44px] px-6 py-3 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold uppercase text-sm shadow-sm active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed touch-manipulation"
                   >
                     {loading ? "Wird gesendet…" : editingId ? "AKTUALISIEREN UND SENDEN" : "ANTRAG STELLEN"}
                   </button>

@@ -46,6 +46,7 @@ export default async function UsersPage() {
       id: u.id,
       name: u.name || "Benutzer",
       email: u.email || "",
+      image: u.image ?? null,
       role: u.role,
       departmentId: u.departmentId ?? null,
       departmentName: u.department?.name ?? null,

@@ -24,10 +24,10 @@ export default async function AdminPDSPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">
-              PDS-Vorlagen
+            <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
+              PDS <span className="text-[#FFC72C]">VORLAGEN</span>
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="text-muted-foreground text-sm font-semibold mt-1">
               PDS-Vorlagen für ein, mehrere oder alle Restaurants erstellen und verwalten.
             </p>
           </div>

@@ -101,57 +101,10 @@ export default function RulesGrid({
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground pb-24">
-      {/* Breadcrumbs */}
-      <div className="border-b border-border bg-card/50">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-3">
-          <nav className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link href="/dashboard" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
-              Tools
-            </Link>
-            <ChevronRight size={14} className="opacity-60" />
-            <span className="font-medium text-foreground">Bedienungsanleitungen</span>
-          </nav>
-        </div>
-      </div>
-
-      {/* Sticky Search + Title + Actions */}
+      {/* Sticky Search + Filters (bez dodatnog naslova – glavni naslov je u parent headeru) */}
       <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-6xl mx-auto px-4 md:px-8 py-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="h-10 w-10 rounded-xl bg-[#1a3826] text-[#FFC72C] flex items-center justify-center shrink-0">
-                  <BookOpen size={20} strokeWidth={2} />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="text-lg md:text-xl font-bold text-[#1a3826] dark:text-[#FFC72C] tracking-tight truncate">
-                    Bedienungsanleitungen
-                  </h1>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {showReadStatus && unreadCount > 0 ? (
-                      <span className="font-semibold text-red-600 dark:text-red-400 inline-flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-                        </span>
-                        {unreadCount} ungelesen
-                      </span>
-                    ) : (
-                      "Anweisungen und Abläufe"
-                    )}
-                  </p>
-                </div>
-              </div>
-              {canEdit && (
-                <Link
-                  href="/admin/rules"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] text-white text-sm font-bold hover:bg-[#142e1e] dark:bg-[#FFC72C] dark:text-[#1a3826] dark:hover:bg-[#e0af25] transition-colors min-h-[44px] touch-manipulation"
-                >
-                  <Plus size={18} /> Neue Regel
-                </Link>
-              )}
-            </div>
-
+          <div className="flex flex-col gap-3">
             {/* Search – full width, min 44px */}
             <div className="rounded-xl border border-border bg-muted/50 focus-within:ring-2 focus-within:ring-[#1a3826]/20 dark:focus-within:ring-[#FFC72C]/20 flex items-center gap-3 px-4 py-3 min-h-[44px]">
               <Search size={20} className="text-muted-foreground shrink-0" />

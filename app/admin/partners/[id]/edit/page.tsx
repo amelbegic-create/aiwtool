@@ -25,6 +25,9 @@ export default async function EditPartnerPage({ params }: { params: Promise<{ id
         logoUrl: partner.logoUrl,
         serviceDescription: partner.serviceDescription,
         notes: partner.notes,
+        websiteUrl: partner.websiteUrl,
+        priceListPdfUrl: partner.priceListPdfUrl ?? null,
+        galleryUrls: partner.galleryUrls ?? [],
         contacts: partner.contacts,
       }}
     />

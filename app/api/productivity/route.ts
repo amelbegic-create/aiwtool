@@ -5,12 +5,32 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const restaurantId = searchParams.get("restaurantId");
   const date = searchParams.get("date");
+  const month = searchParams.get("month"); // YYYY-MM
 
-  if (!restaurantId || !date) {
-    return NextResponse.json({ error: "Missing params" }, { status: 400 });
+  if (!restaurantId) {
+    return NextResponse.json({ error: "Missing restaurantId" }, { status: 400 });
   }
 
   try {
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const reports = await prisma.productivityReport.findMany({
+        where: {
+          restaurantId,
+          date: { startsWith: month },
+        },
+        orderBy: { date: "asc" },
+      });
+      const byDate: Record<string, unknown> = {};
+      for (const r of reports) {
+        byDate[r.date] = r.data;
+      }
+      return NextResponse.json({ success: true, data: byDate });
+    }
+
+    if (!date) {
+      return NextResponse.json({ error: "Missing date or month" }, { status: 400 });
+    }
+
     const report = await prisma.productivityReport.findUnique({
       where: {
         restaurantId_date: {

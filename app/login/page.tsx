@@ -70,19 +70,10 @@ export default function LoginPage() {
       >
         <div>
           <div
-            className={`${brandFont.className} text-3xl font-black text-white tracking-tight`}
+            className={`${brandFont.className} aiw-logo-enter text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-black text-white tracking-tight`}
             suppressHydrationWarning
           >
             AIW <span className="text-[#FFC72C]">Services</span>
-          </div>
-          <div className="mt-12 space-y-8">
-            <p className="text-emerald-100/90 text-lg font-medium leading-relaxed max-w-sm">
-              {dict.login_brand_subtitle}
-            </p>
-            <div className="h-px w-16 bg-[#FFC72C]/40 rounded-full" />
-            <p className="text-emerald-200/60 text-sm font-medium">
-              {dict.login_brand_hint}
-            </p>
           </div>
         </div>
         <p className="text-emerald-200/40 text-xs font-medium" suppressHydrationWarning>
@@ -95,7 +86,7 @@ export default function LoginPage() {
         <div className="w-full max-w-[400px]">
           {/* Mobile logo */}
           <div className="md:hidden text-center mb-10" suppressHydrationWarning>
-            <div className={`${brandFont.className} text-3xl font-black text-[#1a3826] dark:text-white tracking-tight`}>
+            <div className={`${brandFont.className} aiw-logo-enter text-3xl font-black text-[#1a3826] dark:text-white tracking-tight`}>
               AIW <span className="text-[#FFC72C]">Services</span>
             </div>
           </div>
@@ -120,16 +111,8 @@ export default function LoginPage() {
               </button>
             </div>
           )}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">
-              {dict.login_title}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {dict.login_subtitle}
-            </p>
-          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 E-Mail-Adresse
@@ -231,7 +214,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-10 text-xs text-muted-foreground text-center">
+          <p className="mt-6 text-xs text-muted-foreground text-center">
             Verwenden Sie Ihre offiziellen Zugangsdaten
           </p>
         </div>

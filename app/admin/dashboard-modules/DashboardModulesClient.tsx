@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LayoutDashboard, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { addDashboardHighlight, removeDashboardHighlight } from "@/app/actions/dashboardHighlightActions";
 import { APP_TOOLS } from "@/lib/tools/tools-config";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
@@ -51,9 +51,8 @@ export default function DashboardModulesClient({ initialHighlights }: Props) {
       <div className="max-w-[900px] mx-auto space-y-8">
         <div className="flex items-end justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
-            <h1 className="text-2xl font-black text-[#1a3826] flex items-center gap-2">
-              <LayoutDashboard size={28} />
-              Dashboard-Konfiguration
+            <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
+              DASHBOARD <span className="text-[#FFC72C]">MODULE</span>
             </h1>
             <p className="text-muted-foreground text-sm font-semibold mt-1">
               Legen Sie fest, welche Module Nutzern auf der Startseite angezeigt werden.

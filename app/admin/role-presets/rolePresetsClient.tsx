@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { PERMISSIONS, GOD_MODE_ROLES } from "@/lib/permissions";
 import { Check, Eraser, Layers, Search, ShieldCheck } from "lucide-react";
 import { getRolePermissionPreset, saveRolePermissionPreset } from "../../actions/rolePresetActions";
+import { toast } from "sonner";
 
 const roles: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"];
 
@@ -115,11 +116,11 @@ export default function RolePresetsClient() {
     setIsSaving(false);
 
     if (!res.success) {
-      alert(res.error || "Fehler beim Speichern.");
+      toast.error(res.error || "Fehler beim Speichern.");
       return;
     }
 
-    alert("Vorlage gespeichert.");
+    toast.success("Erfolgreich gespeichert!");
   };
 
   return (

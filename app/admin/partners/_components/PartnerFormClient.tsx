@@ -7,8 +7,15 @@ import Image from "next/image";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Save, Plus, Trash2, User, Building2, FolderTree, ExternalLink, ImagePlus, Loader2, X } from "lucide-react";
-import { createPartner, updatePartner, uploadPartnerLogo, type PartnerContactInput } from "@/app/actions/partnerActions";
+import { ArrowLeft, Save, Plus, Trash2, User, Building2, FolderTree, ExternalLink, ImagePlus, Loader2, X, Images, FileText } from "lucide-react";
+import {
+  createPartner,
+  updatePartner,
+  uploadPartnerLogo,
+  uploadPartnerGalleryImage,
+  uploadPartnerPriceListPdf,
+  type PartnerContactInput,
+} from "@/app/actions/partnerActions";
 import { toast } from "sonner";
 
 const contactSchema = z.object({
@@ -24,6 +31,9 @@ const formSchema = z.object({
   logoUrl: z.string().optional(),
   serviceDescription: z.string().optional(),
   notes: z.string().optional(),
+  websiteUrl: z.string().optional(),
+  priceListPdfUrl: z.string().optional(),
+  galleryUrls: z.array(z.string()).default([]),
   contacts: z.array(contactSchema),
 });
 
@@ -40,6 +50,9 @@ type PartnerFormClientProps = {
     logoUrl: string | null;
     serviceDescription: string | null;
     notes: string | null;
+    websiteUrl: string | null;
+    priceListPdfUrl: string | null;
+    galleryUrls: string[];
     contacts: Array<{
       id: string;
       contactName: string;
@@ -63,6 +76,9 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           logoUrl: initialData.logoUrl ?? "",
           serviceDescription: initialData.serviceDescription ?? "",
           notes: initialData.notes ?? "",
+          websiteUrl: initialData.websiteUrl ?? "",
+          priceListPdfUrl: initialData.priceListPdfUrl ?? "",
+          galleryUrls: initialData.galleryUrls ?? [],
           contacts:
             initialData.contacts.length > 0
               ? initialData.contacts.map((c) => ({
@@ -79,13 +95,22 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           logoUrl: "",
           serviceDescription: "",
           notes: "",
+          websiteUrl: "",
+          priceListPdfUrl: "",
+          galleryUrls: [],
           contacts: [{ contactName: "", phone: "", email: "", role: "" }],
         },
   });
 
   const logoUrl = form.watch("logoUrl");
+  const galleryUrls = form.watch("galleryUrls");
   const [logoUploading, setLogoUploading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [pdfUploading, setPdfUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const priceListPdfUrl = form.watch("priceListPdfUrl");
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -113,6 +138,70 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
     }
   };
 
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast.error("Bitte nur PDF-Dateien (z. B. Cjenovnik) hochladen.");
+      return;
+    }
+    e.target.value = "";
+    setPdfUploading(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await uploadPartnerPriceListPdf(formData);
+      if (result.success) {
+        form.setValue("priceListPdfUrl", result.url);
+        toast.success("Cjenovnik (PDF) wurde hochgeladen.");
+      } else {
+        toast.error(result.error ?? "Fehler beim Hochladen.");
+      }
+    } catch {
+      toast.error("Fehler beim Hochladen.");
+    } finally {
+      setPdfUploading(false);
+    }
+  };
+
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length) return;
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (!imageFiles.length) {
+      toast.error("Bitte nur Bilddateien auswählen.");
+      return;
+    }
+    setGalleryUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of imageFiles) {
+        const fd = new FormData();
+        fd.set("file", file);
+        const result = await uploadPartnerGalleryImage(fd);
+        if (result.success) {
+          uploaded.push(result.url);
+        } else {
+          toast.error(result.error ?? "Fehler beim Hochladen.");
+        }
+      }
+      if (uploaded.length > 0) {
+        const current = form.getValues("galleryUrls") ?? [];
+        form.setValue(
+          "galleryUrls",
+          [...current, ...uploaded],
+          { shouldDirty: true },
+        );
+        toast.success("Galeriebilder wurden hochgeladen.");
+      }
+    } catch {
+      toast.error("Fehler beim Hochladen.");
+    } finally {
+      setGalleryUploading(false);
+    }
+  };
+
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "contacts" });
 
   const onSubmit = async (values: FormValues) => {
@@ -133,6 +222,9 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           logoUrl: values.logoUrl?.trim() || null,
           serviceDescription: values.serviceDescription?.trim() || undefined,
           notes: values.notes?.trim() || undefined,
+          websiteUrl: values.websiteUrl?.trim() || undefined,
+          priceListPdfUrl: values.priceListPdfUrl?.trim() || null,
+          galleryUrls: values.galleryUrls ?? [],
           contacts,
         });
         toast.success("Unternehmen wurde aktualisiert.");
@@ -143,6 +235,9 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           logoUrl: values.logoUrl?.trim() || null,
           serviceDescription: values.serviceDescription?.trim() || undefined,
           notes: values.notes?.trim() || undefined,
+          websiteUrl: values.websiteUrl?.trim() || undefined,
+          priceListPdfUrl: values.priceListPdfUrl?.trim() || null,
+          galleryUrls: values.galleryUrls ?? [],
           contacts,
         });
         toast.success("Unternehmen wurde hinzugefügt.");
@@ -280,6 +375,121 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                       {logoUploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}
                       {logoUrl ? "Bild ersetzen" : "Logo / Titelbild hinzufügen"}
                     </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Website
+                  </label>
+                  <input
+                    {...form.register("websiteUrl")}
+                    placeholder="https://firma.de"
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-[#1a3826] dark:focus:ring-[#FFC72C] focus:border-transparent"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Offizielle Website des Unternehmens (optional).
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Cjenovnik / Preisliste (PDF)
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    PDF-Dokument (z. B. Cjenovnik) wird auf der Detailseite der Firma angezeigt. Optional.
+                  </p>
+                  <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="sr-only"
+                    onChange={handlePdfUpload}
+                  />
+                  <div className="flex flex-wrap items-center gap-3">
+                    {priceListPdfUrl ? (
+                      <>
+                        <a
+                          href={priceListPdfUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-muted/50 hover:bg-muted text-sm font-medium text-foreground"
+                        >
+                          <FileText size={18} className="text-red-500 shrink-0" />
+                          PDF öffnen
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => form.setValue("priceListPdfUrl", "")}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-sm font-medium"
+                        >
+                          <X size={16} /> Entfernen
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => pdfInputRef.current?.click()}
+                      disabled={pdfUploading}
+                      className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-border text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                    >
+                      {pdfUploading ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
+                      {priceListPdfUrl ? "PDF ersetzen" : "Cjenovnik (PDF) hinzufügen"}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Galerie-Bilder
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Mehrere Bilder zur Illustration der Leistungen (optional).
+                  </p>
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={handleGalleryUpload}
+                  />
+                  <div className="flex flex-wrap items-start gap-4">
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      disabled={galleryUploading}
+                      className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-border text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                    >
+                      {galleryUploading ? <Loader2 size={18} className="animate-spin" /> : <Images size={18} />}
+                      Galerie-Bilder hinzufügen
+                    </button>
+                    {galleryUrls && galleryUrls.length > 0 && (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        {galleryUrls.map((url, idx) => (
+                          <div key={`${url}-${idx}`} className="relative">
+                            <div className="w-24 h-24 rounded-xl border border-border overflow-hidden bg-muted flex items-center justify-center">
+                              <Image
+                                src={url}
+                                alt={`Galeriebild ${idx + 1}`}
+                                width={96}
+                                height={96}
+                                className="object-cover w-full h-full"
+                                unoptimized={url.includes("blob.vercel-storage.com")}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = (galleryUrls || []).filter((u, i) => !(u === url && i === idx));
+                                form.setValue("galleryUrls", next, { shouldDirty: true });
+                              }}
+                              className="absolute -top-2 -right-2 p-1.5 rounded-full bg-red-500 text-white shadow hover:bg-red-600"
+                              title="Bild entfernen"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>

@@ -338,7 +338,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
     if (res?.success) {
       toast.success("Unterschrift gespeichert.");
       router.refresh();
-    } else alert(res?.error ?? 'Fehler beim Speichern der Unterschrift.');
+    } else toast.error(res?.error ?? 'Fehler beim Speichern der Unterschrift.');
   };
 
   return (
@@ -371,8 +371,8 @@ export default function PDSFormClient({ pds, isManager }: Props) {
 
             {canEmployeeEdit && (
                 <>
-                    <button onClick={handleSave} disabled={loading} className="px-5 py-2.5 rounded-xl bg-white border border-slate-300 font-bold text-slate-600 hover:bg-slate-50 text-xs flex items-center gap-2" title="Als Entwurf speichern">
-                        {savedFeedback ? <CheckCircle2 size={16} className="text-emerald-600 shrink-0" /> : <Save size={16}/>}
+                    <button onClick={handleSave} disabled={loading} className="px-5 py-2.5 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-xs flex items-center gap-2 disabled:opacity-60" title="Als Entwurf speichern">
+                        {savedFeedback ? <CheckCircle2 size={16} className="text-black shrink-0" /> : <Save size={16}/>}
                         {savedFeedback ? "GESPEICHERT" : "SPEICHERN"}
                     </button>
                     <button onClick={handleSubmit} disabled={loading} className="px-5 py-2.5 rounded-xl bg-[#1a3826] text-white font-bold hover:bg-[#142e1e] text-xs flex items-center gap-2 shadow-lg" title="Abschließen und einreichen">

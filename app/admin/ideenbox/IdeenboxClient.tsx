@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Lightbulb, Check } from "lucide-react";
+import { Lightbulb, Check, FileText, Image as ImageIcon } from "lucide-react";
 import { markIdeaAsRead } from "@/app/actions/ideaActions";
 import type { IdeaWithUser } from "@/app/actions/ideaActions";
 
@@ -74,9 +75,66 @@ export default function IdeenboxClient({ initialIdeas }: { initialIdeas: IdeaWit
                       <span className="text-muted-foreground">{getRestaurantName(idea)}</span>
                       <span className="text-muted-foreground tabular-nums">{formatDate(idea.createdAt)}</span>
                     </div>
-                    <p className={`mt-2 text-sm whitespace-pre-wrap ${idea.isRead ? "text-muted-foreground" : "text-foreground font-medium"}`}>
+                    <p
+                      className={`mt-2 text-sm whitespace-pre-wrap ${
+                        idea.isRead ? "text-muted-foreground" : "text-foreground font-medium"
+                      }`}
+                    >
                       {idea.text}
                     </p>
+
+                    {/* NOVO: galerija slika + PDF blok */}
+                    {(idea.imageUrls?.length ?? 0) > 0 && (
+                      <div className="mt-3 space-y-1 text-xs">
+                        <p className="font-semibold text-muted-foreground">Bilder</p>
+                        <div className="flex flex-wrap gap-2">
+                          {idea.imageUrls.map((url, idx) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="relative block w-20 h-16 rounded-lg overflow-hidden border border-border bg-muted hover:ring-2 hover:ring-emerald-500/70 transition-all"
+                              title={idea.imageNames?.[idx] ?? undefined}
+                            >
+                              <Image
+                                src={url}
+                                alt={idea.imageNames?.[idx] ?? `Bild ${idx + 1}`}
+                                fill
+                                sizes="80px"
+                                className="object-cover"
+                                unoptimized={url.includes("blob.vercel-storage.com")}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(idea.pdfUrl || idea.attachmentUrl) && (
+                      <div className="mt-3 flex items-center gap-3 text-xs">
+                        <a
+                          href={idea.pdfUrl || idea.attachmentUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-dashed border-border hover:bg-muted text-foreground font-semibold"
+                        >
+                          <FileText size={14} className="text-blue-600" />
+                          <span
+                            className="truncate max-w-[220px]"
+                            title={idea.pdfName ?? idea.attachmentName ?? undefined}
+                          >
+                            {idea.pdfName || idea.attachmentName || "PDF öffnen"}
+                          </span>
+                        </a>
+                        {typeof (idea.pdfSize ?? idea.attachmentSize) === "number" &&
+                          (idea.pdfSize ?? idea.attachmentSize)! > 0 && (
+                            <span className="text-muted-foreground">
+                              {(((idea.pdfSize ?? idea.attachmentSize) as number) / (1024 * 1024)).toFixed(1)} MB
+                            </span>
+                          )}
+                      </div>
+                    )}
                   </div>
                   {!idea.isRead && (
                     <button

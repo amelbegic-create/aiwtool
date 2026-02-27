@@ -273,11 +273,11 @@ export default function RuleEditor({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      alert("Unesite naslov.");
+      toast.error("Bitte Titel eingeben.");
       return;
     }
     if (!categoryId) {
-      alert("Odaberite kategoriju.");
+      toast.error("Bitte Kategorie auswählen.");
       return;
     }
     const content = editor?.getHTML() ?? "";
@@ -296,12 +296,12 @@ export default function RuleEditor({
         restaurantIds: isGlobal ? [] : restaurantIds,
       };
       await saveRule(data, galleryUrls);
-      toast.success(initialRule?.id ? "Pravilo ažurirano." : "Pravilo kreirano.");
+      toast.success(initialRule?.id ? "Regel aktualisiert." : "Regel erstellt.");
       router.push(redirectTo);
       router.refresh();
     } catch (err) {
       console.error(err);
-      alert("Greška pri spremanju.");
+      toast.error("Fehler beim Speichern.");
     } finally {
       setSaving(false);
     }

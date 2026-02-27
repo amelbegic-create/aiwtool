@@ -22,6 +22,9 @@ export type PartnerCompanyInput = {
   logoUrl?: string | null;
   serviceDescription?: string;
   notes?: string;
+  websiteUrl?: string;
+  priceListPdfUrl?: string | null;
+  galleryUrls?: string[];
   contacts: PartnerContactInput[];
 };
 
@@ -115,6 +118,57 @@ export async function uploadPartnerLogo(
   }
 }
 
+/** Upload jedne slike u galeriju partnera. Radi slično kao uploadPartnerLogo, ali u posebnu putanju. */
+export async function uploadPartnerGalleryImage(
+  formData: FormData,
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    await checkPartnersManage();
+    const file = formData.get("file") as File | null;
+    if (!file?.size) return { success: false, error: "Nije odabrana datoteka." };
+    if (!file.type.startsWith("image/")) return { success: false, error: "Dozvoljene su samo slike." };
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) return { success: false, error: "Blob token nije konfiguriran." };
+    const ext = file.name.split(".").pop() || "jpg";
+    const blob = await put(
+      `partners/gallery/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`,
+      file,
+      {
+        access: "public",
+        token,
+        addRandomSuffix: true,
+      },
+    );
+    return { success: true, url: blob.url };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Greška pri uploadu slike." };
+  }
+}
+
+/** Upload cjenovnika (PDF) za partnera. */
+export async function uploadPartnerPriceListPdf(
+  formData: FormData,
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    await checkPartnersManage();
+    const file = formData.get("file") as File | null;
+    if (!file?.size) return { success: false, error: "Nije odabrana datoteka." };
+    if (file.type !== "application/pdf")
+      return { success: false, error: "Dozvoljen je samo PDF (cjenovnik)." };
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) return { success: false, error: "Blob token nije konfiguriran." };
+    const name = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const blob = await put(
+      `partners/pricelist/${Date.now()}-${name}`,
+      file,
+      { access: "public", token, addRandomSuffix: true },
+    );
+    return { success: true, url: blob.url };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Greška pri uploadu PDF-a." };
+  }
+}
+
 export async function createPartnerCategory(name: string, icon?: string | null) {
   await checkPartnersManage();
   if (!name?.trim()) throw new Error("Naziv kategorije je obavezan.");
@@ -168,6 +222,11 @@ export async function createPartner(data: PartnerCompanyInput) {
       logoUrl: data.logoUrl?.trim() || null,
       serviceDescription: data.serviceDescription?.trim() || null,
       notes: data.notes?.trim() || null,
+      websiteUrl: data.websiteUrl?.trim() || null,
+      priceListPdfUrl: data.priceListPdfUrl?.trim() || null,
+      galleryUrls: data.galleryUrls && data.galleryUrls.length > 0
+        ? data.galleryUrls.map((u) => u.trim()).filter(Boolean)
+        : [],
       contacts: {
         create: (data.contacts || [])
           .filter((c) => c.contactName?.trim())
@@ -203,6 +262,11 @@ export async function updatePartner(id: string, data: PartnerCompanyInput) {
         logoUrl: data.logoUrl !== undefined ? (data.logoUrl?.trim() || null) : undefined,
         serviceDescription: data.serviceDescription?.trim() || null,
         notes: data.notes?.trim() || null,
+        websiteUrl: data.websiteUrl !== undefined ? (data.websiteUrl?.trim() || null) : undefined,
+        priceListPdfUrl: data.priceListPdfUrl !== undefined ? (data.priceListPdfUrl?.trim() || null) : undefined,
+        galleryUrls: data.galleryUrls
+          ? data.galleryUrls.map((u) => u.trim()).filter(Boolean)
+          : undefined,
       },
     });
     const validContacts = (data.contacts || []).filter((c) => c.contactName?.trim());

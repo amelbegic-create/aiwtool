@@ -189,3 +189,57 @@ input, select, textarea {
   fill: #991b1b !important;
   stroke: #991b1b !important;
 }
+
+/* Login: AIW Services logo – suptilan ulazni fade-in (jednokratno) */
+@keyframes aiwLogoEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.aiw-logo-enter {
+  animation: aiwLogoEnter 0.6s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aiw-logo-enter {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* McDonald's style toasts: donji desni ugao, zaobljeno, žuta pozadina, crni bold */
+[data-sonner-toaster] {
+  z-index: 99999 !important;
+  position: fixed !important;
+  bottom: 1.5rem !important;
+  right: 1.5rem !important;
+  top: auto !important;
+  left: auto !important;
+}
+
+[data-sonner-toast] {
+  background: #FFBC0D !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  border-radius: 12px !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+[data-sonner-toast] [data-title],
+[data-sonner-toast] [data-description],
+[data-sonner-toast] [data-content] {
+  color: #000 !important;
+  font-weight: 700 !important;
+}
+[data-sonner-toast] [data-button] {
+  background: #000 !important;
+  color: #FFBC0D !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+}

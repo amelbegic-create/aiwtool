@@ -96,7 +96,8 @@ export async function saveLaborData(
     return { success: true };
   } catch (error) {
     console.error("saveLaborData:", error);
-    return { success: false, error: "Fehler beim Speichern." };
+    const message = error instanceof Error ? error.message : "Fehler beim Speichern.";
+    return { success: false, error: message };
   }
 }
 

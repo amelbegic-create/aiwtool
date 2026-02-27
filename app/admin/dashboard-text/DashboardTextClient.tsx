@@ -6,6 +6,7 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { updateDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
 import type { ChangelogEntry } from "@/app/actions/dashboardChangelogActions";
+import { toast } from "sonner";
 
 type Props = {
   initial: ChangelogEntry | null;
@@ -94,9 +95,11 @@ export default function DashboardTextClient({ initial }: Props) {
       if (res.ok) {
         setMessage("saved");
         setTimeout(() => setMessage(null), 3000);
+        toast.success("Erfolgreich gespeichert!");
       } else {
         setMessage("error");
         setTimeout(() => setMessage(null), 5000);
+        toast.error("Fehler beim Speichern.");
       }
     });
   };

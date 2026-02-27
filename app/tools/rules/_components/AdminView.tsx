@@ -43,6 +43,7 @@ import {
   deleteCategory,
   RuleFormData,
 } from "@/app/actions/ruleActions";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 interface AdminViewProps {
@@ -490,7 +491,10 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
   };
 
   const handleSaveRule = async () => {
-    if (!formData.title || !formData.content || !formData.categoryId) return alert("Obavezno: Naslov, Kategorija, Sadržaj");
+    if (!formData.title || !formData.content || !formData.categoryId) {
+      toast.error("Bitte Titel, Kategorie und Inhalt ausfüllen.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -536,8 +540,9 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
 
       setIsRuleModalOpen(false);
       router.refresh();
+      toast.success("Regel gespeichert.");
     } catch (e: any) {
-      alert("Greška: " + e.message);
+      toast.error(e?.message || "Fehler beim Speichern.");
     } finally {
       setIsSubmitting(false);
     }
@@ -1213,7 +1218,7 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
                   <button
                     onClick={handleSaveRule}
                     disabled={isSubmitting}
-                    className="px-6 py-3 rounded-xl bg-[#1a3826] text-white text-xs font-black uppercase hover:bg-[#142e1e] transition inline-flex items-center gap-2 disabled:opacity-70"
+                    className="px-6 py-3 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-xs uppercase transition inline-flex items-center gap-2 disabled:opacity-70"
                     type="button"
                   >
                     {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <UploadCloud size={18} />}

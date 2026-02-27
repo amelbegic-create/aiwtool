@@ -21,6 +21,7 @@ import {
 } from "@/lib/bonusLogic";
 import { saveBonusSheet, syncEmployeesWithUsers } from "@/app/actions/bonusActions";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -40,6 +41,7 @@ export default function BonusToolClient({ initialState }: Props) {
     setSaving(true);
     try {
       await saveBonusSheet(state);
+      toast.success("Erfolgreich gespeichert!");
     } finally {
       setSaving(false);
     }
@@ -63,77 +65,75 @@ export default function BonusToolClient({ initialState }: Props) {
   ];
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-10 font-sans text-foreground">
-      <div className="max-w-[1600px] mx-auto space-y-8">
-        <header className="bg-[#1a3826] text-white rounded-3xl px-5 py-4 md:px-7 md:py-5 shadow-sm border border-black/10">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-xl md:text-2xl font-black tracking-tight">
-                BONUS ALAT{" "}
-                <span className="text-[#FFC72C]">
-                  – {state.settings.baseMonths} mjeseca · plafon {state.settings.capPct}%
-                </span>
-              </h1>
-              <p className="text-xs md:text-sm font-semibold text-white/80 mt-1">
-                Alat za obračun godišnjih bonusa po zaposleniku.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleSyncEmployees}
-                disabled={syncing}
-                className={cn(
-                  "px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border border-white/20 bg-card/5 hover:bg-card/10 transition-colors",
-                  syncing && "opacity-60 cursor-wait",
-                )}
-              >
-                {syncing ? "Sinhronizacija..." : "Sync zaposlenika"}
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide bg-[#FFC72C] text-[#1a3826] hover:bg-[#e6b225] shadow-sm transition-colors",
-                  saving && "opacity-60 cursor-wait",
-                )}
-              >
-                {saving ? "Speichern…" : "Speichern"}
-              </button>
-            </div>
+    <div className="space-y-8">
+      <section className="bg-[#1a3826] text-white rounded-3xl px-5 py-4 md:px-7 md:py-5 shadow-sm border border-black/10">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl md:text-2xl font-black tracking-tight">
+              BONUS ALAT{" "}
+              <span className="text-[#FFC72C]">
+                – {state.settings.baseMonths} mjeseca · plafon {state.settings.capPct}%
+              </span>
+            </h2>
+            <p className="text-xs md:text-sm font-semibold text-white/80 mt-1">
+              Alat za obračun godišnjih bonusa po zaposleniku.
+            </p>
           </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setState((s) => ({ ...s, ui: { ...s.ui, tab: t.id } }))}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-[11px] font-black tracking-wide border border-white/30",
-                  state.ui.tab === t.id ? "bg-[#FFC72C] text-[#1a3826] border-[#FFC72C]" : "bg-card/5 text-white/85",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleSyncEmployees}
+              disabled={syncing}
+              className={cn(
+                "px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wide border border-white/20 bg-card/5 hover:bg-card/10 transition-colors",
+                syncing && "opacity-60 cursor-wait",
+              )}
+            >
+              {syncing ? "Sinhronizacija..." : "Sync zaposlenika"}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={cn(
+                "px-4 py-2 rounded-sm text-xs font-bold uppercase tracking-wide bg-[#FFBC0D] text-black hover:bg-[#e6b225] shadow-sm transition-colors",
+                saving && "opacity-60 cursor-wait",
+              )}
+            >
+              {saving ? "Speichern…" : "Speichern"}
+            </button>
           </div>
-        </header>
+        </div>
 
-        {state.ui.tab === "employee" && selectedEmp && (
-          <EmployeeView state={state} setState={setState} emp={selectedEmp} />
-        )}
+        <div className="mt-4 flex flex-wrap gap-2">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setState((s) => ({ ...s, ui: { ...s.ui, tab: t.id } }))}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-[11px] font-black tracking-wide border border-white/30",
+                state.ui.tab === t.id ? "bg-[#FFC72C] text-[#1a3826] border-[#FFC72C]" : "bg-card/5 text-white/85",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
-        {state.ui.tab === "goals" && (
-          <GoalsView state={state} setState={setState} />
-        )}
+      {state.ui.tab === "employee" && selectedEmp && (
+        <EmployeeView state={state} setState={setState} emp={selectedEmp} />
+      )}
 
-        {state.ui.tab === "overview" && (
-          <OverviewView state={state} setState={setState} />
-        )}
+      {state.ui.tab === "goals" && (
+        <GoalsView state={state} setState={setState} />
+      )}
 
-        {state.ui.tab === "results" && (
-          <ResultsView state={state} />
-        )}
-      </div>
+      {state.ui.tab === "overview" && (
+        <OverviewView state={state} setState={setState} />
+      )}
+
+      {state.ui.tab === "results" && (
+        <ResultsView state={state} />
+      )}
     </div>
   );
 }

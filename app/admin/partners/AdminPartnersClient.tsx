@@ -66,10 +66,10 @@ export default function AdminPartnersClient({
       <div className="max-w-[1600px] mx-auto space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-2xl md:text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter">
-              Firmen und Partner
+            <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
+              PARTNER <span className="text-[#FFC72C]">VERWALTUNG</span>
             </h1>
-            <p className="text-muted-foreground text-sm font-medium mt-1">
+            <p className="text-muted-foreground text-sm font-semibold mt-1">
               Übersicht und Bearbeitung von Lieferanten und Serviceunternehmen
             </p>
           </div>

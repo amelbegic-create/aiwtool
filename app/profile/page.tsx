@@ -95,14 +95,18 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 lg:py-14 safe-area-l safe-area-r">
-        {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
-            Mein Profil
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Persönliche Daten und Kontosicherheit verwalten.
-          </p>
+        {/* Header – unificirani layout */}
+        <div className="mb-8">
+          <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
+                MEIN <span className="text-[#FFC72C]">PROFIL</span>
+              </h1>
+              <p className="text-muted-foreground text-sm font-medium">
+                Persönliche Daten und Kontosicherheit verwalten.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Bento / Split layout – "Dosje zaposlenika": lijevo velika slika, desno podaci */}

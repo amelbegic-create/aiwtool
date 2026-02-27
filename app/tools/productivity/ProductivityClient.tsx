@@ -17,16 +17,16 @@ import {
 import {
   Settings,
   Save,
-  FileText,
+  FileDown,
+  CalendarDays,
   Plus,
   Trash2,
   Calendar,
   Clock,
   X,
-  Check,
-  Edit2,
   Loader2,
   GripVertical,
+  Edit2,
 } from "lucide-react";
 
 // --- TIPOVI ---
@@ -151,8 +151,6 @@ function ProductivityToolContent({
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [activeRestId, setActiveRestId] = useState<string | null>(urlId || defaultRestaurantId || null);
 
-  const [mode, setMode] = useState<"template" | "date">("template");
-  const [selectedTemplateKey, setSelectedTemplateKey] = useState("monday");
   const [selectedDate, setSelectedDate] = useState("");
 
   const [rows, setRows] = useState<Record<number, HourData>>({});
@@ -165,14 +163,40 @@ function ProductivityToolContent({
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoursWhenModalOpenedRef = useRef({ from: 6, to: 1 });
 
-  const [showHoursModal, setShowHoursModal] = useState(false);
-  const [showColumnsModal, setShowColumnsModal] = useState(false);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempName, setTempName] = useState("");
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+  const [templateEditMode, setTemplateEditMode] = useState(false);
+  const [templateEditKey, setTemplateEditKey] = useState("monday");
+  const [templateSelectInModal, setTemplateSelectInModal] = useState("monday");
   const [newColName, setNewColName] = useState("");
+  const calendarDropdownRef = useRef<HTMLDivElement>(null);
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+
+  const handleTableKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== "Enter") return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== "INPUT") return;
+    e.preventDefault();
+    const inputs = tableWrapperRef.current?.querySelectorAll<HTMLInputElement>("input");
+    if (!inputs?.length) return;
+    const list = Array.from(inputs);
+    const idx = list.indexOf(target as HTMLInputElement);
+    const nextIdx = idx < 0 ? 0 : (idx + 1) % list.length;
+    list[nextIdx]?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!showCalendarDropdown) return;
+    const close = (e: MouseEvent) => {
+      if (calendarDropdownRef.current && !calendarDropdownRef.current.contains(e.target as Node)) {
+        setShowCalendarDropdown(false);
+      }
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [showCalendarDropdown]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -205,9 +229,6 @@ function ProductivityToolContent({
     }
   }, [defaultRestaurantId]);
 
-  useEffect(() => {
-    if (mode === "date") setHiddenColumns([]);
-  }, [mode]);
 
   const allStations = useMemo(
     () => [...DEFAULT_STATIONS, ...customStations],
@@ -231,11 +252,8 @@ function ProductivityToolContent({
     return [...ordered, ...rest];
   }, [activeColumns, columnOrder, allStations, hiddenColumns]);
 
-  /** Zadnje dvije stanice se ne prikazuju u gridu; na kraju je jedna kolona „Σ Std.” */
-  const displayStationColumns = useMemo(
-    () => (orderedColumns.length >= 2 ? orderedColumns.slice(0, -2) : orderedColumns),
-    [orderedColumns]
-  );
+  /** Sve odabrane kolone (ukl. Pause, SF Prod.) prikazuju se u gridu; na kraju je kolona „Σ Std.” */
+  const displayStationColumns = useMemo(() => orderedColumns, [orderedColumns]);
 
   const activeHours = useMemo(() => {
     const arr: number[] = [];
@@ -250,12 +268,11 @@ function ProductivityToolContent({
   }, [hoursFrom, hoursTo]);
 
   const loadData = useCallback(async () => {
-    if (!activeRestId) return;
-    const key = mode === "template" ? selectedTemplateKey : selectedDate;
+    if (!activeRestId || !selectedDate) return;
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/productivity?restaurantId=${activeRestId}&date=${key}`
+        `/api/productivity?restaurantId=${activeRestId}&date=${selectedDate}`
       );
       const json = await res.json();
       if (json.success && json.data) {
@@ -265,12 +282,7 @@ function ProductivityToolContent({
         if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
         if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
         if (d.customDayNames) setCustomDayNames(d.customDayNames);
-        if (mode === "template") {
-          if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns);
-          if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
-        } else {
-          setHiddenColumns([]);
-        }
+        setHiddenColumns([]);
         if (d.customStations) setCustomStations(d.customStations);
       } else {
         setRows({});
@@ -280,11 +292,46 @@ function ProductivityToolContent({
     } finally {
       setLoading(false);
     }
-  }, [activeRestId, selectedTemplateKey, selectedDate, mode]);
+  }, [activeRestId, selectedDate]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (selectedDate && !templateEditMode) setRows({});
+  }, [selectedDate, templateEditMode]);
+
+  useEffect(() => {
+    if (!templateEditMode) loadData();
+  }, [loadData, templateEditMode]);
+
+  const loadTemplateForEdit = useCallback(
+    async (key: string) => {
+      if (!activeRestId) return;
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/productivity?restaurantId=${activeRestId}&date=${key}`
+        );
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          setRows(d.rows || {});
+          if (d.netCoeff != null) setNetCoeff(String(d.netCoeff).replace(".", ","));
+          if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
+          if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
+          if (d.customDayNames) setCustomDayNames(d.customDayNames || {});
+          if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns || []);
+          if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
+          if (d.customStations) setCustomStations(d.customStations || []);
+        } else {
+          setRows({});
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeRestId]
+  );
 
   const handleInputChange = (h: number, field: string, val: string) => {
     setRows((prev) => ({ ...prev, [h]: { ...prev[h], [field]: val } }));
@@ -294,7 +341,7 @@ function ProductivityToolContent({
     customDayNames[key] || DAYS.find((d) => d.key === key)?.label || key;
 
   const selectedDateDayName = useMemo(() => {
-    if (mode !== "date" || !selectedDate) return null;
+    if (!selectedDate) return null;
     try {
       const [y, m, d] = selectedDate.split("-").map(Number);
       const date = new Date(y, m - 1, d);
@@ -302,14 +349,50 @@ function ProductivityToolContent({
     } catch {
       return null;
     }
-  }, [mode, selectedDate]);
+  }, [selectedDate]);
 
-  const handleRenameDay = () => {
-    if (tempName.trim()) {
-      setCustomDayNames((prev) => ({ ...prev, [selectedTemplateKey]: tempName }));
+  const activeRestaurantName = useMemo(
+    () => restaurants.find((r) => r.id === activeRestId)?.name ?? restaurants.find((r) => r.id === activeRestId)?.code ?? "Restaurant",
+    [restaurants, activeRestId]
+  );
+  const activeRestaurantCode = useMemo(
+    () => restaurants.find((r) => r.id === activeRestId)?.code ?? "",
+    [restaurants, activeRestId]
+  );
+
+  const calendarMonthYear = useMemo(() => {
+    if (!selectedDate) return { year: new Date().getFullYear(), month: new Date().getMonth() };
+    const [y, m] = selectedDate.split("-").map(Number);
+    return { year: y, month: m - 1 };
+  }, [selectedDate]);
+
+  const [calendarViewMonth, setCalendarViewMonth] = useState<{ year: number; month: number } | null>(null);
+
+  const calendarGrid = useMemo(() => {
+    const view = calendarViewMonth ?? (selectedDate
+      ? (() => {
+          const [y, m] = selectedDate.split("-").map(Number);
+          return { year: y, month: m - 1 };
+        })()
+      : { year: new Date().getFullYear(), month: new Date().getMonth() });
+    const { year, month } = view;
+    const first = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const startDow = first.getDay() === 0 ? 6 : first.getDay() - 1;
+    const cells: { day: number | null }[] = [];
+    for (let i = 0; i < startDow; i++) cells.push({ day: null });
+    for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d });
+    while (cells.length % 7 !== 0) cells.push({ day: null });
+    return { year, month, cells };
+  }, [calendarViewMonth, selectedDate]);
+
+  useEffect(() => {
+    if (showCalendarDropdown && !calendarViewMonth && selectedDate) {
+      const [y, m] = selectedDate.split("-").map(Number);
+      setCalendarViewMonth({ year: y, month: m - 1 });
     }
-    setIsEditingName(false);
-  };
+    if (!showCalendarDropdown) setCalendarViewMonth(null);
+  }, [showCalendarDropdown, selectedDate, calendarViewMonth]);
 
   const totals = useMemo(() => {
     let sumBruto = 0;
@@ -366,21 +449,41 @@ function ProductivityToolContent({
     [rows, netCoeff, hoursFrom, hoursTo, customDayNames, hiddenColumns, customStations, columnOrder, activeColumns]
   );
 
+  useEffect(() => {
+    return () => {
+      if (activeRestId && selectedDate && !templateEditMode) {
+        const payload = getPayload();
+        fetch("/api/productivity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: activeRestId,
+            date: selectedDate,
+            data: payload,
+          }),
+        }).catch(() => {});
+      }
+    };
+  }, [activeRestId, selectedDate, templateEditMode, getPayload]);
+
   const performSave = useCallback(
     async (showToast = true) => {
       if (!activeRestId) {
         if (showToast) toast.error("Bitte Restaurant auswählen.");
         return;
       }
+      if (!selectedDate) {
+        if (showToast) toast.error("Bitte Datum auswählen.");
+        return;
+      }
       setIsSaving(true);
-      const key = mode === "template" ? selectedTemplateKey : selectedDate;
       try {
         const res = await fetch("/api/productivity", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             restaurantId: activeRestId,
-            date: key,
+            date: selectedDate,
             data: getPayload(),
           }),
         });
@@ -395,24 +498,148 @@ function ProductivityToolContent({
         setIsSaving(false);
       }
     },
-    [activeRestId, mode, selectedTemplateKey, selectedDate, getPayload]
+    [activeRestId, selectedDate, getPayload]
   );
 
   const handleSave = useCallback(() => performSave(false), [performSave]);
 
-  const handleBlurSave = useCallback(() => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      saveTimeoutRef.current = null;
-      performSave(false);
-    }, 250);
-  }, [performSave]);
+  const saveTemplate = useCallback(
+    async (key: string) => {
+      if (!activeRestId) {
+        toast.error("Bitte Restaurant auswählen.");
+        return;
+      }
+      setIsSaving(true);
+      try {
+        const res = await fetch("/api/productivity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId: activeRestId,
+            date: key,
+            data: getPayload(),
+          }),
+        });
+        if (res.ok) {
+          toast.success(`Vorlage "${getDayLabel(key)}" gespeichert.`);
+        } else {
+          toast.error("Fehler beim Speichern.");
+        }
+      } catch {
+        toast.error("Fehler beim Speichern.");
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [activeRestId, getPayload, getDayLabel]
+  );
 
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, []);
+  const TEMPLATE_KEYS = useMemo(
+    () => ["monday", "tuesday", "wednesday", "thursday", "friday", "special_1", "special_2", "special_3"] as const,
+    []
+  );
+
+  const handleApplyTemplate = useCallback(
+    async (templateKey: string) => {
+      if (!activeRestId) {
+        toast.error("Bitte Restaurant auswählen.");
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/productivity?restaurantId=${activeRestId}&date=${templateKey}`
+        );
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          setRows(d.rows || {});
+          if (d.netCoeff != null) setNetCoeff(String(d.netCoeff).replace(".", ","));
+          if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
+          if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
+          if (d.customDayNames) setCustomDayNames(d.customDayNames);
+          if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns);
+          if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
+          if (d.customStations) setCustomStations(d.customStations);
+          const label = d.customDayNames?.[templateKey] || DAYS.find((x) => x.key === templateKey)?.label || templateKey;
+          toast.success(`Vorlage ${label} übernommen.`);
+        } else {
+          setRows({});
+          toast.info("Vorlage ist leer.");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Fehler beim Laden der Vorlage.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeRestId]
+  );
+
+  const handleApplyTemplateAndSave = useCallback(
+    async (templateKey: string) => {
+      if (!activeRestId || !selectedDate) {
+        toast.error("Bitte Restaurant und Datum auswählen.");
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/productivity?restaurantId=${activeRestId}&date=${templateKey}`
+        );
+        const json = await res.json();
+        if (json.success && json.data) {
+          const d = json.data;
+          const payload = {
+            rows: d.rows || {},
+            netCoeff: String(d.netCoeff ?? "1.17").replace(".", ",").replace(",", "."),
+            hoursFrom: d.hoursFrom ?? 6,
+            hoursTo: d.hoursTo ?? 1,
+            customDayNames: d.customDayNames || {},
+            hiddenColumns: d.hiddenColumns || [],
+            customStations: d.customStations || [],
+            columnOrder: Array.isArray(d.columnOrder) ? d.columnOrder : [],
+          };
+          const saveRes = await fetch("/api/productivity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              restaurantId: activeRestId,
+              date: selectedDate,
+              data: {
+                ...payload,
+                netCoeff: String(d.netCoeff ?? "1.17").replace(",", "."),
+              },
+            }),
+          });
+          setRows(payload.rows);
+          setNetCoeff(String(d.netCoeff ?? "1.17").replace(".", ","));
+          setHoursFrom(payload.hoursFrom);
+          setHoursTo(payload.hoursTo);
+          setCustomDayNames(payload.customDayNames);
+          setHiddenColumns(payload.hiddenColumns);
+          setColumnOrder(payload.columnOrder.length ? payload.columnOrder : []);
+          setCustomStations(payload.customStations);
+          const label = d.customDayNames?.[templateKey] || DAYS.find((x) => x.key === templateKey)?.label || templateKey;
+          if (saveRes.ok) {
+            toast.success(`Vorlage ${label} übernommen und gespeichert.`);
+          } else {
+            toast.error("Vorlage übernommen, Speichern fehlgeschlagen.");
+          }
+        } else {
+          setRows({});
+          toast.info("Vorlage ist leer.");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Fehler beim Laden der Vorlage.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeRestId, selectedDate]
+  );
 
   const handleClearRow = useCallback((h: number) => {
     setRows((prev) => {
@@ -444,40 +671,102 @@ function ProductivityToolContent({
     [orderedColumns]
   );
 
+  const buildSingleDayTable = (
+    doc: jsPDF,
+    startY: number,
+    dayLabel: string,
+    dayRows: Record<number, HourData>,
+    dayTotals: { sumBruto: number; sumNeto: number; sumStaff: number; avgProd: number; rowStats: { h: number; bruto: number; neto: number; staffTotal: number }[] },
+    daySumByStation: Record<string, number>,
+    cols: Station[]
+  ) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 18;
+    const tableWidth = pageWidth - 2 * margin;
+    const head = ["Uhr", "Brutto €", "Netto €", ...cols.map((s) => s.label), "Σ Std."];
+    const body = dayTotals.rowStats.map((s) => {
+      const row = dayRows[s.h] ?? {};
+      const coeff = parseNum(netCoeff) || 1;
+      const bruto = parseNum(row.rev) || 0;
+      const neto = bruto / coeff;
+      return [
+        formatHourRange(s.h),
+        fmtInt(bruto),
+        fmtInt(neto),
+        ...cols.map((col) => {
+          const val = parseNum(row[col.key]);
+          return val === 0 ? "-" : fmtInt(val);
+        }),
+        fmtInt(s.staffTotal),
+      ];
+    });
+    const footer = [
+      "Gesamt",
+      fmtInt(dayTotals.sumBruto),
+      fmtInt(dayTotals.sumNeto),
+      ...cols.map((col) => (daySumByStation[col.key] !== 0 ? fmtInt(daySumByStation[col.key]) : "-")),
+      fmtInt(dayTotals.sumStaff),
+    ];
+    const colCount = head.length;
+    const timeW = 18;
+    const brutoW = 20;
+    const nettoW = 20;
+    const restW = (tableWidth - timeW - brutoW - nettoW) / Math.max(1, colCount - 3);
+    const colStyles: Record<number, { cellWidth?: number; halign?: string; fontStyle?: string; fillColor?: number[]; textColor?: number[] }> = {
+      0: { cellWidth: timeW, halign: "left", fontStyle: "bold" },
+      1: { cellWidth: brutoW, halign: "center", fontStyle: "bold" },
+      2: { cellWidth: nettoW, halign: "center", fillColor: [255, 249, 230], textColor: [26, 56, 38], fontStyle: "bold" },
+    };
+    cols.forEach((_, i) => {
+      colStyles[3 + i] = { cellWidth: Math.max(restW, 10), halign: "center" };
+    });
+    colStyles[3 + cols.length] = { cellWidth: Math.max(restW, 10), halign: "center", fontStyle: "bold" };
+    autoTable(doc, {
+      startY,
+      head: [head],
+      body: [...body, footer],
+      theme: "grid",
+      headStyles: { fillColor: [26, 56, 38], textColor: 255, fontStyle: "bold", halign: "center", fontSize: 7, cellPadding: 2 },
+      styles: { fontSize: 7, halign: "center", cellPadding: 2, lineColor: [220, 220, 220], lineWidth: 0.1 },
+      columnStyles: colStyles,
+      didParseCell: (data: { row: { index: number }; cell: { styles: Record<string, unknown> } }) => {
+        if (data.row.index === body.length) {
+          data.cell.styles.fillColor = [26, 56, 38];
+          data.cell.styles.textColor = 255;
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
+    });
+    return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+  };
+
   const handleExportPDF = () => {
     const doc = new jsPDF("l", "mm", "a4");
-    const storeIdx = Math.max(0, restaurants.findIndex((r) => r.id === activeRestId) + 1);
-    const storeTitle = storeIdx > 0 ? `Store ${storeIdx}` : "Store";
-    const keyLabel =
-      mode === "template" ? getDayLabel(selectedTemplateKey) : selectedDate;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const restName = activeRestaurantName || "Restaurant";
+    const keyLabel = selectedDateDayName || selectedDate || "Produktivität";
+    const dateFormatted = selectedDate ? new Date(selectedDate + "T12:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
 
     doc.setFillColor(26, 56, 38);
-    doc.rect(0, 0, 297, 28, "F");
-
+    doc.rect(0, 0, pageWidth, 28, "F");
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 199, 44);
     doc.setFontSize(16);
-    doc.text(`${storeTitle} – Produktivität`, 14, 12);
-
+    doc.text(`${restName} – Produktivität`, margin, 10);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text(`${storeTitle} | ${keyLabel}`, 14, 20);
-
+    doc.text(`${keyLabel}  |  ${dateFormatted}`, margin, 18);
     doc.setFontSize(9);
     doc.text(
-      `Brutto: ${fmtInt(totals.sumBruto)} €  |  Netto: ${fmtInt(totals.sumNeto)} €  |  Arbeitsstunden: ${fmtInt(totals.sumStaff)}  |  Prod.: ${fmtInt(totals.avgProd)} €`,
-      14,
-      26
+      `Brutto: ${fmtInt(totals.sumBruto)} €  |  Netto: ${fmtInt(totals.sumNeto)} €  |  Σ MA: ${fmtInt(totals.sumStaff)}  |  Prod.: ${fmtInt(totals.avgProd)} €`,
+      margin,
+      24
     );
     doc.setTextColor(0, 0, 0);
 
-    const head = [
-      "Uhr",
-      "Brutto €",
-      "Netto €",
-      ...displayStationColumns.map((s) => s.label),
-      "Σ Std.",
-    ];
+    const head = ["Uhrzeit", "Brutto (€)", "Netto (€)", ...displayStationColumns.map((s) => s.label), "Σ Std."];
     const body = totals.rowStats.map((s) => {
       const row = rows[s.h] || {};
       return [
@@ -491,57 +780,37 @@ function ProductivityToolContent({
         fmtInt(s.staffTotal),
       ];
     });
-
     const footer = [
       "Gesamt",
       fmtInt(totals.sumBruto),
       fmtInt(totals.sumNeto),
-      ...displayStationColumns.map((col) => {
-        const sum = totals.sumByStation[col.key] ?? 0;
-        return sum !== 0 ? fmtInt(sum) : "-";
-      }),
+      ...displayStationColumns.map((col) => (totals.sumByStation[col.key] !== 0 ? fmtInt(totals.sumByStation[col.key]) : "-")),
       fmtInt(totals.sumStaff),
     ];
-
-    const colCount = head.length;
-    const pageWidth = 297;
-    const margin = 14;
     const tableWidth = pageWidth - 2 * margin;
-    const timeW = 22;
-    const brutoW = 24;
-    const nettoW = 24;
+    const colCount = head.length;
+    const timeW = 24;
+    const brutoW = 26;
+    const nettoW = 26;
     const restW = (tableWidth - timeW - brutoW - nettoW) / Math.max(1, colCount - 3);
-
     const colStyles: Record<number, { cellWidth?: number; halign?: string; fontStyle?: string; fillColor?: number[]; textColor?: number[] }> = {
       0: { cellWidth: timeW, halign: "left", fontStyle: "bold" },
-      1: { cellWidth: brutoW, halign: "center", fontStyle: "bold" },
-      2: { cellWidth: nettoW, halign: "center", fillColor: [255, 249, 230], textColor: [26, 56, 38], fontStyle: "bold" },
+      1: { cellWidth: brutoW, halign: "center", fontStyle: "bold", fillColor: [255, 249, 230], textColor: [26, 56, 38] },
+      2: { cellWidth: nettoW, halign: "center", fontStyle: "bold", fillColor: [255, 249, 230], textColor: [26, 56, 38] },
     };
     displayStationColumns.forEach((_, i) => {
-      colStyles[3 + i] = { cellWidth: Math.max(restW, 12), halign: "center" };
+      colStyles[3 + i] = { cellWidth: Math.max(restW, 14), halign: "center" };
     });
-    colStyles[3 + displayStationColumns.length] = { cellWidth: Math.max(restW, 12), halign: "center", fontStyle: "bold" };
+    colStyles[3 + displayStationColumns.length] = { cellWidth: Math.max(restW, 14), halign: "center", fontStyle: "bold" };
 
     autoTable(doc, {
       startY: 32,
+      margin: { left: margin, right: margin },
       head: [head],
       body: [...body, footer],
       theme: "grid",
-      headStyles: {
-        fillColor: [26, 56, 38],
-        textColor: 255,
-        fontStyle: "bold",
-        halign: "center",
-        fontSize: 7,
-        cellPadding: 2,
-      },
-      styles: {
-        fontSize: 7,
-        halign: "center",
-        cellPadding: 2,
-        lineColor: [220, 220, 220],
-        lineWidth: 0.1,
-      },
+      headStyles: { fillColor: [26, 56, 38], textColor: 255, fontStyle: "bold", halign: "center", fontSize: 7, cellPadding: 2 },
+      styles: { fontSize: 7, halign: "center", cellPadding: 2, lineColor: [220, 220, 220], lineWidth: 0.1 },
       columnStyles: colStyles,
       didParseCell: (data: { row: { index: number }; cell: { styles: Record<string, unknown> } }) => {
         if (data.row.index === body.length) {
@@ -551,8 +820,121 @@ function ProductivityToolContent({
         }
       },
     });
-    doc.save(`Produktivitaet_Store_${storeIdx}_${keyLabel.replace(/\//g, "-")}.pdf`);
+
+    doc.setDrawColor(26, 56, 38);
+    doc.setLineWidth(0.3);
+    doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${restName} – Produktivität – ${keyLabel}  ${dateFormatted}`, margin, pageHeight - 5);
+
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
+
+  const handleExportPDFMonthly = useCallback(async () => {
+    if (!activeRestId || !selectedDate) {
+      toast.error("Bitte Datum auswählen.");
+      return;
+    }
+    const [y, m] = selectedDate.split("-").map(Number);
+    const monthStr = `${y}-${String(m).padStart(2, "0")}`;
+    const restName = activeRestaurantName || "Restaurant";
+    try {
+      const res = await fetch(`/api/productivity?restaurantId=${activeRestId}&month=${monthStr}`);
+      const json = await res.json();
+      if (!json.success || !json.data) {
+        toast.error("Keine Daten für diesen Monat.");
+        return;
+      }
+      const byDate = json.data as Record<string, { rows?: Record<number, HourData>; netCoeff?: number; customStations?: Station[] }>;
+      const dates = Object.keys(byDate).sort();
+      if (dates.length === 0) {
+        toast.error("Keine Daten für diesen Monat.");
+        return;
+      }
+      const doc = new jsPDF("p", "mm", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 18;
+      const monthLabel = new Date(y, m - 1, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+      const dayCols = displayStationColumns.length ? displayStationColumns : DEFAULT_STATIONS;
+
+      dates.forEach((dateKey, dayIndex) => {
+        const dayData = byDate[dateKey];
+        if (!dayData?.rows) return;
+
+        if (dayIndex > 0) doc.addPage("p", "mm", "a4");
+
+        const dayRows = dayData.rows as Record<number, HourData>;
+        const coeff = (dayData.netCoeff != null ? Number(dayData.netCoeff) : parseNum(netCoeff)) || 1;
+        const rowStats: { h: number; bruto: number; neto: number; staffTotal: number }[] = [];
+        let sumBruto = 0, sumNeto = 0, sumStaff = 0;
+        const sumByStation: Record<string, number> = {};
+        const hoursUsed = new Set<number>();
+        Object.keys(dayRows).forEach((k) => hoursUsed.add(Number(k)));
+        const sortedHours = Array.from(hoursUsed).sort((a, b) => a - b);
+        for (const h of sortedHours) {
+          const row = dayRows[h] ?? {};
+          const bruto = parseNum(row.rev) || 0;
+          const neto = bruto / coeff;
+          let staffTotal = 0;
+          dayCols.forEach((s) => {
+            const v = parseNum(row[s.key]);
+            sumByStation[s.key] = (sumByStation[s.key] ?? 0) + v;
+            if (s.key !== "pause") staffTotal += v;
+          });
+          staffTotal -= parseNum(row["pause"]) || 0;
+          staffTotal = Math.max(0, staffTotal);
+          sumBruto += bruto;
+          sumNeto += neto;
+          sumStaff += staffTotal;
+          rowStats.push({ h, bruto, neto, staffTotal });
+        }
+        const avgProd = sumStaff > 0 ? sumNeto / sumStaff : 0;
+        const dayLabel = new Date(dateKey + "T12:00:00").toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+
+        if (dayIndex === 0) {
+          doc.setFillColor(26, 56, 38);
+          doc.rect(0, 0, pageWidth, 32, "F");
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(255, 199, 44);
+          doc.setFontSize(16);
+          doc.text(`${restName} – Produktivität monatlich`, margin, 12);
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(10);
+          doc.text(monthLabel, margin, 22);
+          doc.setTextColor(0, 0, 0);
+        }
+
+        let startY = dayIndex === 0 ? 40 : 20;
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(26, 56, 38);
+        doc.text(dayLabel, margin, startY);
+        startY += 6;
+        startY = buildSingleDayTable(doc, startY, dayLabel, dayRows, { sumBruto, sumNeto, sumStaff, avgProd, rowStats }, sumByStation, dayCols);
+      });
+
+      doc.setDrawColor(26, 56, 38);
+      doc.setLineWidth(0.3);
+      doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`${restName} – Produktivität monatlich – ${monthLabel}`, margin, pageHeight - 6);
+
+      const blob = doc.output("blob");
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      toast.success("PDF monatlich erstellt.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Erstellen des Monats-PDF.");
+    }
+  }, [activeRestId, selectedDate, activeRestaurantName, displayStationColumns, netCoeff]);
 
   const handleReset = () => {
     setRows({});
@@ -578,152 +960,248 @@ function ProductivityToolContent({
         </div>
       )}
 
-      <div className="shrink-0 text-white" style={{ backgroundColor: COLORS.green }}>
-        <div className="max-w-[1920px] mx-auto px-4 py-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <h1 className="flex items-baseline gap-0.5 text-lg font-bold tracking-tight">
-              <span style={{ color: COLORS.yellow }}>Prod</span>
-              <span>Tool</span>
-            </h1>
-            <div className="flex rounded-md overflow-hidden border border-white/20 bg-white/5">
-              <button
-                onClick={() => setMode("template")}
-                className={`px-3 py-2 text-xs font-semibold flex items-center gap-1.5 ${
-                  mode === "template" ? "bg-white/20 text-white" : "text-white/80 hover:bg-white/10"
-                }`}
-              >
-                <Settings size={12} /> Vorlagen
-              </button>
-              <button
-                onClick={() => setMode("date")}
-                className={`px-3 py-2 text-xs font-semibold flex items-center gap-1.5 ${
-                  mode === "date" ? "bg-white/20 text-white" : "text-white/80 hover:bg-white/10"
-                }`}
-              >
-                <Calendar size={12} /> Kalender
-              </button>
-            </div>
-            {mode === "template" ? (
-              <div className="flex items-center gap-1">
-                {isEditingName ? (
-                  <div className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded-md border border-white/20">
-                    <input
-                      autoFocus
-                      type="text"
-                      value={tempName}
-                      onChange={(e) => setTempName(e.target.value)}
-                      className="w-28 p-1 text-sm outline-none bg-transparent text-white placeholder:text-white/50"
-                    />
-                    <button onClick={handleRenameDay} className="p-0.5 text-white hover:bg-white/20 rounded">
-                      <Check size={14} />
-                    </button>
-                    <button onClick={() => setIsEditingName(false)} className="p-0.5 text-white/70 hover:bg-white/20 rounded">
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <select
-                      value={selectedTemplateKey}
-                      onChange={(e) => setSelectedTemplateKey(e.target.value)}
-                      className="h-8 pl-2 pr-7 bg-white/10 border border-white/20 rounded-md text-sm font-medium text-white appearance-none outline-none focus:ring-1 focus:ring-white/40"
-                    >
-                      {DAYS.map((d) => (
-                        <option key={d.key} value={d.key} className="bg-[#1b3a26] text-white">
-                          {getDayLabel(d.key)}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedTemplateKey.startsWith("special") && (
-                      <button
-                        onClick={() => {
-                          setTempName(getDayLabel(selectedTemplateKey));
-                          setIsEditingName(true);
-                        }}
-                        className="p-1.5 border border-white/20 rounded-md text-white/80 hover:bg-white/10"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                    )}
-                  </>
+      {/* HEADER – naslov + veliki broj restorana, jedan red: kontrole (manje) | KPI (veće) | akcije (manje) */}
+      <div className="w-full px-4 pt-4 pb-4 sm:px-6 md:px-8 border-b border-border bg-white">
+        <div className="max-w-[1920px] mx-auto">
+          <div className="flex flex-col gap-3">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter leading-tight flex flex-wrap items-baseline gap-2">
+                PROD <span className="text-[#FFC72C]">TOOL</span>
+                {activeRestaurantCode && (
+                  <span className="text-[#1a3826] dark:text-[#FFC72C] tabular-nums" aria-label={`Restaurant ${activeRestaurantCode}`}>
+                    {activeRestaurantCode}
+                  </span>
                 )}
-              </div>
-            ) : (
-              <div className="relative inline-flex">
-                <div
-                  className="flex items-center gap-2 h-8 pl-3 pr-2 bg-white/10 border border-white/20 rounded-md text-sm font-semibold text-white whitespace-nowrap pointer-events-none"
-                  aria-hidden
-                >
-                  <span>{selectedDateDayName ?? "Datum wählen"}</span>
-                  <Calendar size={16} className="text-white/80 shrink-0" />
+              </h1>
+              <p className="text-muted-foreground text-xs mt-1">
+                Produktivitätsplanung pro Stunde und Station.
+              </p>
+            </div>
+            <div className="flex flex-nowrap items-center gap-3 pt-2 border-t border-border min-h-[3.5rem]">
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="relative" ref={calendarDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCalendarDropdown((v) => !v)}
+                    className="flex items-center gap-1.5 h-8 pl-2.5 pr-3 rounded-lg border border-[#1b3a26]/25 bg-[#1b3a26]/5 hover:bg-[#1b3a26]/10 text-foreground font-medium text-xs transition-colors focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
+                    aria-expanded={showCalendarDropdown}
+                    aria-haspopup="dialog"
+                    aria-label="Datum auswählen"
+                  >
+                    <Calendar size={14} className="text-[#1b3a26] shrink-0" />
+                    <span className="min-w-[6rem] text-left">
+                      {selectedDate
+                        ? `${selectedDateDayName}, ${selectedDate.split("-").reverse().join(".")}`
+                        : "Datum wählen"}
+                    </span>
+                  </button>
+                {showCalendarDropdown && (
+                  <div className="absolute left-0 top-full mt-2 z-50 rounded-xl border-2 border-border bg-white shadow-xl p-4 w-[304px]">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-bold text-base text-[#1a3826]">
+                        {new Date(calendarGrid.year, calendarGrid.month, 1).toLocaleDateString("de-DE", {
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCalendarViewMonth((prev) => {
+                              const p = prev ?? { year: calendarGrid.year, month: calendarGrid.month };
+                              const d = new Date(p.year, p.month - 1, 1);
+                              return { year: d.getFullYear(), month: d.getMonth() };
+                            });
+                          }}
+                          className="p-2 rounded-lg hover:bg-muted text-[#1a3826] font-bold text-lg leading-none"
+                        >
+                          ‹
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCalendarViewMonth((prev) => {
+                              const p = prev ?? { year: calendarGrid.year, month: calendarGrid.month };
+                              const d = new Date(p.year, p.month + 1, 1);
+                              return { year: d.getFullYear(), month: d.getMonth() };
+                            });
+                          }}
+                          className="p-2 rounded-lg hover:bg-muted text-[#1a3826] font-bold text-lg leading-none"
+                        >
+                          ›
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-muted-foreground mb-1">
+                      {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((w) => (
+                        <span key={w}>{w}</span>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {calendarGrid.cells.map((cell, idx) => {
+                        const dateStr =
+                          cell.day !== null
+                            ? `${calendarGrid.year}-${String(calendarGrid.month + 1).padStart(2, "0")}-${String(cell.day).padStart(2, "0")}`
+                            : "";
+                        const isSelected = selectedDate === dateStr;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (cell.day === null) return;
+                              setSelectedDate(
+                                `${calendarGrid.year}-${String(calendarGrid.month + 1).padStart(2, "0")}-${String(cell.day).padStart(2, "0")}`
+                              );
+                              setShowCalendarDropdown(false);
+                            }}
+                            className={`min-h-[36px] w-full rounded-lg text-sm font-semibold transition-colors flex items-center justify-center ${
+                              cell.day === null
+                                ? "invisible"
+                                : isSelected
+                                  ? "bg-[#1b3a26] text-white"
+                                  : "text-[#1a3826] hover:bg-[#1b3a26]/15"
+                            }`}
+                          >
+                            {cell.day ?? ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 </div>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  title={selectedDateDayName ?? "Datum wählen"}
-                  aria-label="Datum wählen"
-                />
+                <label htmlFor="prod-template-select" className="text-xs font-medium text-muted-foreground whitespace-nowrap sr-only sm:not-sr-only">
+                  Vorlage:
+                </label>
+                <select
+                  id="prod-template-select"
+                  aria-label="Template übernehmen"
+                  className="h-8 pl-2 pr-7 rounded-lg border border-[#1b3a26]/25 bg-[#1b3a26]/5 text-foreground font-medium text-xs focus:ring-2 focus:ring-[#1b3a26]/30 outline-none cursor-pointer shrink-0"
+                  value=""
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) return;
+                    e.target.value = "";
+                    if (!selectedDate) {
+                      toast.error("Bitte zuerst ein Datum wählen.");
+                      return;
+                    }
+                    handleApplyTemplateAndSave(v);
+                  }}
+                >
+                  <option value="">Template wählen…</option>
+                  {TEMPLATE_KEYS.map((key) => (
+                    <option key={key} value={key}>
+                      {getDayLabel(key)}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
-            <div className="flex items-center gap-2 border-l border-white/20 pl-4">
-              <span className="text-[10px] font-medium text-white/80">Brutto</span>
-              <span className="tabular-nums font-semibold text-white">{fmtInt(totals.sumBruto)} €</span>
-              <span className="text-white/50">|</span>
-              <span className="text-[10px] font-medium text-white/80">Netto</span>
-              <span className="tabular-nums font-semibold text-white">{fmtInt(totals.sumNeto)} €</span>
-              <span className="text-white/50">|</span>
-              <span className="text-[10px] font-medium text-white/80">Σ MA</span>
-              <span className="tabular-nums font-semibold text-white">{fmtInt(totals.sumStaff)}</span>
-              <span className="text-white/50">|</span>
-              <span className="text-[10px] font-medium text-white/80">Prod.</span>
-              <span className="tabular-nums font-semibold text-white">{fmtInt(totals.avgProd)} €</span>
-            </div>
-            <div className="flex items-center gap-2 border-l border-white/20 pl-4">
-              <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-bold uppercase text-white/90">Köff.</span>
-              <input
-                type="text"
-                value={netCoeff}
-                onChange={(e) => setNetCoeff(e.target.value)}
-                className="w-11 h-6 px-1 bg-white/15 border border-white/20 rounded text-center text-xs font-semibold text-white outline-none focus:ring-1 focus:ring-white/40"
-              />
-            </div>
-            <div className="flex items-center gap-1 ml-2">
-              <button
-                onClick={() => {
-                  hoursWhenModalOpenedRef.current = { from: hoursFrom, to: hoursTo };
-                  setShowHoursModal(true);
-                }}
-                className="p-2 rounded-md hover:bg-white/10 text-white/80 hover:text-white"
-                title="Zeitspanne"
-              >
-                <Clock size={16} />
-              </button>
-              <button onClick={() => setShowColumnsModal(true)} className="p-2 rounded-md hover:bg-white/10 text-white/80 hover:text-white" title="Spalten">
-                <Settings size={16} />
-              </button>
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <button onClick={handleSave} className="px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1.5 text-[#1b3a26] bg-white/90 hover:bg-white" title="Speichern">
-                <Save size={14} /> Speichern
-              </button>
-              <button onClick={handleReset} className="px-3 py-1.5 rounded text-xs font-medium text-white/90 hover:bg-white/10 border border-white/20" title="Zurücksetzen">
-                <Trash2 size={12} /> Zurücksetzen
-              </button>
-              <button onClick={handleExportPDF} className="px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1.5 text-white/90 hover:bg-white/10 border border-white/20" title="PDF">
-                <FileText size={14} /> PDF
-              </button>
+              <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-center flex-nowrap overflow-x-auto py-0.5">
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1b3a26] text-white min-h-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide opacity-90 whitespace-nowrap">Brutto</span>
+                  <span className="tabular-nums font-bold text-sm whitespace-nowrap">{fmtInt(totals.sumBruto)} €</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shadow-sm min-h-0" style={{ backgroundColor: COLORS.yellow }}>
+                  <span className="text-[10px] font-semibold text-[#1a3826] uppercase tracking-wide whitespace-nowrap">Netto</span>
+                  <span className="tabular-nums font-bold text-sm text-[#1a3826] whitespace-nowrap">{fmtInt(totals.sumNeto)} €</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1b3a26] text-white min-h-0">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide opacity-90 whitespace-nowrap">Σ MA</span>
+                  <span className="tabular-nums font-bold text-sm whitespace-nowrap">{fmtInt(totals.sumStaff)}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shadow-sm min-h-0" style={{ backgroundColor: COLORS.yellow }}>
+                  <span className="text-[10px] font-semibold text-[#1a3826] uppercase tracking-wide whitespace-nowrap">Prod.</span>
+                  <span className="tabular-nums font-bold text-sm text-[#1a3826] whitespace-nowrap">{fmtInt(totals.avgProd)} €</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    hoursWhenModalOpenedRef.current = { from: hoursFrom, to: hoursTo };
+                    setShowSettingsModal(true);
+                  }}
+                  className="h-8 w-8 rounded-lg border border-[#1b3a26]/25 bg-[#1b3a26]/5 hover:bg-[#1b3a26]/10 flex items-center justify-center text-[#1b3a26] transition-colors"
+                  title="Einstellungen"
+                >
+                  <Settings size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="h-8 px-3 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                  title="Speichern"
+                >
+                  <Save size={14} strokeWidth={2.5} className="shrink-0" />
+                  <span className="whitespace-nowrap">Speichern</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportPDF}
+                  className="h-8 px-3 rounded-lg bg-[#FFC72C] text-[#1a3826] hover:bg-[#e6b225] transition flex items-center justify-center gap-1 shadow-sm font-bold text-xs"
+                  title="PDF aktuell (Tag)"
+                >
+                  <FileDown size={14} strokeWidth={2.5} className="shrink-0" />
+                  <span className="whitespace-nowrap">PDF aktuell</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExportPDFMonthly()}
+                  className="h-8 px-3 rounded-lg bg-[#FFC72C] text-[#1a3826] hover:bg-[#e6b225] transition flex items-center justify-center gap-1 shadow-sm font-bold text-xs"
+                  title="PDF monatlich (Restaurant)"
+                >
+                  <CalendarDays size={14} strokeWidth={2.5} className="shrink-0" />
+                  <span className="whitespace-nowrap">PDF monatlich</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="h-8 px-3 rounded-lg bg-[#FFC72C] text-red-600 hover:bg-[#e6b225] transition flex items-center justify-center gap-1 shadow-sm font-bold text-xs"
+                  title="Zurücksetzen"
+                >
+                  <Trash2 size={14} strokeWidth={2.5} className="shrink-0" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {templateEditMode && (
+        <div className="w-full px-4 py-3 sm:px-6 md:px-8 bg-[#1b3a26]/10 border-b border-[#1b3a26]/20">
+          <div className="max-w-[1920px] mx-auto flex flex-wrap items-center gap-3">
+            <span className="font-semibold text-[#1a3826]">Vorlage: {getDayLabel(templateEditKey)}</span>
+            <button
+              type="button"
+              onClick={() => saveTemplate(templateEditKey)}
+              className="h-10 px-4 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-sm flex items-center gap-2 shadow-sm"
+            >
+              <Save size={18} strokeWidth={2.5} /> Speichern
+            </button>
+            <button
+              type="button"
+              onClick={() => setTemplateEditMode(false)}
+              className="h-10 px-4 rounded-lg border-2 border-[#1b3a26]/30 text-[#1a3826] hover:bg-[#1b3a26]/10 font-semibold text-sm"
+            >
+              Fertig
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto p-4 bg-muted/20">
         <div className="bg-white rounded-lg border border-border shadow-sm w-full overflow-hidden">
           <div
+            ref={tableWrapperRef}
             className="overflow-x-auto relative"
             style={{ maxHeight: "calc(100vh - 160px)" }}
+            onKeyDown={handleTableKeyDown}
           >
             <DndContext sensors={sensors} onDragEnd={handleColumnDragEnd}>
             <table className="w-full text-[11px] border-collapse [&>tbody>tr:last-child]:border-b-0" style={{ borderColor: "#d1d5db" }}>
@@ -771,7 +1249,6 @@ function ProductivityToolContent({
                           type="text"
                           value={row.rev || ""}
                           onChange={(e) => handleInputChange(stat.h, "rev", e.target.value)}
-                          onBlur={handleBlurSave}
                           className="w-full h-7 px-1 bg-transparent text-center font-medium text-foreground focus:bg-white focus:ring-1 focus:ring-[#1b3a26] outline-none border-0 tabular-nums"
                           placeholder="0"
                         />
@@ -785,7 +1262,6 @@ function ProductivityToolContent({
                             type="text"
                             value={row[s.key] || ""}
                             onChange={(e) => handleInputChange(stat.h, s.key, e.target.value)}
-                            onBlur={handleBlurSave}
                             className="w-full h-7 px-0.5 bg-transparent text-center text-foreground font-medium focus:bg-white focus:ring-1 focus:ring-[#1b3a26] outline-none border-0 tabular-nums"
                             placeholder="-"
                           />
@@ -828,149 +1304,225 @@ function ProductivityToolContent({
         </div>
       </div>
 
-      {showHoursModal && (
+      {showSettingsModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm border border-gray-200">
-            <h3 className="font-bold text-lg text-center mb-4" style={{ color: COLORS.green }}>
-              Zeitspanne einstellen
-            </h3>
-            <div className="flex gap-4 mb-6">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Start</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={hoursFrom}
-                  onChange={(e) => setHoursFrom(Number(e.target.value))}
-                  className="w-full h-12 border border-border rounded-lg text-xl font-medium text-center text-foreground bg-background focus:ring-1 focus:ring-ring outline-none"
-                />
-              </div>
-              <div className="flex items-center text-muted-foreground pt-6 text-lg">→</div>
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-muted-foreground mb-1">Ende</label>
-                <input
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={hoursTo}
-                  onChange={(e) => setHoursTo(Number(e.target.value))}
-                  className="w-full h-12 border border-border rounded-lg text-xl font-medium text-center text-foreground bg-background focus:ring-1 focus:ring-ring outline-none"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-border overflow-hidden">
+            <div className="shrink-0 flex justify-between items-center px-6 py-4 border-b border-border bg-[#1b3a26]/5">
+              <h2 className="font-bold text-xl text-[#1a3826] flex items-center gap-2">
+                <Settings size={24} /> Einstellungen
+              </h2>
               <button
                 type="button"
-                onClick={() => {
-                  setHoursFrom(hoursWhenModalOpenedRef.current.from);
-                  setHoursTo(hoursWhenModalOpenedRef.current.to);
-                  setShowHoursModal(false);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm border border-border text-muted-foreground hover:bg-muted transition-colors"
+                onClick={() => setShowSettingsModal(false)}
+                className="p-2 rounded-xl hover:bg-[#1b3a26]/10 text-[#1a3826] transition-colors"
               >
-                <X size={18} /> Abbrechen
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowHoursModal(false)}
-                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-bold text-sm text-[#1b3a26] hover:opacity-95 transition-opacity"
-                style={{ backgroundColor: COLORS.yellow }}
-              >
-                <Check size={18} /> Übernehmen
+                <X size={22} />
               </button>
             </div>
-          </div>
-        </div>
-      )}
+            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+              {/* 1. Arbeitszeit & Berechnung */}
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="rounded-xl border border-border bg-muted/20 p-4">
+                  <h3 className="text-sm font-bold text-[#1a3826] mb-3 flex items-center gap-2">
+                    <Clock size={18} /> Arbeitszeit (Zeitspanne)
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-3">Stundenbereich für die Tabelle (Start → Ende).</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="block text-[11px] text-muted-foreground mb-1">Start</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={23}
+                        value={hoursFrom}
+                        onChange={(e) => setHoursFrom(Number(e.target.value))}
+                        className="w-full h-10 border border-border rounded-lg text-center font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
+                      />
+                    </div>
+                    <span className="text-muted-foreground pt-5 text-sm">→</span>
+                    <div className="flex-1">
+                      <label className="block text-[11px] text-muted-foreground mb-1">Ende</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={23}
+                        value={hoursTo}
+                        onChange={(e) => setHoursTo(Number(e.target.value))}
+                        className="w-full h-10 border border-border rounded-lg text-center font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-muted/20 p-4">
+                  <h3 className="text-sm font-bold text-[#1a3826] mb-3">Koeffizient (Köff.)</h3>
+                  <p className="text-xs text-muted-foreground mb-3">Brutto/Netto-Umrechnung für die Tabelle.</p>
+                  <input
+                    type="text"
+                    value={netCoeff}
+                    onChange={(e) => setNetCoeff(e.target.value)}
+                    className="w-24 h-10 px-3 border border-border rounded-lg text-center font-semibold bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
+                  />
+                </div>
+              </section>
 
-      {showColumnsModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white p-5 rounded-xl shadow-xl w-full max-md max-h-[85vh] flex flex-col border border-gray-200">
-            <div className="flex justify-between items-center mb-4 border-b border-gray-200 pb-3 shrink-0">
-              <h3 className="font-bold text-base flex items-center gap-2" style={{ color: COLORS.green }}>
-                <Settings size={18} /> Spalten & Stationen
-              </h3>
+              {/* 2. Vorlagen – jedna sekcija, dva jasna akta */}
+              <section className="rounded-xl border border-border bg-muted/20 p-4">
+                <h3 className="text-sm font-bold text-[#1a3826] mb-1">Vorlagen</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Vorlagen sind gespeicherte Tages-Pläne (z. B. Montag). Sie können eine Vorlage auf das aktuelle Datum anwenden oder eine Vorlage bearbeiten.
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-1.5">
+                      1. Vorlage auf aktuelles Datum anwenden
+                    </label>
+                    <p className="text-[11px] text-muted-foreground mb-2">
+                      Wählen Sie eine Vorlage – die Daten werden für das heute gewählte Kalenderdatum übernommen und gespeichert.
+                    </p>
+                    <select
+                      aria-label="Vorlage auf aktuelles Datum anwenden"
+                      className="w-full max-w-xs h-10 pl-3 pr-9 border border-border rounded-lg font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
+                      defaultValue=""
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v) {
+                          handleApplyTemplateAndSave(v);
+                          e.target.value = "";
+                        }
+                      }}
+                    >
+                      <option value="">Vorlage wählen…</option>
+                      {TEMPLATE_KEYS.map((key) => (
+                        <option key={key} value={key}>
+                          {getDayLabel(key)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="pt-3 border-t border-border">
+                    <label className="block text-xs font-semibold text-foreground mb-1.5">
+                      2. Vorlage bearbeiten (Tabelle öffnen)
+                    </label>
+                    <p className="text-[11px] text-muted-foreground mb-2">
+                      Wählen Sie einen Tag (z. B. Freitag) und klicken Sie „Öffnen“ – die Tabelle zeigt dann diese Vorlage zum Bearbeiten und Speichern.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={templateSelectInModal}
+                        onChange={(e) => setTemplateSelectInModal(e.target.value)}
+                        className="h-10 pl-3 pr-9 border border-border rounded-lg font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none min-w-[11rem]"
+                      >
+                        {TEMPLATE_KEYS.map((key) => (
+                          <option key={key} value={key}>
+                            {getDayLabel(key)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTemplateEditKey(templateSelectInModal);
+                          setShowSettingsModal(false);
+                          setTemplateEditMode(true);
+                          loadTemplateForEdit(templateSelectInModal);
+                        }}
+                        className="h-10 px-4 rounded-lg bg-[#1b3a26] text-white hover:bg-[#1b3a26]/90 font-semibold text-sm flex items-center gap-2"
+                      >
+                        <Edit2 size={16} /> Öffnen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* 3. Spalten – male checkboxe, sve kolone ukl. Pause */}
+              <section className="rounded-xl border border-border bg-muted/20 p-4">
+                <h3 className="text-sm font-bold text-[#1a3826] mb-1">Spalten in der Tabelle</h3>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Ein Häkchen = Spalte wird in der Tabelle angezeigt. Kein Häkchen = Spalte ausgeblendet.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {DEFAULT_STATIONS.map((s) => {
+                    const isVisible = !hiddenColumns.includes(s.key);
+                    return (
+                      <label
+                        key={s.key}
+                        className={`flex items-center gap-2 py-2 px-2.5 rounded-lg border cursor-pointer transition-colors ${
+                          isVisible ? "border-[#1b3a26]/30 bg-[#1b3a26]/5" : "border-border bg-background"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isVisible}
+                          onChange={() => {
+                            if (isVisible)
+                              setHiddenColumns((prev) => [...prev, s.key]);
+                            else
+                              setHiddenColumns((prev) => prev.filter((k) => k !== s.key));
+                          }}
+                          className="w-4 h-4 rounded border-border text-[#1b3a26] focus:ring-[#1b3a26]/50 cursor-pointer shrink-0"
+                        />
+                        <span className="text-xs font-medium text-foreground truncate">{s.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 pt-4 border-t border-border">
+                  <h4 className="text-xs font-semibold text-foreground mb-2">Eigene Stationen (max. 3)</h4>
+                  {customStations.map((s) => (
+                    <div
+                      key={s.key}
+                      className="flex items-center gap-2 mb-2 py-1.5 px-2 bg-background rounded-lg border border-border"
+                    >
+                      <span className="flex-1 text-xs font-medium text-foreground">{s.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCustomStations((prev) => prev.filter((x) => x.key !== s.key))}
+                        className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  {customStations.length < 3 && (
+                    <div className="flex gap-2 mt-2">
+                      <input
+                        type="text"
+                        placeholder="Neue Station…"
+                        value={newColName}
+                        onChange={(e) => setNewColName(e.target.value)}
+                        className="flex-1 h-9 px-2.5 text-xs border border-border rounded-lg font-medium bg-background focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newColName.trim()) return;
+                          setCustomStations((p) => [
+                            ...p,
+                            { key: `custom_${Date.now()}`, label: newColName.trim(), group: "Custom" },
+                          ]);
+                          setNewColName("");
+                        }}
+                        className="h-9 px-3 font-bold text-[#1a3826] rounded-lg text-xs shrink-0"
+                        style={{ backgroundColor: COLORS.yellow }}
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
+            <div className="shrink-0 p-4 border-t border-border bg-muted/10">
               <button
-                onClick={() => setShowColumnsModal(false)}
-                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="w-full py-3 rounded-xl font-semibold text-sm text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: COLORS.green }}
               >
-                <X size={18} />
+                Schließen
               </button>
             </div>
-            <div className="overflow-auto flex-1 space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                {DEFAULT_STATIONS.map((s) => (
-                  <button
-                    key={s.key}
-                    onClick={() => {
-                      if (hiddenColumns.includes(s.key))
-                        setHiddenColumns((prev) => prev.filter((k) => k !== s.key));
-                      else setHiddenColumns((prev) => [...prev, s.key]);
-                    }}
-                    className={`p-2.5 rounded-lg text-xs font-medium flex justify-between items-center border transition-all ${
-                      !hiddenColumns.includes(s.key)
-                        ? "border-border bg-muted/50 text-foreground"
-                        : "bg-background border-border text-muted-foreground"
-                    }`}
-                  >
-                    {s.label}
-                    {!hiddenColumns.includes(s.key) && <Check size={14} strokeWidth={3} />}
-                  </button>
-                ))}
-              </div>
-              <div className="pt-4 border-t border-border">
-                <h4 className="text-xs font-medium text-muted-foreground mb-2">Eigene Stationen (max. 3)</h4>
-                {customStations.map((s) => (
-                  <div
-                    key={s.key}
-                    className="flex items-center gap-2 mb-2 p-2 bg-muted/50 rounded-lg border border-border"
-                  >
-                    <span className="flex-1 text-xs font-medium px-2 text-foreground">{s.label}</span>
-                    <button
-                      onClick={() =>
-                        setCustomStations((prev) => prev.filter((x) => x.key !== s.key))
-                      }
-                      className="text-muted-foreground hover:text-destructive p-1.5 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-                {customStations.length < 3 && (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Bezeichnung…"
-                      value={newColName}
-                      onChange={(e) => setNewColName(e.target.value)}
-                      className="flex-1 p-2.5 text-xs border border-border rounded-lg font-medium bg-background"
-                    />
-                    <button
-                      onClick={() => {
-                        if (!newColName) return;
-                        setCustomStations((p) => [
-                          ...p,
-                          { key: `custom_${Date.now()}`, label: newColName, group: "Custom" },
-                        ]);
-                        setNewColName("");
-                      }}
-                      className="p-2.5 font-bold text-[#1b3a26] rounded-lg hover:opacity-95 transition-opacity"
-                      style={{ backgroundColor: COLORS.yellow }}
-                    >
-                      <Plus size={18} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={() => setShowColumnsModal(false)}
-              className="w-full mt-4 py-3 rounded-lg font-semibold text-sm text-white hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: COLORS.green }}
-            >
-              Schließen
-            </button>
           </div>
         </div>
       )}

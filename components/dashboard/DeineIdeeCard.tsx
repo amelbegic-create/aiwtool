@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Lightbulb, ChevronRight, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Lightbulb, ChevronRight, X, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { submitIdea } from "@/app/actions/ideaActions";
 
@@ -10,16 +10,106 @@ export default function DeineIdeeCard() {
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imageLabel, setImageLabel] = useState<string>("Keine Bilder ausgewählt");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfLabel, setPdfLabel] = useState<string>("Kein PDF ausgewählt");
+
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) {
+      setImageFiles([]);
+      setImageLabel("Keine Bilder ausgewählt");
+      return;
+    }
+
+    const maxBytes = 10 * 1024 * 1024; // 10 MB po fajlu
+    const valid: File[] = [];
+
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        toast.error("Nur Bilddateien sind als Bilder erlaubt.");
+        continue;
+      }
+      if (file.size > maxBytes) {
+        toast.error(`Bild "${file.name}" ist zu groß (max. 10 MB).`);
+        continue;
+      }
+      valid.push(file);
+    }
+
+    e.target.value = "";
+
+    if (valid.length === 0) {
+      setImageFiles([]);
+      setImageLabel("Keine Bilder ausgewählt");
+      return;
+    }
+
+    setImageFiles(valid);
+    setImageLabel(
+      valid.length === 1 ? valid[0].name : `${valid.length} Bilder ausgewählt`
+    );
+  };
+
+  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) {
+      setPdfFile(null);
+      setPdfLabel("Kein PDF ausgewählt");
+      return;
+    }
+
+    const maxBytes = 10 * 1024 * 1024; // 10 MB
+    const type = file.type || "";
+    const isPdf = type === "application/pdf" || type.endsWith("/pdf");
+
+    if (!isPdf) {
+      toast.error("Bitte nur PDF-Dateien als Dokument hochladen.");
+      e.target.value = "";
+      setPdfFile(null);
+      setPdfLabel("Kein PDF ausgewählt");
+      return;
+    }
+
+    if (file.size > maxBytes) {
+      toast.error("Die PDF-Datei ist zu groß (max. 10 MB).");
+      e.target.value = "";
+      setPdfFile(null);
+      setPdfLabel("Kein PDF ausgewählt");
+      return;
+    }
+
+    e.target.value = "";
+    setPdfFile(file);
+    setPdfLabel(file.name);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
     setSubmitting(true);
     try {
-      const result = await submitIdea(trimmed);
+      const formData = new FormData();
+      formData.set("text", trimmed);
+      imageFiles.forEach((file) => {
+        formData.append("images", file);
+      });
+      if (pdfFile) {
+        formData.set("pdf", pdfFile);
+      }
+      const result = await submitIdea(formData);
       if (result.ok) {
         toast.success("Danke für deine Idee!");
         setText("");
+        setImageFiles([]);
+        setImageLabel("Keine Bilder ausgewählt");
+        setPdfFile(null);
+        setPdfLabel("Kein PDF ausgewählt");
         setOpen(false);
       } else {
         toast.error(result.error ?? "Fehler beim Senden.");
@@ -56,7 +146,7 @@ export default function DeineIdeeCard() {
         </div>
       </button>
 
-      {open && (
+       {open && (
         <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
           <div className="min-h-full w-full flex items-center justify-center p-4">
             <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -74,16 +164,66 @@ export default function DeineIdeeCard() {
                   <X size={20} />
                 </button>
               </div>
-              <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="Beschreibe deine Idee hier..."
-                  rows={5}
-                  className="w-full p-3 rounded-xl border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-[#1a3826] dark:focus:ring-[#FFC72C] resize-y min-h-[120px]"
-                  disabled={submitting}
-                />
-                <div className="flex justify-end gap-2">
+               <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                 <textarea
+                   value={text}
+                   onChange={(e) => setText(e.target.value)}
+                   placeholder="Beschreibe deine Idee hier..."
+                   rows={5}
+                   className="w-full p-3 rounded-xl border border-border bg-background text-foreground text-sm outline-none focus:ring-2 focus:ring-[#1a3826] dark:focus:ring-[#FFC72C] resize-y min-h-[120px]"
+                   disabled={submitting}
+                 />
+                 <div className="space-y-3 text-xs text-muted-foreground">
+                   <div>
+                     <div className="flex items-center justify-between gap-2">
+                       <button
+                         type="button"
+                         onClick={() => imageInputRef.current?.click()}
+                         disabled={submitting}
+                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/60 hover:bg-muted text-xs font-semibold"
+                       >
+                         <Paperclip size={14} />
+                         Bilder auswählen
+                       </button>
+                       <span className="truncate max-w-[180px]" title={imageLabel}>
+                         {imageLabel}
+                       </span>
+                     </div>
+                     <input
+                       ref={imageInputRef}
+                       type="file"
+                       accept="image/*"
+                       multiple
+                       className="hidden"
+                       onChange={handleImagesChange}
+                     />
+                   </div>
+                   <div>
+                     <div className="flex items-center justify-between gap-2">
+                       <button
+                         type="button"
+                         onClick={() => pdfInputRef.current?.click()}
+                         disabled={submitting}
+                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-muted/60 hover:bg-muted text-xs font-semibold"
+                       >
+                         <Paperclip size={14} />
+                         PDF hinzufügen
+                       </button>
+                       <span className="truncate max-w-[180px]" title={pdfLabel}>
+                         {pdfLabel}
+                       </span>
+                     </div>
+                     <input
+                       ref={pdfInputRef}
+                       type="file"
+                       accept="application/pdf"
+                       className="hidden"
+                       onChange={handlePdfChange}
+                     />
+                   </div>
+                   <p>Optional: Du kannst mehrere Bilder und ein PDF bis jeweils 10 MB hinzufügen.</p>
+                 </div>
+                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setOpen(false)}

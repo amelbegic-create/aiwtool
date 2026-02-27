@@ -3,44 +3,17 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  Search,
-  Phone,
-  Mail,
-  Building2,
-  ChevronRight,
-  LayoutGrid,
-  UserCircle,
-} from "lucide-react";
+import { Search, Building2, ChevronRight, LayoutGrid } from "lucide-react";
 import { getPartnerCategoryIcon } from "@/lib/partnerCategoryIcons";
 import { motion, AnimatePresence } from "framer-motion";
 
-/** Boje badge-a u skladu s brandom stranice (#1a3826 / #FFC72C) – nijanse zelene i žute */
-const BADGE_STYLES = [
-  "bg-[#1a3826]/12 text-[#1a3826] border-[#1a3826]/25 dark:bg-[#FFC72C]/15 dark:text-[#FFC72C] dark:border-[#FFC72C]/30",
-  "bg-emerald-600/12 text-emerald-800 border-emerald-500/25 dark:bg-emerald-400/15 dark:text-emerald-300 dark:border-emerald-400/30",
-  "bg-[#1a3826]/10 text-[#1a3826]/90 border-[#1a3826]/20 dark:bg-[#FFC72C]/12 dark:text-[#FFC72C] dark:border-[#FFC72C]/25",
-  "bg-amber-600/12 text-amber-800 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/30",
-  "bg-slate-600/10 text-slate-700 border-slate-500/20 dark:bg-slate-400/12 dark:text-slate-300 dark:border-slate-400/25",
-  "bg-[#1a3826]/8 text-[#1a3826]/80 border-[#1a3826]/15 dark:bg-[#FFC72C]/10 dark:text-[#FFC72C]/90 dark:border-[#FFC72C]/20",
-];
-
-function getCategoryIcon(
-  category: { icon?: string | null; name?: string | null } | null,
-  categoryIndex?: number
-) {
+function getCategoryIcon(category: { icon?: string | null; name?: string | null } | null) {
   if (category?.icon) return getPartnerCategoryIcon(category.icon);
   return getPartnerCategoryIcon(null);
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
-}
-
-function badgeStyleForCategory(categoryId: string | null, categories: { id: string }[]): string {
-  if (!categoryId) return BADGE_STYLES[5];
-  const idx = categories.findIndex((c) => c.id === categoryId);
-  return BADGE_STYLES[idx >= 0 ? idx % BADGE_STYLES.length : 5];
 }
 
 type Category = { id: string; name: string; sortOrder: number; icon: string | null };
@@ -53,6 +26,8 @@ type Partner = {
   logoUrl: string | null;
   serviceDescription: string | null;
   notes: string | null;
+  websiteUrl: string | null;
+  galleryUrls: string[];
   contacts: Array<{
     id: string;
     contactName: string;
@@ -99,6 +74,20 @@ export default function PartnersToolClient({
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground pb-24">
+      {/* Standardni header */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 md:pt-8">
+        <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
+              FIRMEN <span className="text-[#FFC72C]">& PARTNER</span>
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium">
+              Wichtige Kontakte und Serviceunternehmen an einem Ort.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Breadcrumb – u skladu s dashboardom */}
       <div className="border-b border-[#1a3826]/10 dark:border-[#FFC72C]/10 bg-card/50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3">
@@ -112,27 +101,6 @@ export default function PartnersToolClient({
             <ChevronRight size={14} className="opacity-60" />
             <span className="font-medium text-foreground">Firmen und Partner</span>
           </nav>
-        </div>
-      </div>
-
-      {/* Hero – isti stil kao dashboard header (zaobljeni, gradijent, ikona) */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-4 mb-6">
-        <div className="relative overflow-hidden rounded-2xl md:rounded-3xl bg-[#1a3826] dark:bg-[#1a3826]/95 shadow-xl border border-[#1a3826]/20">
-          <div className="absolute top-0 right-0 w-48 h-48 md:w-64 md:h-64 bg-white/5 rounded-full blur-3xl -mr-12 -mt-12" />
-          <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-10 -mb-10" />
-          <div className="relative z-10 flex items-center gap-4 px-6 py-8 md:px-10 md:py-10">
-            <div className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
-              <Building2 className="h-7 w-7 md:h-8 md:w-8 text-[#FFC72C]" strokeWidth={2} />
-            </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
-                Firmen und Partner
-              </h1>
-              <p className="text-white/80 text-sm md:text-base mt-0.5">
-                Wichtige Kontakte und Serviceunternehmen an einem Ort
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -202,10 +170,10 @@ export default function PartnersToolClient({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="rounded-2xl md:rounded-3xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/50 via-card to-[#1a3826]/5 dark:from-[#1a3826]/10 dark:via-card dark:to-[#1a3826]/5 shadow-lg p-14 md:p-20 text-center"
+              className="rounded-2xl md:rounded-3xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/40 via-card to-[#1a3826]/5 dark:from-[#1a3826]/10 dark:via-card dark:to-[#1a3826]/5 shadow-lg p-10 md:p-16 text-center"
             >
-              <div className="h-20 w-20 rounded-2xl bg-[#1a3826]/10 dark:bg-[#FFC72C]/15 flex items-center justify-center mx-auto mb-6">
-                <Building2 size={40} className="text-[#1a3826] dark:text-[#FFC72C]" />
+              <div className="h-16 w-16 rounded-2xl bg-[#1a3826]/8 dark:bg-[#FFC72C]/12 flex items-center justify-center mx-auto mb-5">
+                <Building2 size={30} className="text-[#1a3826] dark:text-[#FFC72C]" />
               </div>
               <h2 className="text-xl font-bold text-foreground">Keine Ergebnisse</h2>
               <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
@@ -220,101 +188,45 @@ export default function PartnersToolClient({
               exit={{ opacity: 0 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {filtered.map((partner, index) => {
-                const CategoryIcon = getCategoryIcon(partner.category ?? null);
-                return (
+              {filtered.map((partner, index) => (
                   <motion.article
                     key={partner.id}
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.04, duration: 0.25 }}
-                    className={cn(
-                      "rounded-2xl md:rounded-3xl overflow-hidden flex flex-col",
-                      "border border-[#1a3826]/10 dark:border-[#FFC72C]/20",
-                      "bg-gradient-to-br from-emerald-50/60 via-white to-[#1a3826]/5 dark:from-[#1a3826]/15 dark:via-card dark:to-[#1a3826]/10",
-                      "shadow-lg hover:shadow-xl hover:-translate-y-0.5 hover:border-[#1a3826]/25 dark:hover:border-[#FFC72C]/30 transition-all duration-300"
-                    )}
                   >
-                    {partner.logoUrl ? (
-                      <div className="relative w-full h-28 md:h-32 bg-[#1a3826]/5 dark:bg-[#1a3826]/20 overflow-hidden shrink-0">
-                        <Image
-                          src={partner.logoUrl}
-                          alt=""
-                          fill
-                          className="object-cover object-center"
-                          sizes="(max-width: 768px) 100vw, 33vw"
-                          unoptimized={partner.logoUrl.includes("blob.vercel-storage.com")}
-                        />
-                      </div>
-                    ) : null}
-                    <div className="p-5 md:p-6 flex flex-col flex-1 min-w-0">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider border",
-                          badgeStyleForCategory(partner.categoryId, initialCategories)
-                        )}
-                      >
-                        <CategoryIcon size={12} className="shrink-0" />
-                        {partner.category?.name ?? "—"}
-                      </span>
-                      <h2 className="mt-3 text-lg md:text-xl font-black text-[#1a3826] dark:text-[#FFC72C] leading-snug line-clamp-2">
+                    <Link
+                      href={`/tools/partners/${partner.id}`}
+                      className={cn(
+                        "block rounded-2xl md:rounded-3xl overflow-hidden h-full",
+                        "border border-[#1a3826]/10 dark:border-[#FFC72C]/20",
+                        "bg-gradient-to-br from-emerald-50/40 via-white to-[#1a3826]/5 dark:from-[#1a3826]/15 dark:via-card dark:to-[#1a3826]/12",
+                        "shadow-md hover:shadow-lg hover:-translate-y-0.5 hover:border-[#1a3826]/25 dark:hover:border-[#FFC72C]/30 transition-all duration-300",
+                        "flex flex-col items-center justify-center p-6 md:p-8 min-h-[180px]"
+                      )}
+                    >
+                      {partner.logoUrl ? (
+                        <div className="relative w-20 h-20 md:w-24 md:h-24 bg-[#1a3826]/5 dark:bg-[#1a3826]/20 rounded-xl overflow-hidden shrink-0 flex items-center justify-center">
+                          <Image
+                            src={partner.logoUrl}
+                            alt=""
+                            fill
+                            className="object-contain p-2"
+                            sizes="96px"
+                            unoptimized={partner.logoUrl.includes("blob.vercel-storage.com")}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-[#1a3826]/10 dark:bg-[#1a3826]/30 flex items-center justify-center shrink-0">
+                          <Building2 className="h-10 w-10 text-[#1a3826] dark:text-[#FFC72C]" />
+                        </div>
+                      )}
+                      <h2 className="mt-4 text-center text-base md:text-lg font-black text-[#1a3826] dark:text-[#FFC72C] leading-snug line-clamp-2">
                         {partner.companyName}
                       </h2>
-                      {partner.serviceDescription && (
-                        <p className="mt-2 text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                          {partner.serviceDescription}
-                        </p>
-                      )}
-                      {partner.notes && (
-                        <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2 italic">
-                          {partner.notes}
-                        </p>
-                      )}
-
-                      <div className="mt-5 pt-4 border-t border-[#1a3826]/10 dark:border-[#FFC72C]/15 space-y-3">
-                        {partner.contacts.map((c) => (
-                          <div
-                            key={c.id}
-                            className="flex gap-3 text-sm"
-                          >
-                            <div className="shrink-0 h-9 w-9 rounded-full bg-[#1a3826]/10 dark:bg-[#FFC72C]/15 flex items-center justify-center">
-                              <UserCircle size={18} className="text-[#1a3826] dark:text-[#FFC72C]" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="font-semibold text-foreground">
-                                {c.contactName}
-                                {c.role && (
-                                  <span className="font-normal text-muted-foreground"> · {c.role}</span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                                {c.phone && (
-                                  <a
-                                    href={`tel:${c.phone.trim()}`}
-                                    className="inline-flex items-center gap-1.5 text-[#1a3826] dark:text-[#FFC72C] hover:underline font-medium text-[13px]"
-                                  >
-                                    <Phone size={14} className="shrink-0" />
-                                    <span>{c.phone}</span>
-                                  </a>
-                                )}
-                                {c.email && (
-                                  <a
-                                    href={`mailto:${c.email.trim()}`}
-                                    className="inline-flex items-center gap-1.5 text-[#1a3826] dark:text-[#FFC72C] hover:underline font-medium text-[13px] truncate max-w-full"
-                                  >
-                                    <Mail size={14} className="shrink-0" />
-                                    <span className="truncate">{c.email}</span>
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    </Link>
                   </motion.article>
-                );
-              })}
+              ))}
             </motion.div>
           )}
         </AnimatePresence>

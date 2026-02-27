@@ -128,11 +128,11 @@ export default function RuleEditor({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      alert("Bitte Titel eingeben.");
+      toast.error("Bitte Titel eingeben.");
       return;
     }
     if (!categoryId) {
-      alert("Bitte Kategorie auswählen.");
+      toast.error("Bitte Kategorie auswählen.");
       return;
     }
     setSaving(true);
@@ -150,12 +150,12 @@ export default function RuleEditor({
         restaurantIds: isGlobal ? [] : restaurantIds,
       };
       await saveRule(data);
-      toast.success(initialRule?.id ? "Pravilo ažurirano." : "Pravilo kreirano.");
+      toast.success(initialRule?.id ? "Regel aktualisiert." : "Regel erstellt.");
       router.push(redirectTo);
       router.refresh();
     } catch (err) {
       console.error(err);
-      alert("Fehler beim Speichern.");
+      toast.error("Fehler beim Speichern.");
     } finally {
       setSaving(false);
     }
@@ -409,13 +409,13 @@ export default function RuleEditor({
             )}
           </div>
 
-          {/* Sačuvaj */}
-          <div className="pt-4 border-t border-slate-200 flex justify-end">
+          {/* Sačuvaj – donji desni, McDonald's stil */}
+          <div className="pt-6 mt-6 border-t border-slate-200 flex justify-end">
             <button
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#1a3826] text-white font-black hover:bg-[#142e1e] disabled:opacity-60 transition shadow-lg"
+              className="flex items-center gap-2 px-6 py-3 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold disabled:opacity-60 transition shadow-sm"
             >
               {saving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
               Speichern

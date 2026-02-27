@@ -147,13 +147,13 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
       <header className="bg-[#1a3826] text-white">
-        <div className="mx-auto max-w-6xl px-4 py-5 md:py-8 md:px-8 md:py-10">
-          <div className="relative overflow-hidden rounded-xl md:rounded-3xl bg-[#1a3826]">
+        <div className="mx-auto max-w-6xl px-4 py-3 md:py-4 md:px-8">
+          <div className="relative overflow-hidden rounded-xl md:rounded-3xl bg-[#1a3826] py-3 md:py-4">
             <div className="absolute top-0 right-0 w-48 h-48 md:w-72 md:h-72 bg-white/5 rounded-full blur-3xl -mr-16 md:-mr-24 -mt-16 md:-mt-24" />
             <div className="absolute bottom-0 left-0 w-40 h-40 md:w-56 md:h-56 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-16 md:-ml-20 -mb-16 md:-mb-20" />
-            <div className="relative z-10 flex flex-col gap-2 md:gap-4 pr-2">
+            <div className="relative z-10 flex flex-col gap-2 md:gap-3 pr-2">
               <div className="min-w-0 pl-1">
-                <h1 className="text-2xl md:text-4xl font-black tracking-tight text-white leading-tight">
+                <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white leading-tight">
                   {greeting},{" "}
                   <span className="text-[#FFC72C]">{firstName}</span>
                   <span className="ml-2 md:ml-3 inline-flex items-center align-middle">
@@ -162,9 +162,6 @@ export default async function DashboardPage() {
                     </span>
                   </span>
                 </h1>
-                <p className="mt-2 md:mt-3 text-sm md:text-base font-medium text-emerald-100/90 pl-0 md:pl-5">
-                  {dict.dashboard_hero_subtitle}
-                </p>
               </div>
             </div>
           </div>

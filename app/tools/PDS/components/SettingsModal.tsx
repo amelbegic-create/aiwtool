@@ -33,15 +33,15 @@ export default function SettingsModal({ year, initialGoals, initialScale, restau
   const handleSave = async () => {
     const restaurantIds = allRestaurants ? ['all'] : (selectedRestaurantIds.length > 0 ? selectedRestaurantIds : [restaurants[0]?.id].filter(Boolean));
     if (restaurantIds.length === 0) {
-      alert('Bitte wählen Sie mindestens ein Restaurant.');
+      toast.error('Bitte wählen Sie mindestens ein Restaurant.');
       return;
     }
     if (goals.length === 0) {
-      alert('Bitte fügen Sie mindestens ein Ziel hinzu.');
+      toast.error('Bitte fügen Sie mindestens ein Ziel hinzu.');
       return;
     }
     if (scale.length === 0) {
-      alert('Bitte fügen Sie mindestens eine Stufe zur Skala hinzu.');
+      toast.error('Bitte fügen Sie mindestens eine Stufe zur Skala hinzu.');
       return;
     }
 
@@ -52,7 +52,7 @@ export default function SettingsModal({ year, initialGoals, initialScale, restau
       toast.success("PDS-Vorlage gespeichert.");
       onClose();
     } else {
-      alert(res?.error ?? 'Fehler beim Speichern.');
+      toast.error(res?.error ?? 'Fehler beim Speichern.');
     }
   };
 
@@ -332,7 +332,7 @@ export default function SettingsModal({ year, initialGoals, initialScale, restau
         {/* Footer */}
         <div className="bg-slate-50 border-t px-8 py-5 flex justify-end gap-3 shrink-0">
           <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 uppercase transition-colors">Abbrechen</button>
-          <button onClick={handleSave} disabled={isSaving} className="bg-[#1a3826] hover:bg-[#142e1e] text-[#FFC72C] px-8 py-2.5 rounded-xl text-xs font-black uppercase shadow-lg flex items-center gap-2 transition-transform active:scale-95 disabled:opacity-50">
+          <button onClick={handleSave} disabled={isSaving} className="bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold px-8 py-2.5 rounded-sm text-xs uppercase shadow-sm flex items-center gap-2 transition active:scale-95 disabled:opacity-50">
             <Save size={16}/> {isSaving ? 'Speichern…' : 'Speichern und anwenden'}
           </button>
         </div>

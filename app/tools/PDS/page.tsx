@@ -83,16 +83,17 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   return (
     <div className="min-h-screen bg-background p-6 md:p-8 font-sans text-foreground">
       <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-end gap-6 border-b border-slate-200 pb-6 print:hidden">
+        {/* HEADER – unificirani stil kao ADMIN URLAUB */}
+        <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between print:hidden">
           <div>
-            <h1 className="text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-2">
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
               PDS <span className="text-[#FFC72C]">BEURTEILUNG</span>
             </h1>
-            <p className="text-slate-500 text-sm font-medium">Mitarbeiterbeurteilung und -entwicklung</p>
+            <p className="text-muted-foreground text-sm font-medium">
+              Mitarbeiterbeurteilung und -entwicklung
+            </p>
           </div>
-          
+
           <div className="flex flex-col items-end gap-4">
             {/* GODINE */}
             <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 max-w-[320px] md:max-w-none overflow-x-auto">

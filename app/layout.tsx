@@ -129,14 +129,22 @@ export default async function RootLayout({
                         activeRestaurantId={activeRestaurantId}
                         notificationCount={pendingNotifications}
                     />
-                    <main className="md:min-h-0 pb-20 md:pb-0 safe-area-b-mobile min-h-screen">
+                    <main className="pt-14 md:pt-16 md:min-h-0 pb-20 md:pb-0 safe-area-b-mobile min-h-screen">
                         {children}
                     </main>
                     <BottomNav />
                 </>
             )}
             {!session?.user && children}
-            <Toaster richColors position="top-center" closeButton />
+            <Toaster
+              position="bottom-right"
+              closeButton
+              duration={4000}
+              toastOptions={{
+                style: { background: "#FFBC0D", color: "#000", fontWeight: 700, borderRadius: "12px", border: "none" },
+                className: "toast-mcd",
+              }}
+            />
         </AuthProvider>
         </ThemeProvider>
       </body>

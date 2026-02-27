@@ -56,7 +56,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
 
   return (
     <>
-    <header className="sticky top-0 z-50 shrink-0 bg-[#1a3826] text-white shadow-lg border-b border-white/5 safe-area-t">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full shrink-0 bg-[#1a3826] text-white shadow-lg border-b border-white/5 safe-area-t">
       <div className="h-14 md:h-16 max-w-[1920px] mx-auto px-3 md:px-6 flex justify-between items-center">
         
         {/* LIJEVA: HAMBURGER (mobile) + LOGO */}
@@ -166,7 +166,7 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
             <Link
               href="/admin"
               onClick={closeMenu}
-              className="h-8 w-8 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 flex items-center justify-center transition-all border border-red-400/30"
+              className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
               title="Admin Panel / Einstellungen"
               aria-label="Admin Panel"
             >

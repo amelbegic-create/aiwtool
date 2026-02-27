@@ -117,9 +117,8 @@ export default function HolidaysClient({ initialHolidays }: Props) {
       <div className="max-w-[900px] mx-auto space-y-8">
         <div className="flex items-end justify-between gap-4 border-b border-slate-200 dark:border-border pb-6">
           <div>
-            <h1 className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] flex items-center gap-2">
-              <CalendarDays size={28} />
-              Feiertage
+            <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
+              FEIERTAGE <span className="text-[#FFC72C]">VERWALTUNG</span>
             </h1>
             <p className="text-muted-foreground text-sm font-semibold mt-1">
               Globale Feiertage für Arbeitsplaner und andere Module. Ostermontag und Pfingstmontag werden automatisch berechnet.

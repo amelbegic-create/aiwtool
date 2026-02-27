@@ -16,6 +16,7 @@ import {
   ChevronRight,
   UserCog,
   CalendarDays,
+  User,
 } from "lucide-react";
 import Link from "next/link";
 import { createUser, deleteUser, updateUser } from "../../actions/adminActions";
@@ -31,6 +32,7 @@ interface UserProps {
   id: string;
   name: string | null;
   email: string | null;
+  image?: string | null;
   role: Role;
   departmentId: string | null;
   departmentName: string | null;
@@ -285,21 +287,27 @@ export default function UserClient({ users = [], restaurants = [], departments =
     };
 
     if (!payload.name || !formData.firstName || !formData.lastName || !payload.email) {
-      return alert("Name und E-Mail sind erforderlich.");
+      toast.error("Name und E-Mail sind erforderlich.");
+      return;
     }
 
     try {
       setIsSaving(true);
       if (!isEditing) {
-        if (!payload.password) return alert("Passwort ist bei der Erstellung erforderlich.");
+        if (!payload.password) {
+          toast.error("Passwort ist bei der Erstellung erforderlich.");
+          setIsSaving(false);
+          return;
+        }
         await createUser(payload as any);
       } else {
         await updateUser(payload as any);
       }
       setIsModalOpen(false);
       router.refresh();
+      toast.success(isEditing ? "Benutzer aktualisiert." : "Benutzer erstellt.");
     } catch (e: any) {
-      alert(e.message || "Fehler aufgetreten.");
+      toast.error(e.message || "Fehler aufgetreten.");
     } finally {
       setIsSaving(false);
     }
@@ -313,7 +321,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
       toast.success("Benutzer gelöscht.");
       router.refresh();
     } catch (e: any) {
-      alert(e.message || "Fehler aufgetreten.");
+      toast.error(e.message || "Fehler aufgetreten.");
     } finally {
       setDeletingId(null);
     }
@@ -422,28 +430,40 @@ export default function UserClient({ users = [], restaurants = [], departments =
               className="bg-white rounded-2xl border border-border shadow-sm p-5 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-base text-foreground truncate">{u.name}</h3>
-                  <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{u.email}</p>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="h-12 w-12 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-base font-bold overflow-hidden shrink-0 flex-shrink-0">
+                    {u.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={u.image} alt="" className="h-full w-full object-cover" />
+                    ) : (u.name || "").trim() ? (
+                      (u.name || "").trim().charAt(0).toUpperCase()
+                    ) : (
+                      <User size={24} className="opacity-90" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-base text-foreground truncate">{u.name}</h3>
+                    <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{u.email}</p>
                   <span className="inline-flex items-center gap-2 mt-3 px-2.5 py-1 rounded-lg bg-muted text-[10px] font-black uppercase text-muted-foreground">
                     {isGodMode(u.role) && <ShieldCheck size={12} className="text-[#1a3826] shrink-0" />}
                     {ROLE_LABELS[u.role]}
                   </span>
-                  {(u.restaurantIds || []).length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1">
-                      {(u.restaurantIds || []).slice(0, 3).map((rid) => {
-                        const r = restaurants.find((x) => x.id === rid);
-                        return (
-                          <span key={rid} className="text-[9px] bg-muted px-2 py-1 rounded border border-border text-muted-foreground">
-                            {r?.name || "Restaurant"}
-                          </span>
-                        );
-                      })}
-                      {(u.restaurantIds || []).length > 3 && (
-                        <span className="text-[9px] text-slate-400">+{(u.restaurantIds || []).length - 3}</span>
-                      )}
-                    </div>
-                  )}
+                    {(u.restaurantIds || []).length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {(u.restaurantIds || []).slice(0, 3).map((rid) => {
+                          const r = restaurants.find((x) => x.id === rid);
+                          return (
+                            <span key={rid} className="text-[9px] bg-muted px-2 py-1 rounded border border-border text-muted-foreground">
+                              {r?.name || "Restaurant"}
+                            </span>
+                          );
+                        })}
+                        {(u.restaurantIds || []).length > 3 && (
+                          <span className="text-[9px] text-slate-400">+{(u.restaurantIds || []).length - 3}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Link
@@ -483,9 +503,21 @@ export default function UserClient({ users = [], restaurants = [], departments =
           <div className="divide-y divide-slate-100">
             {filteredUsers.map((u) => (
               <div key={u.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted transition-colors">
-                <div className="col-span-4">
-                  <div className="font-bold text-sm text-foreground">{u.name}</div>
-                  <div className="text-[10px] text-slate-400 font-mono">{u.email}</div>
+                <div className="col-span-4 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-sm font-bold overflow-hidden shrink-0 flex-shrink-0">
+                    {u.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={u.image} alt="" className="h-full w-full object-cover" />
+                    ) : (u.name || "").trim() ? (
+                      (u.name || "").trim().charAt(0).toUpperCase()
+                    ) : (
+                      <User size={20} className="opacity-90" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-foreground truncate">{u.name}</div>
+                    <div className="text-[10px] text-slate-400 font-mono truncate">{u.email}</div>
+                  </div>
                 </div>
 
                 <div className="col-span-2">

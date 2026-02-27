@@ -21,18 +21,26 @@ export default async function TeamPage() {
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
-      <div className="max-w-[1600px] mx-auto px-4 py-4 sm:py-5 sm:p-6 md:p-10 safe-area-l safe-area-r">
-        <h1 className="text-2xl md:text-3xl font-black text-[#1a3826] uppercase tracking-tighter mb-1">
-          Mein <span className="text-[#FFC72C]">Team</span>
-        </h1>
-        <p className="text-slate-500 text-sm font-medium mb-4 md:mb-8">
-          Liste der Mitarbeiter, für die Sie direkt verantwortlich sind.
-        </p>
-        <TeamPageClient
-          initialTeam={team}
-          treeData={treeData}
-          currentUserId={userId}
-        />
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8">
+        {/* HEADER – unificirani layout */}
+        <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
+              MEIN <span className="text-[#FFC72C]">TEAM</span>
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium">
+              Liste der Mitarbeiter, für die Sie direkt verantwortlich sind.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 sm:mt-8">
+          <TeamPageClient
+            initialTeam={team}
+            treeData={treeData}
+            currentUserId={userId}
+          />
+        </div>
       </div>
     </div>
   );
