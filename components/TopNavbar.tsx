@@ -42,6 +42,8 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
   const user = session?.user as UserWithRole | undefined;
   const role = user?.role;
 
+  const isPerRestaurantOnly = pathname.startsWith("/tools/labor-planner");
+
   // Dozvole za admina
   const canSeeAllRestaurants = 
     role === 'SYSTEM_ARCHITECT' || 
@@ -95,7 +97,6 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
                     <RestaurantSwitcher 
                         restaurants={restaurants} 
                         activeRestaurantId={activeRestaurantId} 
-                        showAllOption={canSeeAllRestaurants} 
                     />
                 </div>
             )}
@@ -219,7 +220,6 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
                   <RestaurantSwitcher 
                     restaurants={restaurants} 
                     activeRestaurantId={activeRestaurantId} 
-                    showAllOption={canSeeAllRestaurants} 
                   />
                 </div>
               )}

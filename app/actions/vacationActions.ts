@@ -298,18 +298,33 @@ export async function getVacationAdminData(
   const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
   const rangeEnd = `${selectedYear}-12-31`;
 
+  const EXCLUDED_ROLES_FOR_ADMIN_STATS: Role[] = [
+    Role.SYSTEM_ARCHITECT,
+    Role.SUPER_ADMIN,
+    Role.ADMIN,
+  ];
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const userWhereClause: any = { isActive: true, role: { not: "SYSTEM_ARCHITECT" } };
+  const userWhereClause: any = {
+    isActive: true,
+    role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+  };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const requestWhereClause: any = { start: { gte: startOfYear, lte: endOfYear } };
 
   if (activeRestaurantId && activeRestaurantId !== "all") {
     userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
-    requestWhereClause.user = { restaurants: { some: { restaurantId: activeRestaurantId } } };
+    requestWhereClause.user = {
+      role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+      restaurants: { some: { restaurantId: activeRestaurantId } },
+    };
   } else if (!isGodMode) {
     const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
     userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
-    requestWhereClause.user = { restaurants: { some: { restaurantId: { in: myRestaurantIds } } } };
+    requestWhereClause.user = {
+      role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+      restaurants: { some: { restaurantId: { in: myRestaurantIds } } },
+    };
   }
 
   const blockedDaysWhere =

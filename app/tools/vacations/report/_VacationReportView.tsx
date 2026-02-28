@@ -62,17 +62,17 @@ export default function VacationReportView({ user, allRequests, selectedYear }: 
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-muted/50 rounded-lg p-4 text-center">
-              <div className="text-xs font-bold text-muted-foreground uppercase">Gesamt</div>
-              <div className="text-2xl font-bold">{user.total}</div>
+            <div className="bg-[#1a3826] rounded-lg p-4 text-center">
+              <div className="text-xs font-bold text-white uppercase">Gesamt</div>
+              <div className="text-2xl font-bold text-white">{user.total}</div>
             </div>
-            <div className="bg-amber-100/50 dark:bg-amber-900/20 rounded-lg p-4 text-center">
-              <div className="text-xs font-bold text-muted-foreground uppercase">Verbraucht</div>
-              <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">{user.used}</div>
+            <div className="bg-[#1a3826] rounded-lg p-4 text-center">
+              <div className="text-xs font-bold text-white uppercase">Verbraucht</div>
+              <div className="text-2xl font-bold text-white">{user.used}</div>
             </div>
-            <div className="bg-[#1a3826]/10 rounded-lg p-4 text-center">
-              <div className="text-xs font-bold text-muted-foreground uppercase">Resturlaub</div>
-              <div className="text-2xl font-bold text-[#1a3826]">{user.remaining}</div>
+            <div className="bg-[#1a3826] rounded-lg p-4 text-center">
+              <div className="text-xs font-bold text-white uppercase">Resturlaub</div>
+              <div className="text-2xl font-bold text-white">{user.remaining}</div>
             </div>
           </div>
 
@@ -97,7 +97,19 @@ export default function VacationReportView({ user, allRequests, selectedYear }: 
                         <td className="py-2">{formatDateDDMMGGGG(req.start)}</td>
                         <td className="py-2">{formatDateDDMMGGGG(req.end)}</td>
                         <td className="py-2 text-center">{req.days}</td>
-                        <td className="py-2">{statusLabel(req.status)}</td>
+                        <td className="py-2">
+                          <span
+                            className={
+                              req.status === "APPROVED"
+                                ? "font-bold text-green-600 dark:text-green-400"
+                                : req.status === "REJECTED"
+                                  ? "font-bold text-red-600 dark:text-red-400"
+                                  : ""
+                            }
+                          >
+                            {statusLabel(req.status)}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

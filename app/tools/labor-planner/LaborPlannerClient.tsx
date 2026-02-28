@@ -265,6 +265,13 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   const router = useRouter();
   const urlRestaurantId = searchParams.get("restaurantId");
 
+  const initialRestaurantId =
+    urlRestaurantId && urlRestaurantId !== "all"
+      ? urlRestaurantId
+      : defaultRestaurantId && defaultRestaurantId !== "all"
+        ? defaultRestaurantId
+        : "";
+
   const [year, setYear] = useState(() => {
     if (typeof window === "undefined") return new Date().getFullYear();
     const s = sessionStorage.getItem("labor-planner-year");
@@ -277,7 +284,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     if (s) { const n = Number(s); if (!Number.isNaN(n) && n >= 1 && n <= 12) return n; }
     return new Date().getMonth() + 1;
   });
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState(urlRestaurantId || defaultRestaurantId || "");
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState(initialRestaurantId);
 
   const [avgWage, setAvgWage] = useState("");
   const [vacationStd, setVacationStd] = useState("");
@@ -350,7 +357,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
 
   // Kad korisnik promijeni restoran u TopNav: cookie se ažurira, router.refresh() pošalje novi defaultRestaurantId – odmah prebaci na njega, ažuriraj URL i učitaj podatke iz baze
   useEffect(() => {
-    if (!defaultRestaurantId) return;
+    if (!defaultRestaurantId || defaultRestaurantId === "all") return;
     if (defaultRestaurantId !== selectedRestaurantId) {
       setSelectedRestaurantId(defaultRestaurantId);
       const next = new URLSearchParams(searchParams.toString());
@@ -361,7 +368,12 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
 
   // Sinkronizacija s URL-om samo kad URL i cookie (header) se podudaraju – npr. direktan link ili prvi load
   useEffect(() => {
-    if (urlRestaurantId && urlRestaurantId === defaultRestaurantId && urlRestaurantId !== selectedRestaurantId) {
+    if (
+      urlRestaurantId &&
+      urlRestaurantId !== "all" &&
+      urlRestaurantId === defaultRestaurantId &&
+      urlRestaurantId !== selectedRestaurantId
+    ) {
       setSelectedRestaurantId(urlRestaurantId);
     }
   }, [urlRestaurantId, selectedRestaurantId, defaultRestaurantId]);
@@ -503,7 +515,16 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   );
 
   useEffect(() => {
-    if (!hasRestoredSession || !selectedRestaurantId) return;
+    if (!hasRestoredSession) return;
+    if (!selectedRestaurantId || selectedRestaurantId === "all") {
+      clearInputs();
+      generateEmptyDays(month, year, [], 1.118);
+      setHasUnsavedChanges(false);
+    }
+  }, [hasRestoredSession, selectedRestaurantId, month, year, generateEmptyDays]);
+
+  useEffect(() => {
+    if (!hasRestoredSession || !selectedRestaurantId || selectedRestaurantId === "all") return;
     loadDataFromDB(month, year, selectedRestaurantId);
   }, [hasRestoredSession, month, year, selectedRestaurantId, loadDataFromDB]);
 
@@ -555,7 +576,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   })();
 
   const saveDataToDB = useCallback(async (silent = false) => {
-    if (!selectedRestaurantId) {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") {
       if (!silent) toast.error("Bitte Restaurant auswählen.");
       return;
     }
@@ -619,7 +640,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   }, [selectedRestaurantId, year, month, avgWage, vacationStd, sickStd, extraUnprodStd, koefficientBruttoNetto, foerderung, budgetUmsatz, budgetCL, budgetCLPct, daysData, koeffNum]);
 
   const handlePrintSingle = () => {
-    if (!selectedRestaurantId) {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") {
       toast.error("Bitte Restaurant auswählen.");
       return;
     }
@@ -815,7 +836,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   };
 
   const handleExportYear = async () => {
-    if (!selectedRestaurantId) {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") {
       toast.error("Bitte Restaurant auswählen.");
       return;
     }
@@ -1085,7 +1106,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   };
 
   const handleDeleteData = async () => {
-    if (!selectedRestaurantId) {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") {
       toast.error("Bitte Restaurant auswählen.");
       return;
     }
@@ -1115,6 +1136,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
 
   const selectedRest = restaurants.find((r) => r.id === selectedRestaurantId);
   const headerTitle = selectedRest ? `${selectedRest.code} – ${selectedRest.name || ""}` : "Personaleinsatzplanung";
+  const hasValidRestaurant = !!selectedRestaurantId && selectedRestaurantId !== "all";
 
   return (
     <div className="min-h-screen bg-background p-6 text-foreground font-sans">
@@ -1141,42 +1163,44 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       </div>
 
-      <div className="mx-auto flex flex-col md:flex-row justify-end items-center mb-8 gap-3 print:hidden" style={{ maxWidth: "1600px" }}>
-        <div className="flex flex-wrap gap-2 items-center">
-          <button
-            onClick={() => saveDataToDB(true)}
-            className="h-10 px-4 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
-            title="Speichern"
-          >
-            <Save size={18} strokeWidth={2.5} className="shrink-0" />
-            <span className="whitespace-nowrap">Speichern</span>
-          </button>
-          <button
-            onClick={handlePrintSingle}
-            className="h-10 px-4 rounded-lg bg-[#FFC72C] text-[#1a3826] hover:bg-[#e6b225] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
-            title="Monat PDF"
-          >
-            <FileDown size={18} strokeWidth={2.5} className="shrink-0" />
-            <span className="whitespace-nowrap">PDF aktuell</span>
-          </button>
-          <button
-            onClick={handleExportYear}
-            className="h-10 px-4 rounded-lg bg-[#FFC72C] text-[#1a3826] hover:bg-[#e6b225] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
-            title="Ganzes Jahr PDF"
-          >
-            <CalendarDays size={18} strokeWidth={2.5} className="shrink-0" />
-            <span className="whitespace-nowrap">PDF jährlich</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteData}
-            className="h-10 px-4 rounded-lg bg-[#FFC72C] text-red-600 hover:bg-[#e6b225] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
-            title="Daten löschen"
-          >
-            <Trash2 size={18} strokeWidth={2.5} className="shrink-0" />
-          </button>
+      {hasValidRestaurant && (
+        <div className="mx-auto flex flex-col md:flex-row justify-end items-center mb-8 gap-3 print:hidden" style={{ maxWidth: "1600px" }}>
+          <div className="flex flex-wrap gap-2 items-center">
+            <button
+              onClick={() => saveDataToDB(true)}
+              className="h-10 px-4 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
+              title="Speichern"
+            >
+              <Save size={18} strokeWidth={2.5} className="shrink-0" />
+              <span className="whitespace-nowrap">Speichern</span>
+            </button>
+            <button
+              onClick={handlePrintSingle}
+              className="h-10 px-4 rounded-lg bg-[#FFC72C] text-[#1a3826] hover:bg-[#e6b225] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
+              title="Monat PDF"
+            >
+              <FileDown size={18} strokeWidth={2.5} className="shrink-0" />
+              <span className="whitespace-nowrap">PDF aktuell</span>
+            </button>
+            <button
+              onClick={handleExportYear}
+              className="h-10 px-4 rounded-lg bg-[#FFC72C] text-[#1a3826] hover:bg-[#e6b225] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
+              title="Ganzes Jahr PDF"
+            >
+              <CalendarDays size={18} strokeWidth={2.5} className="shrink-0" />
+              <span className="whitespace-nowrap">PDF jährlich</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteData}
+              className="h-10 px-4 rounded-lg bg-[#FFC72C] text-red-600 hover:bg-[#e6b225] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
+              title="Daten löschen"
+            >
+              <Trash2 size={18} strokeWidth={2.5} className="shrink-0" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {isExporting && (
         <div className="w-full py-4 px-8 mb-4 flex justify-between items-center text-white" style={{ backgroundColor: COLORS.green }}>
@@ -1190,162 +1214,185 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       )}
 
-      <div className="mx-auto bg-card p-8 rounded-2xl shadow-xl border border-border overflow-hidden" style={{ maxWidth: "1600px" }}>
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-          <div className="xl:col-span-3 flex flex-col gap-6">
-            <div className="bg-card border border-border rounded-xl shadow-sm p-5 no-print">
-              <h3 className="text-foreground font-semibold text-sm border-b border-border pb-3 mb-4 uppercase">Einstellungen</h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-[auto_1fr] gap-3 items-end">
-                  <div className="min-w-0">
-                    <label className="text-xs font-medium text-muted-foreground uppercase block mb-1">Jahr</label>
-                    <select
-                      value={year}
-                      onChange={(e) => setYear(Number(e.target.value))}
-                      className="w-full p-2 bg-muted border border-border rounded-lg text-sm font-medium text-foreground focus:ring-2 focus:ring-ring outline-none"
-                    >
-                      {[2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
-                    </select>
+      {hasValidRestaurant ? (
+        <div className="mx-auto bg-card p-8 rounded-2xl shadow-xl border border-border overflow-hidden" style={{ maxWidth: "1600px" }}>
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+            <div className="xl:col-span-3 flex flex-col gap-6">
+              <div className="bg-card border border-border rounded-xl shadow-sm p-5 no-print">
+                <h3 className="text-foreground font-semibold text-sm border-b border-border pb-3 mb-4 uppercase">Einstellungen</h3>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-[auto_1fr] gap-3 items-end">
+                    <div className="min-w-0">
+                      <label className="text-xs font-medium text-muted-foreground uppercase block mb-1">Jahr</label>
+                      <select
+                        value={year}
+                        onChange={(e) => setYear(Number(e.target.value))}
+                        className="w-full p-2 bg-muted border border-border rounded-lg text-sm font-medium text-foreground focus:ring-2 focus:ring-ring outline-none"
+                      >
+                        {[2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0 text-right">
+                      <span className="text-base font-semibold text-foreground truncate block" title={MONTH_NAMES_DE[month - 1]}>
+                        {MONTH_NAMES_DE[month - 1]}
+                      </span>
+                    </div>
                   </div>
-                  <div className="min-w-0 text-right">
-                    <span className="text-base font-semibold text-foreground truncate block" title={MONTH_NAMES_DE[month - 1]}>
-                      {MONTH_NAMES_DE[month - 1]}
-                    </span>
+                  <div className="flex flex-wrap gap-1.5 pt-2">
+                    {MONTH_NAMES_DE.map((mName, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setMonth(i + 1)}
+                        className={`px-2.5 py-1 text-xs font-medium rounded-full transition-all ${
+                          month === i + 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        {mName.substring(0, 3)}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 pt-2">
-                  {MONTH_NAMES_DE.map((mName, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setMonth(i + 1)}
-                      className={`px-2.5 py-1 text-xs font-medium rounded-full transition-all ${
-                        month === i + 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      {mName.substring(0, 3)}
-                    </button>
-                  ))}
+              </div>
+
+              <div className="bg-card border border-border rounded-xl shadow-sm p-5">
+                <h3 className="text-gray-700 font-bold text-sm uppercase mb-3">Parameter</h3>
+                <div className="space-y-2">
+                  <InputRow label="Stundensatz (€)" value={avgWage} onChange={(v) => { setAvgWage(v); setHasUnsavedChanges(true); }} decimals={2} />
+                  <InputRow label="Urlaub (h)" value={vacationStd} onChange={(v) => { setVacationStd(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Krankheit (h)" value={sickStd} onChange={(v) => { setSickStd(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Koeffizient Brutto/Netto" value={koefficientBruttoNetto} onChange={(v) => { setKoefficientBruttoNetto(v); setHasUnsavedChanges(true); }} decimals={2} />
+                  <InputRow label="Förderung (€)" value={foerderung} onChange={(v) => { setFoerderung(v); setHasUnsavedChanges(true); }} />
+                  <div className="h-px bg-muted my-2" />
+                  <ReadOnlyRow label="Produktive Std" value={fmtHours(totals.sumProduktiveStd)} />
+                  <ReadOnlyRow label="SF Std" value={fmtHours(totals.sumSF)} />
+                  <ReadOnlyRow label="HM Std" value={fmtHours(totals.sumHM)} />
+                  <ReadOnlyRow label="Nacht (€)" value={fmtNum(totals.sumNZ)} />
+                  <ReadOnlyRow label="Extra Std. (Summe)" value={fmtHours(totals.sumExtra)} />
+                  <div className="h-px bg-muted my-2" />
+                  <InputRow label="Budget Umsatz" value={budgetUmsatz} onChange={(v) => { setBudgetUmsatz(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Budget CL €" value={budgetCL} onChange={(v) => { setBudgetCL(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Budget CL %" value={budgetCLPct} onChange={(v) => { setBudgetCLPct(v); setHasUnsavedChanges(true); }} decimals={2} />
                 </div>
               </div>
-            </div>
 
-            <div className="bg-card border border-border rounded-xl shadow-sm p-5">
-              <h3 className="text-gray-700 font-bold text-sm uppercase mb-3">Parameter</h3>
-              <div className="space-y-2">
-                <InputRow label="Stundensatz (€)" value={avgWage} onChange={(v) => { setAvgWage(v); setHasUnsavedChanges(true); }} />
-                <InputRow label="Urlaub (h)" value={vacationStd} onChange={(v) => { setVacationStd(v); setHasUnsavedChanges(true); }} />
-                <InputRow label="Krankheit (h)" value={sickStd} onChange={(v) => { setSickStd(v); setHasUnsavedChanges(true); }} />
-                <InputRow label="Koeffizient Brutto/Netto" value={koefficientBruttoNetto} onChange={(v) => { setKoefficientBruttoNetto(v); setHasUnsavedChanges(true); }} />
-                <InputRow label="Förderung (€)" value={foerderung} onChange={(v) => { setFoerderung(v); setHasUnsavedChanges(true); }} />
-                <div className="h-px bg-muted my-2" />
-                <ReadOnlyRow label="Produktive Std" value={fmtHours(totals.sumProduktiveStd)} />
-                <ReadOnlyRow label="SF Std" value={fmtHours(totals.sumSF)} />
-                <ReadOnlyRow label="HM Std" value={fmtHours(totals.sumHM)} />
-                <ReadOnlyRow label="Nacht (€)" value={fmtNum(totals.sumNZ)} />
-                <ReadOnlyRow label="Extra Std. (Summe)" value={fmtHours(totals.sumExtra)} />
-                <div className="h-px bg-muted my-2" />
-                <InputRow label="Budget Umsatz" value={budgetUmsatz} onChange={(v) => { setBudgetUmsatz(v); setHasUnsavedChanges(true); }} />
-                <InputRow label="Budget CL €" value={budgetCL} onChange={(v) => { setBudgetCL(v); setHasUnsavedChanges(true); }} />
-                <InputRow label="Budget CL %" value={budgetCLPct} onChange={(v) => { setBudgetCLPct(v); setHasUnsavedChanges(true); }} />
+              <div className="rounded-xl shadow-md p-5 space-y-3" style={{ backgroundColor: COLORS.yellow }}>
+                <SummaryRow label="Umsatz Gesamt (Netto)" value={`${fmtNum(totals.umsatzGesamt)} €`} color="text-[#1b3a26]" />
+                <SummaryRow label="Gesamt Std." value={`${fmtHours(totals.gesamtStd)} h`} color="text-[#1b3a26]" />
+                <div className="bg-white/80 p-3 rounded-lg border border-[#1b3a26]/10 flex justify-between items-center gap-2 my-2">
+                  <span className="text-sm font-bold text-[#1b3a26] shrink-0">CL (€)</span>
+                  <span className={`text-xl font-black whitespace-nowrap tabular-nums text-right ${totals.budgetCLVal > totals.clEuro ? "text-green-700" : "text-red-600"}`}>
+                    {fmtNum(totals.clEuro)} €
+                  </span>
+                </div>
+                <SummaryRow label="CL %" value={`${fmtNum(totals.clPct)} %`} bold color="text-[#1b3a26]" />
+                <div className="h-px bg-[#1b3a26]/20 my-1" />
+                <SummaryRow label="Prod. (IST)" value={totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—"} color="text-[#1b3a26]" />
+                <SummaryRow label="Prod. (REAL)" value={totals.realProd > 0 ? `${fmtNum(totals.realProd)} €` : "—"} color="text-[#1b3a26]" />
               </div>
             </div>
 
-            <div className="rounded-xl shadow-md p-5 space-y-3" style={{ backgroundColor: COLORS.yellow }}>
-              <SummaryRow label="Umsatz Gesamt (Netto)" value={`${fmtNum(totals.umsatzGesamt)} €`} color="text-[#1b3a26]" />
-              <SummaryRow label="Gesamt Std." value={`${fmtHours(totals.gesamtStd)} h`} color="text-[#1b3a26]" />
-              <div className="bg-white/80 p-3 rounded-lg border border-[#1b3a26]/10 flex justify-between items-center gap-2 my-2">
-                <span className="text-sm font-bold text-[#1b3a26] shrink-0">CL (€)</span>
-                <span className={`text-xl font-black whitespace-nowrap tabular-nums text-right ${totals.budgetCLVal > totals.clEuro ? "text-green-700" : "text-red-600"}`}>
-                  {fmtNum(totals.clEuro)} €
-                </span>
-              </div>
-              <SummaryRow label="CL %" value={`${fmtNum(totals.clPct)} %`} bold color="text-[#1b3a26]" />
-              <div className="h-px bg-[#1b3a26]/20 my-1" />
-              <SummaryRow label="Prod. (IST)" value={totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—"} color="text-[#1b3a26]" />
-              <SummaryRow label="Prod. (REAL)" value={totals.realProd > 0 ? `${fmtNum(totals.realProd)} €` : "—"} color="text-[#1b3a26]" />
-            </div>
-          </div>
-
-          <div className="xl:col-span-9">
-            <div ref={tableWrapperRef} className="border border-border rounded-lg overflow-hidden shadow-sm" onKeyDown={handleTableKeyDown}>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse" style={{ borderColor: COLORS.border }}>
-                  <thead>
-                    <tr className="text-white uppercase text-xs tracking-wider" style={{ backgroundColor: COLORS.green }}>
-                      <th className="p-3 border border-border text-center font-bold w-24 rounded-tl-lg">Tag</th>
-                      <th className="p-3 border border-border text-center w-28 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("bruttoUmsatz")}>Brutto Umsatz</th>
-                      <th className="p-3 border border-border text-center w-28 bg-[#142e1e]">Netto Umsatz</th>
-                      <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("geplanteProduktivitaetPct")}>Gepl. Prod. %</th>
-                      <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 bg-[#142e1e]" onClick={() => handleCopyDown("produktiveStd")}>Produktive Std.</th>
-                      <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("sfStd")}>SF</th>
-                      <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("hmStd")}>HM</th>
-                      <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("nzEuro")}>NZ Euro</th>
-                      <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 rounded-tr-lg" onClick={() => handleCopyDown("extraStd")}>Extra Std. Unproduktiv</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {daysData.map((day, idx) => {
-                      if (!day.exists) return null;
-                      const produktiveVal = calcProduktiveStdForDay(day, koeffNum);
-                      return (
-                        <tr key={idx} style={{ backgroundColor: day.isHoliday ? "#fef2f2" : day.isWeekend ? "#f3f4f6" : "#ffffff" }}>
-                          <td className={`p-1 px-3 border border-border text-xs font-bold whitespace-nowrap text-center ${day.isHoliday ? "text-red-600" : "text-gray-700"}`}>
-                            {day.day}. {day.dayName} {day.isHoliday ? "*" : ""}
-                          </td>
-                          <td className="p-0.5 border border-border text-center align-middle">
-                            <TableInput
-                              val={day.bruttoUmsatz}
-                              setVal={(v) => handleInputChange(idx, "bruttoUmsatz", v)}
-                              type="euro"
-                            />
-                          </td>
-                          <td className="p-1 border border-border text-center text-foreground font-mono text-xs font-bold bg-muted/50">
-                            {parseDEFlex(day.bruttoUmsatz) && koeffNum > 0 ? fmtNum(parseDEFlex(day.bruttoUmsatz) / koeffNum) : (day.nettoUmsatz || "—")}
-                          </td>
-                          <td className="p-0.5 border border-border text-center align-middle">
-                            <TableInput
-                              val={day.geplanteProduktivitaetPct}
-                              setVal={(v) => handleInputChange(idx, "geplanteProduktivitaetPct", v)}
-                              type="pct"
-                            />
-                          </td>
-                          <td className="p-1 border border-border text-center text-foreground font-mono text-xs font-bold bg-muted/50">
-                            {produktiveVal ? fmtHours(produktiveVal) : "—"}
-                          </td>
-                          <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.sfStd} setVal={(v) => handleInputChange(idx, "sfStd", v)} type="hours" /></td>
-                          <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.hmStd} setVal={(v) => handleInputChange(idx, "hmStd", v)} type="hours" /></td>
-                          <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.nzEuro} setVal={(v) => handleInputChange(idx, "nzEuro", v)} type="euro" /></td>
-                          <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.extraStd} setVal={(v) => handleInputChange(idx, "extraStd", v)} type="hours" /></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot className="font-bold border-t-2 border-border text-sm">
-                    <tr style={{ backgroundColor: COLORS.lightGray }}>
-                      <td className="p-3 border border-border text-center uppercase text-muted-foreground rounded-bl-lg">Summe</td>
-                      <td className="p-3 border border-border text-center">{fmtNum(totals.sumBrutto)}</td>
-                      <td className="p-3 border border-border text-center">{fmtNum(totals.sumNetto)}</td>
-                      <td className="p-3 border border-border text-center text-gray-400">—</td>
-                      <td className="p-3 border border-border text-center">{fmtHours(totals.sumProduktiveStd)}</td>
-                      <td className="p-3 border border-border text-center">{fmtHours(totals.sumSF)}</td>
-                      <td className="p-3 border border-border text-center">{fmtHours(totals.sumHM)}</td>
-                      <td className="p-3 border border-border text-center">{fmtNum(totals.sumNZ)}</td>
-                      <td className="p-3 border border-border text-center rounded-br-lg">{fmtHours(totals.sumExtra)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+            <div className="xl:col-span-9">
+              <div ref={tableWrapperRef} className="border border-border rounded-lg overflow-hidden shadow-sm" onKeyDown={handleTableKeyDown}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border-collapse" style={{ borderColor: COLORS.border }}>
+                    <thead>
+                      <tr className="text-white uppercase text-xs tracking-wider" style={{ backgroundColor: COLORS.green }}>
+                        <th className="p-3 border border-border text-center font-bold w-24 rounded-tl-lg">Tag</th>
+                        <th className="p-3 border border-border text-center w-28 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("bruttoUmsatz")}>Brutto Umsatz</th>
+                        <th className="p-3 border border-border text-center w-28 bg-[#142e1e]">Netto Umsatz</th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("geplanteProduktivitaetPct")}>Gepl. Prod. %</th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 bg-[#142e1e]" onClick={() => handleCopyDown("produktiveStd")}>Produktive Std.</th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("sfStd")}>SF</th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("hmStd")}>HM</th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("nzEuro")}>NZ Euro</th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 rounded-tr-lg" onClick={() => handleCopyDown("extraStd")}>Extra Std. Unproduktiv</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {daysData.map((day, idx) => {
+                        if (!day.exists) return null;
+                        const produktiveVal = calcProduktiveStdForDay(day, koeffNum);
+                        return (
+                          <tr key={idx} style={{ backgroundColor: day.isHoliday ? "#fef2f2" : day.isWeekend ? "#f3f4f6" : "#ffffff" }}>
+                            <td className={`p-1 px-3 border border-border text-xs font-bold whitespace-nowrap text-center ${day.isHoliday ? "text-red-600" : "text-gray-700"}`}>
+                              {day.day}. {day.dayName} {day.isHoliday ? "*" : ""}
+                            </td>
+                            <td className="p-0.5 border border-border text-center align-middle">
+                              <TableInput
+                                val={day.bruttoUmsatz}
+                                setVal={(v) => handleInputChange(idx, "bruttoUmsatz", v)}
+                                type="euro"
+                              />
+                            </td>
+                            <td className="p-1 border border-border text-center text-foreground font-mono text-xs font-bold bg-muted/50">
+                              {parseDEFlex(day.bruttoUmsatz) && koeffNum > 0 ? fmtNum(parseDEFlex(day.bruttoUmsatz) / koeffNum) : (day.nettoUmsatz || "—")}
+                            </td>
+                            <td className="p-0.5 border border-border text-center align-middle">
+                              <TableInput
+                                val={day.geplanteProduktivitaetPct}
+                                setVal={(v) => handleInputChange(idx, "geplanteProduktivitaetPct", v)}
+                                type="pct"
+                              />
+                            </td>
+                            <td className="p-1 border border-border text-center text-foreground font-mono text-xs font-bold bg-muted/50">
+                              {produktiveVal ? fmtHours(produktiveVal) : "—"}
+                            </td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.sfStd} setVal={(v) => handleInputChange(idx, "sfStd", v)} type="hours" /></td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.hmStd} setVal={(v) => handleInputChange(idx, "hmStd", v)} type="hours" /></td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.nzEuro} setVal={(v) => handleInputChange(idx, "nzEuro", v)} type="euro" /></td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.extraStd} setVal={(v) => handleInputChange(idx, "extraStd", v)} type="hours" /></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="font-bold border-t-2 border-border text-sm">
+                      <tr style={{ backgroundColor: COLORS.lightGray }}>
+                        <td className="p-3 border border-border text-center uppercase text-muted-foreground rounded-bl-lg">Summe</td>
+                        <td className="p-3 border border-border text-center">{fmtNum(totals.sumBrutto)}</td>
+                        <td className="p-3 border border-border text-center">{fmtNum(totals.sumNetto)}</td>
+                        <td className="p-3 border border-border text-center text-gray-400">—</td>
+                        <td className="p-3 border border-border text-center">{fmtHours(totals.sumProduktiveStd)}</td>
+                        <td className="p-3 border border-border text-center">{fmtHours(totals.sumSF)}</td>
+                        <td className="p-3 border border-border text-center">{fmtHours(totals.sumHM)}</td>
+                        <td className="p-3 border border-border text-center">{fmtNum(totals.sumNZ)}</td>
+                        <td className="p-3 border border-border text-center rounded-br-lg">{fmtHours(totals.sumExtra)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="mx-auto max-w-2xl mt-8">
+          <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/80 dark:bg-amber-950/20 p-6 text-center shadow-sm">
+            <h2 className="text-lg font-black text-[#1b3a26] dark:text-amber-100 mb-2">
+              Bitte wählen Sie ein Restaurant
+            </h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Die Personaleinsatzplanung ist nur für einen konkreten Store verfügbar. Wählen Sie oben im Kopfbereich einen Store aus, um mit der Planung zu beginnen.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-const InputRow = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+const InputRow = ({
+  label,
+  value,
+  onChange,
+  decimals = 0,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  decimals?: number;
+}) => (
   <div className="flex justify-between items-center gap-3">
     <label className="text-xs font-bold text-gray-500 uppercase">{label}</label>
     <input
@@ -1355,7 +1402,7 @@ const InputRow = ({ label, value, onChange }: { label: string; value: string; on
       onChange={(e) => onChange(e.target.value)}
       onBlur={(e) => {
         const v = e.target.value.trim();
-        if (v && !Number.isNaN(parseDEFlex(v))) onChange(fmtNum(parseDEFlex(v)));
+        if (v && !Number.isNaN(parseDEFlex(v))) onChange(fmtNum(parseDEFlex(v), decimals));
       }}
       className="w-24 p-1.5 border-2 border-border rounded text-right text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#1b3a26] focus:ring-2 focus:ring-[#1b3a26] focus:ring-opacity-50 caret-[#1b3a26] selection:bg-[#ffc72c]/30"
       style={{ caretColor: "#1b3a26" }}

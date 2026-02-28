@@ -16,6 +16,7 @@ import {
   CalendarClock,
   BookOpenText,
   ChevronRight,
+  Building2,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -49,54 +50,48 @@ function Card({
   description,
   icon: Icon,
   badge,
+  iconClassName,
 }: {
   href: string;
   title: string;
   description: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
   badge?: string;
+  iconClassName?: string;
 }) {
+  const iconStyle =
+    iconClassName ??
+    "bg-gradient-to-br from-[#1a3826]/10 to-[#1a3826]/5 text-[#1a3826] dark:text-[#FFC72C] border-[#1a3826]/20 dark:border-[#FFC72C]/30";
   return (
     <Link
       href={href}
-      className="group block bg-white dark:bg-card rounded-2xl md:rounded-[2rem] border border-slate-200 dark:border-border shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-[0.99] transition-all touch-manipulation min-h-[140px]"
+      className="group flex items-center gap-4 bg-white dark:bg-card rounded-xl border border-slate-200 dark:border-border shadow-sm hover:shadow-md hover:border-[#1a3826]/30 dark:hover:border-[#FFC72C]/30 active:scale-[0.99] transition-all duration-200 touch-manipulation p-4"
     >
-      <div className="p-5 sm:p-8 h-full flex flex-col justify-between">
-        <div className="flex items-start justify-between">
-          <div className="h-14 w-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center">
-            <Icon className="text-[#1a3826]" />
-          </div>
-
-          {badge ? (
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
+      <div
+        className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 group-hover:scale-105 ${iconStyle}`}
+      >
+        <Icon className="flex-shrink-0" size={16} strokeWidth={2} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-[#1a3826] dark:group-hover:text-[#FFC72C] transition-colors truncate">
+            {title}
+          </h3>
+          {badge && (
+            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400 shrink-0">
               {badge}
-            </span>
-          ) : (
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-300">
-              AKTIV
             </span>
           )}
         </div>
-
-        <div className="mt-8">
-          <h3 className="text-xl font-black text-slate-900 group-hover:text-[#1a3826] transition-colors">
-            {title}
-          </h3>
-          <p className="mt-2 text-sm font-semibold text-slate-400">
-            {description}
-          </p>
-
-          <div className="mt-6 flex items-center justify-between">
-            <span className="text-xs font-black text-[#1a3826]">Öffnen</span>
-            <div className="h-10 w-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center group-hover:bg-white transition-colors">
-              <ArrowRight
-                className="text-slate-400 group-hover:text-[#1a3826]"
-                size={18}
-              />
-            </div>
-          </div>
-        </div>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+          {description}
+        </p>
       </div>
+      <ArrowRight
+        size={16}
+        className="text-slate-400 group-hover:text-[#1a3826] dark:group-hover:text-[#FFC72C] shrink-0 transition-all duration-200 group-hover:translate-x-0.5"
+        strokeWidth={2.5}
+      />
     </Link>
   );
 }
@@ -125,9 +120,10 @@ export default async function ToolsCategoryPage({
     href: string;
     title: string;
     description: string;
-    icon: React.ComponentType<{ className?: string }>;
+    icon: React.ComponentType<{ className?: string; size?: number }>;
     badge?: string;
     show?: boolean;
+    iconClassName?: string;
   }> = [];
 
   if (categoryId === "staff") {
@@ -137,18 +133,24 @@ export default async function ToolsCategoryPage({
         title: "Urlaubsplanung",
         description: "Abwesenheits- und Genehmigungsplanung.",
         icon: Palmtree,
+        iconClassName:
+          "bg-gradient-to-br from-sky-500/20 to-blue-500/20 text-sky-700 dark:text-sky-400 border-sky-200/50 dark:border-sky-500/30",
       },
       {
         href: "/tools/PDS",
         title: "PDS (Beurteilung)",
         description: "Mitarbeiterbeurteilung.",
         icon: ClipboardCheck,
+        iconClassName:
+          "bg-gradient-to-br from-violet-500/20 to-purple-500/20 text-violet-700 dark:text-violet-400 border-violet-200/50 dark:border-violet-500/30",
       },
       {
         href: "/tools/rules",
         title: "Bedienungsanleitungen",
         description: "Anweisungen und Abläufe.",
         icon: BookOpenText,
+        iconClassName:
+          "bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-500/30",
       },
       {
         href: "/tools/bonusi",
@@ -157,6 +159,8 @@ export default async function ToolsCategoryPage({
         icon: Gift,
         badge: "ADMIN",
         show: isAdmin,
+        iconClassName:
+          "bg-gradient-to-br from-amber-500/20 to-yellow-500/20 text-amber-700 dark:text-amber-400 border-amber-200/50 dark:border-amber-500/30",
       }
     );
   }
@@ -168,12 +172,24 @@ export default async function ToolsCategoryPage({
         title: "Produktivität",
         description: "Berichte und Leistungsüberwachung der Restaurants.",
         icon: BarChart3,
+        iconClassName:
+          "bg-gradient-to-br from-rose-500/20 to-pink-500/20 text-rose-700 dark:text-rose-400 border-rose-200/50 dark:border-rose-500/30",
       },
       {
         href: "/tools/labor-planner",
         title: "Personaleinsatzplanung",
         description: "Arbeits- und Schichtplanung.",
         icon: CalendarClock,
+        iconClassName:
+          "bg-gradient-to-br from-orange-500/20 to-amber-500/20 text-orange-700 dark:text-orange-400 border-orange-200/50 dark:border-orange-500/30",
+      },
+      {
+        href: "/tools/partners",
+        title: "Firmen und Partner",
+        description: "Lieferanten und Serviceunternehmen.",
+        icon: Building2,
+        iconClassName:
+          "bg-gradient-to-br from-blue-500/20 to-sky-500/20 text-blue-700 dark:text-blue-400 border-blue-200/50 dark:border-blue-500/30",
       }
     );
   }
@@ -193,21 +209,27 @@ export default async function ToolsCategoryPage({
         </nav>
         {/* Header */}
         <div className="flex items-center gap-5 pb-8 border-b border-border">
-          <div className="h-14 w-14 rounded-2xl bg-card border border-border flex items-center justify-center shadow-sm">
-            <HeaderIcon className="text-[#1a3826] dark:text-[#FFC72C]" />
+          <div
+            className={`h-12 w-12 rounded-xl border flex items-center justify-center shadow-md ${
+              categoryId === "staff"
+                ? "bg-gradient-to-br from-[#1a3826]/15 to-[#FFC72C]/10 text-[#1a3826] dark:text-[#FFC72C] border-[#1a3826]/20 dark:border-[#FFC72C]/30"
+                : "bg-card border-border text-[#1a3826] dark:text-[#FFC72C]"
+            }`}
+          >
+            <HeaderIcon size={24} strokeWidth={2} />
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground">
               {meta.title}
             </h1>
-            <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+            <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase mt-0.5">
               {meta.subtitle}
             </p>
           </div>
         </div>
 
-        {/* Cards */}
-        <div className="pt-10 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Cards – kompaktni red za više alata */}
+        <div className="pt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {visibleTools.map((t) => (
             <Card
               key={t.href}
@@ -216,6 +238,7 @@ export default async function ToolsCategoryPage({
               description={t.description}
               icon={t.icon}
               badge={t.badge}
+              iconClassName={t.iconClassName}
             />
           ))}
         </div>

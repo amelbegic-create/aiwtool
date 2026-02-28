@@ -19,6 +19,10 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: dict.app_title,
   description: dict.app_description,
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default async function RootLayout({
@@ -34,7 +38,8 @@ export default async function RootLayout({
 
   if (session?.user) {
       const cookieStore = await cookies();
-      activeRestaurantId = cookieStore.get('activeRestaurantId')?.value;
+      const rawActive = cookieStore.get('activeRestaurantId')?.value;
+      activeRestaurantId = rawActive && rawActive !== 'all' ? rawActive : undefined;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const user = session.user as any;
@@ -72,6 +77,9 @@ export default async function RootLayout({
          }
          return (a.name || "").localeCompare(b.name || "");
       });
+
+      // Bez opcije "Alle Restaurants" – nikad ne prikazujemo "all" u switcheru
+      userRestaurants = userRestaurants.filter((r) => r.id !== "all");
 
       // --- FIX: OBRISANO AUTOMATSKO SPAŠAVANJE KOLAČIĆA ---
       // Ako nema odabranog restorana, samo vizuelno uzmi prvi,

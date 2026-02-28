@@ -30,10 +30,12 @@ export default function TeamPageClient({
   initialTeam,
   treeData,
   currentUserId,
+  canLinkToAdminUserEdit = false,
 }: {
   initialTeam: TeamMemberRow[];
   treeData: TeamMemberRowWithSupervisor[];
   currentUserId: string;
+  canLinkToAdminUserEdit?: boolean;
 }) {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TeamMemberDetail | null>(null);
@@ -109,7 +111,16 @@ export default function TeamPageClient({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-bold text-slate-800 truncate">{member.name || "—"}</div>
+                    {canLinkToAdminUserEdit ? (
+                      <Link
+                        href={`/admin/users/${member.id}`}
+                        className="font-bold text-slate-800 truncate block hover:underline hover:text-[#1a3826]"
+                      >
+                        {member.name || "—"}
+                      </Link>
+                    ) : (
+                      <div className="font-bold text-slate-800 truncate">{member.name || "—"}</div>
+                    )}
                     <span
                       className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-0.5"
                       style={{
@@ -182,7 +193,16 @@ export default function TeamPageClient({
                             )}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-800">{member.name || "—"}</div>
+                            {canLinkToAdminUserEdit ? (
+                              <Link
+                                href={`/admin/users/${member.id}`}
+                                className="font-bold text-slate-800 hover:underline hover:text-[#1a3826]"
+                              >
+                                {member.name || "—"}
+                              </Link>
+                            ) : (
+                              <div className="font-bold text-slate-800">{member.name || "—"}</div>
+                            )}
                             <span
                               className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase"
                               style={{

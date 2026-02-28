@@ -26,6 +26,22 @@ const PDS_STATUS_LABELS: Record<string, string> = {
   COMPLETED: 'Abgeschlossen'
 };
 
+function getGoalPointRangeLabel(goal: {
+  type?: string;
+  scoringRules?: Array<{ from: number; to: number; pts: number }>;
+  yesPoints?: number;
+  noPoints?: number;
+}): string {
+  if (goal.type === 'BOOLEAN') {
+    const ja = goal.yesPoints ?? 0;
+    const nein = goal.noPoints ?? 0;
+    return `Ja: ${ja}, Nein: ${nein}`;
+  }
+  const rules = goal.scoringRules ?? [];
+  if (rules.length === 0) return '–';
+  return rules.map((r) => `${r.from}–${r.to}`).join(', ');
+}
+
 interface PDSListItem {
   id: string;
   user: { name: string | null; email?: string | null; role?: string | null; supervisor?: { name: string | null } | null };
@@ -224,9 +240,8 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
       const exportYear = selectedYear - 1;
       const boxW = 42;
       const boxH = 28;
-      const goalTextWidth = w - 2 * margin - 22;
+      const rangeColWidth = 32;
       const goalLineHeight = 4.5;
-      const scoreX = w - margin - 14;
       const sigImgW = 45;
       const sigImgH = 22;
       const leftX = margin;
@@ -330,30 +345,67 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(15, 23, 42);
-        goals.forEach((goal: { title?: string; type?: string; result?: unknown; points?: number }, i: number) => {
-          if (y > 265) { doc.addPage(); y = 20; }
-          const title = goal.title ?? `Ziel ${i + 1}`;
+        const twoCols = goals.length >= 10;
+        const gap = 6;
+        const colWidth = twoCols ? (w - 2 * margin - gap) / 2 : w - 2 * margin;
+        const goalTextWidth = colWidth - 22 - rangeColWidth;
+
+        const drawOneGoalBlock = (goal: { title?: string; type?: string; result?: unknown; points?: number }, goalIndex: number, x: number, startY: number, blockWidth: number): number => {
+          const title = goal.title ?? `Ziel ${goalIndex + 1}`;
           const titleLines = doc.splitTextToSize(title, goalTextWidth);
           const res = goal.type === 'BOOLEAN' ? (goal.result ? 'Ja' : 'Nein') : String(goal.result ?? '');
-          const blockTop = y;
+          const blockTop = startY;
           const titleHeight = titleLines.length * goalLineHeight;
           const resultY = blockTop + titleHeight + goalLineHeight;
           const rowH = titleHeight + goalLineHeight * 2 + 4;
+          const localRangeX = x + blockWidth - 14 - rangeColWidth;
+          const localScoreX = x + blockWidth - 14;
           doc.setFillColor(249, 250, 251);
-          doc.rect(margin, blockTop - 2, w - 2 * margin, rowH, 'F');
+          doc.rect(x, blockTop - 2, blockWidth, rowH, 'F');
           doc.setFont('helvetica', 'bold');
           titleLines.forEach((line: string, li: number) => {
-            doc.text(line, margin + 2, blockTop + 2 + (li + 1) * goalLineHeight);
+            doc.text(line, x + 2, blockTop + 2 + (li + 1) * goalLineHeight);
           });
           doc.setFont('helvetica', 'normal');
-          doc.text(`Ergebnis: ${res}`, margin + 2, resultY + 2);
+          doc.text(`Ergebnis: ${res}`, x + 2, resultY + 2);
+          doc.setFontSize(6);
+          doc.setTextColor(71, 85, 105);
+          const rangeLabel = getGoalPointRangeLabel(goal as Parameters<typeof getGoalPointRangeLabel>[0]);
+          const rangeLines = doc.splitTextToSize(rangeLabel, rangeColWidth - 2);
+          rangeLines.slice(0, 2).forEach((line: string, li: number) => {
+            doc.text(line, localRangeX + 1, blockTop + 2 + goalLineHeight + li * 2.8);
+          });
+          doc.setFontSize(8);
           doc.setTextColor(26, 56, 38);
           doc.setFont('helvetica', 'bold');
-          doc.text(`${goal.points ?? 0} Pkt`, scoreX, blockTop + 2 + goalLineHeight);
+          doc.text(`${goal.points ?? 0} Pkt`, localScoreX, blockTop + 2 + goalLineHeight);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(15, 23, 42);
-          y = blockTop + rowH + 2;
-        });
+          return blockTop + rowH + 2;
+        };
+
+        if (twoCols) {
+          const leftGoals = goals.slice(0, Math.ceil(goals.length / 2));
+          const rightGoals = goals.slice(Math.ceil(goals.length / 2));
+          const leftXCol = margin;
+          const rightXCol = margin + colWidth + gap;
+          for (let row = 0; row < leftGoals.length; row++) {
+            if (y > 265) { doc.addPage(); y = 20; }
+            const leftGoal = leftGoals[row];
+            const rightGoal = rightGoals[row];
+            const yAfterLeft = drawOneGoalBlock(leftGoal, row, leftXCol, y, colWidth);
+            let yAfterRight = y;
+            if (rightGoal) {
+              yAfterRight = drawOneGoalBlock(rightGoal, leftGoals.length + row, rightXCol, y, colWidth);
+            }
+            y = Math.max(yAfterLeft, yAfterRight);
+          }
+        } else {
+          goals.forEach((goal: { title?: string; type?: string; result?: unknown; points?: number }, i: number) => {
+            if (y > 265) { doc.addPage(); y = 20; }
+            y = drawOneGoalBlock(goal, i, margin, y, colWidth);
+          });
+        }
 
         y += 5;
         if (y > 250) { doc.addPage(); y = 20; }
@@ -386,11 +438,11 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.text('UNTERSCHRIFTEN', margin, y);
-          y += 7;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(71, 85, 105);
-          doc.text('Unterschrift Mitarbeiter:', leftX, y);
+        y += 7;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text('Unterschrift Mitarbeiter:', leftX, y);
           if (empSigImg) {
             try { doc.addImage(empSigImg, 'PNG', leftX, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', leftX, y + 8); }
           } else { doc.text('________________', leftX, y + 5); }
@@ -523,8 +575,10 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
       const exportYear = (selectedYear - 1);
       const boxW = 42;
       const boxH = 28;
-      const goalTextWidth = w - 2 * margin - 22;
+      const rangeColWidth = 32;
+      const goalTextWidth = w - 2 * margin - 22 - rangeColWidth;
       const goalLineHeight = 4.5;
+      const rangeX = w - margin - 14 - rangeColWidth;
       const scoreX = w - margin - 14;
       const sigImgW = 45;
       const sigImgH = 22;
@@ -623,30 +677,67 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(15, 23, 42);
-        goals.forEach((goal: { title?: string; type?: string; result?: unknown; points?: number }, i: number) => {
-          if (y > 265) { doc.addPage(); y = 20; }
-          const title = goal.title ?? `Ziel ${i + 1}`;
+        const twoCols = goals.length >= 10;
+        const gap = 6;
+        const colWidth = twoCols ? (w - 2 * margin - gap) / 2 : w - 2 * margin;
+        const goalTextWidth = colWidth - 22 - rangeColWidth;
+
+        const drawOneGoalBlock = (goal: { title?: string; type?: string; result?: unknown; points?: number }, goalIndex: number, x: number, startY: number, blockWidth: number): number => {
+          const title = goal.title ?? `Ziel ${goalIndex + 1}`;
           const titleLines = doc.splitTextToSize(title, goalTextWidth);
           const res = goal.type === 'BOOLEAN' ? (goal.result ? 'Ja' : 'Nein') : String(goal.result ?? '');
-          const blockTop = y;
+          const blockTop = startY;
           const titleHeight = titleLines.length * goalLineHeight;
           const resultY = blockTop + titleHeight + goalLineHeight;
           const rowH = titleHeight + goalLineHeight * 2 + 4;
+          const localRangeX = x + blockWidth - 14 - rangeColWidth;
+          const localScoreX = x + blockWidth - 14;
           doc.setFillColor(249, 250, 251);
-          doc.rect(margin, blockTop - 2, w - 2 * margin, rowH, 'F');
+          doc.rect(x, blockTop - 2, blockWidth, rowH, 'F');
           doc.setFont('helvetica', 'bold');
           titleLines.forEach((line: string, li: number) => {
-            doc.text(line, margin + 2, blockTop + 2 + (li + 1) * goalLineHeight);
+            doc.text(line, x + 2, blockTop + 2 + (li + 1) * goalLineHeight);
           });
           doc.setFont('helvetica', 'normal');
-          doc.text(`Ergebnis: ${res}`, margin + 2, resultY + 2);
+          doc.text(`Ergebnis: ${res}`, x + 2, resultY + 2);
+          doc.setFontSize(6);
+          doc.setTextColor(71, 85, 105);
+          const rangeLabel = getGoalPointRangeLabel(goal as Parameters<typeof getGoalPointRangeLabel>[0]);
+          const rangeLines = doc.splitTextToSize(rangeLabel, rangeColWidth - 2);
+          rangeLines.slice(0, 2).forEach((line: string, li: number) => {
+            doc.text(line, localRangeX + 1, blockTop + 2 + goalLineHeight + li * 2.8);
+          });
+          doc.setFontSize(8);
           doc.setTextColor(26, 56, 38);
           doc.setFont('helvetica', 'bold');
-          doc.text(`${goal.points ?? 0} Pkt`, scoreX, blockTop + 2 + goalLineHeight);
+          doc.text(`${goal.points ?? 0} Pkt`, localScoreX, blockTop + 2 + goalLineHeight);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(15, 23, 42);
-          y = blockTop + rowH + 2;
-        });
+          return blockTop + rowH + 2;
+        };
+
+        if (twoCols) {
+          const leftGoals = goals.slice(0, Math.ceil(goals.length / 2));
+          const rightGoals = goals.slice(Math.ceil(goals.length / 2));
+          const leftXCol = margin;
+          const rightXCol = margin + colWidth + gap;
+          for (let row = 0; row < leftGoals.length; row++) {
+            if (y > 265) { doc.addPage(); y = 20; }
+            const leftGoal = leftGoals[row];
+            const rightGoal = rightGoals[row];
+            const yAfterLeft = drawOneGoalBlock(leftGoal, row, leftXCol, y, colWidth);
+            let yAfterRight = y;
+            if (rightGoal) {
+              yAfterRight = drawOneGoalBlock(rightGoal, leftGoals.length + row, rightXCol, y, colWidth);
+            }
+            y = Math.max(yAfterLeft, yAfterRight);
+          }
+        } else {
+          goals.forEach((goal: { title?: string; type?: string; result?: unknown; points?: number }, i: number) => {
+            if (y > 265) { doc.addPage(); y = 20; }
+            y = drawOneGoalBlock(goal, i, margin, y, colWidth);
+          });
+        }
 
         y += 5;
         if (y > 250) { doc.addPage(); y = 20; }
@@ -679,11 +770,11 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.text('UNTERSCHRIFTEN', margin, y);
-          y += 7;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.setTextColor(71, 85, 105);
-          doc.text('Unterschrift Mitarbeiter:', leftX, y);
+        y += 7;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text('Unterschrift Mitarbeiter:', leftX, y);
           if (empSigImg) {
             try { doc.addImage(empSigImg, 'PNG', leftX, y + 2, sigImgW, sigImgH); } catch { doc.text('________________', leftX, y + 8); }
           } else { doc.text('________________', leftX, y + 5); }

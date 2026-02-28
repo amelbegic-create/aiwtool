@@ -16,6 +16,22 @@ function isCanvasSignature(val: string | null): boolean {
   return typeof val === 'string' && val.startsWith('data:image');
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [0, 0, 0];
+}
+
+function getGoalPointRangeLabel(goal: PDSGoal): string {
+  if (goal.type === 'BOOLEAN') {
+    const ja = goal.yesPoints ?? 0;
+    const nein = goal.noPoints ?? 0;
+    return `Ja: ${ja}, Nein: ${nein}`;
+  }
+  const rules = goal.scoringRules ?? [];
+  if (rules.length === 0) return '–';
+  return rules.map((r: PDSScoringRule) => `${r.from}–${r.to}`).join(', ');
+}
+
 interface Props {
   pds: any;
   isManager: boolean;
@@ -103,10 +119,43 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       }
       y += 5;
 
-      // Ukupna ocjena u istom bloku kao ime (desno), da ne "pobjegne"
+      // Ukupna ocjena u istom bloku kao ime (desno); skala lijevo od nje – isti okvir (boxW × boxH)
       const boxW = 42;
       const boxH = 28;
       const boxTop = Math.max(28, y - 18);
+      const scaleLevelsForBox = Array.isArray(pds.scale) ? pds.scale : [];
+      const gap = 3;
+      const scaleBoxX = w - margin - boxW - boxW - gap;
+      if (scaleLevelsForBox.length > 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(scaleBoxX, boxTop, boxW, boxH, 2, 2, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(scaleBoxX, boxTop, boxW, boxH, 2, 2, 'S');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6);
+        doc.setTextColor(51, 65, 85);
+        doc.text('Bewertungsskala', scaleBoxX + boxW / 2, boxTop + 4, { align: 'center' });
+        const colorSize = 2.8;
+        const colorLeft = scaleBoxX + 2;
+        const labelColW = 5;
+        const labelCenterX = colorLeft + colorSize + 1 + labelColW / 2;
+        const rangeX = scaleBoxX + boxW - 3;
+        const rowsTop = boxTop + 6;
+        const rowHeight = (boxH - 6) / scaleLevelsForBox.length;
+        scaleLevelsForBox.forEach((s: { label?: string; min?: number; max?: number; colorHex?: string }, i: number) => {
+          const rowCenterY = rowsTop + (i + 0.5) * rowHeight;
+          const [r, g, b] = hexToRgb(s.colorHex ?? '#94a3b8');
+          doc.setFillColor(r, g, b);
+          doc.rect(colorLeft, rowCenterY - colorSize / 2, colorSize, colorSize, 'F');
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6);
+          doc.setTextColor(30, 41, 59);
+          doc.text(String(s.label ?? i + 1), labelCenterX, rowCenterY + 0.4, { align: 'center' });
+          doc.setTextColor(100, 116, 139);
+          doc.text(`${s.min ?? 0}–${s.max ?? 0}`, rangeX, rowCenterY + 0.4, { align: 'right' });
+        });
+      }
       doc.setFillColor(26, 56, 38);
       doc.roundedRect(w - margin - boxW, boxTop, boxW, boxH, 2, 2, 'F');
       const boxCenterX = w - margin - boxW / 2;
@@ -127,43 +176,79 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.setFontSize(9);
       doc.setTextColor(51, 65, 85);
       doc.text('ZIELE UND ERGEBNISSE', margin, y);
-      y += 5;
+      y += 4;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(100, 116, 139);
       doc.text('bodovanje', margin, y);
-      y += 6;
+      y += 4;
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setTextColor(15, 23, 42);
-      const goalTextWidth = w - 2 * margin - 22;
-      const goalLineHeight = 4.5;
-      const scoreX = w - margin - 14;
-      goals.forEach((goal: PDSGoal, i: number) => {
-        if (y > 265) { doc.addPage(); y = 20; }
-        const title = goal.title ?? `Ziel ${i + 1}`;
+      const rangeColWidth = 32;
+      const goalLineHeight = 3.2;
+      const twoCols = goals.length >= 10;
+      const colGap = 6;
+      const colWidth = twoCols ? (w - 2 * margin - colGap) / 2 : w - 2 * margin;
+      const goalTextWidth = colWidth - 18 - rangeColWidth;
+
+      const drawOneGoalBlock = (goal: PDSGoal, goalIndex: number, x: number, startY: number, blockWidth: number): number => {
+        const title = goal.title ?? `Ziel ${goalIndex + 1}`;
         const titleLines = doc.splitTextToSize(title, goalTextWidth);
         const res = goal.type === 'BOOLEAN' ? (goal.result ? 'Ja' : 'Nein') : String(goal.result ?? '');
-        const blockTop = y;
+        const blockTop = startY;
         const titleHeight = titleLines.length * goalLineHeight;
         const resultY = blockTop + titleHeight + goalLineHeight;
-        const rowH = titleHeight + goalLineHeight * 2 + 4;
+        const rowH = titleHeight + goalLineHeight * 2 + 2;
+        const localRangeX = x + blockWidth - 12 - rangeColWidth;
+        const localScoreX = x + blockWidth - 12;
         doc.setFillColor(249, 250, 251);
-        doc.rect(margin, blockTop - 2, w - 2 * margin, rowH, 'F');
+        doc.rect(x, blockTop - 1, blockWidth, rowH, 'F');
         doc.setFont('helvetica', 'bold');
         titleLines.forEach((line: string, li: number) => {
-          doc.text(line, margin + 2, blockTop + 2 + (li + 1) * goalLineHeight);
+          doc.text(line, x + 1, blockTop + 1 + (li + 1) * goalLineHeight);
         });
         doc.setFont('helvetica', 'normal');
-        doc.text(`Ergebnis: ${res}`, margin + 2, resultY + 2);
+        doc.text(`Ergebnis: ${res}`, x + 1, resultY + 1);
+        doc.setFontSize(6);
+        doc.setTextColor(71, 85, 105);
+        const rangeLabel = getGoalPointRangeLabel(goal);
+        const rangeLines = doc.splitTextToSize(rangeLabel, rangeColWidth - 2);
+        rangeLines.slice(0, 2).forEach((line: string, li: number) => {
+          doc.text(line, localRangeX + 1, blockTop + 1 + goalLineHeight + li * 2.8);
+        });
+        doc.setFontSize(7);
         doc.setTextColor(26, 56, 38);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${goal.points ?? 0} Pkt`, scoreX, blockTop + 2 + goalLineHeight);
+        doc.text(`${goal.points ?? 0} Pkt`, localScoreX, blockTop + 1 + goalLineHeight);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(15, 23, 42);
-        y = blockTop + rowH + 2;
-      });
+        return blockTop + rowH + 1;
+      };
+
+      if (twoCols) {
+        const leftGoals = goals.slice(0, Math.ceil(goals.length / 2));
+        const rightGoals = goals.slice(Math.ceil(goals.length / 2));
+        const leftX = margin;
+        const rightX = margin + colWidth + colGap;
+        for (let row = 0; row < leftGoals.length; row++) {
+          if (y > 268) { doc.addPage(); y = 20; }
+          const leftGoal = leftGoals[row];
+          const rightGoal = rightGoals[row];
+          const yAfterLeft = drawOneGoalBlock(leftGoal, row, leftX, y, colWidth);
+          let yAfterRight = y;
+          if (rightGoal) {
+            yAfterRight = drawOneGoalBlock(rightGoal, leftGoals.length + row, rightX, y, colWidth);
+          }
+          y = Math.max(yAfterLeft, yAfterRight);
+        }
+      } else {
+        goals.forEach((goal: PDSGoal, i: number) => {
+          if (y > 268) { doc.addPage(); y = 20; }
+          y = drawOneGoalBlock(goal, i, margin, y, colWidth);
+        });
+      }
 
       y += 5;
       if (y > 250) { doc.addPage(); y = 20; }
@@ -255,7 +340,10 @@ export default function PDSFormClient({ pds, isManager }: Props) {
         doc.text('Erstellt: ' + formatDateDDMMGGGG(new Date()), margin, y + 5);
       }
 
-      doc.save(`PDS_Beurteilung_${(pds.user?.name ?? 'Mitarbeiter').replace(/\s+/g, '_').replace(/[^\w\-]/g, '')}_${pds.year}.pdf`);
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error) {
       console.error('Export PDF Error:', error);
       alert('Fehler beim PDF-Export.');
@@ -363,10 +451,10 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                 onClick={handleExportPDF} 
                 disabled={isExporting}
                 className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-2 border border-slate-200"
-                title="PDF herunterladen"
+                title="PDF in neuem Tab öffnen"
             >
                 {isExporting ? <Loader2 size={16} className="animate-spin"/> : <FileDown size={16}/>}
-                PDF HERUNTERLADEN
+                PDF ÖFFNEN
             </button>
 
             {canEmployeeEdit && (
@@ -416,63 +504,63 @@ export default function PDSFormClient({ pds, isManager }: Props) {
              </div>
          </div>
 
-         <section className="mb-8">
-           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Ziele und Ergebnisse</h3>
-           <p className="text-[10px] text-slate-500 lowercase mb-4">bodovanje</p>
-           <div className="space-y-4">
+         <section className="mb-6">
+           <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-0.5">Ziele und Ergebnisse</h3>
+           <p className="text-[10px] text-slate-500 lowercase mb-3">bodovanje</p>
+           <div className={goals.length >= 10 ? 'grid grid-cols-1 sm:grid-cols-2 gap-2' : 'space-y-2'}>
             {goals.map((goal, i) => (
-                <div key={i} className="bg-slate-50/80 p-4 md:p-5 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors">
-                    <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
-                        <h4 className="text-sm font-bold text-slate-800 flex-1 min-w-0">{goal.title}</h4>
-                        <span className="px-3 py-1 rounded-lg bg-[#1a3826] text-white text-xs font-bold shrink-0">
+                <div key={i} className="bg-slate-50/80 p-3 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors">
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
+                        <h4 className="text-xs font-bold text-slate-800 flex-1 min-w-0">{goal.title}</h4>
+                        <span className="px-2 py-0.5 rounded-md bg-[#1a3826] text-white text-[10px] font-bold shrink-0">
                             {goal.points} P
                         </span>
                     </div>
 
                     {goal.type === 'BOOLEAN' ? (
-                        <div className="flex gap-3">
+                        <div className="flex gap-2">
                             <button 
                                 type="button"
                                 onClick={() => canEmployeeEdit && handleGoalChange(i, true)}
                                 disabled={!canEmployeeEdit}
-                                className={`flex-1 py-3 rounded-xl border-2 flex items-center justify-center gap-2 text-sm font-bold transition-all ${
+                                className={`flex-1 py-2 rounded-lg border-2 flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${
                                     goal.result === true 
                                     ? 'bg-[#1a3826] border-[#1a3826] text-white' 
                                     : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                                 }`}
                             >
-                                <Check size={18} strokeWidth={3} /> Ja
-                                {isManager && <span className="text-[9px] opacity-70">({goal.yesPoints} P)</span>}
+                                <Check size={14} strokeWidth={3} /> Ja
+                                {isManager && <span className="text-[8px] opacity-70">({goal.yesPoints} P)</span>}
                             </button>
                             <button 
                                 type="button"
                                 onClick={() => canEmployeeEdit && handleGoalChange(i, false)}
                                 disabled={!canEmployeeEdit}
-                                className={`flex-1 py-3 rounded-xl border-2 flex items-center justify-center gap-2 text-sm font-bold transition-all ${
+                                className={`flex-1 py-2 rounded-lg border-2 flex items-center justify-center gap-1.5 text-xs font-bold transition-all ${
                                     goal.result === false 
                                     ? 'bg-red-500 border-red-500 text-white' 
                                     : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
                                 }`}
                             >
-                                <X size={18} strokeWidth={3} /> Nein
-                                {isManager && <span className="text-[9px] opacity-70">({goal.noPoints} P)</span>}
+                                <X size={14} strokeWidth={3} /> Nein
+                                {isManager && <span className="text-[8px] opacity-70">({goal.noPoints} P)</span>}
                             </button>
                         </div>
                     ) : (
-                        <div className="bg-white p-4 rounded-xl border border-slate-200">
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Ergebnis (Eingabe)</label>
+                        <div className="bg-white p-2 rounded-lg border border-slate-200">
+                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Ergebnis (Eingabe)</label>
                             <input 
                                 type="number" 
                                 disabled={!canEmployeeEdit}
                                 value={goal.result as string}
                                 onChange={(e) => handleGoalChange(i, e.target.value)}
-                                className="w-full min-h-[48px] text-xl font-bold text-slate-800 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#1a3826] focus:ring-2 focus:ring-[#1a3826]/20 outline-none px-4 py-3 text-right disabled:bg-slate-100"
+                                className="w-full min-h-[36px] text-base font-bold text-slate-800 bg-slate-50 border-2 border-slate-200 rounded-lg focus:border-[#1a3826] focus:ring-2 focus:ring-[#1a3826]/20 outline-none px-3 py-2 text-right disabled:bg-slate-100"
                                 placeholder="0"
                             />
                             {goal.scoringRules?.length ? (
-                                <div className="mt-3 flex flex-wrap gap-2">
+                                <div className="mt-2 flex flex-wrap gap-1.5">
                                     {goal.scoringRules.map((r: PDSScoringRule, ri: number) => (
-                                        <span key={ri} className={`text-[9px] px-2 py-1 rounded border ${
+                                        <span key={ri} className={`text-[8px] px-1.5 py-0.5 rounded border ${
                                             parseFloat(goal.result as string) >= r.from && parseFloat(goal.result as string) <= r.to
                                             ? 'bg-[#1a3826] text-white border-[#1a3826]'
                                             : 'bg-slate-100 text-slate-400 border-slate-200'

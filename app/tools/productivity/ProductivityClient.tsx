@@ -205,16 +205,20 @@ function ProductivityToolContent({
       .then((res) => res.json())
       .then((data) => {
         setRestaurants(data);
-        if (!urlId && !activeRestId && data.length > 0) {
-          const preferred =
-            defaultRestaurantId && data.some((r: Restaurant) => r.id === defaultRestaurantId)
-              ? defaultRestaurantId
-              : data[0].id;
-          setActiveRestId(preferred);
-          const params = new URLSearchParams(searchParams.toString());
-          params.set("restaurantId", preferred);
-          router.replace(`?${params.toString()}`);
-        }
+        if (data.length === 0) return;
+        const list = data as Restaurant[];
+        const validUrl = urlId && urlId !== "all" && list.some((r: Restaurant) => r.id === urlId);
+        const validDefault =
+          defaultRestaurantId &&
+          defaultRestaurantId !== "all" &&
+          list.some((r: Restaurant) => r.id === defaultRestaurantId);
+        const currentInvalid = !activeRestId || activeRestId === "all" || !list.some((r: Restaurant) => r.id === activeRestId);
+        if (!currentInvalid) return;
+        const chosen = validUrl ? urlId : validDefault ? defaultRestaurantId : list.length === 1 ? list[0].id : list[0].id;
+        setActiveRestId(chosen);
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("restaurantId", chosen);
+        router.replace(`/tools/productivity?${params.toString()}`);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -224,11 +228,15 @@ function ProductivityToolContent({
   }, [urlId]);
 
   useEffect(() => {
-    if (defaultRestaurantId && defaultRestaurantId !== activeRestId) {
+    if (
+      defaultRestaurantId &&
+      defaultRestaurantId !== "all" &&
+      defaultRestaurantId !== activeRestId &&
+      restaurants.some((r) => r.id === defaultRestaurantId)
+    ) {
       setActiveRestId(defaultRestaurantId);
     }
-  }, [defaultRestaurantId]);
-
+  }, [defaultRestaurantId, activeRestId, restaurants]);
 
   const allStations = useMemo(
     () => [...DEFAULT_STATIONS, ...customStations],
@@ -488,7 +496,7 @@ function ProductivityToolContent({
           }),
         });
         if (res.ok && showToast) {
-          toast.success("Daten erfolgreich gespeichert!");
+          toast.success("Gespeichert", { duration: 1000 });
         } else if (!res.ok) {
           toast.error("Fehler beim Speichern.");
         }
@@ -501,7 +509,7 @@ function ProductivityToolContent({
     [activeRestId, selectedDate, getPayload]
   );
 
-  const handleSave = useCallback(() => performSave(false), [performSave]);
+  const handleSave = useCallback(() => performSave(true), [performSave]);
 
   const saveTemplate = useCallback(
     async (key: string) => {

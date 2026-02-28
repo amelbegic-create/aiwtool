@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
 import { getMyTeamData, getTeamTreeData } from "@/app/actions/teamActions";
+import { getDbUserForAccess, hasPermission } from "@/lib/access";
 import TeamPageClient from "./TeamPageClient";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,13 @@ export default async function TeamPage() {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string })?.id;
   if (!userId) redirect("/login");
+
+  const dbUser = await getDbUserForAccess();
+  const canLinkToAdminUserEdit = hasPermission(
+    String(dbUser.role),
+    dbUser.permissions ?? [],
+    "users:manage"
+  );
 
   let team: Awaited<ReturnType<typeof getMyTeamData>> = [];
   let treeData: Awaited<ReturnType<typeof getTeamTreeData>> = [];
@@ -39,6 +47,7 @@ export default async function TeamPage() {
             initialTeam={team}
             treeData={treeData}
             currentUserId={userId}
+            canLinkToAdminUserEdit={canLinkToAdminUserEdit}
           />
         </div>
       </div>

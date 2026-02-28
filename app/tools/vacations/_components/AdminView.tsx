@@ -334,9 +334,9 @@ export function exportIndividualReportWithData(
 
     const centerX = x + statsBoxWidth / 2;
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(statsLabelFontSize);
-    doc.setTextColor(209, 213, 219); // slate-300
+    doc.setTextColor(255, 255, 255);
     doc.text(label, centerX, statsY + 5, { align: "center" });
 
     doc.setFont("helvetica", "bold");
@@ -405,6 +405,14 @@ export function exportIndividualReportWithData(
     },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left: margin, right: margin },
+    didParseCell: (data) => {
+      const hook = data as { section: string; column: { index: number }; cell: { raw: string; styles: { textColor?: number[] } } };
+      if (hook.section === "body" && hook.column.index === 3) {
+        const raw = String(hook.cell.raw ?? "");
+        if (raw === "Genehmigt") hook.cell.styles.textColor = [22, 163, 74];
+        else if (raw === "Abgelehnt") hook.cell.styles.textColor = [220, 38, 38];
+      }
+    },
   });
   const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
   openPdfInSameTab(doc);
@@ -1233,7 +1241,7 @@ export default function AdminView({
                 placeholder="Mitarbeiter suchen (Name, Abteilung, Restaurant)…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="bg-transparent outline-none text-sm font-bold text-foreground w-full md:w-80 placeholder:text-muted-foreground"
+                className="bg-transparent outline-none text-sm font-bold text-foreground w-full min-w-0 md:min-w-[26rem] placeholder:text-muted-foreground"
               />
             </div>
 
@@ -1258,7 +1266,7 @@ export default function AdminView({
                   disabled={loadingGlobal}
                   className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e] disabled:opacity-70"
                 >
-                  <Globe size={16} /> {loadingGlobal ? "LADEN…" : "GLOBALER EXPORT"}
+                  <Globe size={16} /> {loadingGlobal ? "LADEN…" : "GESAMT EXPORT"}
                 </button>
 
                 <button

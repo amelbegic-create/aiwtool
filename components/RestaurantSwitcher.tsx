@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { ChevronDown, Store, Globe, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, Store } from 'lucide-react';
 import { switchRestaurant } from '@/app/actions/restaurantContext';
 import { useRouter } from 'next/navigation';
 
@@ -14,50 +14,45 @@ interface Restaurant {
 interface Props {
   restaurants: Restaurant[];
   activeRestaurantId?: string;
-  showAllOption?: boolean;
 }
 
-export default function RestaurantSwitcher({ restaurants, activeRestaurantId, showAllOption = false }: Props) {
+export default function RestaurantSwitcher({ restaurants, activeRestaurantId }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  // ✅ FIX: ako korisnik ima samo 1 restoran i cookie nije postavljen,
-  // automatski postavi activeRestaurantId da moduli ne “zapnu” na "Odaberi"
-  useEffect(() => {
-    if ((!activeRestaurantId || activeRestaurantId === '') && restaurants && restaurants.length === 1) {
-      const onlyId = restaurants[0]?.id;
-      if (!onlyId) return;
+  // Bez opcije "Alle Restaurants" – nikad ne prikazujemo "all" u listi
+  const list = (restaurants ?? []).filter((r) => r.id !== "all");
 
+  // ✅ FIX: ako korisnik ima samo 1 restoran i cookie nije postavljen,
+  // automatski postavi activeRestaurantId da moduli ne "zapnu" na "Odaberi"
+  useEffect(() => {
+    if ((!activeRestaurantId || activeRestaurantId === "all" || activeRestaurantId === "") && list.length === 1) {
       startTransition(async () => {
-        await switchRestaurant(onlyId);
+        await switchRestaurant(list[0].id);
         router.refresh();
       });
     }
-  }, [activeRestaurantId, restaurants, router]);
+  }, [activeRestaurantId, list, router]);
 
-  // Logika za prikaz trenutnog
-  const activeRest = restaurants.find(r => r.id === activeRestaurantId);
-  
-  // Prikazno ime (Samo broj)
-  let displayName = activeRest?.name || "Auswählen";
-  if (activeRestaurantId === 'all') {
-      displayName = "Alle";
-  }
+  // Ako je cookie i dalje "all" (stari bookmark), prikaži prvi restoran kao label
+  const effectiveActiveId = activeRestaurantId && activeRestaurantId !== "all" ? activeRestaurantId : list[0]?.id;
+  const activeRest = list.find((r) => r.id === effectiveActiveId);
+  const displayName = activeRest?.name ?? "Auswählen";
 
   const handleSelect = (restId: string) => {
-    if (restId === activeRestaurantId) {
+    if (restId === effectiveActiveId) {
       setIsOpen(false);
       return;
     }
     startTransition(async () => {
       await switchRestaurant(restId);
       setIsOpen(false);
-      router.refresh(); 
+      router.refresh();
     });
   };
 
-  if (!restaurants || restaurants.length === 0) return null;
+  if (list.length === 0) return null;
 
   return (
     <div className="relative">
@@ -74,17 +69,17 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
             }
         `}
       >
-        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shadow-sm transition-colors ${activeRestaurantId === 'all' ? 'bg-[#FFC72C] text-[#1a3826]' : 'bg-[#1a3826] border border-[#FFC72C]/50 text-[#FFC72C]'}`}>
+        <div className="h-8 w-8 rounded-lg flex items-center justify-center shadow-sm transition-colors bg-[#1a3826] border border-[#FFC72C]/50 text-[#FFC72C]">
            {isPending ? (
              <span className="animate-spin text-xs font-bold">↻</span>
            ) : (
-             activeRestaurantId === 'all' ? <Globe size={16} strokeWidth={2.5} /> : <Store size={16} strokeWidth={2.5} />
+             <Store size={16} strokeWidth={2.5} />
            )}
         </div>
         
         <div className="text-left flex flex-col">
             <span className="text-[9px] font-bold text-[#FFC72C] uppercase tracking-widest leading-none mb-0.5 opacity-80">
-                {activeRestaurantId === 'all' ? 'Übersicht' : 'Store'}
+                Store
             </span>
             <span className="text-sm font-black leading-none tracking-tight">
                 {displayName}
@@ -109,22 +104,6 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId, sh
                 </div>
 
                 <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-2">
-                    
-                    {/* OPCIJA: SVI RESTORANI */}
-                    {showAllOption && (
-                        <button 
-                            onClick={() => handleSelect('all')} 
-                            className={`w-full text-left px-3 py-3 flex items-center justify-between group transition-all rounded-xl mb-2 border border-transparent
-                            ${activeRestaurantId === 'all' ? 'bg-[#FFC72C] text-[#1a3826] shadow-md font-bold' : 'text-white hover:bg-white/5 hover:border-white/10'}`}
-                        >
-                            <div className="flex items-center gap-3">
-                                <Globe size={16} />
-                                <span className="text-xs font-bold uppercase tracking-wide">Alle Restaurants</span>
-                            </div>
-                            {activeRestaurantId === 'all' && <CheckCircle2 size={16} className="text-[#1a3826]"/>}
-                        </button>
-                    )}
-
                     {/* GRID RESTORANA */}
                     <div className="grid grid-cols-2 gap-2">
                         {restaurants.map((rest) => {

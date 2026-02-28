@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createPDSTemplate, updatePDSTemplate } from "@/app/actions/pdsActions";
@@ -50,6 +50,17 @@ export default function PDSForm({
   const [activeTab, setActiveTab] = useState<"restaurants" | "goals" | "scale">("restaurants");
   const [selectedGoalIndex, setSelectedGoalIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [editingNumeric, setEditingNumeric] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setEditingNumeric((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (k.startsWith("goal-") || k.startsWith("rule-") || k.startsWith("scale-")) delete next[k];
+      });
+      return next;
+    });
+  }, [selectedGoalIndex, activeTab]);
 
   const sortedRestaurants = useMemo(
     () => [...restaurants].sort((a, b) => (Number(a.code) || 0) - (Number(b.code) || 0)),
@@ -152,6 +163,19 @@ export default function PDSForm({
     setSelectedGoalIndex(goals.length);
   };
 
+  const removeGoal = (index: number) => {
+    if (goals.length <= 1) return;
+    const newGoals = goals.filter((_, i) => i !== index);
+    setGoals(newGoals);
+    const newSelected =
+      index < selectedGoalIndex
+        ? selectedGoalIndex - 1
+        : index === selectedGoalIndex
+          ? Math.min(selectedGoalIndex, newGoals.length - 1)
+          : selectedGoalIndex;
+    setSelectedGoalIndex(Math.max(0, newSelected));
+  };
+
   const addRule = (goalIndex: number) => {
     const newGoals = [...goals];
     if (!newGoals[goalIndex].scoringRules) newGoals[goalIndex].scoringRules = [];
@@ -165,13 +189,24 @@ export default function PDSForm({
     const n = parseInt(s, 10);
     return isNaN(n) ? 0 : n;
   };
-  const signedNumInputValue = (n: number) => (n === 0 ? "" : String(n));
-  const parseSignedNumInput = (s: string) => {
-    if (s === "" || s === "-") return 0;
-    const n = parseInt(s, 10);
-    return isNaN(n) ? 0 : n;
+  const allowOnlyDigits = (v: string) => v.replace(/[^\d]/g, "");
+  const getNumDisplay = (key: string, numVal: number) =>
+    editingNumeric[key] !== undefined ? editingNumeric[key] : numInputValue(numVal);
+  const setNumEdit = (key: string, raw: string, commit: (n: number) => void) => {
+    const filtered = allowOnlyDigits(raw);
+    setEditingNumeric((p) => ({ ...p, [key]: filtered }));
+    commit(parseNumInput(filtered));
   };
-  const allowSignedNumericInput = (v: string) => v.replace(/[^\d-]/g, "").replace(/(?!^)-/g, "");
+  const blurNumEdit = (key: string, currentNum: number, commit: (n: number) => void) => {
+    const s = editingNumeric[key];
+    const n = s !== undefined ? parseNumInput(s) : currentNum;
+    commit(n);
+    setEditingNumeric((p) => {
+      const next = { ...p };
+      delete next[key];
+      return next;
+    });
+  };
 
   const updateRule = (
     goalIndex: number,
@@ -318,19 +353,30 @@ export default function PDSForm({
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Zieleliste</p>
                 <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                   {goals.map((g, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setSelectedGoalIndex(i)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors ${
-                        selectedGoalIndex === i
-                          ? "border-[#1a3826] bg-[#1a3826]/10 text-[#1a3826]"
-                          : "border-border text-muted-foreground hover:border-slate-300"
-                      }`}
-                    >
-                      {g.title || `Ziel ${i + 1}`}
-                      {selectedGoalIndex === i && <ChevronRight size={14} className="inline ml-1" />}
-                    </button>
+                    <div key={i} className="flex items-center gap-1 group">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGoalIndex(i)}
+                        className={`flex-1 min-w-0 text-left px-3 py-2.5 rounded-xl text-xs font-bold border transition-colors ${
+                          selectedGoalIndex === i
+                            ? "border-[#1a3826] bg-[#1a3826]/10 text-[#1a3826]"
+                            : "border-border text-muted-foreground hover:border-slate-300"
+                        }`}
+                      >
+                        {g.title || `Ziel ${i + 1}`}
+                        {selectedGoalIndex === i && <ChevronRight size={14} className="inline ml-1" />}
+                      </button>
+                      {goals.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); removeGoal(i); }}
+                          className="p-2 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 shrink-0"
+                          title="Ziel löschen"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -392,9 +438,16 @@ export default function PDSForm({
                                 type="text"
                                 inputMode="numeric"
                                 placeholder="Min"
-                                value={numInputValue(rule.from)}
+                                value={getNumDisplay(`rule-${selectedGoalIndex}-${ri}-from`, rule.from)}
                                 onChange={(e) =>
-                                  updateRule(selectedGoalIndex, ri, "from", parseNumInput(e.target.value))
+                                  setNumEdit(`rule-${selectedGoalIndex}-${ri}-from`, e.target.value, (n) =>
+                                    updateRule(selectedGoalIndex, ri, "from", n)
+                                  )
+                                }
+                                onBlur={() =>
+                                  blurNumEdit(`rule-${selectedGoalIndex}-${ri}-from`, rule.from, (n) =>
+                                    updateRule(selectedGoalIndex, ri, "from", n)
+                                  )
                                 }
                                 className="w-20 rounded-lg border border-border px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
                               />
@@ -403,9 +456,16 @@ export default function PDSForm({
                                 type="text"
                                 inputMode="numeric"
                                 placeholder="Max"
-                                value={numInputValue(rule.to)}
+                                value={getNumDisplay(`rule-${selectedGoalIndex}-${ri}-to`, rule.to)}
                                 onChange={(e) =>
-                                  updateRule(selectedGoalIndex, ri, "to", parseNumInput(e.target.value))
+                                  setNumEdit(`rule-${selectedGoalIndex}-${ri}-to`, e.target.value, (n) =>
+                                    updateRule(selectedGoalIndex, ri, "to", n)
+                                  )
+                                }
+                                onBlur={() =>
+                                  blurNumEdit(`rule-${selectedGoalIndex}-${ri}-to`, rule.to, (n) =>
+                                    updateRule(selectedGoalIndex, ri, "to", n)
+                                  )
                                 }
                                 className="w-20 rounded-lg border border-border px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
                               />
@@ -414,9 +474,16 @@ export default function PDSForm({
                                 type="text"
                                 inputMode="numeric"
                                 placeholder="Pkt"
-                                value={numInputValue(rule.pts)}
+                                value={getNumDisplay(`rule-${selectedGoalIndex}-${ri}-pts`, rule.pts)}
                                 onChange={(e) =>
-                                  updateRule(selectedGoalIndex, ri, "pts", parseNumInput(e.target.value))
+                                  setNumEdit(`rule-${selectedGoalIndex}-${ri}-pts`, e.target.value, (n) =>
+                                    updateRule(selectedGoalIndex, ri, "pts", n)
+                                  )
+                                }
+                                onBlur={() =>
+                                  blurNumEdit(`rule-${selectedGoalIndex}-${ri}-pts`, rule.pts, (n) =>
+                                    updateRule(selectedGoalIndex, ri, "pts", n)
+                                  )
                                 }
                                 className="w-16 rounded-lg border border-border px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
                               />
@@ -435,32 +502,117 @@ export default function PDSForm({
                     )}
                     {goals[selectedGoalIndex].type === "BOOLEAN" && (
                       <div className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-slate-50/50 p-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Punkte Ja (auch negativ)</label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={signedNumInputValue(goals[selectedGoalIndex].yesPoints ?? 0)}
-                            onChange={(e) =>
-                              updateGoal(selectedGoalIndex, "yesPoints", parseSignedNumInput(allowSignedNumericInput(e.target.value)))
-                            }
-                            className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
-                            placeholder="0"
-                          />
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Punkte Ja (auch negativ)</label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex rounded-lg border border-border overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const v = goals[selectedGoalIndex].yesPoints ?? 0;
+                                  updateGoal(selectedGoalIndex, "yesPoints", Math.abs(v));
+                                }}
+                                className={`px-3 py-2 text-sm font-medium ${(goals[selectedGoalIndex].yesPoints ?? 0) >= 0 ? "bg-[#1a3826] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                              >
+                                Positiv
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const v = goals[selectedGoalIndex].yesPoints ?? 0;
+                                  updateGoal(selectedGoalIndex, "yesPoints", -Math.abs(v));
+                                }}
+                                className={`px-3 py-2 text-sm font-medium ${(goals[selectedGoalIndex].yesPoints ?? 0) < 0 ? "bg-[#1a3826] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                              >
+                                Negativ
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={getNumDisplay(`goal-yes-${selectedGoalIndex}`, Math.abs(goals[selectedGoalIndex].yesPoints ?? 0))}
+                              onChange={(e) => {
+                                const sign = (goals[selectedGoalIndex].yesPoints ?? 0) < 0 ? -1 : 1;
+                                setNumEdit(`goal-yes-${selectedGoalIndex}`, e.target.value, (n) =>
+                                  updateGoal(selectedGoalIndex, "yesPoints", n * sign)
+                                );
+                              }}
+                              onBlur={() =>
+                                blurNumEdit(
+                                  `goal-yes-${selectedGoalIndex}`,
+                                  Math.abs(goals[selectedGoalIndex].yesPoints ?? 0),
+                                  (n) => {
+                                    const sign = (goals[selectedGoalIndex].yesPoints ?? 0) < 0 ? -1 : 1;
+                                    updateGoal(selectedGoalIndex, "yesPoints", n * sign);
+                                  }
+                                )
+                              }
+                              className="w-20 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Punkte Nein (auch negativ)</label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={signedNumInputValue(goals[selectedGoalIndex].noPoints ?? 0)}
-                            onChange={(e) =>
-                              updateGoal(selectedGoalIndex, "noPoints", parseSignedNumInput(allowSignedNumericInput(e.target.value)))
-                            }
-                            className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
-                            placeholder="0"
-                          />
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Punkte Nein (auch negativ)</label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex rounded-lg border border-border overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const v = goals[selectedGoalIndex].noPoints ?? 0;
+                                  updateGoal(selectedGoalIndex, "noPoints", Math.abs(v));
+                                }}
+                                className={`px-3 py-2 text-sm font-medium ${(goals[selectedGoalIndex].noPoints ?? 0) >= 0 ? "bg-[#1a3826] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                              >
+                                Positiv
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const v = goals[selectedGoalIndex].noPoints ?? 0;
+                                  updateGoal(selectedGoalIndex, "noPoints", -Math.abs(v));
+                                }}
+                                className={`px-3 py-2 text-sm font-medium ${(goals[selectedGoalIndex].noPoints ?? 0) < 0 ? "bg-[#1a3826] text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                              >
+                                Negativ
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={getNumDisplay(`goal-no-${selectedGoalIndex}`, Math.abs(goals[selectedGoalIndex].noPoints ?? 0))}
+                              onChange={(e) => {
+                                const sign = (goals[selectedGoalIndex].noPoints ?? 0) < 0 ? -1 : 1;
+                                setNumEdit(`goal-no-${selectedGoalIndex}`, e.target.value, (n) =>
+                                  updateGoal(selectedGoalIndex, "noPoints", n * sign)
+                                );
+                              }}
+                              onBlur={() =>
+                                blurNumEdit(
+                                  `goal-no-${selectedGoalIndex}`,
+                                  Math.abs(goals[selectedGoalIndex].noPoints ?? 0),
+                                  (n) => {
+                                    const sign = (goals[selectedGoalIndex].noPoints ?? 0) < 0 ? -1 : 1;
+                                    updateGoal(selectedGoalIndex, "noPoints", n * sign);
+                                  }
+                                )
+                              }
+                              className="w-20 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
+                      </div>
+                    )}
+                    {goals.length > 1 && (
+                      <div className="pt-4 border-t border-border">
+                        <button
+                          type="button"
+                          onClick={() => removeGoal(selectedGoalIndex)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200"
+                        >
+                          <Trash2 size={14} /> Ziel löschen
+                        </button>
                       </div>
                     )}
                   </>
@@ -490,24 +642,42 @@ export default function PDSForm({
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={s.min === 0 ? "" : s.min}
-                  onChange={(e) => {
-                    const n = [...scale];
-                    n[i] = { ...n[i], min: e.target.value === "" ? 0 : Number(e.target.value) };
-                    setScale(n);
-                  }}
+                  value={getNumDisplay(`scale-${i}-min`, s.min)}
+                  onChange={(e) =>
+                    setNumEdit(`scale-${i}-min`, e.target.value, (num) => {
+                      const n = [...scale];
+                      n[i] = { ...n[i], min: num };
+                      setScale(n);
+                    })
+                  }
+                  onBlur={() =>
+                    blurNumEdit(`scale-${i}-min`, s.min, (num) => {
+                      const n = [...scale];
+                      n[i] = { ...n[i], min: num };
+                      setScale(n);
+                    })
+                  }
                   className="w-20 px-2 py-2 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
                   placeholder="Min"
                 />
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={s.max === 0 ? "" : s.max}
-                  onChange={(e) => {
-                    const n = [...scale];
-                    n[i] = { ...n[i], max: e.target.value === "" ? 0 : Number(e.target.value) };
-                    setScale(n);
-                  }}
+                  value={getNumDisplay(`scale-${i}-max`, s.max)}
+                  onChange={(e) =>
+                    setNumEdit(`scale-${i}-max`, e.target.value, (num) => {
+                      const n = [...scale];
+                      n[i] = { ...n[i], max: num };
+                      setScale(n);
+                    })
+                  }
+                  onBlur={() =>
+                    blurNumEdit(`scale-${i}-max`, s.max, (num) => {
+                      const n = [...scale];
+                      n[i] = { ...n[i], max: num };
+                      setScale(n);
+                    })
+                  }
                   className="w-20 px-2 py-2 rounded-lg border border-border text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
                   placeholder="Max"
                 />
