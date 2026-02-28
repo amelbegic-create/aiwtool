@@ -138,11 +138,10 @@ export default function PDSFormClient({ pds, isManager }: Props) {
         doc.text('Bewertungsskala', scaleBoxX + boxW / 2, boxTop + 4, { align: 'center' });
         const colorSize = 2.8;
         const colorLeft = scaleBoxX + 2;
-        const labelColW = 5;
-        const labelCenterX = colorLeft + colorSize + 1 + labelColW / 2;
-        const rangeX = scaleBoxX + boxW - 3;
         const rowsTop = boxTop + 6;
         const rowHeight = (boxH - 6) / scaleLevelsForBox.length;
+        const labelCenterX = scaleBoxX + boxW * 0.5;
+        const rangeCenterX = scaleBoxX + boxW * (5 / 6);
         scaleLevelsForBox.forEach((s: { label?: string; min?: number; max?: number; colorHex?: string }, i: number) => {
           const rowCenterY = rowsTop + (i + 0.5) * rowHeight;
           const [r, g, b] = hexToRgb(s.colorHex ?? '#94a3b8');
@@ -153,7 +152,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
           doc.setTextColor(30, 41, 59);
           doc.text(String(s.label ?? i + 1), labelCenterX, rowCenterY + 0.4, { align: 'center' });
           doc.setTextColor(100, 116, 139);
-          doc.text(`${s.min ?? 0}–${s.max ?? 0}`, rangeX, rowCenterY + 0.4, { align: 'right' });
+          doc.text(`${s.min ?? 0}–${s.max ?? 0}`, rangeCenterX, rowCenterY + 0.4, { align: 'center' });
         });
       }
       doc.setFillColor(26, 56, 38);
