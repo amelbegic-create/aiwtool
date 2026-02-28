@@ -20,14 +20,15 @@ export default async function PDSDetailPage(props: { params: Promise<{ id: strin
   if (!pds) return <div className="p-10 text-center font-bold text-slate-500 uppercase tracking-widest">PDS-Dokument nicht gefunden.</div>;
 
   const isAdminOrGod = ['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
+  const isAssignedManager = currentUser?.id === pds.managerId;
+  const isEmployeeSupervisor = pds.user?.supervisorId === currentUser?.id;
 
-  // Zaštita: korisnici koji nisu admini ne smiju otvarati tuđe PDS zapise.
-  if (!isAdminOrGod && pds.userId !== currentUser?.id) {
+  const canOpen = isAdminOrGod || pds.userId === currentUser?.id || isAssignedManager || isEmployeeSupervisor;
+  if (!canOpen) {
     return <div className="p-10 text-center font-bold text-slate-500 uppercase tracking-widest">Kein Zugriff auf dieses PDS-Dokument.</div>;
   }
 
-  // \"Menadžerska\" strana (desni dio) dostupna je samo ADMIN / SUPER_ADMIN / SYSTEM_ARCHITECT.
-  const isManager = isAdminOrGod;
+  const isManager = isAdminOrGod || isAssignedManager || isEmployeeSupervisor;
   const safePds = JSON.parse(JSON.stringify(pds));
 
   // FIX: Ne šaljemo više currentUserEmail

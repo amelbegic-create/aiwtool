@@ -331,12 +331,8 @@ export default function PDSFormClient({ pds, isManager }: Props) {
         }
 
         sigY += sigImgH + 12;
-        doc.setFontSize(7);
-        doc.text('Erstellt: ' + formatDateDDMMGGGG(new Date()), margin, sigY + 5);
       } else {
-        // System Architect – samo datum, bez potpisa
-        doc.setFontSize(7);
-        doc.text('Erstellt: ' + formatDateDDMMGGGG(new Date()), margin, y + 5);
+        // System Architect – bez potpisa (datum samo u headeru)
       }
 
       const blob = doc.output('blob');
