@@ -748,15 +748,27 @@ function ProductivityToolContent({
     return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
   };
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF("l", "mm", "a4");
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 14;
-    const restName = activeRestaurantName || "Restaurant";
-    const keyLabel = selectedDateDayName || selectedDate || "Produktivität";
-    const dateFormatted = selectedDate ? new Date(selectedDate + "T12:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+  type DayTotals = {
+    sumBruto: number;
+    sumNeto: number;
+    sumStaff: number;
+    avgProd: number;
+    rowStats: { h: number; bruto: number; neto: number; staffTotal: number }[];
+    sumByStation: Record<string, number>;
+  };
 
+  const drawOneDayPDFPage = (
+    doc: jsPDF,
+    pageWidth: number,
+    pageHeight: number,
+    margin: number,
+    restName: string,
+    dayLabel: string,
+    dateFormatted: string,
+    dayRows: Record<number, HourData>,
+    dayTotals: DayTotals,
+    columns: Station[]
+  ) => {
     doc.setFillColor(26, 56, 38);
     doc.rect(0, 0, pageWidth, 28, "F");
     doc.setFont("helvetica", "bold");
@@ -765,23 +777,23 @@ function ProductivityToolContent({
     doc.text(`${restName} – Produktivität`, margin, 10);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
-    doc.text(`${keyLabel}  |  ${dateFormatted}`, margin, 18);
+    doc.text(`${dayLabel}  |  ${dateFormatted}`, margin, 18);
     doc.setFontSize(9);
     doc.text(
-      `Brutto: ${fmtInt(totals.sumBruto)} €  |  Netto: ${fmtInt(totals.sumNeto)} €  |  Σ MA: ${fmtInt(totals.sumStaff)}  |  Prod.: ${fmtInt(totals.avgProd)} €`,
+      `Brutto: ${fmtInt(dayTotals.sumBruto)} €  |  Netto: ${fmtInt(dayTotals.sumNeto)} €  |  Σ MA: ${fmtInt(dayTotals.sumStaff)}  |  Prod.: ${fmtInt(dayTotals.avgProd)} €`,
       margin,
       24
     );
     doc.setTextColor(0, 0, 0);
 
-    const head = ["Uhrzeit", "Brutto (€)", "Netto (€)", ...displayStationColumns.map((s) => s.label), "Σ Std."];
-    const body = totals.rowStats.map((s) => {
-      const row = rows[s.h] || {};
+    const head = ["Uhrzeit", "Brutto (€)", "Netto (€)", ...columns.map((s) => s.label), "Σ Std."];
+    const body = dayTotals.rowStats.map((s) => {
+      const row = dayRows[s.h] ?? {};
       return [
         formatHourRange(s.h),
         fmtInt(s.bruto),
         fmtInt(s.neto),
-        ...displayStationColumns.map((col) => {
+        ...columns.map((col) => {
           const val = parseNum(row[col.key]);
           return val === 0 ? "-" : fmtInt(val);
         }),
@@ -790,10 +802,10 @@ function ProductivityToolContent({
     });
     const footer = [
       "Gesamt",
-      fmtInt(totals.sumBruto),
-      fmtInt(totals.sumNeto),
-      ...displayStationColumns.map((col) => (totals.sumByStation[col.key] !== 0 ? fmtInt(totals.sumByStation[col.key]) : "-")),
-      fmtInt(totals.sumStaff),
+      fmtInt(dayTotals.sumBruto),
+      fmtInt(dayTotals.sumNeto),
+      ...columns.map((col) => (dayTotals.sumByStation[col.key] !== 0 ? fmtInt(dayTotals.sumByStation[col.key]) : "-")),
+      fmtInt(dayTotals.sumStaff),
     ];
     const tableWidth = pageWidth - 2 * margin;
     const colCount = head.length;
@@ -806,10 +818,10 @@ function ProductivityToolContent({
       1: { cellWidth: brutoW, halign: "center", fontStyle: "bold", fillColor: [255, 249, 230], textColor: [26, 56, 38] },
       2: { cellWidth: nettoW, halign: "center", fontStyle: "bold", fillColor: [255, 249, 230], textColor: [26, 56, 38] },
     };
-    displayStationColumns.forEach((_, i) => {
+    columns.forEach((_, i) => {
       colStyles[3 + i] = { cellWidth: Math.max(restW, 14), halign: "center" };
     });
-    colStyles[3 + displayStationColumns.length] = { cellWidth: Math.max(restW, 14), halign: "center", fontStyle: "bold" };
+    colStyles[3 + columns.length] = { cellWidth: Math.max(restW, 14), halign: "center", fontStyle: "bold" };
 
     autoTable(doc, {
       startY: 32,
@@ -834,7 +846,30 @@ function ProductivityToolContent({
     doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text(`${restName} – Produktivität – ${keyLabel}  ${dateFormatted}`, margin, pageHeight - 5);
+    doc.text(`${restName} – Produktivität – ${dayLabel}  ${dateFormatted}`, margin, pageHeight - 5);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF("l", "mm", "a4");
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const restName = activeRestaurantName || "Restaurant";
+    const keyLabel = selectedDateDayName || selectedDate || "Produktivität";
+    const dateFormatted = selectedDate ? new Date(selectedDate + "T12:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+
+    drawOneDayPDFPage(
+      doc,
+      pageWidth,
+      pageHeight,
+      margin,
+      restName,
+      keyLabel,
+      dateFormatted,
+      rows,
+      { ...totals, sumByStation: totals.sumByStation },
+      displayStationColumns
+    );
 
     const blob = doc.output("blob");
     const url = URL.createObjectURL(blob);
@@ -850,6 +885,8 @@ function ProductivityToolContent({
     const [y, m] = selectedDate.split("-").map(Number);
     const monthStr = `${y}-${String(m).padStart(2, "0")}`;
     const restName = activeRestaurantName || "Restaurant";
+    const columns = displayStationColumns.length ? displayStationColumns : DEFAULT_STATIONS;
+    const margin = 14;
     try {
       const res = await fetch(`/api/productivity?restaurantId=${activeRestId}&month=${monthStr}`);
       const json = await res.json();
@@ -863,18 +900,16 @@ function ProductivityToolContent({
         toast.error("Keine Daten für diesen Monat.");
         return;
       }
-      const doc = new jsPDF("p", "mm", "a4");
+
+      const doc = new jsPDF("l", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 18;
-      const monthLabel = new Date(y, m - 1, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
-      const dayCols = displayStationColumns.length ? displayStationColumns : DEFAULT_STATIONS;
 
       dates.forEach((dateKey, dayIndex) => {
         const dayData = byDate[dateKey];
         if (!dayData?.rows) return;
 
-        if (dayIndex > 0) doc.addPage("p", "mm", "a4");
+        if (dayIndex > 0) doc.addPage("l", "mm", "a4");
 
         const dayRows = dayData.rows as Record<number, HourData>;
         const coeff = (dayData.netCoeff != null ? Number(dayData.netCoeff) : parseNum(netCoeff)) || 1;
@@ -889,7 +924,7 @@ function ProductivityToolContent({
           const bruto = parseNum(row.rev) || 0;
           const neto = bruto / coeff;
           let staffTotal = 0;
-          dayCols.forEach((s) => {
+          columns.forEach((s) => {
             const v = parseNum(row[s.key]);
             sumByStation[s.key] = (sumByStation[s.key] ?? 0) + v;
             if (s.key !== "pause") staffTotal += v;
@@ -903,35 +938,21 @@ function ProductivityToolContent({
         }
         const avgProd = sumStaff > 0 ? sumNeto / sumStaff : 0;
         const dayLabel = new Date(dateKey + "T12:00:00").toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+        const dateFormatted = new Date(dateKey + "T12:00:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-        if (dayIndex === 0) {
-          doc.setFillColor(26, 56, 38);
-          doc.rect(0, 0, pageWidth, 32, "F");
-          doc.setFont("helvetica", "bold");
-          doc.setTextColor(255, 199, 44);
-          doc.setFontSize(16);
-          doc.text(`${restName} – Produktivität monatlich`, margin, 12);
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(10);
-          doc.text(monthLabel, margin, 22);
-          doc.setTextColor(0, 0, 0);
-        }
-
-        let startY = dayIndex === 0 ? 40 : 20;
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(26, 56, 38);
-        doc.text(dayLabel, margin, startY);
-        startY += 6;
-        startY = buildSingleDayTable(doc, startY, dayLabel, dayRows, { sumBruto, sumNeto, sumStaff, avgProd, rowStats }, sumByStation, dayCols);
+        drawOneDayPDFPage(
+          doc,
+          pageWidth,
+          pageHeight,
+          margin,
+          restName,
+          dayLabel,
+          dateFormatted,
+          dayRows,
+          { sumBruto, sumNeto, sumStaff, avgProd, rowStats, sumByStation },
+          columns
+        );
       });
-
-      doc.setDrawColor(26, 56, 38);
-      doc.setLineWidth(0.3);
-      doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`${restName} – Produktivität monatlich – ${monthLabel}`, margin, pageHeight - 6);
 
       const blob = doc.output("blob");
       const url = URL.createObjectURL(blob);
