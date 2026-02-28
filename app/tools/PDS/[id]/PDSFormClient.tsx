@@ -497,10 +497,26 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                    <p className="text-xs text-slate-500 mt-0.5">Vorgesetzte/r: {(pds.user as any).supervisor.name}</p>
                  )}
              </div>
-             <div className="text-right bg-[#1a3826] text-white p-4 rounded-xl min-w-[120px] shrink-0">
+             <div className="flex flex-wrap items-stretch gap-3 justify-end w-full sm:w-auto">
+               {Array.isArray(pds.scale) && pds.scale.length > 0 && (
+                 <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 w-[200px] shrink-0">
+                   <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 text-center">Bewertungsskala</div>
+                   <div className="space-y-1.5">
+                     {(pds.scale as { label?: string; min?: number; max?: number; colorHex?: string }[]).map((s: { label?: string; min?: number; max?: number; colorHex?: string }, i: number) => (
+                       <div key={i} className="grid grid-cols-[20px_1fr_52px] items-center gap-2">
+                         <div className="w-3 h-3 rounded shrink-0 justify-self-center" style={{ backgroundColor: s.colorHex ?? '#94a3b8' }} />
+                         <span className="text-xs font-bold text-slate-700 truncate text-center min-w-0">{s.label ?? (i + 1)}</span>
+                         <span className="text-[10px] font-bold text-slate-500 tabular-nums text-center">{s.min ?? 0}–{s.max ?? 0}</span>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               )}
+               <div className="bg-[#1a3826] text-white p-4 rounded-xl min-w-[120px] shrink-0 text-center">
                  <div className="text-[10px] font-black text-[#FFC72C] uppercase tracking-widest mb-0.5">Bewertung</div>
                  <div className="text-xl font-black">{finalGrade ?? '–'}</div>
                  <div className="text-[10px] text-[#FFC72C] mt-1">Punkte: {totalScore}</div>
+               </div>
              </div>
          </div>
 
