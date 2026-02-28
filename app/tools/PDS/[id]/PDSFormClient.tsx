@@ -59,9 +59,9 @@ export default function PDSFormClient({ pds, isManager }: Props) {
   const isDraft = pds.status === 'DRAFT' || pds.status === 'OPEN' || pds.status === 'IN_PROGRESS';
 
   const canEmployeeEdit = !isManager && (isDraft || isReturned);
-  const canManagerEdit = isManager && (isSubmitted || isApproved);
+  const canManagerEdit = isManager && (isSubmitted || isApproved || isCompleted);
   const canEmployeeSign = !isManager && (isSubmitted || isApproved) && !isCanvasSignature(pds.employeeSignature);
-  const canManagerSign = isManager && isApproved && !isCanvasSignature(pds.managerSignature);
+  const canManagerSign = isManager && (isApproved || isCompleted) && !isCanvasSignature(pds.managerSignature);
 
   // --- PDF EXPORT (kompaktan: ocjena istaknuta, ciljevi mali, komentari wrap) ---
   const handleExportPDF = async () => {
@@ -404,12 +404,38 @@ export default function PDSFormClient({ pds, isManager }: Props) {
     toast.success(isManager ? "PDS genehmigt." : "Antrag eingereicht.");
     router.refresh();
   };
+  const handleManagerSave = async () => {
+    setLoading(true);
+    setSavedFeedback(false);
+    await updatePDSContent(pds.id, {
+      goals,
+      employeeComment,
+      managerComment,
+      employeeSignature,
+      managerSignature,
+      scale: pds.scale
+    });
+    setLoading(false);
+    setSavedFeedback(true);
+    toast.success("Kommentar gespeichert.");
+    setTimeout(() => setSavedFeedback(false), 3000);
+    router.refresh();
+  };
 
   const handleReturn = async () => {
     if (!confirm('Zur Überarbeitung an den Mitarbeiter zurücksenden?')) return;
     setLoading(true);
+    await updatePDSContent(pds.id, {
+      goals,
+      employeeComment,
+      managerComment,
+      employeeSignature,
+      managerSignature,
+      scale: pds.scale
+    });
     await returnPDS(pds.id, managerComment);
     setLoading(false);
+    toast.success("PDS zur Überarbeitung zurückgesendet.");
     router.refresh();
   };
 
@@ -470,9 +496,15 @@ export default function PDSFormClient({ pds, isManager }: Props) {
 
             {isManager && (
                 <>
-                    {(isSubmitted || isApproved) && !isCompleted && (
+                    {(isSubmitted || isApproved || isCompleted) && (
                         <button onClick={handleReturn} disabled={loading} className="px-5 py-2.5 rounded-xl bg-red-50 text-red-600 border border-red-100 font-bold hover:bg-red-100 text-xs flex items-center gap-2" title="Zur Überarbeitung zurücksenden">
                             <Undo2 size={16}/> ZURÜCK ZUR ÜBERARBEITUNG
+                        </button>
+                    )}
+                    {canManagerEdit && (
+                        <button onClick={handleManagerSave} disabled={loading} className="px-5 py-2.5 rounded-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-2 border border-slate-200" title="Kommentar speichern">
+                            {savedFeedback ? <CheckCircle2 size={16} className="shrink-0" /> : <Save size={16}/>}
+                            {savedFeedback ? "GESPEICHERT" : "SPEICHERN"}
                         </button>
                     )}
                     {isSubmitted && !isApproved && (
@@ -632,7 +664,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 min-h-[120px]">
                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">Kommentar</label>
                     <textarea 
-                        disabled={!canManagerEdit && !isApproved}
+                        disabled={!canManagerEdit}
                         value={managerComment}
                         onChange={(e) => setManagerComment(e.target.value)}
                         className="w-full bg-transparent text-sm font-medium text-slate-700 outline-none resize-none h-full disabled:cursor-not-allowed"

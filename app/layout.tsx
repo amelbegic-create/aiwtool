@@ -102,26 +102,34 @@ export default async function RootLayout({
         where: { id: userId },
         include: {
           vacations: { where: { status: "PENDING" } },
-          pdsList: {
-            where: {
-              year: new Date().getFullYear(),
-              status: { in: ["OPEN", "SUBMITTED", "RETURNED"] },
-            },
-          },
         },
       });
 
       if (dbUser) {
         const isAdmin = ADMIN_ROLES.has(dbUser.role as Role);
-        const pdsPending = dbUser.pdsList?.length ?? 0;
+        const currentYear = new Date().getFullYear();
 
         if (isAdmin) {
           const totalPendingAdmin = await prisma.vacationRequest.count({
             where: { status: "PENDING" },
           });
-          pendingNotifications = totalPendingAdmin + pdsPending;
+          const pdsToReviewCount = await prisma.pDS.count({
+            where: {
+              managerId: userId,
+              year: currentYear,
+              status: "SUBMITTED",
+            },
+          });
+          pendingNotifications = totalPendingAdmin + pdsToReviewCount;
         } else {
-          pendingNotifications = 0;
+          const pdsToFillCount = await prisma.pDS.count({
+            where: {
+              userId,
+              year: currentYear,
+              status: { in: ["DRAFT", "OPEN", "IN_PROGRESS", "RETURNED"] },
+            },
+          });
+          pendingNotifications = pdsToFillCount;
         }
       }
   }
