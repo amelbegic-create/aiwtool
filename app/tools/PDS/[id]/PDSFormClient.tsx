@@ -499,14 +499,14 @@ export default function PDSFormClient({ pds, isManager }: Props) {
              </div>
              <div className="flex flex-wrap items-stretch gap-3 justify-end w-full sm:w-auto">
                {Array.isArray(pds.scale) && pds.scale.length > 0 && (
-                 <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 w-[200px] shrink-0">
-                   <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 text-center">Bewertungsskala</div>
-                   <div className="space-y-1.5">
+                 <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 min-w-[280px] max-w-[340px] shrink-0">
+                   <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 text-center">Bewertungsskala</div>
+                   <div className="space-y-2.5">
                      {(pds.scale as { label?: string; min?: number; max?: number; colorHex?: string }[]).map((s: { label?: string; min?: number; max?: number; colorHex?: string }, i: number) => (
-                       <div key={i} className="grid grid-cols-[20px_1fr_52px] items-center gap-2">
-                         <div className="w-3 h-3 rounded shrink-0 justify-self-center" style={{ backgroundColor: s.colorHex ?? '#94a3b8' }} />
-                         <span className="text-xs font-bold text-slate-700 truncate text-center min-w-0">{s.label ?? (i + 1)}</span>
-                         <span className="text-[10px] font-bold text-slate-500 tabular-nums text-center">{s.min ?? 0}–{s.max ?? 0}</span>
+                       <div key={i} className="grid grid-cols-[28px_1fr_60px] items-center gap-3">
+                         <div className="w-3.5 h-3.5 rounded shrink-0 justify-self-center" style={{ backgroundColor: s.colorHex ?? '#94a3b8' }} />
+                         <span className="text-xs font-bold text-slate-700 text-center min-w-0 break-words leading-tight">{s.label ?? (i + 1)}</span>
+                         <span className="text-[11px] font-bold text-slate-500 tabular-nums text-center">{s.min ?? 0}–{s.max ?? 0}</span>
                        </div>
                      ))}
                    </div>
