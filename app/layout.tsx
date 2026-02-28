@@ -16,12 +16,14 @@ import { dict } from "@/translations";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Cache-bust za favicon da live uvijek dobije aktualnu ikonu (logo.png)
+const FAVICON_VERSION = "2";
 export const metadata: Metadata = {
   title: dict.app_title,
   description: dict.app_description,
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: "/logo.png?v=" + FAVICON_VERSION,
+    apple: "/logo.png?v=" + FAVICON_VERSION,
   },
 };
 
