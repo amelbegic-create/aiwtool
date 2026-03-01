@@ -7,7 +7,7 @@ import Link from 'next/link';
 import AdminControlsClient from './components/AdminControlsClient';
 import PDSListClient from './components/PDSListClient';
 import { cookies } from 'next/headers';
-import { tryRequirePermission } from "@/lib/access";
+import { tryRequirePermission, getDbUserForAccess, hasPermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getTemplateForRestaurantAndYear } from '@/app/actions/pdsActions';
 
@@ -80,6 +80,13 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
   const safeTemplate = template ? JSON.parse(JSON.stringify(template)) : null;
   const safePdsList = JSON.parse(JSON.stringify(pdsList));
 
+  const dbUserForAccess = await getDbUserForAccess();
+  const canLinkToAdminUserEdit = hasPermission(
+    String(dbUserForAccess.role),
+    dbUserForAccess.permissions ?? [],
+    "users:manage"
+  );
+
   return (
     <div className="min-h-screen bg-background p-6 md:p-8 font-sans text-foreground">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -129,7 +136,8 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
         <PDSListClient 
             data={safePdsList} 
             year={selectedYear} 
-            isManager={isAdminOrGod} 
+            isManager={isAdminOrGod}
+            canLinkToAdminUserEdit={canLinkToAdminUserEdit}
         />
       </div>
     </div>

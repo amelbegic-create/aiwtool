@@ -36,7 +36,7 @@ export default async function ZahtjeviPage() {
       pdsList: {
         where: {
           year: new Date().getFullYear(),
-          status: { in: ["OPEN", "SUBMITTED", "RETURNED"] },
+          status: { in: ["DRAFT", "OPEN", "IN_PROGRESS", "RETURNED"] },
         },
       },
     },
@@ -60,18 +60,29 @@ export default async function ZahtjeviPage() {
         })
       : [];
 
-  const pendingMine = dbUser.vacations?.length ?? 0;
   const pdsPending = dbUser.pdsList?.length ?? 0;
+
+  const since = new Date();
+  since.setDate(since.getDate() - 7);
+  const vacationProcessedCount = isAdmin
+    ? 0
+    : await prisma.vacationRequest.count({
+        where: {
+          userId,
+          status: { in: ["APPROVED", "REJECTED"] },
+          updatedAt: { gte: since },
+        },
+      });
 
   const items: PendingItem[] = [];
 
-  if (pendingMine > 0) {
+  if (!isAdmin && vacationProcessedCount > 0) {
     items.push({
-      id: "vacation",
-      title: "Jahresurlaub",
-      description: `${pendingMine} ausstehende Urlaubsanträge`,
+      id: "vacation-processed",
+      title: "Urlaubsanträge bearbeitet",
+      description: `${vacationProcessedCount} Antrag/Anträge wurden bearbeitet`,
       href: "/tools/vacations",
-      count: pendingMine,
+      count: vacationProcessedCount,
       icon: Palmtree,
       accent: "blue",
     });

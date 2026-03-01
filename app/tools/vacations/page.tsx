@@ -7,7 +7,7 @@ import { Role } from "@prisma/client";
 import UserView from "./_components/UserView";
 import AdminView from "./_components/AdminView";
 import { cookies } from "next/headers";
-import { tryRequirePermission } from "@/lib/access";
+import { tryRequirePermission, getDbUserForAccess, hasPermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getUserTotalForYear, getVacationAdminData } from "@/app/actions/vacationActions";
 import { getHolidaysForYear } from "@/app/actions/holidayActions";
@@ -66,6 +66,13 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       user.role === Role.SUPER_ADMIN ||
       user.role === Role.ADMIN;
 
+    const dbUserForAccess = await getDbUserForAccess();
+    const canLinkToAdminUserEdit = hasPermission(
+      String(dbUserForAccess.role),
+      dbUserForAccess.permissions ?? [],
+      "users:manage"
+    );
+
     return (
       <AdminView
         allRequests={allRequests}
@@ -75,6 +82,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         reportRestaurantLabel={reportRestaurantLabel}
         canRegisterOwnVacation={canRegisterOwnVacation}
         globalHolidays={globalHolidays}
+        canLinkToAdminUserEdit={canLinkToAdminUserEdit}
       />
     );
   }

@@ -120,7 +120,7 @@ export default function RolePresetsClient() {
       return;
     }
 
-    toast.success("Erfolgreich gespeichert!");
+    toast.success("Gespeichert.");
   };
 
   return (

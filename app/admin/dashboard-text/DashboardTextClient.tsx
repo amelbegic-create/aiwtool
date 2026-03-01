@@ -95,7 +95,7 @@ export default function DashboardTextClient({ initial }: Props) {
       if (res.ok) {
         setMessage("saved");
         setTimeout(() => setMessage(null), 3000);
-        toast.success("Erfolgreich gespeichert!");
+        toast.success("Gespeichert.");
       } else {
         setMessage("error");
         setTimeout(() => setMessage(null), 5000);

@@ -47,7 +47,7 @@ export default function HolidaysClient({ initialHolidays }: Props) {
       const list = await listHolidays();
       setHolidays(list);
       resetForm();
-      toast.success("Feiertag angelegt.");
+      toast.success("Gespeichert.");
     } else {
       toast.error(res.error ?? "Fehler");
     }
@@ -68,7 +68,7 @@ export default function HolidaysClient({ initialHolidays }: Props) {
       const list = await listHolidays();
       setHolidays(list);
       resetForm();
-      toast.success("Feiertag aktualisiert.");
+      toast.success("Gespeichert.");
     } else {
       toast.error(res.error ?? "Fehler");
     }

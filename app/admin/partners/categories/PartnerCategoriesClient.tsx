@@ -43,7 +43,7 @@ export default function PartnerCategoriesClient({
       setEditingId(null);
       setEditName("");
       setEditIcon(null);
-      toast.success("Kategorie wurde aktualisiert.");
+      toast.success("Gespeichert.");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Fehler.");
@@ -57,7 +57,7 @@ export default function PartnerCategoriesClient({
       setNewName("");
       setNewIcon(null);
       setAdding(false);
-      toast.success("Kategorija je dodata.");
+      toast.success("Gespeichert.");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Greška.");

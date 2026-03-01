@@ -305,7 +305,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
       }
       setIsModalOpen(false);
       router.refresh();
-      toast.success(isEditing ? "Benutzer aktualisiert." : "Benutzer erstellt.");
+      toast.success("Gespeichert.");
     } catch (e: any) {
       toast.error(e.message || "Fehler aufgetreten.");
     } finally {

@@ -258,11 +258,11 @@ export default function UserView({
     try {
       if (editingId) {
           await updateVacationRequest(editingId, { start, end });
-          toast.success("Antrag aktualisiert.");
+          toast.success("Gespeichert.");
           setEditingId(null);
       } else {
           await createVacationRequest({ start, end });
-          toast.success("Antrag erfolgreich erstellt.");
+          toast.success("Gespeichert.");
       }
       setStart("");
       setEnd("");

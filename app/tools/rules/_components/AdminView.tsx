@@ -540,7 +540,7 @@ export default function AdminView({ initialRules, categories, restaurants }: Adm
 
       setIsRuleModalOpen(false);
       router.refresh();
-      toast.success("Regel gespeichert.");
+      toast.success("Gespeichert.");
     } catch (e: any) {
       toast.error(e?.message || "Fehler beim Speichern.");
     } finally {

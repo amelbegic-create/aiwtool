@@ -495,7 +495,7 @@ function ProductivityToolContent({
           }),
         });
         if (res.ok && showToast) {
-          toast.success("Gespeichert", { duration: 1000 });
+          toast.success("Gespeichert.", { duration: 1000 });
         } else if (!res.ok) {
           toast.error("Fehler beim Speichern.");
         }
@@ -528,7 +528,7 @@ function ProductivityToolContent({
           }),
         });
         if (res.ok) {
-          toast.success(`Vorlage "${getDayLabel(key)}" gespeichert.`);
+          toast.success("Gespeichert.");
         } else {
           toast.error("Fehler beim Speichern.");
         }
@@ -569,7 +569,7 @@ function ProductivityToolContent({
           if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
           if (d.customStations) setCustomStations(d.customStations);
           const label = d.customDayNames?.[templateKey] || DAYS.find((x) => x.key === templateKey)?.label || templateKey;
-          toast.success(`Vorlage ${label} übernommen.`);
+          toast.success("Gespeichert.");
         } else {
           setRows({});
           toast.info("Vorlage ist leer.");
@@ -630,7 +630,7 @@ function ProductivityToolContent({
           setCustomStations(payload.customStations);
           const label = d.customDayNames?.[templateKey] || DAYS.find((x) => x.key === templateKey)?.label || templateKey;
           if (saveRes.ok) {
-            toast.success(`Vorlage ${label} übernommen und gespeichert.`);
+            toast.success("Gespeichert.");
           } else {
             toast.error("Vorlage übernommen, Speichern fehlgeschlagen.");
           }

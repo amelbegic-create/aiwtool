@@ -227,7 +227,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           galleryUrls: values.galleryUrls ?? [],
           contacts,
         });
-        toast.success("Unternehmen wurde aktualisiert.");
+        toast.success("Gespeichert.");
       } else {
         await createPartner({
           categoryId: values.categoryId,
@@ -240,7 +240,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           galleryUrls: values.galleryUrls ?? [],
           contacts,
         });
-        toast.success("Unternehmen wurde hinzugefügt.");
+        toast.success("Gespeichert.");
       }
       if (typeof window !== "undefined") window.close();
       router.push("/admin/partners");

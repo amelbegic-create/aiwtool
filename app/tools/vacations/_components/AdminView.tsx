@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   updateVacationStatus,
   addBlockedDay,
@@ -78,6 +79,8 @@ interface AdminViewProps {
   canRegisterOwnVacation?: boolean;
   /** Globalni praznici za godinu (iz Admin panela) */
   globalHolidays?: { d: number; m: number }[];
+  /** Link avatar/ime na admin edit korisnika (samo ako ima users:manage) */
+  canLinkToAdminUserEdit?: boolean;
 }
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
@@ -575,6 +578,7 @@ export default function AdminView({
   reportRestaurantLabel,
   canRegisterOwnVacation = false,
   globalHolidays: globalHolidaysProp = [],
+  canLinkToAdminUserEdit = false,
 }: AdminViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1416,11 +1420,26 @@ export default function AdminView({
               {filteredStats.map((u) => (
                 <div key={u.id} className="p-4 space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-sm font-bold shrink-0">
-                      {(u.name || "K").charAt(0)}
-                    </div>
+                    {canLinkToAdminUserEdit ? (
+                      <Link
+                        href={`/admin/users/${u.id}`}
+                        className="h-10 w-10 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-sm font-bold shrink-0 hover:ring-2 hover:ring-[#1a3826] hover:ring-offset-1 transition-all"
+                      >
+                        {(u.name || "K").charAt(0)}
+                      </Link>
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-sm font-bold shrink-0">
+                        {(u.name || "K").charAt(0)}
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
-                      <div className="font-bold text-foreground truncate">{u.name}</div>
+                      {canLinkToAdminUserEdit ? (
+                        <Link href={`/admin/users/${u.id}`} className="font-bold text-foreground truncate block hover:underline hover:text-[#1a3826]">
+                          {u.name}
+                        </Link>
+                      ) : (
+                        <div className="font-bold text-foreground truncate">{u.name}</div>
+                      )}
                       <div className="text-[10px] text-muted-foreground uppercase">{u.department}</div>
                     </div>
                   </div>
@@ -1478,11 +1497,26 @@ export default function AdminView({
                     className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent/50 transition-colors"
                   >
                     <div className="col-span-3 flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold">
-                        {(u.name || "K").charAt(0)}
-                      </div>
+                      {canLinkToAdminUserEdit ? (
+                        <Link
+                          href={`/admin/users/${u.id}`}
+                          className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold shrink-0 hover:ring-2 hover:ring-[#1a3826] hover:ring-offset-1 transition-all"
+                        >
+                          {(u.name || "K").charAt(0)}
+                        </Link>
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold">
+                          {(u.name || "K").charAt(0)}
+                        </div>
+                      )}
                       <div>
-                        <div className="font-bold text-sm text-foreground">{u.name}</div>
+                        {canLinkToAdminUserEdit ? (
+                          <Link href={`/admin/users/${u.id}`} className="font-bold text-sm text-foreground hover:underline hover:text-[#1a3826]">
+                            {u.name}
+                          </Link>
+                        ) : (
+                          <div className="font-bold text-sm text-foreground">{u.name}</div>
+                        )}
                         <div className="text-[10px] text-muted-foreground uppercase">{u.department}</div>
                       </div>
                     </div>
@@ -1524,7 +1558,13 @@ export default function AdminView({
                   key={req.id}
                   className={`p-4 ${req.status === "CANCELLED" ? "bg-muted/50 opacity-75" : ""}`}
                 >
-                  <div className="font-bold text-foreground">{req.user.name}</div>
+                  {canLinkToAdminUserEdit ? (
+                    <Link href={`/admin/users/${req.user.id}`} className="font-bold text-foreground hover:underline hover:text-[#1a3826]">
+                      {req.user.name}
+                    </Link>
+                  ) : (
+                    <div className="font-bold text-foreground">{req.user.name}</div>
+                  )}
                   <div className="text-xs text-muted-foreground mt-0.5">{req.user.email}</div>
                   <div className="text-sm font-semibold text-[#1a3826] mt-1">
                     {req.restaurantName ?? req.user.mainRestaurant}
@@ -1623,7 +1663,13 @@ export default function AdminView({
                       }`}
                     >
                       <td className="p-4 pl-6">
-                        <div className="font-bold text-sm text-foreground">{req.user.name}</div>
+                        {canLinkToAdminUserEdit ? (
+                          <Link href={`/admin/users/${req.user.id}`} className="font-bold text-sm text-foreground hover:underline hover:text-[#1a3826]">
+                            {req.user.name}
+                          </Link>
+                        ) : (
+                          <div className="font-bold text-sm text-foreground">{req.user.name}</div>
+                        )}
                         <div className="text-[10px] text-muted-foreground">{req.user.email}</div>
                       </td>
                       <td className="p-4">

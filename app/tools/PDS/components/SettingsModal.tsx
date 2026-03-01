@@ -49,7 +49,7 @@ export default function SettingsModal({ year, initialGoals, initialScale, restau
     const res = await createTemplate(year, restaurantIds, goals, scale, currentUserId);
     setIsSaving(false);
     if (res?.success) {
-      toast.success("PDS-Vorlage gespeichert.");
+      toast.success("Gespeichert.");
       onClose();
     } else {
       toast.error(res?.error ?? 'Fehler beim Speichern.');

@@ -41,7 +41,7 @@ export default function BonusToolClient({ initialState }: Props) {
     setSaving(true);
     try {
       await saveBonusSheet(state);
-      toast.success("Erfolgreich gespeichert!");
+      toast.success("Gespeichert.");
     } finally {
       setSaving(false);
     }

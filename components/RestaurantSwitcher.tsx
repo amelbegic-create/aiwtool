@@ -24,10 +24,10 @@ export default function RestaurantSwitcher({ restaurants, activeRestaurantId }: 
   // Bez opcije "Alle Restaurants" – nikad ne prikazujemo "all" u listi
   const list = (restaurants ?? []).filter((r) => r.id !== "all");
 
-  // ✅ FIX: ako korisnik ima samo 1 restoran i cookie nije postavljen,
-  // automatski postavi activeRestaurantId da moduli ne "zapnu" na "Odaberi"
+  // Kad nema cookie (ili je "all"), automatski postavi prvi restoran i refresh
+  // da se cookie odmah upiše – i za jednog i za više restorana.
   useEffect(() => {
-    if ((!activeRestaurantId || activeRestaurantId === "all" || activeRestaurantId === "") && list.length === 1) {
+    if ((!activeRestaurantId || activeRestaurantId === "all" || activeRestaurantId === "") && list.length >= 1) {
       startTransition(async () => {
         await switchRestaurant(list[0].id);
         router.refresh();

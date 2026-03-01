@@ -150,7 +150,7 @@ export default function RuleEditor({
         restaurantIds: isGlobal ? [] : restaurantIds,
       };
       await saveRule(data);
-      toast.success(initialRule?.id ? "Regel aktualisiert." : "Regel erstellt.");
+      toast.success("Gespeichert.");
       router.push(redirectTo);
       router.refresh();
     } catch (err) {

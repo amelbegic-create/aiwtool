@@ -194,7 +194,7 @@ export default function UserForm({
     try {
       const res = await createDepartment({ name, color: newDeptColor });
       if (res.success && res.data) {
-        toast.success("Abteilung erstellt.");
+        toast.success("Gespeichert.");
         setDepartmentsList((prev) => [...prev, res.data!]);
         form.setValue("departmentId", res.data.id);
         setDepartmentModalOpen(false);
@@ -305,7 +305,7 @@ export default function UserForm({
           vacationAllowances,
         });
       }
-      toast.success(isEdit ? "Korisnik ažuriran." : "Korisnik kreiran.");
+      toast.success("Gespeichert.");
       router.push("/admin/users");
       router.refresh();
     } catch (e) {

@@ -10,9 +10,10 @@ interface Props {
   data: any[];
   year: number;
   isManager: boolean;
+  canLinkToAdminUserEdit?: boolean;
 }
 
-export default function PDSListClient({ data, year, isManager }: Props) {
+export default function PDSListClient({ data, year, isManager, canLinkToAdminUserEdit = false }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Filtriranje u realnom vremenu
@@ -57,15 +58,37 @@ export default function PDSListClient({ data, year, isManager }: Props) {
           filteredList.map((pds: any) => (
             <div key={pds.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/80 transition-colors group">
               <div className="col-span-4 flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold shadow-sm overflow-hidden relative">
-                  {pds.user.image ? (
-                    <Image src={pds.user.image} alt="User" fill className="object-cover" sizes="32px" />
+                {canLinkToAdminUserEdit ? (
+                  <Link
+                    href={`/admin/users/${pds.userId}`}
+                    className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold shadow-sm overflow-hidden relative shrink-0 hover:ring-2 hover:ring-[#1a3826] hover:ring-offset-1 transition-all"
+                  >
+                    {pds.user.image ? (
+                      <Image src={pds.user.image} alt="User" fill className="object-cover" sizes="32px" />
+                    ) : (
+                      (pds.user.name || "?").charAt(0)
+                    )}
+                  </Link>
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold shadow-sm overflow-hidden relative">
+                    {pds.user.image ? (
+                      <Image src={pds.user.image} alt="User" fill className="object-cover" sizes="32px" />
+                    ) : (
+                      <User size={14}/>
+                    )}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  {canLinkToAdminUserEdit ? (
+                    <Link
+                      href={`/admin/users/${pds.userId}`}
+                      className="text-sm font-bold text-slate-800 hover:underline hover:text-[#1a3826] block truncate"
+                    >
+                      {pds.user.name}
+                    </Link>
                   ) : (
-                    <User size={14}/>
+                    <div className="text-sm font-bold text-slate-800">{pds.user.name}</div>
                   )}
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-slate-800">{pds.user.name}</div>
                   <div className="text-[10px] text-slate-400">{pds.user.email}</div>
                 </div>
               </div>

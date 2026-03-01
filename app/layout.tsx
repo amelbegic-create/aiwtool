@@ -83,12 +83,9 @@ export default async function RootLayout({
       // Bez opcije "Alle Restaurants" – nikad ne prikazujemo "all" u switcheru
       userRestaurants = userRestaurants.filter((r) => r.id !== "all");
 
-      // --- FIX: OBRISANO AUTOMATSKO SPAŠAVANJE KOLAČIĆA ---
-      // Ako nema odabranog restorana, samo vizuelno uzmi prvi,
-      // ali NE SMIJEMO zvati 'await switchRestaurant' ovdje jer to ruši build.
-      if (!activeRestaurantId && userRestaurants.length > 0) {
-          activeRestaurantId = userRestaurants[0].id;
-      }
+      // Ne postavljati activeRestaurantId iz prvog restorana ovdje kad je cookie prazan,
+      // da RestaurantSwitcher (client) može postaviti cookie i odraditi refresh.
+      // TopNavbar koristi effectiveActiveId u switcheru (prvi restoran ako nema cookie).
 
       // --- NOTIFIKACIJE ZA TOPNAV (zahtjevi) ---
       const ADMIN_ROLES = new Set<Role>([
@@ -129,7 +126,16 @@ export default async function RootLayout({
               status: { in: ["DRAFT", "OPEN", "IN_PROGRESS", "RETURNED"] },
             },
           });
-          pendingNotifications = pdsToFillCount;
+          const since = new Date();
+          since.setDate(since.getDate() - 7);
+          const vacationProcessedCount = await prisma.vacationRequest.count({
+            where: {
+              userId,
+              status: { in: ["APPROVED", "REJECTED"] },
+              updatedAt: { gte: since },
+            },
+          });
+          pendingNotifications = pdsToFillCount + vacationProcessedCount;
         }
       }
   }

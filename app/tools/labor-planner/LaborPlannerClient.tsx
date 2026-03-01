@@ -627,7 +627,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
       const json = await res.json();
       if (res.ok && json.success) {
         setHasUnsavedChanges(false);
-        if (!silent) toast.success("Erfolgreich gespeichert!");
+        if (!silent) toast.success("Gespeichert.");
       } else {
         toast.error(json?.error || "Fehler beim Speichern.");
       }

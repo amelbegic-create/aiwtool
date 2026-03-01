@@ -413,7 +413,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
     });
     setLoading(false);
     setSavedFeedback(true);
-    toast.success("Kommentar gespeichert.");
+    toast.success("Gespeichert.");
     setTimeout(() => setSavedFeedback(false), 3000);
     router.refresh();
   };
@@ -445,7 +445,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
     const res = await saveSignatureImage(pds.id, role, img);
     setLoading(false);
     if (res?.success) {
-      toast.success("Unterschrift gespeichert.");
+      toast.success("Gespeichert.");
       router.refresh();
     } else toast.error(res?.error ?? 'Fehler beim Speichern der Unterschrift.');
   };

@@ -106,7 +106,7 @@ export default function PDSForm({
           scale,
         });
         if (res.success) {
-          toast.success("PDS predložak ažuriran.");
+          toast.success("Gespeichert.");
           router.push("/admin/pds");
           router.refresh();
         } else {
@@ -123,7 +123,7 @@ export default function PDSForm({
           managerId,
         });
         if (res.success) {
-          toast.success("PDS-Vorlage erstellt.");
+          toast.success("Gespeichert.");
           router.push("/admin/pds");
           router.refresh();
         } else {
