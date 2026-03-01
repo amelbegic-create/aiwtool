@@ -84,7 +84,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.text('AIW Services', margin, 12);
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('PDS Beurteilung', margin, 20);
+      doc.text('Leistungsbeurteilung', margin, 20);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       doc.setTextColor(255, 199, 44);

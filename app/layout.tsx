@@ -16,8 +16,8 @@ import { dict } from "@/translations";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// Cache-bust za favicon da live uvijek dobije aktualnu ikonu (logo.png)
-const FAVICON_VERSION = "2";
+// Cache-bust za favicon da live uvijek dobije aktualnu ikonu (logo.png u public/)
+const FAVICON_VERSION = "3";
 export const metadata: Metadata = {
   title: dict.app_title,
   description: dict.app_description,
