@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { ArrowRight, Palmtree, ClipboardCheck, ChevronLeft, ShieldCheck, Inbox } from "lucide-react";
+import { ArrowRight, Palmtree, ClipboardCheck, ChevronLeft, ShieldCheck, Inbox, Undo2 } from "lucide-react";
 import { Role } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -18,8 +18,9 @@ type PendingItem = {
   href: string;
   count: number;
   icon: typeof Palmtree;
-  accent: "emerald" | "blue" | "amber";
+  accent: "emerald" | "blue" | "amber" | "red";
   vacationRows?: { restaurantName: string; userName: string }[];
+  vacationRowLabel?: string;
 };
 
 export default async function ZahtjeviPage() {
@@ -47,6 +48,21 @@ export default async function ZahtjeviPage() {
   const isAdmin = ADMIN_ROLES.has(dbUser.role as Role);
   const totalPendingAdmin = isAdmin ? await prisma.vacationRequest.count({ where: { status: "PENDING" } }) : 0;
 
+  const cancelPendingForSystemArchitect =
+    isAdmin && dbUser.role === Role.SYSTEM_ARCHITECT
+      ? await prisma.vacationRequest.count({ where: { status: "CANCEL_PENDING" } })
+      : 0;
+  const cancelPendingAsSupervisor =
+    isAdmin
+      ? await prisma.vacationRequest.count({
+          where: { status: "CANCEL_PENDING", user: { supervisorId: userId } },
+        })
+      : 0;
+  const cancelPendingCount =
+    dbUser.role === Role.SYSTEM_ARCHITECT
+      ? cancelPendingForSystemArchitect
+      : cancelPendingAsSupervisor;
+
   const pendingVacationRequests =
     isAdmin && totalPendingAdmin > 0
       ? await prisma.vacationRequest.findMany({
@@ -56,6 +72,22 @@ export default async function ZahtjeviPage() {
             restaurant: { select: { name: true } },
           },
           orderBy: { createdAt: "desc" },
+          take: 20,
+        })
+      : [];
+
+  const cancelPendingRequests =
+    isAdmin && cancelPendingCount > 0
+      ? await prisma.vacationRequest.findMany({
+          where:
+            dbUser.role === Role.SYSTEM_ARCHITECT
+              ? { status: "CANCEL_PENDING" }
+              : { status: "CANCEL_PENDING", user: { supervisorId: userId } },
+          include: {
+            user: { select: { name: true } },
+            restaurant: { select: { name: true } },
+          },
+          orderBy: { updatedAt: "desc" },
           take: 20,
         })
       : [];
@@ -116,6 +148,23 @@ export default async function ZahtjeviPage() {
     });
   }
 
+  if (isAdmin && cancelPendingCount > 0) {
+    items.push({
+      id: "admin-vacation-storno",
+      title: "Stornierungen beantragt",
+      description: `${cancelPendingCount} Urlaubs-Stornierung(en) warten auf Freigabe`,
+      href: "/tools/vacations",
+      count: cancelPendingCount,
+      icon: Undo2,
+      accent: "red",
+      vacationRowLabel: "Stornierung",
+      vacationRows: cancelPendingRequests.map((r) => ({
+        restaurantName: r.restaurant?.name ?? "N/A",
+        userName: r.user?.name ?? "N/A",
+      })),
+    });
+  }
+
   const accentClasses = {
     emerald: {
       iconBg: "bg-[#1a3826]/10 text-[#1a3826] group-hover:bg-[#1a3826] group-hover:text-white",
@@ -131,6 +180,11 @@ export default async function ZahtjeviPage() {
       iconBg: "bg-amber-500/10 text-amber-700 group-hover:bg-[#FFC72C] group-hover:text-[#1a3826]",
       badge: "bg-amber-100 text-amber-800",
       border: "border-amber-200",
+    },
+    red: {
+      iconBg: "bg-red-500/10 text-red-600 group-hover:bg-red-600 group-hover:text-white",
+      badge: "bg-red-100 text-red-700",
+      border: "border-red-200",
     },
   };
 
@@ -197,11 +251,11 @@ export default async function ZahtjeviPage() {
                   {item.vacationRows && item.vacationRows.length > 0 && (
                     <ul className="mt-3 space-y-1.5 max-h-32 overflow-y-auto">
                       {item.vacationRows.map((row, i) => (
-                        <li key={i} className="text-xs font-semibold text-slate-700 truncate" title={`${row.restaurantName} – ${row.userName} – Neue Anfrage`}>
+                        <li key={i} className="text-xs font-semibold text-slate-700 truncate" title={`${row.restaurantName} – ${row.userName} – ${item.vacationRowLabel ?? "Neue Anfrage"}`}>
                           <span className="text-[#1a3826]">{row.restaurantName}</span>
                           <span className="text-slate-400 mx-1">–</span>
                           <span>{row.userName}</span>
-                          <span className="text-slate-400 ml-1">– Neue Anfrage</span>
+                          <span className="text-slate-400 ml-1">– {item.vacationRowLabel ?? "Neue Anfrage"}</span>
                         </li>
                       ))}
                     </ul>

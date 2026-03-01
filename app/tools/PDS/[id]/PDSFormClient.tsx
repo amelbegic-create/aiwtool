@@ -32,6 +32,18 @@ function getGoalPointRangeLabel(goal: PDSGoal): string {
   return rules.map((r: PDSScoringRule) => `${r.from}–${r.to}`).join(', ');
 }
 
+/** Format za formu i PDF: 0-10=1p; 11-19=2p (tacka-zarez i space). */
+function getGoalPointRangeLabelWithPoints(goal: PDSGoal): string {
+  if (goal.type === 'BOOLEAN') {
+    const ja = goal.yesPoints ?? 0;
+    const nein = goal.noPoints ?? 0;
+    return `Ja=${ja}p; Nein=${nein}p`;
+  }
+  const rules = goal.scoringRules ?? [];
+  if (rules.length === 0) return '–';
+  return rules.map((r: PDSScoringRule) => `${r.from}-${r.to}=${r.pts}p`).join('; ');
+}
+
 interface Props {
   pds: any;
   isManager: boolean;
@@ -185,7 +197,7 @@ export default function PDSFormClient({ pds, isManager }: Props) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(15, 23, 42);
-      const rangeColWidth = 32;
+      const rangeColWidth = 40;
       const goalLineHeight = 3.2;
       const twoCols = goals.length >= 10;
       const colGap = 6;
@@ -212,9 +224,9 @@ export default function PDSFormClient({ pds, isManager }: Props) {
         doc.text(`Ergebnis: ${res}`, x + 1, resultY + 1);
         doc.setFontSize(6);
         doc.setTextColor(71, 85, 105);
-        const rangeLabel = getGoalPointRangeLabel(goal);
+        const rangeLabel = getGoalPointRangeLabelWithPoints(goal);
         const rangeLines = doc.splitTextToSize(rangeLabel, rangeColWidth - 2);
-        rangeLines.slice(0, 2).forEach((line: string, li: number) => {
+        rangeLines.slice(0, 3).forEach((line: string, li: number) => {
           doc.text(line, localRangeX + 1, blockTop + 1 + goalLineHeight + li * 2.8);
         });
         doc.setFontSize(7);
@@ -601,16 +613,10 @@ export default function PDSFormClient({ pds, isManager }: Props) {
                                 placeholder="0"
                             />
                             {goal.scoringRules?.length ? (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {goal.scoringRules.map((r: PDSScoringRule, ri: number) => (
-                                        <span key={ri} className={`text-[8px] px-1.5 py-0.5 rounded border ${
-                                            parseFloat(goal.result as string) >= r.from && parseFloat(goal.result as string) <= r.to
-                                            ? 'bg-[#1a3826] text-white border-[#1a3826]'
-                                            : 'bg-slate-100 text-slate-400 border-slate-200'
-                                        }`}>
-                                            {r.from}–{r.to} → {r.pts} P
-                                        </span>
-                                    ))}
+                                <div className="mt-2 rounded-lg border border-[#1a3826] bg-[#1a3826] px-2.5 py-1.5">
+                                    <span className="text-[10px] font-bold text-white">
+                                        {goal.scoringRules.map((r: PDSScoringRule) => `${r.from}-${r.to}=${r.pts}p`).join('; ')}
+                                    </span>
                                 </div>
                             ) : null}
                         </div>

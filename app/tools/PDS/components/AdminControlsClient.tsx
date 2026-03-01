@@ -42,6 +42,23 @@ function getGoalPointRangeLabel(goal: {
   return rules.map((r) => `${r.from}–${r.to}`).join(', ');
 }
 
+/** Format za PDF: 0-10=1p; 11-19=2p (tacka-zarez i space). */
+function getGoalPointRangeLabelWithPoints(goal: {
+  type?: string;
+  scoringRules?: Array<{ from: number; to: number; pts: number }>;
+  yesPoints?: number;
+  noPoints?: number;
+}): string {
+  if (goal.type === 'BOOLEAN') {
+    const ja = goal.yesPoints ?? 0;
+    const nein = goal.noPoints ?? 0;
+    return `Ja=${ja}p; Nein=${nein}p`;
+  }
+  const rules = goal.scoringRules ?? [];
+  if (rules.length === 0) return '–';
+  return rules.map((r) => `${r.from}-${r.to}=${r.pts}p`).join('; ');
+}
+
 interface PDSListItem {
   id: string;
   user: { name: string | null; email?: string | null; role?: string | null; supervisor?: { name: string | null } | null };
@@ -240,7 +257,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
       const exportYear = selectedYear - 1;
       const boxW = 42;
       const boxH = 28;
-      const rangeColWidth = 32;
+      const rangeColWidth = 40;
       const goalLineHeight = 4.5;
       const sigImgW = 45;
       const sigImgH = 22;
@@ -370,9 +387,9 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
           doc.text(`Ergebnis: ${res}`, x + 2, resultY + 2);
           doc.setFontSize(6);
           doc.setTextColor(71, 85, 105);
-          const rangeLabel = getGoalPointRangeLabel(goal as Parameters<typeof getGoalPointRangeLabel>[0]);
+          const rangeLabel = getGoalPointRangeLabelWithPoints(goal as Parameters<typeof getGoalPointRangeLabelWithPoints>[0]);
           const rangeLines = doc.splitTextToSize(rangeLabel, rangeColWidth - 2);
-          rangeLines.slice(0, 2).forEach((line: string, li: number) => {
+          rangeLines.slice(0, 3).forEach((line: string, li: number) => {
             doc.text(line, localRangeX + 1, blockTop + 2 + goalLineHeight + li * 2.8);
           });
           doc.setFontSize(8);
@@ -575,7 +592,7 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
       const exportYear = (selectedYear - 1);
       const boxW = 42;
       const boxH = 28;
-      const rangeColWidth = 32;
+      const rangeColWidth = 40;
       const goalTextWidth = w - 2 * margin - 22 - rangeColWidth;
       const goalLineHeight = 4.5;
       const rangeX = w - margin - 14 - rangeColWidth;
@@ -702,9 +719,9 @@ export default function AdminControlsClient({ selectedYear, template, currentUse
           doc.text(`Ergebnis: ${res}`, x + 2, resultY + 2);
           doc.setFontSize(6);
           doc.setTextColor(71, 85, 105);
-          const rangeLabel = getGoalPointRangeLabel(goal as Parameters<typeof getGoalPointRangeLabel>[0]);
+          const rangeLabel = getGoalPointRangeLabelWithPoints(goal as Parameters<typeof getGoalPointRangeLabelWithPoints>[0]);
           const rangeLines = doc.splitTextToSize(rangeLabel, rangeColWidth - 2);
-          rangeLines.slice(0, 2).forEach((line: string, li: number) => {
+          rangeLines.slice(0, 3).forEach((line: string, li: number) => {
             doc.text(line, localRangeX + 1, blockTop + 2 + goalLineHeight + li * 2.8);
           });
           doc.setFontSize(8);

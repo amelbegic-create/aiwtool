@@ -117,7 +117,25 @@ export default async function RootLayout({
               status: "SUBMITTED",
             },
           });
-          pendingNotifications = totalPendingAdmin + pdsToReviewCount;
+          // Stornierung: System-Architekt sieht alle, Nadređeni samo zahtjeve svojih podređenih (kein Doppelzählen)
+          const cancelPendingAsSupervisor = await prisma.vacationRequest.count({
+            where: {
+              status: "CANCEL_PENDING",
+              user: { supervisorId: userId },
+            },
+          });
+          const cancelPendingForSystemArchitect =
+            dbUser.role === Role.SYSTEM_ARCHITECT
+              ? await prisma.vacationRequest.count({
+                  where: { status: "CANCEL_PENDING" },
+                })
+              : 0;
+          const cancelPendingCount =
+            dbUser.role === Role.SYSTEM_ARCHITECT
+              ? cancelPendingForSystemArchitect
+              : cancelPendingAsSupervisor;
+          pendingNotifications =
+            totalPendingAdmin + pdsToReviewCount + cancelPendingCount;
         } else {
           const pdsToFillCount = await prisma.pDS.count({
             where: {
