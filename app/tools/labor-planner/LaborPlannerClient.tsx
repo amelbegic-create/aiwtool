@@ -1167,7 +1167,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         <div className="mx-auto flex flex-col md:flex-row justify-end items-center mb-8 gap-3 print:hidden" style={{ maxWidth: "1600px" }}>
           <div className="flex flex-wrap gap-2 items-center">
             <button
-              onClick={() => saveDataToDB(true)}
+              onClick={() => saveDataToDB(false)}
               className="h-10 px-4 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
               title="Speichern"
             >

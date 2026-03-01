@@ -24,7 +24,6 @@ import {
   Calendar,
   Clock,
   X,
-  Loader2,
   GripVertical,
   Edit2,
 } from "lucide-react";
@@ -979,13 +978,6 @@ function ProductivityToolContent({
       {loading && (
         <div className="fixed inset-0 bg-[#1b3a26]/20 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="animate-spin rounded-full h-12 w-12 border-2 border-[#ffc72c]/30 border-t-[#ffc72c]" />
-        </div>
-      )}
-
-      {isSaving && (
-        <div className="fixed top-20 right-6 z-50 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-[#1b3a26] shadow-lg" style={{ backgroundColor: COLORS.yellow }}>
-          <Loader2 size={18} className="animate-spin" />
-          <span>Speichert…</span>
         </div>
       )}
 
