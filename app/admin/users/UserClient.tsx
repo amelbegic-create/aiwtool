@@ -175,6 +175,17 @@ export default function UserClient({ users = [], restaurants = [], departments =
       }));
   }, [users]);
 
+  const sortedRestaurants = useMemo(() => {
+    const copy = [...restaurants];
+    copy.sort((a, b) => {
+      const aNum = parseInt(a.name, 10);
+      const bNum = parseInt(b.name, 10);
+      if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
+      return a.name.localeCompare(b.name);
+    });
+    return copy;
+  }, [restaurants]);
+
   const openCreate = () => {
     if (embedded) {
       router.push("/admin/users/create");
@@ -703,9 +714,15 @@ export default function UserClient({ users = [], restaurants = [], departments =
                       </div>
 
                       <div className="bg-white border border-border rounded-2xl p-5">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-4">Zugewiesene Restaurants</h3>
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
+                          Zugewiesene Restaurants
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground mb-3">
+                          Wählen Sie alle Standorte aus, an denen der Mitarbeiter arbeitet. Die Liste ist nach
+                          Restaurantnummer sortiert.
+                        </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1">
-                          {restaurants.map((r) => {
+                          {sortedRestaurants.map((r) => {
                             const checked = formData.restaurantIds.includes(r.id);
                             return (
                               <label

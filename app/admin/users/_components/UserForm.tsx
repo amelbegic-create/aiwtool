@@ -17,10 +17,10 @@ import { User, Shield, Settings, ChevronDown, ChevronRight, Loader2, Plus, Trash
 
 const ROLE_LABELS: Record<string, string> = {
   SYSTEM_ARCHITECT: "System Architect",
-  SUPER_ADMIN: "Abteilungsleiter",
+  SUPER_ADMIN: "Bereichsleitung",
   ADMIN: "Management",
   MANAGER: "Restaurant Manager",
-  SHIFT_LEADER: "Šef smjene / Shift Leader",
+  SHIFT_LEADER: "Schichtleiter:in",
   CREW: "Crew",
 };
 
@@ -150,6 +150,13 @@ export default function UserForm({
   const role = form.watch("role") || "CREW";
   const requiresRestaurant = roleRequiresRestaurant(role);
 
+  const sortedRestaurants = [...restaurants].sort((a, b) => {
+    const aNum = parseInt(a.code || a.name || "0", 10);
+    const bNum = parseInt(b.code || b.name || "0", 10);
+    if (!Number.isNaN(aNum) && !Number.isNaN(bNum)) return aNum - bNum;
+    return restaurantLabel(a).localeCompare(restaurantLabel(b));
+  });
+
   useEffect(() => {
     const sub = form.watch((_, { name }) => {
       if (name === "role") {
@@ -246,7 +253,12 @@ export default function UserForm({
   };
 
   const handleDeleteDepartment = async (id: string) => {
-    if (!confirm("Jeste li sigurni da želite obrisati ovaj odjel? Korisnici s ovim odjelom će ostati bez odjela.")) return;
+    if (
+      !confirm(
+        "Sind Sie sicher, dass Sie diese Abteilung löschen möchten? Benutzer mit dieser Abteilung haben danach keine Abteilung mehr."
+      )
+    )
+      return;
     setIsDeletingDeptId(id);
     try {
       const res = await deleteDepartment(id);
@@ -257,7 +269,7 @@ export default function UserForm({
         if (editingDeptId === id) cancelEditDepartment();
       }
     } catch {
-      alert("Greška pri brisanju odjela.");
+      alert("Fehler beim Löschen der Abteilung.");
     }
     setIsDeletingDeptId(null);
   };
@@ -328,10 +340,10 @@ export default function UserForm({
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-200 bg-[#1a3826]">
           <h1 className="text-xl font-black text-white uppercase tracking-tight">
-            {isEdit ? "Uredi korisnika" : "Novi korisnik"}
+            {isEdit ? "Benutzer bearbeiten" : "Neuen Benutzer anlegen"}
           </h1>
           <p className="text-sm text-white/80 mt-0.5">
-            {isEdit ? `ID: ${initialData?.id}` : "Unesite podatke za novog zaposlenika"}
+            {isEdit ? `ID: ${initialData?.id}` : "Bitte Mitarbeiterdaten ausfüllen."}
           </p>
         </div>
 
@@ -398,11 +410,11 @@ export default function UserForm({
           <div className="p-6">
             <h2 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-wider mb-4">
               <Shield size={18} className="text-[#1a3826]" />
-              Rola i hijerarhija
+              Rolle und Hierarchie
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Rola</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Rolle</label>
                 <select
                   {...form.register("role")}
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
@@ -439,7 +451,9 @@ export default function UserForm({
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nadređeni (Vorgesetzter)</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Vorgesetzte Person
+                </label>
                 <select
                   {...form.register("supervisorId")}
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
@@ -453,7 +467,7 @@ export default function UserForm({
                       </option>
                     ))}
                 </select>
-                <p className="text-[10px] text-slate-500 mt-0.5">Für Mein Team und Urlaubsfreigabe</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Für „Mein Team“ und Urlaubsfreigabe</p>
               </div>
             </div>
 
@@ -467,8 +481,8 @@ export default function UserForm({
                   control={form.control}
                   defaultValue={[]}
                   render={({ field }) => (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-52 overflow-y-auto rounded-lg border border-gray-200 p-3 bg-gray-50/50">
-                      {restaurants.map((r) => {
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto rounded-lg border border-gray-200 p-3 bg-gray-50/50">
+                      {sortedRestaurants.map((r) => {
                         const selected = (field.value || []).includes(r.id);
                         return (
                           <label
@@ -558,14 +572,14 @@ export default function UserForm({
                   </button>
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={addVacationYear}
-                className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-slate-600 hover:border-[#1a3826] hover:text-[#1a3826] text-sm font-medium transition-colors"
-              >
-                <Plus size={16} />
-                Dodaj godinu
-              </button>
+                <button
+                  type="button"
+                  onClick={addVacationYear}
+                  className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-slate-600 hover:border-[#1a3826] hover:text-[#1a3826] text-sm font-medium transition-colors"
+                >
+                  <Plus size={16} />
+                  Jahr hinzufügen
+                </button>
             </div>
           </div>
 
@@ -607,7 +621,7 @@ export default function UserForm({
                   className="mt-3 text-sm font-semibold text-slate-600 hover:text-[#1a3826] flex items-center gap-1"
                 >
                   <ChevronDown size={16} />
-                  Napredno (ručna izmjena)
+                  Erweiterte (manuelle) Bearbeitung
                 </button>
               </>
             ) : (
@@ -681,7 +695,7 @@ export default function UserForm({
               href="/admin/users"
               className="inline-flex items-center justify-center min-h-[44px] px-6 py-3 rounded-lg font-bold text-slate-600 hover:bg-gray-200 transition-colors"
             >
-              Odustani
+              Abbrechen
             </Link>
             <button
               type="submit"
@@ -694,9 +708,9 @@ export default function UserForm({
                   {isEdit ? "Speichern…" : "Erstellen…"}
                 </>
               ) : isEdit ? (
-                "Sačuvaj izmjene"
+                "Änderungen speichern"
               ) : (
-                "Kreiraj korisnika"
+                "Benutzer anlegen"
               )}
             </button>
           </div>

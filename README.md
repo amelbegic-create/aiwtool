@@ -34,3 +34,22 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Baza podataka: RADNA vs LIVE (lokalno)
+
+Lokalni `.env` koristi varijable:
+
+- `DATABASE_URL` – trenutno postavljeno na **RADNA** bazu (test okolina).
+- `DIRECT_URL` – direct connection za istu RADNA bazu (za Prisma migracije lokalno).
+
+U istom `.env` postoje i reference na produkcijsku (LIVE) bazu:
+
+- `LIVE_DATABASE_URL`
+- `LIVE_DIRECT_URL`
+
+Za **lokalno prebacivanje** između RADNA i LIVE baze:
+
+1. Za RADNA (preporučeno za razvoj): neka `DATABASE_URL` i `DIRECT_URL` budu jednaki `RADNA_DATABASE_URL` i `RADNA_DIRECT_URL`.
+2. Za kratko spajanje na LIVE (npr. migracija): ručno kopirati vrijednosti iz `LIVE_DATABASE_URL` / `LIVE_DIRECT_URL` u `DATABASE_URL` / `DIRECT_URL`, odraditi posao, zatim **vratiti natrag** na RADNA.
+
+Napomena: Vercel koristi svoje env varijable postavljene u **Project Settings → Environment Variables** (vidi `VERCEL.md` / `VERCEL_DEPLOY.md`), tako da promjene lokalnog `.env` ne utječu na produkcijsku bazu.
