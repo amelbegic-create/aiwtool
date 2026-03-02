@@ -485,6 +485,15 @@ async function calculateVacationDays(start: string, end: string, restaurantId: s
     : [];
   const blockedDates = blockedDays.map((b) => b.date);
 
+  // Ako raspon sadrži barem jedan blokirani dan, potpuno zabrani zahtjev
+  // (jasna poruka za radnika / nadređenog).
+  const hasBlockedInRange = blockedDates.some((d) => d >= start && d <= end);
+  if (hasBlockedInRange) {
+    throw new Error(
+      "An diesem Tag ist leider kein Urlaubstag möglich. Bitte wende Dich an deinen Vorgesetzten. Danke."
+    );
+  }
+
   let totalDays = 0;
   const currentDate = new Date(startDate);
 

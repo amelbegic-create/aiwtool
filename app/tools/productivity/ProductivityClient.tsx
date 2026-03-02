@@ -161,8 +161,13 @@ function ProductivityToolContent({
   const [customStations, setCustomStations] = useState<Station[]>([]);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [pdfPopupUrl, setPdfPopupUrl] = useState<string | null>(null);
+  const [dayHoursConfig, setDayHoursConfig] = useState<Record<string, { from: number; to: number }>>({});
+  const [dayHoursLoaded, setDayHoursLoaded] = useState(false);
 
   const hoursWhenModalOpenedRef = useRef({ from: 6, to: 1 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const performSaveRef = useRef<any>(null);
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
@@ -289,7 +294,8 @@ function ProductivityToolContent({
         if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
         if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
         if (d.customDayNames) setCustomDayNames(d.customDayNames);
-        setHiddenColumns([]);
+        if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns); else setHiddenColumns([]);
+        if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
         if (d.customStations) setCustomStations(d.customStations);
       } else {
         setRows({});
@@ -401,6 +407,32 @@ function ProductivityToolContent({
     if (!showCalendarDropdown) setCalendarViewMonth(null);
   }, [showCalendarDropdown, selectedDate, calendarViewMonth]);
 
+  // Učitaj hoursConfig kad se otvori modal
+  useEffect(() => {
+    if (!showSettingsModal || dayHoursLoaded || !activeRestId) return;
+    fetch(`/api/productivity?restaurantId=${activeRestId}&date=_hours_config_`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.success && json.data?.hoursConfig) setDayHoursConfig(json.data.hoursConfig);
+        setDayHoursLoaded(true);
+      })
+      .catch(() => setDayHoursLoaded(true));
+  }, [showSettingsModal, dayHoursLoaded, activeRestId]);
+
+  const saveDayHoursConfig = useCallback(async (config: Record<string, { from: number; to: number }>) => {
+    if (!activeRestId) return;
+    await fetch("/api/productivity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restaurantId: activeRestId, date: "_hours_config_", data: { hoursConfig: config } }),
+    }).catch(() => {});
+  }, [activeRestId]);
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettingsModal(false);
+    saveDayHoursConfig(dayHoursConfig);
+  }, [dayHoursConfig, saveDayHoursConfig]);
+
   const totals = useMemo(() => {
     let sumBruto = 0;
     let sumNeto = 0;
@@ -456,9 +488,11 @@ function ProductivityToolContent({
     [rows, netCoeff, hoursFrom, hoursTo, customDayNames, hiddenColumns, customStations, columnOrder, activeColumns]
   );
 
+  // Snimanje pri izlasku iz modula (prebacivanje na drugi modul)
   useEffect(() => {
     return () => {
       if (activeRestId && selectedDate && !templateEditMode) {
+        try { sessionStorage.setItem("mcd-autosave-toast", "1"); } catch { /* ignore */ }
         const payload = getPayload();
         fetch("/api/productivity", {
           method: "POST",
@@ -510,6 +544,18 @@ function ProductivityToolContent({
 
   const handleSave = useCallback(() => performSave(true), [performSave]);
 
+  useEffect(() => {
+    performSaveRef.current = performSave;
+  }, [performSave]);
+
+  // Automatsko snimanje svako 3 minute (bez popupa)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      performSaveRef.current?.(false);
+    }, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const saveTemplate = useCallback(
     async (key: string) => {
       if (!activeRestId) {
@@ -542,9 +588,23 @@ function ProductivityToolContent({
   );
 
   const TEMPLATE_KEYS = useMemo(
-    () => ["monday", "tuesday", "wednesday", "thursday", "friday", "special_1", "special_2", "special_3"] as const,
+    () => ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "special_1", "special_2", "special_3"] as const,
     []
   );
+
+  // Svi dani za konfiguraciju sati (prikazani u Einstellungen)
+  const HOURS_CONFIG_DAYS = useMemo(() => [
+    { key: "monday", defaultLabel: "Montag" },
+    { key: "tuesday", defaultLabel: "Dienstag" },
+    { key: "wednesday", defaultLabel: "Mittwoch" },
+    { key: "thursday", defaultLabel: "Donnerstag" },
+    { key: "friday", defaultLabel: "Freitag" },
+    { key: "saturday", defaultLabel: "Samstag" },
+    { key: "sunday", defaultLabel: "Sonntag" },
+    { key: "special_1", defaultLabel: "Sondertag 1" },
+    { key: "special_2", defaultLabel: "Sondertag 2" },
+    { key: "special_3", defaultLabel: "Sondertag 3" },
+  ], []);
 
   const handleApplyTemplate = useCallback(
     async (templateKey: string) => {
@@ -562,13 +622,13 @@ function ProductivityToolContent({
           const d = json.data;
           setRows(d.rows || {});
           if (d.netCoeff != null) setNetCoeff(String(d.netCoeff).replace(".", ","));
-          if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
-          if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
+          const cfgH = dayHoursConfig[templateKey];
+          setHoursFrom(cfgH?.from ?? (d.hoursFrom ?? 6));
+          setHoursTo(cfgH?.to ?? (d.hoursTo ?? 1));
           if (d.customDayNames) setCustomDayNames(d.customDayNames);
           if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns);
           if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
           if (d.customStations) setCustomStations(d.customStations);
-          const label = d.customDayNames?.[templateKey] || DAYS.find((x) => x.key === templateKey)?.label || templateKey;
           toast.success("Gespeichert.");
         } else {
           setRows({});
@@ -598,11 +658,12 @@ function ProductivityToolContent({
         const json = await res.json();
         if (json.success && json.data) {
           const d = json.data;
+          const cfgH2 = dayHoursConfig[templateKey];
           const payload = {
             rows: d.rows || {},
             netCoeff: String(d.netCoeff ?? "1.17").replace(".", ",").replace(",", "."),
-            hoursFrom: d.hoursFrom ?? 6,
-            hoursTo: d.hoursTo ?? 1,
+            hoursFrom: cfgH2?.from ?? (d.hoursFrom ?? 6),
+            hoursTo: cfgH2?.to ?? (d.hoursTo ?? 1),
             customDayNames: d.customDayNames || {},
             hiddenColumns: d.hiddenColumns || [],
             customStations: d.customStations || [],
@@ -768,26 +829,59 @@ function ProductivityToolContent({
     dayTotals: DayTotals,
     columns: Station[]
   ) => {
+    const headerH = 32;
+
+    // —— Header dunkelgrün
     doc.setFillColor(26, 56, 38);
-    doc.rect(0, 0, pageWidth, 28, "F");
+    doc.rect(0, 0, pageWidth, headerH, "F");
+
+    // Titel links
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
     doc.setTextColor(255, 199, 44);
-    doc.setFontSize(16);
-    doc.text(`${restName} – Produktivität`, margin, 10);
+    doc.text(restName, margin, 11);
+    doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.text(`${dayLabel}  |  ${dateFormatted}`, margin, 18);
-    doc.setFontSize(9);
-    doc.text(
-      `Brutto: ${fmtInt(dayTotals.sumBruto)} €  |  Netto: ${fmtInt(dayTotals.sumNeto)} €  |  Σ MA: ${fmtInt(dayTotals.sumStaff)}  |  Prod.: ${fmtInt(dayTotals.avgProd)} €`,
-      margin,
-      24
-    );
+    doc.text("Produktivität", margin, 19);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(`${dayLabel}  |  ${dateFormatted}`, margin, 27);
+
+    // —— KPI Karten: 4 Karten, zentriert auf rechter Seite des Headers
+    const cardW = 30;
+    const prodCardW = 40;
+    const cardH = 18;
+    const cardGap = 4;
+    const totalW = 3 * cardW + prodCardW + 3 * cardGap;
+    const cardsAreaX = pageWidth / 2;
+    const cardsAreaW = pageWidth - cardsAreaX - margin;
+    const cardsX = cardsAreaX + (cardsAreaW - totalW) / 2;
+    const cardsY = (headerH - cardH) / 2;
+
+    const drawKpiCard = (x: number, y: number, w: number, h: number, label: string, value: string, bgR: number, bgG: number, bgB: number, isProd = false) => {
+      doc.setFillColor(bgR, bgG, bgB);
+      doc.roundedRect(x, y, w, h, 1.5, 1.5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(26, 56, 38);
+      doc.text(label, x + w / 2, y + 5.5, { align: "center" });
+      doc.setFontSize(isProd ? 13 : 10);
+      doc.text(value, x + w / 2, y + h - 3.5, { align: "center" });
+    };
+
+    drawKpiCard(cardsX,                          cardsY, cardW,     cardH, "BRUTTO",        `${fmtInt(dayTotals.sumBruto)} €`,  255, 255, 255);
+    drawKpiCard(cardsX + cardW + cardGap,         cardsY, cardW,     cardH, "NETTO",         `${fmtInt(dayTotals.sumNeto)} €`,   255, 255, 255);
+    drawKpiCard(cardsX + 2*(cardW + cardGap),     cardsY, cardW,     cardH, "Σ MA",          `${fmtInt(dayTotals.sumStaff)}`,    255, 255, 255);
+    drawKpiCard(cardsX + 3*(cardW + cardGap),     cardsY, prodCardW, cardH, "PRODUKTIVITÄT", `${fmtInt(dayTotals.avgProd)} €`,   255, 199, 44, true);
+
     doc.setTextColor(0, 0, 0);
 
-    const head = ["Uhrzeit", "Brutto (€)", "Netto (€)", ...columns.map((s) => s.label), "Σ Std."];
+    // —— Tabelle
+    const tableStartY = headerH + 4;
+    const head = ["Uhrzeit", "Brutto (€)", "Netto (€)", ...columns.map((s) => s.label), "Σ Std.", "Prod. (€)"];
     const body = dayTotals.rowStats.map((s) => {
       const row = dayRows[s.h] ?? {};
+      const prod = s.staffTotal > 0 ? Math.round(s.neto / s.staffTotal) : 0;
       return [
         formatHourRange(s.h),
         fmtInt(s.bruto),
@@ -797,6 +891,7 @@ function ProductivityToolContent({
           return val === 0 ? "-" : fmtInt(val);
         }),
         fmtInt(s.staffTotal),
+        prod > 0 ? fmtInt(prod) : "-",
       ];
     });
     const footer = [
@@ -805,47 +900,60 @@ function ProductivityToolContent({
       fmtInt(dayTotals.sumNeto),
       ...columns.map((col) => (dayTotals.sumByStation[col.key] !== 0 ? fmtInt(dayTotals.sumByStation[col.key]) : "-")),
       fmtInt(dayTotals.sumStaff),
+      fmtInt(dayTotals.avgProd),
     ];
+
     const tableWidth = pageWidth - 2 * margin;
-    const colCount = head.length;
-    const timeW = 24;
-    const brutoW = 26;
-    const nettoW = 26;
-    const restW = (tableWidth - timeW - brutoW - nettoW) / Math.max(1, colCount - 3);
-    const colStyles: Record<number, { cellWidth?: number; halign?: string; fontStyle?: string; fillColor?: number[]; textColor?: number[] }> = {
+    const timeW = 22; const brutoW = 25; const nettoW = 25; const sigW = 22; const prodColW = 24;
+    const stationW = Math.max((tableWidth - timeW - brutoW - nettoW - sigW - prodColW) / Math.max(1, columns.length), 13);
+    const colStyles: Record<number, { cellWidth?: number; halign?: string; fontStyle?: string; fillColor?: number[]; textColor?: number[]; fontSize?: number }> = {
       0: { cellWidth: timeW, halign: "left", fontStyle: "bold" },
-      1: { cellWidth: brutoW, halign: "center", fontStyle: "bold", fillColor: [255, 249, 230], textColor: [26, 56, 38] },
-      2: { cellWidth: nettoW, halign: "center", fontStyle: "bold", fillColor: [255, 249, 230], textColor: [26, 56, 38] },
+      1: { cellWidth: brutoW, halign: "center", fontStyle: "bold", fillColor: [255, 255, 255], textColor: [26, 56, 38] },
+      2: { cellWidth: nettoW, halign: "center", fontStyle: "bold", fillColor: [255, 255, 255], textColor: [26, 56, 38] },
     };
-    columns.forEach((_, i) => {
-      colStyles[3 + i] = { cellWidth: Math.max(restW, 14), halign: "center" };
-    });
-    colStyles[3 + columns.length] = { cellWidth: Math.max(restW, 14), halign: "center", fontStyle: "bold" };
+    columns.forEach((_, i) => { colStyles[3 + i] = { cellWidth: stationW, halign: "center" }; });
+    colStyles[3 + columns.length] = { cellWidth: sigW, halign: "center", fontStyle: "bold", fillColor: [255, 255, 255], textColor: [26, 56, 38] };
+    colStyles[4 + columns.length] = { cellWidth: prodColW, halign: "center", fontStyle: "bold", fillColor: [255, 199, 44], textColor: [26, 56, 38] };
 
     autoTable(doc, {
-      startY: 32,
+      startY: tableStartY,
       margin: { left: margin, right: margin },
       head: [head],
       body: [...body, footer],
       theme: "grid",
       headStyles: { fillColor: [26, 56, 38], textColor: 255, fontStyle: "bold", halign: "center", fontSize: 7, cellPadding: 2 },
-      styles: { fontSize: 7, halign: "center", cellPadding: 2, lineColor: [220, 220, 220], lineWidth: 0.1 },
+      styles: { fontSize: 7, halign: "center", cellPadding: 2, lineColor: [220, 220, 220], lineWidth: 0.15 },
       columnStyles: colStyles,
-      didParseCell: (data: { row: { index: number }; cell: { styles: Record<string, unknown> } }) => {
+      didParseCell: (data: { section: string; row: { index: number }; cell: { styles: Record<string, unknown> }; column: { index: number } }) => {
+        const prodColIdx = 4 + columns.length;
+        if (data.section === "body" && data.column.index === prodColIdx) {
+          // Sve body ćelije Prod. kolone — žuto
+          data.cell.styles.fillColor = [255, 199, 44];
+          data.cell.styles.textColor = [26, 56, 38];
+          data.cell.styles.fontStyle = "bold";
+        }
         if (data.row.index === body.length) {
-          data.cell.styles.fillColor = [26, 56, 38];
-          data.cell.styles.textColor = 255;
+          // Gesamt red — zeleno, osim Prod. kolone
+          if (data.column.index !== prodColIdx) {
+            data.cell.styles.fillColor = [26, 56, 38];
+            data.cell.styles.textColor = 255;
+          } else {
+            data.cell.styles.fillColor = [255, 199, 44];
+            data.cell.styles.textColor = [26, 56, 38];
+            data.cell.styles.fontSize = 10;
+          }
           data.cell.styles.fontStyle = "bold";
         }
       },
     });
 
-    doc.setDrawColor(26, 56, 38);
-    doc.setLineWidth(0.3);
-    doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`${restName} – Produktivität – ${dayLabel}  ${dateFormatted}`, margin, pageHeight - 5);
+    // Footer
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    doc.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
+    doc.setFontSize(7);
+    doc.setTextColor(130, 130, 130);
+    doc.text(`${restName}  ·  Produktivität  ·  ${dayLabel}  ·  ${dateFormatted}`, margin, pageHeight - 4);
   };
 
   const handleExportPDF = () => {
@@ -871,9 +979,7 @@ function ProductivityToolContent({
     );
 
     const blob = doc.output("blob");
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    setPdfPopupUrl(URL.createObjectURL(blob));
   };
 
   const handleExportPDFMonthly = useCallback(async () => {
@@ -954,9 +1060,7 @@ function ProductivityToolContent({
       });
 
       const blob = doc.output("blob");
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setPdfPopupUrl(URL.createObjectURL(blob));
       toast.success("PDF monatlich erstellt.");
     } catch (err) {
       console.error(err);
@@ -978,6 +1082,18 @@ function ProductivityToolContent({
       {loading && (
         <div className="fixed inset-0 bg-[#1b3a26]/20 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="animate-spin rounded-full h-12 w-12 border-2 border-[#ffc72c]/30 border-t-[#ffc72c]" />
+        </div>
+      )}
+
+      {/* PDF Popup */}
+      {pdfPopupUrl && (
+        <div className="fixed inset-0 top-14 md:top-16 z-[200] bg-black flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 bg-[#1b3a26] text-white shrink-0">
+            <span className="font-bold text-sm">PDF Vorschau</span>
+            <button onClick={() => { URL.revokeObjectURL(pdfPopupUrl); setPdfPopupUrl(null); }}
+              className="text-white hover:text-[#FFC72C] font-bold text-lg leading-none px-2" aria-label="Schließen">✕</button>
+          </div>
+          <iframe src={pdfPopupUrl} className="flex-1 w-full border-0 bg-white" title="PDF Vorschau" />
         </div>
       )}
 
@@ -1326,221 +1442,161 @@ function ProductivityToolContent({
       </div>
 
       {showSettingsModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-border overflow-hidden">
-            <div className="shrink-0 flex justify-between items-center px-6 py-4 border-b border-border bg-[#1b3a26]/5">
-              <h2 className="font-bold text-xl text-[#1a3826] flex items-center gap-2">
-                <Settings size={24} /> Einstellungen
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-3">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-border overflow-hidden">
+            <div className="shrink-0 flex justify-between items-center px-5 py-3 border-b border-border bg-[#1b3a26]">
+              <h2 className="font-bold text-base text-white flex items-center gap-2">
+                <Settings size={16} /> Einstellungen
               </h2>
               <button
                 type="button"
-                onClick={() => setShowSettingsModal(false)}
-                className="p-2 rounded-xl hover:bg-[#1b3a26]/10 text-[#1a3826] transition-colors"
+                onClick={handleCloseSettings}
+                className="text-white/70 hover:text-white transition-colors"
               >
-                <X size={22} />
+                <X size={20} />
               </button>
             </div>
-            <div className="overflow-y-auto flex-1 p-6 space-y-6">
-              {/* 1. Arbeitszeit & Berechnung */}
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="rounded-xl border border-border bg-muted/20 p-4">
-                  <h3 className="text-sm font-bold text-[#1a3826] mb-3 flex items-center gap-2">
-                    <Clock size={18} /> Arbeitszeit (Zeitspanne)
-                  </h3>
-                  <p className="text-xs text-muted-foreground mb-3">Stundenbereich für die Tabelle (Start → Ende).</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <label className="block text-[11px] text-muted-foreground mb-1">Start</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={23}
-                        value={hoursFrom}
-                        onChange={(e) => setHoursFrom(Number(e.target.value))}
-                        className="w-full h-10 border border-border rounded-lg text-center font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
-                      />
-                    </div>
-                    <span className="text-muted-foreground pt-5 text-sm">→</span>
-                    <div className="flex-1">
-                      <label className="block text-[11px] text-muted-foreground mb-1">Ende</label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={23}
-                        value={hoursTo}
-                        onChange={(e) => setHoursTo(Number(e.target.value))}
-                        className="w-full h-10 border border-border rounded-lg text-center font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-border bg-muted/20 p-4">
-                  <h3 className="text-sm font-bold text-[#1a3826] mb-3">Koeffizient (Köff.)</h3>
-                  <p className="text-xs text-muted-foreground mb-3">Brutto/Netto-Umrechnung für die Tabelle.</p>
-                  <input
-                    type="text"
-                    value={netCoeff}
-                    onChange={(e) => setNetCoeff(e.target.value)}
-                    className="w-24 h-10 px-3 border border-border rounded-lg text-center font-semibold bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
-                  />
-                </div>
-              </section>
 
-              {/* 2. Vorlagen – jedna sekcija, dva jasna akta */}
-              <section className="rounded-xl border border-border bg-muted/20 p-4">
-                <h3 className="text-sm font-bold text-[#1a3826] mb-1">Vorlagen</h3>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Vorlagen sind gespeicherte Tages-Pläne (z. B. Montag). Sie können eine Vorlage auf das aktuelle Datum anwenden oder eine Vorlage bearbeiten.
+            <div className="overflow-y-auto flex-1 divide-y divide-border">
+
+              {/* 1. Koeffizient inline */}
+              <div className="flex items-center gap-3 px-5 py-3">
+                <span className="text-sm font-semibold text-[#1a3826] whitespace-nowrap w-36">Koeffizient (Köff.)</span>
+                <input type="text" value={netCoeff} onChange={(e) => setNetCoeff(e.target.value)}
+                  className="w-20 h-8 px-2 border border-border rounded-lg text-center font-semibold bg-white text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none" />
+                <span className="text-xs text-muted-foreground">Brutto/Netto-Umrechnung</span>
+              </div>
+
+              {/* 2. Öffnungszeiten + Sondertag-Namen */}
+              <div className="px-5 py-3">
+                <h3 className="text-sm font-bold text-[#1a3826] mb-3 flex items-center gap-1.5">
+                  <Clock size={15} /> Öffnungszeiten &amp; Sondertag-Namen
+                </h3>
+                {/* Fixed-column grid: name(112px) | "Von"(28px) | from-input(44px) | arrow(16px) | to-input(44px) | "Uhr"(28px) */}
+                <div className="grid grid-cols-2 gap-x-5">
+                  {HOURS_CONFIG_DAYS.map(({ key, defaultLabel }) => {
+                    const isSpecial = key.startsWith("special_");
+                    const cfg = dayHoursConfig[key] ?? { from: 6, to: 1 };
+                    return (
+                      <div key={key} className="grid items-center gap-1 py-1 border-b border-border/30 last:border-b-0"
+                        style={{ gridTemplateColumns: "112px 28px 44px 14px 44px 28px" }}>
+                        {isSpecial ? (
+                          <input type="text" value={customDayNames[key] ?? ""}
+                            onChange={(e) => setCustomDayNames((p) => ({ ...p, [key]: e.target.value }))}
+                            placeholder={defaultLabel}
+                            className="h-7 px-2 text-xs border border-[#1b3a26]/30 rounded-md bg-[#1b3a26]/5 font-medium focus:ring-1 focus:ring-[#1b3a26]/40 outline-none w-full" />
+                        ) : (
+                          <span className="text-sm font-semibold text-[#1a3826]">{defaultLabel}</span>
+                        )}
+                        <span className="text-[11px] text-muted-foreground text-right pr-1">Von</span>
+                        <input type="number" min={0} max={23} value={cfg.from}
+                          onChange={(e) => setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, from: Number(e.target.value) } }))}
+                          className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none" />
+                        <span className="text-muted-foreground text-xs text-center">→</span>
+                        <input type="number" min={0} max={23} value={cfg.to}
+                          onChange={(e) => setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, to: Number(e.target.value) } }))}
+                          className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none" />
+                        <span className="text-[11px] text-muted-foreground pl-1">Uhr</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-border/30">
+                  Diese Zeiten werden beim Anwenden einer Vorlage automatisch übernommen.
                 </p>
-                <div className="space-y-4">
+              </div>
+
+              {/* 3. Aktuelle Ansicht – Stunden */}
+              <div className="flex items-center gap-3 px-5 py-3 flex-wrap">
+                <span className="text-sm font-semibold text-[#1a3826] whitespace-nowrap w-36">Aktuelle Ansicht</span>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground">Von</label>
+                  <input type="number" min={0} max={23} value={hoursFrom} onChange={(e) => setHoursFrom(Number(e.target.value))}
+                    className="w-14 h-8 border border-border rounded-lg text-center font-medium text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none" />
+                  <span className="text-muted-foreground">→</span>
+                  <input type="number" min={0} max={23} value={hoursTo} onChange={(e) => setHoursTo(Number(e.target.value))}
+                    className="w-14 h-8 border border-border rounded-lg text-center font-medium text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none" />
+                  <span className="text-xs text-muted-foreground">Uhr (aktueller Tag)</span>
+                </div>
+              </div>
+
+              {/* 4. Vorlagen */}
+              <div className="px-5 py-3">
+                <h3 className="text-sm font-bold text-[#1a3826] mb-3">Vorlagen</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      1. Vorlage auf aktuelles Datum anwenden
-                    </label>
-                    <p className="text-[11px] text-muted-foreground mb-2">
-                      Wählen Sie eine Vorlage – die Daten werden für das heute gewählte Kalenderdatum übernommen und gespeichert.
-                    </p>
-                    <select
-                      aria-label="Vorlage auf aktuelles Datum anwenden"
-                      className="w-full max-w-xs h-10 pl-3 pr-9 border border-border rounded-lg font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
-                      defaultValue=""
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (v) {
-                          handleApplyTemplateAndSave(v);
-                          e.target.value = "";
-                        }
-                      }}
-                    >
-                      <option value="">Vorlage wählen…</option>
-                      {TEMPLATE_KEYS.map((key) => (
-                        <option key={key} value={key}>
-                          {getDayLabel(key)}
-                        </option>
-                      ))}
+                    <p className="text-xs font-semibold text-foreground mb-1">Vorlage anwenden</p>
+                    <p className="text-[11px] text-muted-foreground mb-2">Daten auf das aktuelle Kalenderdatum übernehmen.</p>
+                    <select aria-label="Vorlage anwenden" className="w-full h-8 pl-2 pr-7 border border-border rounded-lg font-medium bg-white text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none" defaultValue=""
+                      onChange={(e) => { const v = e.target.value; if (v) { handleApplyTemplateAndSave(v); e.target.value = ""; } }}>
+                      <option value="">Vorlage wählen...</option>
+                      {TEMPLATE_KEYS.map((key) => (<option key={key} value={key}>{getDayLabel(key)}</option>))}
                     </select>
                   </div>
-                  <div className="pt-3 border-t border-border">
-                    <label className="block text-xs font-semibold text-foreground mb-1.5">
-                      2. Vorlage bearbeiten (Tabelle öffnen)
-                    </label>
-                    <p className="text-[11px] text-muted-foreground mb-2">
-                      Wählen Sie einen Tag (z. B. Freitag) und klicken Sie „Öffnen“ – die Tabelle zeigt dann diese Vorlage zum Bearbeiten und Speichern.
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <select
-                        value={templateSelectInModal}
-                        onChange={(e) => setTemplateSelectInModal(e.target.value)}
-                        className="h-10 pl-3 pr-9 border border-border rounded-lg font-medium bg-background text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none min-w-[11rem]"
-                      >
-                        {TEMPLATE_KEYS.map((key) => (
-                          <option key={key} value={key}>
-                            {getDayLabel(key)}
-                          </option>
-                        ))}
+                  <div>
+                    <p className="text-xs font-semibold text-foreground mb-1">Vorlage bearbeiten</p>
+                    <p className="text-[11px] text-muted-foreground mb-2">Vorlage in der Tabelle öffnen und anpassen.</p>
+                    <div className="flex gap-2">
+                      <select value={templateSelectInModal} onChange={(e) => setTemplateSelectInModal(e.target.value)}
+                        className="flex-1 h-8 pl-2 pr-7 border border-border rounded-lg font-medium bg-white text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none">
+                        {TEMPLATE_KEYS.map((key) => (<option key={key} value={key}>{getDayLabel(key)}</option>))}
                       </select>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTemplateEditKey(templateSelectInModal);
-                          setShowSettingsModal(false);
-                          setTemplateEditMode(true);
-                          loadTemplateForEdit(templateSelectInModal);
-                        }}
-                        className="h-10 px-4 rounded-lg bg-[#1b3a26] text-white hover:bg-[#1b3a26]/90 font-semibold text-sm flex items-center gap-2"
-                      >
-                        <Edit2 size={16} /> Öffnen
+                      <button type="button"
+                        onClick={() => { setTemplateEditKey(templateSelectInModal); handleCloseSettings(); setTemplateEditMode(true); loadTemplateForEdit(templateSelectInModal); }}
+                        className="h-8 px-3 rounded-lg bg-[#1b3a26] text-white hover:bg-[#1b3a26]/90 font-semibold text-xs flex items-center gap-1.5 shrink-0">
+                        <Edit2 size={14} /> Öffnen
                       </button>
                     </div>
                   </div>
                 </div>
-              </section>
+              </div>
 
-              {/* 3. Spalten – male checkboxe, sve kolone ukl. Pause */}
-              <section className="rounded-xl border border-border bg-muted/20 p-4">
-                <h3 className="text-sm font-bold text-[#1a3826] mb-1">Spalten in der Tabelle</h3>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Ein Häkchen = Spalte wird in der Tabelle angezeigt. Kein Häkchen = Spalte ausgeblendet.
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {/* 5. Spalten */}
+              <div className="px-5 py-3">
+                <h3 className="text-sm font-bold text-[#1a3826] mb-2">Spalten</h3>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5">
                   {DEFAULT_STATIONS.map((s) => {
                     const isVisible = !hiddenColumns.includes(s.key);
                     return (
-                      <label
-                        key={s.key}
-                        className={`flex items-center gap-2 py-2 px-2.5 rounded-lg border cursor-pointer transition-colors ${
-                          isVisible ? "border-[#1b3a26]/30 bg-[#1b3a26]/5" : "border-border bg-background"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isVisible}
-                          onChange={() => {
-                            if (isVisible)
-                              setHiddenColumns((prev) => [...prev, s.key]);
-                            else
-                              setHiddenColumns((prev) => prev.filter((k) => k !== s.key));
-                          }}
-                          className="w-4 h-4 rounded border-border text-[#1b3a26] focus:ring-[#1b3a26]/50 cursor-pointer shrink-0"
-                        />
-                        <span className="text-xs font-medium text-foreground truncate">{s.label}</span>
+                      <label key={s.key} className={`flex items-center gap-1.5 py-1.5 px-2 rounded-lg border cursor-pointer transition-colors text-xs ${
+                        isVisible ? "border-[#1b3a26]/30 bg-[#1b3a26]/5 font-semibold" : "border-border text-muted-foreground"}`}>
+                        <input type="checkbox" checked={isVisible}
+                          onChange={() => isVisible ? setHiddenColumns((p) => [...p, s.key]) : setHiddenColumns((p) => p.filter((k) => k !== s.key))}
+                          className="w-3.5 h-3.5 rounded border-border text-[#1b3a26] cursor-pointer shrink-0" />
+                        <span className="truncate">{s.label}</span>
                       </label>
                     );
                   })}
                 </div>
-                <div className="mt-4 pt-4 border-t border-border">
-                  <h4 className="text-xs font-semibold text-foreground mb-2">Eigene Stationen (max. 3)</h4>
-                  {customStations.map((s) => (
-                    <div
-                      key={s.key}
-                      className="flex items-center gap-2 mb-2 py-1.5 px-2 bg-background rounded-lg border border-border"
-                    >
-                      <span className="flex-1 text-xs font-medium text-foreground">{s.label}</span>
-                      <button
-                        type="button"
-                        onClick={() => setCustomStations((prev) => prev.filter((x) => x.key !== s.key))}
-                        className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
+                <div className="mt-3 pt-3 border-t border-border">
+                  <p className="text-xs font-semibold text-foreground mb-2">Eigene Stationen (max. 3)</p>
+                  <div className="space-y-1.5 mb-2">
+                    {customStations.map((s) => (
+                      <div key={s.key} className="flex items-center gap-2 py-1 px-2 bg-white rounded-lg border border-border">
+                        <span className="flex-1 text-xs font-medium">{s.label}</span>
+                        <button type="button" onClick={() => setCustomStations((p) => p.filter((x) => x.key !== s.key))}
+                          className="p-1 text-muted-foreground hover:text-destructive rounded"><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
                   {customStations.length < 3 && (
-                    <div className="flex gap-2 mt-2">
-                      <input
-                        type="text"
-                        placeholder="Neue Station…"
-                        value={newColName}
-                        onChange={(e) => setNewColName(e.target.value)}
-                        className="flex-1 h-9 px-2.5 text-xs border border-border rounded-lg font-medium bg-background focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!newColName.trim()) return;
-                          setCustomStations((p) => [
-                            ...p,
-                            { key: `custom_${Date.now()}`, label: newColName.trim(), group: "Custom" },
-                          ]);
-                          setNewColName("");
-                        }}
-                        className="h-9 px-3 font-bold text-[#1a3826] rounded-lg text-xs shrink-0"
-                        style={{ backgroundColor: COLORS.yellow }}
-                      >
-                        <Plus size={16} />
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Neue Station..." value={newColName} onChange={(e) => setNewColName(e.target.value)}
+                        className="flex-1 h-8 px-2.5 text-xs border border-border rounded-lg bg-white focus:ring-2 focus:ring-[#1b3a26]/30 outline-none" />
+                      <button type="button" onClick={() => { if (!newColName.trim()) return; setCustomStations((p) => [...p, { key: `custom_${Date.now()}`, label: newColName.trim(), group: "Custom" }]); setNewColName(""); }}
+                        className="h-8 px-3 font-bold text-[#1a3826] rounded-lg text-xs shrink-0" style={{ backgroundColor: COLORS.yellow }}>
+                        <Plus size={15} />
                       </button>
                     </div>
                   )}
                 </div>
-              </section>
+              </div>
+
             </div>
-            <div className="shrink-0 p-4 border-t border-border bg-muted/10">
-              <button
-                type="button"
-                onClick={() => setShowSettingsModal(false)}
-                className="w-full py-3 rounded-xl font-semibold text-sm text-white hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: COLORS.green }}
-              >
+            <div className="shrink-0 p-3 border-t border-border bg-muted/5">
+              <button type="button" onClick={handleCloseSettings}
+                className="w-full py-2.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: COLORS.green }}>
                 Schließen
               </button>
             </div>

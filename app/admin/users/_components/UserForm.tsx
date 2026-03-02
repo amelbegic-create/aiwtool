@@ -150,6 +150,9 @@ export default function UserForm({
   const role = form.watch("role") || "CREW";
   const requiresRestaurant = roleRequiresRestaurant(role);
 
+  const restaurantLabel = (r: { name: string | null; code: string }) =>
+    (r.name && r.name.trim() !== "" ? r.name : r.code) || r.code;
+
   const sortedRestaurants = [...restaurants].sort((a, b) => {
     const aNum = parseInt(a.code || a.name || "0", 10);
     const bNum = parseInt(b.code || b.name || "0", 10);
@@ -332,9 +335,6 @@ export default function UserForm({
     g.items.filter((i) => permissionKeys.includes(i.key)).map((i) => i.label)
   );
 
-  const restaurantLabel = (r: { name: string | null; code: string }) =>
-    (r.name && r.name.trim() !== "" ? r.name : r.code) || r.code;
-
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -428,27 +428,17 @@ export default function UserForm({
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Abteilung</label>
-                <div className="flex gap-2">
-                  <select
-                    {...form.register("departmentId")}
-                    className="flex-1 min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
-                  >
-                    <option value="">— Nicht ausgewählt —</option>
-                    {departmentsList.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setDepartmentModalOpen(true)}
-                    className="flex-shrink-0 h-[44px] w-[44px] rounded-lg border-2 border-dashed border-gray-300 text-gray-500 hover:border-[#1a3826] hover:text-[#1a3826] flex items-center justify-center transition-colors"
-                    title="Neue Abteilung anlegen"
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
+                <select
+                  {...form.register("departmentId")}
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-gray-300 text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
+                >
+                  <option value="">— Nicht ausgewählt —</option>
+                  {departmentsList.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
@@ -708,7 +698,7 @@ export default function UserForm({
                   {isEdit ? "Speichern…" : "Erstellen…"}
                 </>
               ) : isEdit ? (
-                "Änderungen speichern"
+                "Speichern"
               ) : (
                 "Benutzer anlegen"
               )}

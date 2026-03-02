@@ -4,12 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
 import RestaurantSwitcher from "./RestaurantSwitcher";
 import { dict } from "@/translations";
+import { toast } from "sonner";
+
 interface UserWithRole {
   name?: string | null;
   email?: string | null;
@@ -26,16 +28,163 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
+interface RichNotification {
+  id: string;
+  kind?: string;
+  title: string;
+  description: string;
+  href: string;
+  createdAt?: string;
+  actorName?: string;
+  actorImage?: string | null;
+  actorInitials?: string;
+  restaurantName?: string | null;
+  vacationStatus?: string;
+  vacationDates?: string;
+}
+
 interface TopNavbarProps {
   restaurants: { id: string; name: string | null; code: string }[];
   activeRestaurantId?: string;
   notificationCount?: number;
+  notifications?: RichNotification[];
 }
 
-export default function TopNavbar({ restaurants = [], activeRestaurantId, notificationCount = 0 }: TopNavbarProps) {
+/* ---- helpers ---- */
+function timeAgo(iso?: string): string {
+  if (!iso) return "";
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (diff < 60) return "Gerade eben";
+  if (diff < 3600) return `vor ${Math.floor(diff / 60)} Min.`;
+  if (diff < 86400) return `vor ${Math.floor(diff / 3600)} Std.`;
+  return `vor ${Math.floor(diff / 86400)} T.`;
+}
+
+function kindMeta(kind?: string, status?: string) {
+  if (kind === "admin_vacation_pending") {
+    return {
+      icon: <Clock size={14} className="text-white" />,
+      bg: "bg-blue-500",
+      label: "Urlaubsantrag",
+      labelColor: "text-blue-600 dark:text-blue-400",
+    };
+  }
+  if (kind === "admin_vacation_storno") {
+    return {
+      icon: <CalendarX size={14} className="text-white" />,
+      bg: "bg-orange-500",
+      label: "Stornierung",
+      labelColor: "text-orange-600 dark:text-orange-400",
+    };
+  }
+  const s = status ?? kind ?? "";
+  if (s.includes("approved") || s === "APPROVED") {
+    return {
+      icon: <CheckCircle2 size={14} className="text-white" />,
+      bg: "bg-emerald-500",
+      label: "Genehmigt",
+      labelColor: "text-emerald-600 dark:text-emerald-400",
+    };
+  }
+  if (s.includes("rejected") || s === "REJECTED") {
+    return {
+      icon: <XCircle size={14} className="text-white" />,
+      bg: "bg-red-500",
+      label: "Abgelehnt",
+      labelColor: "text-red-600 dark:text-red-400",
+    };
+  }
+  if (s.includes("returned") || s === "RETURNED") {
+    return {
+      icon: <RotateCcw size={14} className="text-white" />,
+      bg: "bg-amber-500",
+      label: "Zurückgesendet",
+      labelColor: "text-amber-600 dark:text-amber-400",
+    };
+  }
+  return {
+    icon: <Bell size={14} className="text-white" />,
+    bg: "bg-slate-500",
+    label: "",
+    labelColor: "text-muted-foreground",
+  };
+}
+
+export default function TopNavbar({
+  restaurants = [],
+  activeRestaurantId,
+  notificationCount = 0,
+  notifications = [],
+}: TopNavbarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [showAllModal, setShowAllModal] = useState(false);
+  const [readIds, setReadIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const stored = localStorage.getItem("notif_read_ids");
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Inicijaliziraj readIds iz localStorage na klijentu
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("notif_read_ids");
+      if (stored) setReadIds(new Set(JSON.parse(stored)));
+    } catch { /* ignore */ }
+  }, []);
+
+  // Prikaži "Gespeichert" toast nakon automatskog snimanja pri izlasku iz modula
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("mcd-autosave-toast") === "1") {
+        sessionStorage.removeItem("mcd-autosave-toast");
+        toast.success("Gespeichert.");
+      }
+    } catch { /* ignore */ }
+  }, [pathname]);
+
+  const markRead = (id: string) => {
+    setReadIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try { localStorage.setItem("notif_read_ids", JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const markAllRead = () => {
+    const allIds = notifications.map((n) => n.id);
+    setReadIds((prev) => {
+      const next = new Set([...prev, ...allIds]);
+      try { localStorage.setItem("notif_read_ids", JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  // Filtrirane (nepročitane) notifikacije
+  const unreadNotifications = notifications.filter((n) => !readIds.has(n.id));
+  const visibleNotifications = unreadNotifications.slice(0, 5);
+  const hiddenCount = unreadNotifications.length - visibleNotifications.length;
+  const unreadCount = unreadNotifications.length;
+
+  // Zatvori dropdown klikom van
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [notifOpen]);
 
   const closeMenu = () => setMobileMenuOpen(false);
 
@@ -72,18 +221,19 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
               >
                 <Menu size={24} />
               </button>
-              <Link
-                href="/dashboard/zahtjevi"
+              <button
+                type="button"
+                onClick={() => setNotifOpen((v) => !v)}
                 className="relative flex h-11 w-11 min-w-[44px] items-center justify-center rounded-lg text-white hover:bg-white/10 transition-colors touch-manipulation"
-                aria-label={dict.nav_requests_pending}
+                aria-label="Benachrichtigungen"
               >
                 <Bell size={20} />
-                {notificationCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
-                    {notificationCount > 99 ? "99+" : notificationCount}
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                    {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
-              </Link>
+              </button>
             </div>
             <Link href="/dashboard" onClick={closeMenu} className={`flex items-baseline gap-2 hover:opacity-80 transition-all select-none ${brandFont.className}`}>
                 <h1 className="text-xl md:text-2xl tracking-tighter text-white uppercase font-black">AIW</h1>
@@ -149,19 +299,131 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
                 Online
             </span>
           </div>
-          {/* Notifikacije – zvono sa badgeom, vodi na /dashboard/zahtjevi */}
-          <Link
-            href="/dashboard/zahtjevi"
-            className="relative h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
-            aria-label={dict.nav_requests_pending}
-          >
-            <Bell size={16} />
-            {notificationCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">
-                {notificationCount > 99 ? "99+" : notificationCount}
-              </span>
+          {/* Notifikacije – zvono sa Facebook-stil dropdownom */}
+          <div className="relative" ref={notifRef}>
+            <button
+              type="button"
+              onClick={() => setNotifOpen((v) => !v)}
+              className="relative h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all border border-white/10"
+              aria-label="Benachrichtigungen"
+            >
+              <Bell size={16} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-md animate-pulse">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 mt-3 w-[390px] rounded-2xl bg-card shadow-2xl border border-border z-50 overflow-hidden">
+                {/* Header */}
+                <div className="px-5 py-3.5 border-b border-border bg-muted/30 flex items-center justify-between">
+                  <span className="text-base font-black text-foreground">Benachrichtigungen</span>
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <span className="text-[11px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        {unreadCount} ungelesen
+                      </span>
+                    )}
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={markAllRead}
+                        className="text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+                      >
+                        Alle gelesen
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Liste – max 5 */}
+                <div className="divide-y divide-border/50">
+                  {visibleNotifications.length === 0 ? (
+                    <div className="px-5 py-10 text-center">
+                      <Bell size={32} className="mx-auto mb-2 text-muted-foreground/30" />
+                      <p className="text-sm font-medium text-muted-foreground">Keine neuen Benachrichtigungen.</p>
+                    </div>
+                  ) : (
+                    visibleNotifications.map((n) => {
+                      const meta = kindMeta(n.kind, n.vacationStatus);
+                      const isAdminKind = n.kind === "admin_vacation_pending" || n.kind === "admin_vacation_storno";
+                      return (
+                        <div key={n.id} className="flex items-start gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors group relative">
+                          <Link
+                            href={n.href}
+                            onClick={() => { markRead(n.id); setNotifOpen(false); }}
+                            className="flex items-start gap-3 flex-1 min-w-0"
+                          >
+                            {/* Avatar */}
+                            <div className="shrink-0 relative">
+                              <div className="w-11 h-11 rounded-full overflow-hidden bg-[#1a3826] flex items-center justify-center">
+                                {n.actorImage ? (
+                                  <Image src={n.actorImage} alt={n.actorName ?? ""} width={44} height={44} className="object-cover w-full h-full" />
+                                ) : (
+                                  <span className="text-sm font-black text-[#FFC72C]">
+                                    {n.actorInitials ?? (isAdminKind ? "?" : "ME")}
+                                  </span>
+                                )}
+                              </div>
+                              <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full ${meta.bg} flex items-center justify-center ring-2 ring-card`}>
+                                {meta.icon}
+                              </div>
+                            </div>
+                            {/* Text */}
+                            <div className="flex-1 min-w-0">
+                              {isAdminKind ? (
+                                <>
+                                  <p className="text-sm leading-snug text-foreground">
+                                    <span className="font-black">{n.actorName}</span>{" "}
+                                    <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
+                                  </p>
+                                  {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
+                                  {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-sm leading-snug text-foreground">
+                                    <span className="font-bold">Ihr Urlaubsantrag </span>
+                                    <span className={`font-black ${meta.labelColor}`}>{meta.label}</span>
+                                  </p>
+                                  {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                                </>
+                              )}
+                              <p className="text-[10px] text-muted-foreground/60 mt-1 font-semibold">{timeAgo(n.createdAt)}</p>
+                            </div>
+                          </Link>
+                          {/* Als gelesen markieren */}
+                          <button
+                            type="button"
+                            title="Als gelesen markieren"
+                            onClick={() => markRead(n.id)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1 p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Footer – "Weitere anzeigen" */}
+                {(hiddenCount > 0 || unreadCount > 0) && (
+                  <div className="px-4 py-3 border-t border-border bg-muted/20">
+                    <button
+                      type="button"
+                      onClick={() => { setNotifOpen(false); setShowAllModal(true); }}
+                      className="w-full text-center text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+                    >
+                      {hiddenCount > 0 ? `Weitere ${hiddenCount} Benachrichtigungen anzeigen` : "Alle Benachrichtigungen anzeigen"}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
-          </Link>
+          </div>
           {/* Admin panel – samo za ADMIN / SUPER_ADMIN / SYSTEM_ARCHITECT */}
           {hasAdminPrivileges && (
             <Link
@@ -280,6 +542,122 @@ export default function TopNavbar({ restaurants = [], activeRestaurantId, notifi
           </div>
         </div>
       </>
+    )}
+    {/* MODAL: Alle Benachrichtigungen */}
+    {showAllModal && (
+      <div
+        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        onClick={(e) => { if (e.target === e.currentTarget) setShowAllModal(false); }}
+      >
+        <div className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-md overflow-hidden">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
+            <span className="text-base font-black text-foreground">Alle Benachrichtigungen</span>
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={markAllRead}
+                  className="text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+                >
+                  Alle gelesen
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowAllModal(false)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* Liste */}
+          <div className="divide-y divide-border max-h-[65vh] overflow-y-auto">
+            {notifications.length === 0 ? (
+              <div className="px-5 py-12 text-center">
+                <Bell size={36} className="mx-auto mb-3 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">Keine Benachrichtigungen.</p>
+              </div>
+            ) : (
+              notifications.map((n) => {
+                const meta = kindMeta(n.kind, n.vacationStatus);
+                const isAdminKind = n.kind === "admin_vacation_pending" || n.kind === "admin_vacation_storno";
+                const isRead = readIds.has(n.id);
+                return (
+                  <div
+                    key={n.id}
+                    className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isRead ? "opacity-50 bg-muted/10" : "hover:bg-muted/40"}`}
+                  >
+                    <Link
+                      href={n.href}
+                      onClick={() => { markRead(n.id); setShowAllModal(false); }}
+                      className="flex items-start gap-3 flex-1 min-w-0"
+                    >
+                      <div className="shrink-0 relative">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-[#1a3826] flex items-center justify-center">
+                          {n.actorImage ? (
+                            <Image src={n.actorImage} alt={n.actorName ?? ""} width={40} height={40} className="object-cover w-full h-full" />
+                          ) : (
+                            <span className="text-sm font-black text-[#FFC72C]">
+                              {n.actorInitials ?? (isAdminKind ? "?" : "ME")}
+                            </span>
+                          )}
+                        </div>
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full ${meta.bg} flex items-center justify-center ring-2 ring-card`}>
+                          <span className="scale-75">{meta.icon}</span>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {isAdminKind ? (
+                          <>
+                            <p className="text-sm leading-snug text-foreground">
+                              <span className="font-black">{n.actorName}</span>{" "}
+                              <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
+                            </p>
+                            {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
+                            {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm leading-snug text-foreground">
+                              <span className="font-bold">Ihr Urlaubsantrag </span>
+                              <span className={`font-black ${meta.labelColor}`}>{meta.label}</span>
+                            </p>
+                            {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                          </>
+                        )}
+                        <p className="text-[10px] text-muted-foreground/60 mt-1 font-semibold">{timeAgo(n.createdAt)}</p>
+                      </div>
+                    </Link>
+                    {!isRead && (
+                      <button
+                        type="button"
+                        title="Als gelesen markieren"
+                        onClick={() => markRead(n.id)}
+                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1 p-1 rounded-full hover:bg-muted text-muted-foreground"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-5 py-3.5 border-t border-border bg-muted/20">
+            <button
+              onClick={() => setShowAllModal(false)}
+              className="w-full py-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] text-sm font-bold hover:opacity-90 transition-opacity"
+            >
+              Schließen
+            </button>
+          </div>
+        </div>
+      </div>
     )}
     </>
   );

@@ -42,6 +42,7 @@ export default function TeamPageClient({
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [activeTab, setActiveTab] = useState<"pregled" | "godisnji" | "pds">("pregled");
   const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
 
   const openDetail = useCallback(async (userId: string) => {
     setDetailUserId(userId);
@@ -81,6 +82,46 @@ export default function TeamPageClient({
     [detailUserId]
   );
 
+  const isOfficeDept = (dept: string | null) =>
+    dept ? dept.trim().toUpperCase() === "OFFICE" : false;
+
+  const RestaurantCell = ({ member }: { member: TeamMemberRow }) => {
+    if (isOfficeDept(member.department)) {
+      return (
+        <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500">
+          Administracija
+        </span>
+      );
+    }
+    const rests = member.restaurants ?? [];
+    if (rests.length === 0) return <span className="text-slate-400 text-xs">—</span>;
+    return (
+      <div className="flex flex-wrap gap-1">
+        {rests.slice(0, 2).map((r) => (
+          <span key={r.code} className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-[#1a3826]/10 text-[#1a3826]">
+            {r.name || r.code}
+          </span>
+        ))}
+        {rests.length > 2 && (
+          <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">
+            +{rests.length - 2}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const departmentOptions = Array.from(
+    new Set(initialTeam.map((m) => (m.department && m.department.trim() !== "" ? m.department : "")))
+  )
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+
+  const filteredTeam =
+    departmentFilter === "all"
+      ? initialTeam
+      : initialTeam.filter((m) => (m.department || "").trim() === departmentFilter);
+
   return (
     <>
       {initialTeam.length === 0 ? (
@@ -95,9 +136,33 @@ export default function TeamPageClient({
         </div>
       ) : (
         <>
+          {/* Filterleiste */}
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <Users size={18} /> Mein Team
+            </h2>
+            {departmentOptions.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Abteilung</span>
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="min-h-[36px] px-3 py-1.5 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826]"
+                >
+                  <option value="all">Alle</option>
+                  {departmentOptions.map((dep) => (
+                    <option key={dep} value={dep}>
+                      {dep}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
           {/* Mobile: Card layout (< 768px) */}
           <div className="md:hidden space-y-3">
-            {initialTeam.map((member) => (
+          {filteredTeam.map((member) => (
               <div
                 key={member.id}
                 className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-4"
@@ -130,6 +195,9 @@ export default function TeamPageClient({
                     >
                       {member.department || "—"}
                     </span>
+                    <div className="mt-1">
+                      <RestaurantCell member={member} />
+                    </div>
                   </div>
                   {member.isOnVacationToday ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold shrink-0">
@@ -173,15 +241,25 @@ export default function TeamPageClient({
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Mitarbeiter</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Urlaub</th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Letztes PDS</th>
-                    <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider w-24">Aktion</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Mitarbeiter
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Abteilung
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Restaurant
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Urlaub
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider w-24">
+                      Aktion
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {initialTeam.map((member) => (
+                  {filteredTeam.map((member) => (
                     <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -203,28 +281,22 @@ export default function TeamPageClient({
                             ) : (
                               <div className="font-bold text-slate-800">{member.name || "—"}</div>
                             )}
-                            <span
-                              className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase"
-                              style={{
-                                backgroundColor: member.departmentColor ? `${member.departmentColor}20` : "#f1f5f9",
-                                color: member.departmentColor || "#64748b",
-                              }}
-                            >
-                              {member.department || "—"}
-                            </span>
                           </div>
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {member.isOnVacationToday ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
-                            <Calendar size={12} /> Im Urlaub
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold">
-                            <Check size={12} /> Aktiv
-                          </span>
-                        )}
+                        <span
+                          className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+                          style={{
+                            backgroundColor: member.departmentColor ? `${member.departmentColor}20` : "#f1f5f9",
+                            color: member.departmentColor || "#64748b",
+                          }}
+                        >
+                          {member.department || "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <RestaurantCell member={member} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="space-y-1">
@@ -241,18 +313,8 @@ export default function TeamPageClient({
                               {member.vacationUsed}/{member.vacationTotal} Tage
                             </span>
                           </div>
-                          <div className="text-[10px] text-slate-500">Resturlaub: {member.vacationRemaining} Tage</div>
+                          {/* Resturlaub-Text entfernt – Info ist bereits in der Detailansicht vorhanden */}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {member.lastPdsScore != null ? (
-                          <span className={pdsScoreColor(member.lastPdsScore)}>
-                            {member.lastPdsScore}
-                            {member.lastPdsGrade ? ` (${member.lastPdsGrade})` : ""}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 text-xs">—</span>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button

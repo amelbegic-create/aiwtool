@@ -299,10 +299,14 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   const [daysData, setDaysData] = useState<DayData[]>([]);
   const [holidaysForYear, setHolidaysForYear] = useState<{ d: number; m: number }[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [pdfPopupUrl, setPdfPopupUrl] = useState<string | null>(null);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const currentRestaurantIdRef = React.useRef<string | null>(null);
   const tableWrapperRef = React.useRef<HTMLDivElement>(null);
+  const hasUnsavedChangesRef = React.useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const saveDataToDBRef = React.useRef<any>(null);
 
   const handleTableKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Enter") return;
@@ -435,6 +439,10 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   useEffect(() => {
     currentRestaurantIdRef.current = selectedRestaurantId;
   }, [selectedRestaurantId]);
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -639,6 +647,38 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     }
   }, [selectedRestaurantId, year, month, avgWage, vacationStd, sickStd, extraUnprodStd, koefficientBruttoNetto, foerderung, budgetUmsatz, budgetCL, budgetCLPct, daysData, koeffNum]);
 
+  useEffect(() => {
+    saveDataToDBRef.current = saveDataToDB;
+  }, [saveDataToDB]);
+
+  // Automatsko snimanje svako 3 minute (bez popupa)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (
+        hasUnsavedChangesRef.current &&
+        currentRestaurantIdRef.current &&
+        currentRestaurantIdRef.current !== "all"
+      ) {
+        saveDataToDBRef.current?.(true);
+      }
+    }, 3 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Snimanje pri izlasku iz modula (prebacivanje na drugi modul)
+  useEffect(() => {
+    return () => {
+      if (
+        hasUnsavedChangesRef.current &&
+        currentRestaurantIdRef.current &&
+        currentRestaurantIdRef.current !== "all"
+      ) {
+        try { sessionStorage.setItem("mcd-autosave-toast", "1"); } catch { /* ignore */ }
+        saveDataToDBRef.current?.(true);
+      }
+    };
+  }, []);
+
   const handlePrintSingle = () => {
     if (!selectedRestaurantId || selectedRestaurantId === "all") {
       toast.error("Bitte Restaurant auswählen.");
@@ -698,102 +738,110 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     doc.setFontSize(11);
     doc.text(`${MONTH_NAMES_DE[month - 1]} ${year}`, 210 - margin, 16, { align: "right" });
 
-    // —— Kartica (bijela površina s borderom)
-    doc.setDrawColor(209, 213, 219);
-    doc.setLineWidth(0.3);
-    doc.rect(margin, 26, 210 - 2 * margin, 297 - 26 - margin, "S");
-
-    let y = 32;
-    doc.setTextColor(27, 58, 38);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("Einstellungen", margin + 2, y);
-    y += 2;
-    doc.setDrawColor(220, 220, 220);
-    doc.line(margin + 2, y, margin + leftColW - 2, y);
-    y += 6;
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text("Jahr", margin + 2, y);
-    doc.text(String(year), margin + leftColW - 2, y, { align: "right" });
-    y += 5;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(27, 58, 38);
-    doc.text(MONTH_NAMES_DE[month - 1], margin + 2, y);
-    y += 10;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-    doc.text("Parameter", margin + 2, y);
-    y += 2;
-    doc.line(margin + 2, y, margin + leftColW - 2, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
-    const param = (l: string, v: string) => {
-      doc.text(l, margin + 2, y);
-      doc.text(v || "—", margin + leftColW - 2, y, { align: "right" });
-      y += 4;
+    // —— Lijeva kolona: bijele kartice
+    const drawCard = (sy: number, title: string, items: Array<[string, string]>): number => {
+      const rowH = 4.5;
+      const h = 8 + items.length * rowH + 2;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(margin, sy, leftColW, h, 1.5, 1.5, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(27, 58, 38);
+      doc.text(title, margin + 3, sy + 5.5);
+      let iy = sy + 9.5;
+      for (const [label, value] of items) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text(label, margin + 3, iy);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text(value || "—", margin + leftColW - 3, iy, { align: "right" });
+        iy += rowH;
+      }
+      return sy + h + 2;
     };
-    param("Stundensatz (€)", avgWage);
-    param("Urlaub (h)", vacationStd);
-    param("Krankheit (h)", sickStd);
-    param("Koeffizient Brutto/Netto", koefficientBruttoNetto);
-    param("Förderung (€)", foerderung);
-    y += 2;
-    doc.line(margin + 2, y, margin + leftColW - 2, y);
-    y += 5;
-    param("Produktive Std", fmtHours(totals.sumProduktiveStd));
-    param("SF Std", fmtHours(totals.sumSF));
-    param("HM Std", fmtHours(totals.sumHM));
-    param("Nacht (€)", fmtNum(totals.sumNZ));
-    param("Extra Std. (Summe)", fmtHours(totals.sumExtra));
-    y += 2;
-    doc.line(margin + 2, y, margin + leftColW - 2, y);
-    y += 5;
-    param("Budget Umsatz", budgetUmsatz);
-    param("Budget CL €", budgetCL);
-    param("Budget CL %", budgetCLPct);
-    y += 6;
 
-    // —— Žuti rezime blok (kao na stranici)
+    // Kartica 1: Einstellungen (s velikim nazivom mjeseca)
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(margin, 28, leftColW, 20, 1.5, 1.5, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(27, 58, 38);
+    doc.text("Einstellungen", margin + 3, 33.5);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Jahr", margin + 3, 39.5);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(String(year), margin + leftColW - 3, 39.5, { align: "right" });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(27, 58, 38);
+    doc.text(MONTH_NAMES_DE[month - 1], margin + 3, 45.5);
+
+    let y = 50;
+    y = drawCard(y, "Parameter", [
+      ["Stundensatz (€)", avgWage],
+      ["Urlaub (h)", vacationStd],
+      ["Krankheit (h)", sickStd],
+      ["Koeffizient Brutto/Netto", koefficientBruttoNetto],
+      ["Förderung (€)", foerderung],
+    ]);
+    y = drawCard(y, "Stunden", [
+      ["Produktive Std", fmtHours(totals.sumProduktiveStd)],
+      ["SF (productive) Std", fmtHours(totals.sumSF)],
+      ["HM Std", fmtHours(totals.sumHM)],
+      ["Nacht (€)", fmtNum(totals.sumNZ)],
+      ["Extra Std. (Summe)", fmtHours(totals.sumExtra)],
+    ]);
+    y = drawCard(y, "Budget", [
+      ["Budget Umsatz", budgetUmsatz],
+      ["Budget CL €", budgetCL],
+      ["Budget CL %", budgetCLPct],
+    ]);
+
+    // —— Žuti rezime blok
     doc.setFillColor(255, 199, 44);
-    doc.roundedRect(margin + 2, y - 2, leftColW - 4, 38, 2, 2, "F");
+    doc.roundedRect(margin, y, leftColW, 40, 2, 2, "F");
     doc.setTextColor(27, 58, 38);
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
-    doc.text("Umsatz Gesamt (Netto)", margin + 5, y + 4);
-    doc.text(`${fmtNum(totals.umsatzGesamt)} €`, margin + leftColW - 7, y + 4, { align: "right" });
-    doc.text("Gesamt Std.", margin + 5, y + 9);
-    doc.text(`${fmtHours(totals.gesamtStd)} h`, margin + leftColW - 7, y + 9, { align: "right" });
+    doc.text("Umsatz Gesamt (Netto)", margin + 3, y + 5);
+    doc.text(`${fmtNum(totals.umsatzGesamt)} €`, margin + leftColW - 3, y + 5, { align: "right" });
+    doc.text("Gesamt Std.", margin + 3, y + 11);
+    doc.text(`${fmtHours(totals.gesamtStd)} h`, margin + leftColW - 3, y + 11, { align: "right" });
     doc.setFontSize(8);
-    doc.text("CL (€)", margin + 5, y + 16);
+    doc.text("CL (€)", margin + 3, y + 18);
     doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
     const clOverBudget = totals.budgetCLVal > 0 && totals.clEuro > totals.budgetCLVal;
     if (clOverBudget) doc.setTextColor(220, 38, 38);
     else doc.setTextColor(21, 128, 61);
-    doc.text(`${fmtNum(totals.clEuro)} €`, margin + leftColW - 7, y + 16, { align: "right" });
+    doc.text(`${fmtNum(totals.clEuro)} €`, margin + leftColW - 3, y + 18, { align: "right" });
     doc.setTextColor(27, 58, 38);
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
-    doc.text("CL %", margin + 5, y + 21);
-    doc.text(`${fmtNum(totals.clPct)} %`, margin + leftColW - 7, y + 21, { align: "right" });
-    doc.text("Prod. (IST)", margin + 5, y + 26);
-    doc.text(totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—", margin + leftColW - 7, y + 26, { align: "right" });
-    doc.text("Prod. (REAL)", margin + 5, y + 31);
-    doc.text(totals.realProd > 0 ? `${fmtNum(totals.realProd)} €` : "—", margin + leftColW - 7, y + 31, { align: "right" });
+    doc.text("CL %", margin + 3, y + 24);
+    doc.text(`${fmtNum(totals.clPct)} %`, margin + leftColW - 3, y + 24, { align: "right" });
+    doc.text("Prod. (Bericht)", margin + 3, y + 30);
+    doc.text(totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—", margin + leftColW - 3, y + 30, { align: "right" });
+    doc.text("Prod. (REAL)", margin + 3, y + 36);
+    doc.text(totals.realProd > 0 ? `${fmtNum(totals.realProd)} €` : "—", margin + leftColW - 3, y + 36, { align: "right" });
 
-    // —— Tablica (desna strana): jednake kolone, sve centrirano
+    // —— Tablica (desna strana)
     const tableWidth = 210 - tableStartX - margin;
     const colW = [19, 17, 17, 13, 15, 11, 10, 14, 14] as const;
     autoTable(doc, {
       startY: 28,
       margin: { left: tableStartX },
-      head: [["Tag", "Brutto Umsatz", "Netto Umsatz", "Gepl. Prod. %", "Produktive Std.", "SF", "HM", "NZ Euro", "Extra Std. Unprod."]],
+      head: [["Tag", "Brutto Umsatz", "Netto Umsatz", "Gepl. Prod. %", "Produktive Std.", "SF (prod.)", "HM", "NZ Euro", "Extra Std. Unprod."]],
       body: [...tableBody, totalRow],
       theme: "grid",
       tableWidth,
@@ -828,10 +876,23 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
       },
     });
 
+    // Zaobljeni uglovi tabele
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const finalTableY: number = (doc as any).lastAutoTable.finalY;
+    const tr = 1.5; const cm = 0.4;
+    doc.setFillColor(27, 58, 38);
+    doc.rect(tableStartX, 28, tr + cm, tr + cm, "F");
+    doc.rect(tableStartX + tableWidth - tr - cm, 28, tr + cm, tr + cm, "F");
+    doc.setFillColor(243, 244, 246);
+    doc.rect(tableStartX, finalTableY - tr - cm, tr + cm, tr + cm, "F");
+    doc.rect(tableStartX + tableWidth - tr - cm, finalTableY - tr - cm, tr + cm, tr + cm, "F");
+    doc.setDrawColor(27, 58, 38);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(tableStartX, 28, tableWidth, finalTableY - 28, tr, tr, "S");
+
     const blob = doc.output("blob");
     const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    setPdfPopupUrl(url);
     setIsExporting(false);
   };
 
@@ -950,94 +1011,106 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         doc.setFontSize(11);
         doc.text(`${MONTH_NAMES_DE[m - 1]} ${year}`, 210 - margin, 16, { align: "right" });
 
-        doc.setDrawColor(209, 213, 219);
-        doc.setLineWidth(0.3);
-        doc.rect(margin, 26, 210 - 2 * margin, 297 - 26 - margin, "S");
-
-        let y = 32;
-        doc.setTextColor(27, 58, 38);
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.text("Einstellungen", margin + 2, y);
-        y += 2;
-        doc.setDrawColor(220, 220, 220);
-        doc.line(margin + 2, y, margin + leftColW - 2, y);
-        y += 6;
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "normal");
-        doc.text("Jahr", margin + 2, y);
-        doc.text(String(year), margin + leftColW - 2, y, { align: "right" });
-        y += 5;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.setTextColor(27, 58, 38);
-        doc.text(MONTH_NAMES_DE[m - 1], margin + 2, y);
-        y += 10;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(0, 0, 0);
-        doc.text("Parameter", margin + 2, y);
-        y += 2;
-        doc.line(margin + 2, y, margin + leftColW - 2, y);
-        y += 6;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7);
-        const param = (l: string, v: string) => {
-          doc.text(l, margin + 2, y);
-          doc.text(v || "—", margin + leftColW - 2, y, { align: "right" });
-          y += 4;
+        // —— Lijeva kolona: bijele kartice
+        const drawCard = (sy: number, title: string, items: Array<[string, string]>): number => {
+          const rowH = 4.5;
+          const h = 8 + items.length * rowH + 2;
+          doc.setFillColor(255, 255, 255);
+          doc.setDrawColor(220, 220, 220);
+          doc.setLineWidth(0.2);
+          doc.roundedRect(margin, sy, leftColW, h, 1.5, 1.5, "FD");
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.5);
+          doc.setTextColor(27, 58, 38);
+          doc.text(title, margin + 3, sy + 5.5);
+          let iy = sy + 9.5;
+          for (const [label, value] of items) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(6.5);
+            doc.setTextColor(100, 100, 100);
+            doc.text(label, margin + 3, iy);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.5);
+            doc.setTextColor(0, 0, 0);
+            doc.text(value || "—", margin + leftColW - 3, iy, { align: "right" });
+            iy += rowH;
+          }
+          return sy + h + 2;
         };
-        param("Stundensatz (€)", currentInputs.avgWage ?? "");
-        param("Urlaub (h)", currentInputs.vacationStd ?? "");
-        param("Krankheit (h)", currentInputs.sickStd ?? "");
-        param("Koeffizient Brutto/Netto", currentInputs.koefficientBruttoNetto ?? "");
-        param("Förderung (€)", currentInputs.foerderung ?? "");
-        y += 2;
-        doc.line(margin + 2, y, margin + leftColW - 2, y);
-        y += 5;
-        param("Produktive Std", fmtHours(mSumProduktiveStd));
-        param("SF Std", fmtHours(mSumSF));
-        param("HM Std", fmtHours(mSumHM));
-        param("Nacht (€)", fmtNum(mSumNZ));
-        param("Extra Std. (Summe)", fmtHours(mSumExtra));
-        y += 2;
-        doc.line(margin + 2, y, margin + leftColW - 2, y);
-        y += 5;
-        param("Budget Umsatz", currentInputs.budgetUmsatz ?? "");
-        param("Budget CL €", currentInputs.budgetCL ?? "");
-        param("Budget CL %", currentInputs.budgetCLPct ?? "");
-        y += 6;
+
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(margin, 28, leftColW, 20, 1.5, 1.5, "FD");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(27, 58, 38);
+        doc.text("Einstellungen", margin + 3, 33.5);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 100, 100);
+        doc.text("Jahr", margin + 3, 39.5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text(String(year), margin + leftColW - 3, 39.5, { align: "right" });
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(27, 58, 38);
+        doc.text(MONTH_NAMES_DE[m - 1], margin + 3, 45.5);
+
+        let y = 50;
+        y = drawCard(y, "Parameter", [
+          ["Stundensatz (€)", currentInputs.avgWage ?? ""],
+          ["Urlaub (h)", currentInputs.vacationStd ?? ""],
+          ["Krankheit (h)", currentInputs.sickStd ?? ""],
+          ["Koeffizient Brutto/Netto", currentInputs.koefficientBruttoNetto ?? ""],
+          ["Förderung (€)", currentInputs.foerderung ?? ""],
+        ]);
+        y = drawCard(y, "Stunden", [
+          ["Produktive Std", fmtHours(mSumProduktiveStd)],
+          ["SF (productive) Std", fmtHours(mSumSF)],
+          ["HM Std", fmtHours(mSumHM)],
+          ["Nacht (€)", fmtNum(mSumNZ)],
+          ["Extra Std. (Summe)", fmtHours(mSumExtra)],
+        ]);
+        y = drawCard(y, "Budget", [
+          ["Budget Umsatz", currentInputs.budgetUmsatz ?? ""],
+          ["Budget CL €", currentInputs.budgetCL ?? ""],
+          ["Budget CL %", currentInputs.budgetCLPct ?? ""],
+        ]);
+
+        // —— Žuti rezime blok
         doc.setFillColor(255, 199, 44);
-        doc.roundedRect(margin + 2, y - 2, leftColW - 4, 38, 2, 2, "F");
+        doc.roundedRect(margin, y, leftColW, 40, 2, 2, "F");
         doc.setTextColor(27, 58, 38);
         doc.setFontSize(7);
         doc.setFont("helvetica", "bold");
-        doc.text("Umsatz Gesamt (Netto)", margin + 5, y + 4);
-        doc.text(`${fmtNum(mSumNetto)} €`, margin + leftColW - 7, y + 4, { align: "right" });
-        doc.text("Gesamt Std.", margin + 5, y + 9);
-        doc.text(`${fmtHours(gesamtStd)} h`, margin + leftColW - 7, y + 9, { align: "right" });
+        doc.text("Umsatz Gesamt (Netto)", margin + 3, y + 5);
+        doc.text(`${fmtNum(mSumNetto)} €`, margin + leftColW - 3, y + 5, { align: "right" });
+        doc.text("Gesamt Std.", margin + 3, y + 11);
+        doc.text(`${fmtHours(gesamtStd)} h`, margin + leftColW - 3, y + 11, { align: "right" });
         doc.setFontSize(8);
-        doc.text("CL (€)", margin + 5, y + 16);
+        doc.text("CL (€)", margin + 3, y + 18);
         doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
         const clOver = budgetCLVal > 0 && clEuro > budgetCLVal;
         if (clOver) doc.setTextColor(220, 38, 38);
         else doc.setTextColor(21, 128, 61);
-        doc.text(`${fmtNum(clEuro)} €`, margin + leftColW - 7, y + 16, { align: "right" });
+        doc.text(`${fmtNum(clEuro)} €`, margin + leftColW - 3, y + 18, { align: "right" });
         doc.setTextColor(27, 58, 38);
         doc.setFontSize(7);
-        doc.text("CL %", margin + 5, y + 21);
-        doc.text(`${fmtNum(clPct)} %`, margin + leftColW - 7, y + 21, { align: "right" });
-        doc.text("Prod. (IST)", margin + 5, y + 26);
-        doc.text(istProd > 0 ? `${fmtNum(istProd)} €` : "—", margin + leftColW - 7, y + 26, { align: "right" });
-        doc.text("Prod. (REAL)", margin + 5, y + 31);
-        doc.text(realProd > 0 ? `${fmtNum(realProd)} €` : "—", margin + leftColW - 7, y + 31, { align: "right" });
+        doc.setFont("helvetica", "bold");
+        doc.text("CL %", margin + 3, y + 24);
+        doc.text(`${fmtNum(clPct)} %`, margin + leftColW - 3, y + 24, { align: "right" });
+        doc.text("Prod. (Bericht)", margin + 3, y + 30);
+        doc.text(istProd > 0 ? `${fmtNum(istProd)} €` : "—", margin + leftColW - 3, y + 30, { align: "right" });
+        doc.text("Prod. (REAL)", margin + 3, y + 36);
+        doc.text(realProd > 0 ? `${fmtNum(realProd)} €` : "—", margin + leftColW - 3, y + 36, { align: "right" });
 
         autoTable(doc, {
           startY: 28,
           margin: { left: tableStartX },
-          head: [["Tag", "Brutto Umsatz", "Netto Umsatz", "Gepl. Prod. %", "Produktive Std.", "SF", "HM", "NZ Euro", "Extra Std. Unprod."]],
+          head: [["Tag", "Brutto Umsatz", "Netto Umsatz", "Gepl. Prod. %", "Produktive Std.", "SF (prod.)", "HM", "NZ Euro", "Extra Std. Unprod."]],
           body: [...calculatedRows, totalRow],
           theme: "grid",
           tableWidth,
@@ -1071,11 +1144,24 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
             }
           },
         });
+
+        // Zaobljeni uglovi tabele
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const finalTableY: number = (doc as any).lastAutoTable.finalY;
+        const tr = 1.5; const cm = 0.4;
+        doc.setFillColor(27, 58, 38);
+        doc.rect(tableStartX, 28, tr + cm, tr + cm, "F");
+        doc.rect(tableStartX + tableWidth - tr - cm, 28, tr + cm, tr + cm, "F");
+        doc.setFillColor(243, 244, 246);
+        doc.rect(tableStartX, finalTableY - tr - cm, tr + cm, tr + cm, "F");
+        doc.rect(tableStartX + tableWidth - tr - cm, finalTableY - tr - cm, tr + cm, tr + cm, "F");
+        doc.setDrawColor(27, 58, 38);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(tableStartX, 28, tableWidth, finalTableY - 28, tr, tr, "S");
       }
       const blob = doc.output("blob");
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setPdfPopupUrl(url);
     } catch (e) {
       console.error(e);
       toast.error("Fehler beim Erstellen des Jahresberichts.");
@@ -1146,6 +1232,30 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       )}
 
+      {/* PDF Popup Modal */}
+      {pdfPopupUrl && (
+        <div className="fixed inset-0 top-14 md:top-16 z-[200] bg-black flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 bg-[#1b3a26] text-white shrink-0">
+            <span className="font-bold text-sm">PDF Vorschau</span>
+            <button
+              onClick={() => {
+                URL.revokeObjectURL(pdfPopupUrl);
+                setPdfPopupUrl(null);
+              }}
+              className="text-white hover:text-[#FFC72C] font-bold text-lg leading-none px-2"
+              aria-label="Schließen"
+            >
+              ✕
+            </button>
+          </div>
+          <iframe
+            src={pdfPopupUrl}
+            className="flex-1 w-full border-0 bg-white"
+            title="PDF Vorschau"
+          />
+        </div>
+      )}
+
       {/* HEADER – unificirani layout */}
       <div className="mx-auto mb-6 md:mb-8" style={{ maxWidth: "1600px" }}>
         <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
@@ -1156,9 +1266,6 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                 {selectedRest ? (selectedRest.name || selectedRest.code) : "PLANUNG"}
               </span>
             </h1>
-            <p className="text-muted-foreground text-sm font-medium">
-              Dienstplanung pro Stunde und Station für das ausgewählte Restaurant.
-            </p>
           </div>
         </div>
       </div>
@@ -1288,7 +1395,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                 </div>
                 <SummaryRow label="CL %" value={`${fmtNum(totals.clPct)} %`} bold color="text-[#1b3a26]" />
                 <div className="h-px bg-[#1b3a26]/20 my-1" />
-                <SummaryRow label="Prod. (IST)" value={totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—"} color="text-[#1b3a26]" />
+                <SummaryRow label="Prod. (Bericht)" value={totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—"} color="text-[#1b3a26]" />
                 <SummaryRow label="Prod. (REAL)" value={totals.realProd > 0 ? `${fmtNum(totals.realProd)} €` : "—"} color="text-[#1b3a26]" />
               </div>
             </div>
@@ -1304,7 +1411,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                         <th className="p-3 border border-border text-center w-28 bg-[#142e1e]">Netto Umsatz</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("geplanteProduktivitaetPct")}>Gepl. Prod. %</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 bg-[#142e1e]" onClick={() => handleCopyDown("produktiveStd")}>Produktive Std.</th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("sfStd")}>SF</th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 leading-tight" onClick={() => handleCopyDown("sfStd")}>SF<br /><span className="normal-case text-[10px]">(productive)</span></th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("hmStd")}>HM</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("nzEuro")}>NZ Euro</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 rounded-tr-lg" onClick={() => handleCopyDown("extraStd")}>Extra Std. Unproduktiv</th>

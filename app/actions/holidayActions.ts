@@ -115,18 +115,15 @@ const DEFAULT_AT_HOLIDAYS: { day: number; month: number; label: string }[] = [
   { day: 26, month: 12, label: "Stefanitag" },
 ];
 
-/** Dohvat praznika za godinu (DB + Uskrs, Ostermontag, Pfingstmontag). Za godišnji modul i ostale – bez provjere permisije. */
-export async function getHolidaysForYear(year: number): Promise<{ d: number; m: number }[]> {
+export type HolidayDisplay = { d: number; m: number; label?: string | null };
+
+/** Dohvat praznika za godinu – samo ručno uneseni u Admin panelu. */
+export async function getHolidaysForYear(year: number): Promise<HolidayDisplay[]> {
   const rows = await prisma.holiday.findMany({
     where: { OR: [{ year: null }, { year }] },
-    select: { day: true, month: true },
+    select: { day: true, month: true, label: true },
   });
-  const list = rows.map((r) => ({ d: r.day, m: r.month }));
-  const easter = getEasterForYear(year);
-  list.push(easter);
-  list.push(addDaysToHoliday(year, easter, 1));
-  list.push(addDaysToHoliday(year, easter, 60));
-  return list;
+  return rows.map((r) => ({ d: r.day, m: r.month, label: r.label }));
 }
 
 export async function importDefaultHolidaysAT(): Promise<{ ok: boolean; error?: string }> {

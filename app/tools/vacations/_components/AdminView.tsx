@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   updateVacationStatus,
-  addBlockedDay,
-  removeBlockedDay,
   getGlobalVacationStats,
   createVacationRequest,
 } from "@/app/actions/vacationActions";
@@ -32,7 +30,7 @@ import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 import { openPdfInSameTab } from "@/lib/pdfUtils";
 
 // --- TIPOVI ---
-type TabType = "STATS" | "REQUESTS" | "BLOCKED";
+type TabType = "STATS" | "REQUESTS";
 
 export interface BlockedDay {
   id: string;
@@ -81,6 +79,8 @@ interface AdminViewProps {
   globalHolidays?: { d: number; m: number }[];
   /** Link avatar/ime na admin edit korisnika (samo ako ima users:manage) */
   canLinkToAdminUserEdit?: boolean;
+  /** Početni tab (STATS / REQUESTS / BLOCKED), npr. iz query parametra tab=requests */
+  initialTab?: TabType;
 }
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
@@ -579,11 +579,15 @@ export default function AdminView({
   canRegisterOwnVacation = false,
   globalHolidays: globalHolidaysProp = [],
   canLinkToAdminUserEdit = false,
+  initialTab,
 }: AdminViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [activeTab, setActiveTab] = useState<TabType>("STATS");
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? "STATS");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "PENDING" | "APPROVED" | "REJECTED" | "RETURNED" | "CANCEL_PENDING" | "CANCELLED"
+  >("ALL");
   const [loadingGlobal, setLoadingGlobal] = useState(false);
 
   const handleYearChange = (y: number) => {
@@ -602,10 +606,6 @@ export default function AdminView({
   } | null>(null);
   const [loadingDeptExport, setLoadingDeptExport] = useState(false);
   const [selectedDeptNamesForExport, setSelectedDeptNamesForExport] = useState<string[]>([]);
-
-  // State za gesperrte Tage (BlockedDay); globalni praznici dolaze iz props (globalHolidays)
-  const [newBlockedDate, setNewBlockedDate] = useState("");
-  const [newBlockedReason, setNewBlockedReason] = useState("");
 
   // Modal: Registruj Moj Godišnji (self-service za admine)
   const [myVacationModalOpen, setMyVacationModalOpen] = useState(false);
@@ -635,9 +635,28 @@ export default function AdminView({
     return allRequests.filter((req) => {
       const name = (req.user.name || "").toLowerCase();
       const rest = (req.user.mainRestaurant || "").toLowerCase();
-      return !q || name.includes(q) || rest.includes(q);
+      const matchesSearch = !q || name.includes(q) || rest.includes(q);
+
+      const matchesStatus =
+        statusFilter === "ALL"
+          ? true
+          : statusFilter === "PENDING"
+          ? req.status === "PENDING"
+          : statusFilter === "RETURNED"
+          ? req.status === "RETURNED"
+          : statusFilter === "CANCEL_PENDING"
+          ? req.status === "CANCEL_PENDING"
+          : statusFilter === "CANCELLED"
+          ? req.status === "CANCELLED"
+          : statusFilter === "APPROVED"
+          ? req.status === "APPROVED"
+          : statusFilter === "REJECTED"
+          ? req.status === "REJECTED"
+          : true;
+
+      return matchesSearch && matchesStatus;
     });
-  }, [allRequests, searchQuery]);
+  }, [allRequests, searchQuery, statusFilter]);
 
   // --- AKCIJE ---
   const handleStatus = async (
@@ -664,13 +683,6 @@ export default function AdminView({
       );
       router.refresh();
     }
-  };
-
-  const handleAddBlocked = async () => {
-    if (!newBlockedDate) return alert("Bitte Datum wählen.");
-    await addBlockedDay(newBlockedDate, newBlockedReason || "Feiertag");
-    setNewBlockedDate("");
-    setNewBlockedReason("");
   };
 
   // =====================================================================
@@ -1212,14 +1224,6 @@ export default function AdminView({
                 )}
               </button>
 
-              <button
-                onClick={() => setActiveTab("BLOCKED")}
-                className={`min-h-[44px] px-4 py-2.5 rounded-lg text-xs font-bold transition-all touch-manipulation ${
-                  activeTab === "BLOCKED" ? "bg-[#1a3826] text-white" : "text-muted-foreground hover:bg-accent"
-                }`}
-              >
-                FEIERTAGE
-              </button>
             </div>
 
             {canRegisterOwnVacation && (
@@ -1236,7 +1240,7 @@ export default function AdminView({
         </div>
 
         {/* TOOLBAR */}
-        {activeTab !== "BLOCKED" && (
+        {true && (
           <div className="bg-card p-4 rounded-2xl shadow-sm border border-border flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3 w-full md:w-auto">
               <Search size={16} className="text-muted-foreground" />
@@ -1281,6 +1285,29 @@ export default function AdminView({
                   <FileBarChart size={16} />
                   {loadingDeptExport ? "LADEN…" : "EXPORT NACH ABTEILUNGEN"}
                 </button>
+              </div>
+            )}
+
+            {activeTab === "REQUESTS" && (
+              <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Status
+                </span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as typeof statusFilter)
+                  }
+                  className="min-h-[36px] px-3 py-2 rounded-lg border border-border bg-background text-xs font-bold text-foreground uppercase tracking-widest"
+                >
+                  <option value="ALL">Alle</option>
+                  <option value="PENDING">Ausstehend</option>
+                  <option value="APPROVED">Genehmigt</option>
+                  <option value="REJECTED">Abgelehnt</option>
+                  <option value="RETURNED">Zur Überarbeitung</option>
+                  <option value="CANCEL_PENDING">Stornierung beantragt</option>
+                  <option value="CANCELLED">Storniert</option>
+                </select>
               </div>
             )}
           </div>
@@ -1762,7 +1789,7 @@ export default function AdminView({
         {/* BLOCKED: globalni praznici (iz Admin) + gesperrte Tage (Standort) */}
         {activeTab === "BLOCKED" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Globalni praznici – iz Admin panela, samo za pregled */}
+            {/* Globalni praznici – iz Admin panela, samo za pregled (ZELENO) */}
             <div className="lg:col-span-2 bg-card p-6 rounded-2xl shadow-sm border border-border">
               <h3 className="font-bold text-card-foreground mb-4 flex items-center gap-2">
                 <Calendar className="text-[#1a3826] dark:text-[#FFC72C]" size={20} /> Feiertage ({selectedYear}) – aus Admin
@@ -1776,7 +1803,7 @@ export default function AdminView({
                   return (
                     <div
                       key={`${h.d}-${h.m}-${i}`}
-                      className="bg-muted/50 dark:bg-muted/30 px-3 py-2 rounded-lg border border-border text-sm font-medium text-foreground"
+                      className="bg-muted/50 dark:bg-muted/30 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 text-sm font-semibold text-emerald-700 dark:text-emerald-300"
                     >
                       {h.d}.{h.m}.{selectedYear}
                     </div>
@@ -1823,11 +1850,15 @@ export default function AdminView({
                   .map((d) => (
                     <div
                       key={d.id}
-                      className="flex justify-between items-center p-3 bg-muted/50 dark:bg-muted/30 rounded-lg border border-border group"
+                      className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800 group"
                     >
-                      <div className="text-sm font-medium truncate">{d.reason ?? "—"}</div>
+                      <div className="text-sm font-semibold text-red-800 dark:text-red-200 truncate">
+                        {d.reason ?? "—"}
+                      </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-muted-foreground font-mono">{formatDate(d.date)}</span>
+                        <span className="text-xs text-red-600 dark:text-red-300 font-mono">
+                          {formatDate(d.date)}
+                        </span>
                         <button
                           onClick={async () => {
                             if (confirm("Löschen?")) {
@@ -1851,6 +1882,8 @@ export default function AdminView({
             </div>
           </div>
         )}
+        {/* Bivši BLOCKED tab uklonjen – gesperrte Tage se sada u Admin panelu verwalten. */}
+        {/* BLOCKED tab uklonjen – gesperrte Tage i Feiertage se sada u /admin/holidays konfigurieren. */}
       </div>
     </div>
   );

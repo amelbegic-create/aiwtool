@@ -12,7 +12,7 @@ import NoPermission from "@/components/NoPermission";
 import { getUserTotalForYear, getVacationAdminData } from "@/app/actions/vacationActions";
 import { getHolidaysForYear } from "@/app/actions/holidayActions";
 
-export default async function VacationPage(props: { searchParams: Promise<{ year?: string }> }) {
+export default async function VacationPage(props: { searchParams: Promise<{ year?: string; tab?: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
@@ -47,6 +47,9 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
   const YEAR_MAX = 2030;
   const rawYear = searchParams.year ? parseInt(searchParams.year) : currentYear;
   const selectedYear = Math.min(YEAR_MAX, Math.max(YEAR_MIN, Number.isFinite(rawYear) ? rawYear : currentYear));
+  const initialTabParam = (searchParams.tab || "").toLowerCase();
+  const initialTab =
+    initialTabParam === "requests" ? "REQUESTS" : initialTabParam === "blocked" ? "BLOCKED" : "STATS";
 
   const startOfYear = `${selectedYear}-01-01`;
   const endOfYear = `${selectedYear}-12-31`;
@@ -83,6 +86,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         canRegisterOwnVacation={canRegisterOwnVacation}
         globalHolidays={globalHolidays}
         canLinkToAdminUserEdit={canLinkToAdminUserEdit}
+        initialTab={initialTab}
       />
     );
   }

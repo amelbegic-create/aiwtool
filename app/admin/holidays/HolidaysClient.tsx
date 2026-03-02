@@ -2,35 +2,71 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Plus, Pencil, Trash2, Download } from "lucide-react";
+import { CalendarDays, Plus, Pencil, Trash2 } from "lucide-react";
 import {
   listHolidays,
   createHoliday,
   updateHoliday,
   deleteHoliday,
-  importDefaultHolidaysAT,
   type HolidayRecord,
 } from "@/app/actions/holidayActions";
+import {
+  listBlockedDays,
+  createBlockedDay,
+  deleteBlockedDay,
+  type BlockedDayRecord,
+  type RestaurantOption,
+} from "@/app/actions/blockedDayActions";
 import { toast } from "sonner";
 
 const MONTH_NAMES = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "Dezember",
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
 ];
 
-type Props = { initialHolidays: HolidayRecord[] };
+type Props = {
+  initialHolidays: HolidayRecord[];
+  initialBlockedDays: BlockedDayRecord[];
+  restaurants: RestaurantOption[];
+};
 
-export default function HolidaysClient({ initialHolidays }: Props) {
+export default function HolidaysClient({
+  initialHolidays,
+  initialBlockedDays,
+  restaurants,
+}: Props) {
   const [holidays, setHolidays] = useState<HolidayRecord[]>(initialHolidays);
   const [loading, setLoading] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ day: 1, month: 1, label: "", yearOnly: false, year: new Date().getFullYear() });
 
+  const [blockedDays, setBlockedDays] = useState<BlockedDayRecord[]>(initialBlockedDays);
+  const [blockedDate, setBlockedDate] = useState("");
+  const [blockedReason, setBlockedReason] = useState("");
+  const [blockedRestaurantId, setBlockedRestaurantId] = useState<string>("all");
+  const [blockedLoading, setBlockedLoading] = useState<string | null>(null);
+
   const resetForm = () => {
     setForm({ day: 1, month: 1, label: "", yearOnly: false, year: new Date().getFullYear() });
     setShowForm(false);
     setEditingId(null);
+  };
+
+  const resetBlockedForm = () => {
+    setBlockedDate("");
+    setBlockedReason("");
+    setBlockedRestaurantId("all");
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -88,6 +124,42 @@ export default function HolidaysClient({ initialHolidays }: Props) {
     }
   };
 
+  const handleCreateBlocked = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!blockedDate) {
+      toast.error("Datum ist erforderlich.");
+      return;
+    }
+    setBlockedLoading("create");
+    const res = await createBlockedDay({
+      date: blockedDate,
+      reason: blockedReason || null,
+      restaurantId: blockedRestaurantId,
+    });
+    setBlockedLoading(null);
+    if (res.ok) {
+      const list = await listBlockedDays();
+      setBlockedDays(list);
+      resetBlockedForm();
+      toast.success("Gespeichert.");
+    } else {
+      toast.error(res.error ?? "Fehler");
+    }
+  };
+
+  const handleDeleteBlocked = async (id: string) => {
+    if (!confirm("Gesperrten Tag wirklich löschen?")) return;
+    setBlockedLoading(id);
+    const res = await deleteBlockedDay(id);
+    setBlockedLoading(null);
+    if (res.ok) {
+      setBlockedDays((prev) => prev.filter((b) => b.id !== id));
+      toast.success("Gespeichert.");
+    } else {
+      toast.error(res.error ?? "Fehler");
+    }
+  };
+
   const startEdit = (h: HolidayRecord) => {
     setEditingId(h.id);
     setForm({
@@ -99,19 +171,6 @@ export default function HolidaysClient({ initialHolidays }: Props) {
     });
   };
 
-  const handleImportDefault = async () => {
-    setLoading("import");
-    const res = await importDefaultHolidaysAT();
-    setLoading(null);
-    if (res.ok) {
-      const list = await listHolidays();
-      setHolidays(list);
-      toast.success("Standard-Feiertage (AT) importiert.");
-    } else {
-      toast.error(res.error ?? "Fehler");
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background p-4 md:p-10 font-sans text-foreground">
       <div className="max-w-[900px] mx-auto space-y-8">
@@ -121,7 +180,7 @@ export default function HolidaysClient({ initialHolidays }: Props) {
               FEIERTAGE <span className="text-[#FFC72C]">VERWALTUNG</span>
             </h1>
             <p className="text-muted-foreground text-sm font-semibold mt-1">
-              Globale Feiertage für Arbeitsplaner und andere Module. Ostermontag und Pfingstmontag werden automatisch berechnet.
+              Verwalten Sie zentrale Feiertage für alle Module. Diese Tage werden bei Urlaubsanträgen nicht als Urlaubstage gezählt.
             </p>
           </div>
           <Link
@@ -134,18 +193,12 @@ export default function HolidaysClient({ initialHolidays }: Props) {
 
         {holidays.length === 0 && (
           <div className="p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-            <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-2">
+            <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-1">
               Noch keine Feiertage angelegt.
             </p>
-            <button
-              type="button"
-              onClick={handleImportDefault}
-              disabled={loading === "import"}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-card text-amber-800 dark:text-amber-200 font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50"
-            >
-              <Download size={18} />
-              Uvezi zadane (AT)
-            </button>
+            <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+              Legen Sie die Feiertage manuell an. Diese gelten anschließend automatisch für alle Mitarbeiter.
+            </p>
           </div>
         )}
 
@@ -290,6 +343,124 @@ export default function HolidaysClient({ initialHolidays }: Props) {
             {holidays.length === 0 && !showForm && !editingId && (
               <p className="p-6 text-center text-muted-foreground">Keine Einträge.</p>
             )}
+          </div>
+        </div>
+
+        {/* GESPERRENTE TAGE – BLOKIRANI DANI ZA GODIŠNJI */}
+        <div className="mt-10 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-sm font-black uppercase tracking-widest text-muted-foreground">
+              Gesperrte Tage (Urlaub)
+            </h2>
+          </div>
+
+          <form
+            onSubmit={handleCreateBlocked}
+            className="p-4 rounded-xl border border-slate-200 dark:border-border bg-card space-y-4"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                  Datum
+                </label>
+                <input
+                  type="date"
+                  value={blockedDate}
+                  onChange={(e) => setBlockedDate(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                  Restaurant
+                </label>
+                <select
+                  value={blockedRestaurantId}
+                  onChange={(e) => setBlockedRestaurantId(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="all">Alle Restaurants</option>
+                  {restaurants.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.code} – {r.name ?? "Ohne Name"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                  Grund (optional)
+                </label>
+                <input
+                  type="text"
+                  value={blockedReason}
+                  onChange={(e) => setBlockedReason(e.target.value)}
+                  placeholder="z. B. Betriebsurlaub"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={blockedLoading !== null}
+                className="px-4 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] font-semibold text-sm disabled:opacity-50"
+              >
+                Speichern
+              </button>
+              <button
+                type="button"
+                onClick={resetBlockedForm}
+                className="px-4 py-2 rounded-lg border border-input font-semibold text-sm"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
+
+          <div className="rounded-xl border border-slate-200 dark:border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left p-3 font-semibold">Datum</th>
+                  <th className="text-left p-3 font-semibold">Restaurant</th>
+                  <th className="text-left p-3 font-semibold">Grund</th>
+                  <th className="text-right p-3 font-semibold">Aktionen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blockedDays.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-4 text-xs text-muted-foreground italic">
+                      Keine gesperrten Tage angelegt.
+                    </td>
+                  </tr>
+                )}
+                {blockedDays.map((b) => (
+                  <tr key={b.id} className="border-t border-slate-200 dark:border-border">
+                    <td className="p-3">
+                      {new Date(b.date).toLocaleDateString("de-AT")}
+                    </td>
+                    <td className="p-3">
+                      <span className="font-mono text-xs mr-1">{b.restaurantCode}</span>
+                      <span>{b.restaurantName ?? "Ohne Name"}</span>
+                    </td>
+                    <td className="p-3">{b.reason ?? "—"}</td>
+                    <td className="p-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBlocked(b.id)}
+                        disabled={blockedLoading === b.id}
+                        className="p-1.5 rounded border border-transparent hover:border-red-300 text-muted-foreground hover:text-red-600 ml-1 disabled:opacity-50"
+                        title="Löschen"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

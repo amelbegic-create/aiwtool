@@ -39,6 +39,7 @@ export type TeamMemberRow = {
   lastPdsId: string | null;
   /** Optional: set when DB has orgChartSubtitle column */
   orgChartSubtitle?: string | null;
+  restaurants: { code: string; name: string | null }[];
 };
 
 export type TeamMemberRowWithSupervisor = TeamMemberRow & { supervisorId: string | null };
@@ -80,6 +81,7 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
       : { supervisorId: userId, isActive: true },
     include: {
       department: { select: { name: true, color: true } },
+      restaurants: { select: { restaurant: { select: { code: true, name: true } } } },
       vacations: {
         where: {
           status: "APPROVED",
@@ -169,6 +171,7 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
       lastPdsGrade,
       lastPdsYear,
       lastPdsId,
+      restaurants: (u.restaurants ?? []).map((r) => ({ code: r.restaurant.code, name: r.restaurant.name })),
     };
   });
 }
@@ -281,6 +284,7 @@ export async function getTeamTreeData(): Promise<TeamMemberRowWithSupervisor[]> 
       lastPdsGrade: lastPds?.finalGrade ?? null,
       lastPdsYear: lastPds?.year ?? null,
       lastPdsId: lastPds?.id ?? null,
+      restaurants: [],
       supervisorId: u.supervisorId,
     };
   });
@@ -390,6 +394,7 @@ export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDet
     lastPdsGrade: lastPds?.finalGrade ?? null,
     lastPdsYear: lastPds?.year ?? null,
     lastPdsId: lastPds?.id ?? null,
+    restaurants: [],
     vacationRequests: vacationRequests.map((r) => ({
       id: r.id,
       start: r.start,

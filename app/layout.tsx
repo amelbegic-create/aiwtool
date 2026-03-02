@@ -12,6 +12,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
 import { Role } from "@prisma/client";
 import { dict } from "@/translations";
+import { getNotificationsForUser } from "@/app/actions/notificationActions";
 // UKLONIO SAM IMPORT switchRestaurant JER GA NE SMIJEMO KORISTITI OVDJE
 
 const inter = Inter({ subsets: ["latin"] });
@@ -37,6 +38,7 @@ export default async function RootLayout({
   let userRestaurants: { id: string; name: string | null; code: string }[] = [];
   let activeRestaurantId: string | undefined = undefined;
   let pendingNotifications = 0;
+  let topbarNotifications: Awaited<ReturnType<typeof getNotificationsForUser>>["items"] = [];
 
   if (session?.user) {
       const cookieStore = await cookies();
@@ -95,67 +97,9 @@ export default async function RootLayout({
         Role.MANAGER,
       ]);
 
-      const dbUser = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          vacations: { where: { status: "PENDING" } },
-        },
-      });
-
-      if (dbUser) {
-        const isAdmin = ADMIN_ROLES.has(dbUser.role as Role);
-        const currentYear = new Date().getFullYear();
-
-        if (isAdmin) {
-          const totalPendingAdmin = await prisma.vacationRequest.count({
-            where: { status: "PENDING" },
-          });
-          const pdsToReviewCount = await prisma.pDS.count({
-            where: {
-              managerId: userId,
-              year: currentYear,
-              status: "SUBMITTED",
-            },
-          });
-          // Stornierung: System-Architekt sieht alle, Nadređeni samo zahtjeve svojih podređenih (kein Doppelzählen)
-          const cancelPendingAsSupervisor = await prisma.vacationRequest.count({
-            where: {
-              status: "CANCEL_PENDING",
-              user: { supervisorId: userId },
-            },
-          });
-          const cancelPendingForSystemArchitect =
-            dbUser.role === Role.SYSTEM_ARCHITECT
-              ? await prisma.vacationRequest.count({
-                  where: { status: "CANCEL_PENDING" },
-                })
-              : 0;
-          const cancelPendingCount =
-            dbUser.role === Role.SYSTEM_ARCHITECT
-              ? cancelPendingForSystemArchitect
-              : cancelPendingAsSupervisor;
-          pendingNotifications =
-            totalPendingAdmin + pdsToReviewCount + cancelPendingCount;
-        } else {
-          const pdsToFillCount = await prisma.pDS.count({
-            where: {
-              userId,
-              year: currentYear,
-              status: { in: ["DRAFT", "OPEN", "IN_PROGRESS", "RETURNED"] },
-            },
-          });
-          const since = new Date();
-          since.setDate(since.getDate() - 7);
-          const vacationProcessedCount = await prisma.vacationRequest.count({
-            where: {
-              userId,
-              status: { in: ["APPROVED", "REJECTED"] },
-              updatedAt: { gte: since },
-            },
-          });
-          pendingNotifications = pdsToFillCount + vacationProcessedCount;
-        }
-      }
+      const notifResult = await getNotificationsForUser(userId);
+      pendingNotifications = notifResult.count;
+      topbarNotifications = notifResult.items;
   }
 
   return (
@@ -170,6 +114,20 @@ export default async function RootLayout({
                         restaurants={userRestaurants} 
                         activeRestaurantId={activeRestaurantId}
                         notificationCount={pendingNotifications}
+                        notifications={topbarNotifications.map((n) => ({
+                          id: n.id,
+                          kind: n.kind,
+                          title: n.title,
+                          description: n.description,
+                          href: n.href,
+                          createdAt: n.createdAt,
+                          actorName: n.actorName,
+                          actorImage: n.actorImage,
+                          actorInitials: n.actorInitials,
+                          restaurantName: n.restaurantName,
+                          vacationStatus: n.vacationStatus,
+                          vacationDates: n.vacationDates,
+                        }))}
                     />
                     <main className="pt-14 md:pt-16 md:min-h-0 pb-20 md:pb-0 safe-area-b-mobile min-h-screen">
                         {children}
