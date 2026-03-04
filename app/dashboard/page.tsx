@@ -99,12 +99,17 @@ async function getPendingVacationCount(userId: string, role: string): Promise<nu
 }
 
 async function getCertificates(userId: string) {
-  return prisma.userCertificate.findMany({
-    where: { userId },
-    select: { id: true, title: true, description: true, imageUrl: true, createdAt: true },
-    take: 5,
-    orderBy: { createdAt: "desc" },
-  });
+  try {
+    return await prisma.userCertificate.findMany({
+      where: { userId },
+      select: { id: true, title: true, description: true, imageUrl: true, createdAt: true },
+      take: 5,
+      orderBy: { createdAt: "desc" },
+    });
+  } catch {
+    // Tabela još ne postoji na live bazi — vrati prazan niz
+    return [];
+  }
 }
 
 const DB_ERROR_UI = (

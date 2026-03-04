@@ -9,6 +9,37 @@ import {
 } from "@/lib/access";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
 
+/** Kreira tabelu UserCertificate ako ne postoji na live bazi (baza nema migracije). */
+async function ensureUserCertificateTable() {
+  try {
+    await (prisma as any).$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "UserCertificate" (
+        "id"          TEXT NOT NULL,
+        "userId"      TEXT NOT NULL,
+        "title"       TEXT NOT NULL,
+        "description" TEXT NOT NULL DEFAULT '',
+        "pdfUrl"      TEXT,
+        "pdfName"     TEXT,
+        "pdfSize"     INTEGER,
+        "imageUrl"    TEXT,
+        "imageName"   TEXT,
+        "imageSize"   INTEGER,
+        "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "UserCertificate_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "UserCertificate_userId_fkey"
+          FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE
+      );
+    `);
+    await (prisma as any).$executeRawUnsafe(`
+      CREATE INDEX IF NOT EXISTS "UserCertificate_userId_createdAt_idx"
+        ON "UserCertificate"("userId", "createdAt");
+    `);
+  } catch {
+    // Ignorišemo grešku ako tabela već postoji ili FK problem
+  }
+}
+
 export type UserCertificateDto = {
   id: string;
   userId: string;
@@ -72,6 +103,7 @@ export async function getCertificatesForUser(
   userId: string
 ): Promise<{ ok: true; data: UserCertificateDto[] } | { ok: false; error: string }> {
   try {
+    await ensureUserCertificateTable();
     await ensureCanViewCertificates(userId);
 
     const rows = await prisma.userCertificate.findMany({
@@ -105,6 +137,7 @@ export async function createCertificate(
   if (!title) return { ok: false, error: "Titel ist erforderlich." };
 
   try {
+    await ensureUserCertificateTable();
     await ensureCanEditCertificates(userId);
 
     const maxBytes = 10 * 1024 * 1024; // 10 MB
