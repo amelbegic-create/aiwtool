@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Power, Search, X, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Power, Search, X, Check, ImageIcon, Loader2 } from "lucide-react";
 import {
   createRestaurant,
   deleteRestaurant,
   toggleRestaurantStatus,
   updateRestaurant,
+  uploadRestaurantImage,
 } from "@/app/actions/restaurantAdminActions";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,6 +20,8 @@ type RestaurantRow = {
   city: string;
   address: string;
   isActive: boolean;
+   tagline?: string;
+   photoUrl?: string;
 };
 export default function RestaurantClient({
   restaurants,
@@ -40,6 +43,7 @@ export default function RestaurantClient({
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [uploadingHero, setUploadingHero] = useState(false);
 
   const [form, setForm] = useState({
     id: "",
@@ -47,11 +51,13 @@ export default function RestaurantClient({
     name: "",
     city: "",
     address: "",
+    tagline: "",
+    photoUrl: "",
   });
 
   const openCreate = () => {
     setEditing(false);
-    setForm({ id: "", code: "", name: "", city: "", address: "" });
+    setForm({ id: "", code: "", name: "", city: "", address: "", tagline: "", photoUrl: "" });
     setOpen(true);
   };
 
@@ -63,8 +69,36 @@ export default function RestaurantClient({
       name: r.name || "",
       city: r.city || "",
       address: r.address || "",
+      tagline: r.tagline || "",
+      photoUrl: r.photoUrl || "",
     });
     setOpen(true);
+  };
+
+  const handleHeroImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Bitte wählen Sie ein Bild (z. B. JPG, PNG).");
+      return;
+    }
+    e.target.value = "";
+    setUploadingHero(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const result = await uploadRestaurantImage(formData);
+      if (result.success) {
+        setForm((prev) => ({ ...prev, photoUrl: result.url }));
+        toast.success("Titelbild wurde aktualisiert.");
+      } else {
+        toast.error(result.error || "Fehler beim Hochladen.");
+      }
+    } catch {
+      toast.error("Fehler beim Hochladen.");
+    } finally {
+      setUploadingHero(false);
+    }
   };
 
   const submit = async () => {
@@ -77,6 +111,8 @@ export default function RestaurantClient({
           name: form.name,
           city: form.city,
           address: form.address,
+          tagline: form.tagline,
+          photoUrl: form.photoUrl,
         });
       } else {
         await updateRestaurant({
@@ -85,6 +121,8 @@ export default function RestaurantClient({
           name: form.name,
           city: form.city,
           address: form.address,
+          tagline: form.tagline,
+          photoUrl: form.photoUrl,
         });
       }
 
@@ -263,6 +301,50 @@ export default function RestaurantClient({
                     placeholder="Adresa"
                     className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
                   />
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 items-stretch">
+                  <div className="col-span-2">
+                    <input
+                      value={form.tagline}
+                      onChange={(e) => setForm({ ...form, tagline: e.target.value })}
+                      placeholder='Tagline (npr. "Der Mäcci am Schwedenplatz")'
+                      className="w-full p-3 rounded-xl border border-border text-sm font-bold outline-none focus:ring-2 focus:ring-[#1a3826]"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Kurzbeschreibung, die auf dem Dashboard als Untertitel des Restaurants erscheint.
+                    </p>
+                  </div>
+                  <div className="col-span-1 space-y-2">
+                    <label className="text-[11px] font-black uppercase text-muted-foreground block">
+                      Titelbild
+                    </label>
+                    <label className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-dashed border-border text-[11px] font-black uppercase tracking-wide cursor-pointer hover:border-[#1a3826] hover:bg-muted">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleHeroImageChange}
+                      />
+                      {uploadingHero ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Upload läuft...
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-3 h-3" />
+                          Bild auswählen
+                        </>
+                      )}
+                    </label>
+                    {form.photoUrl && (
+                      <div className="relative mt-1 h-20 rounded-xl overflow-hidden border border-border bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={form.photoUrl} alt="Restaurant Titelbild" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

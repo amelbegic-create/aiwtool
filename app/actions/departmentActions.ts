@@ -85,11 +85,23 @@ export async function updateDepartment(input: UpdateDepartmentInput) {
 export async function deleteDepartment(id: string) {
   await requirePermission("users:manage");
 
-  await prisma.department.delete({
-    where: { id },
-  });
+  try {
+    // Najprije odveži sve korisnike s ovim odjelom (sigurno čak i ako FK nije SetNull svuda)
+    await prisma.user.updateMany({
+      where: { departmentId: id },
+      data: { departmentId: null },
+    });
 
-  revalidatePath("/admin/users");
-  revalidatePath("/admin/users/create");
-  return { success: true as const };
+    await prisma.department.delete({
+      where: { id },
+    });
+
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/users/create");
+    revalidatePath("/admin/users/departments");
+    return { success: true as const };
+  } catch (err) {
+    console.error("deleteDepartment error", err);
+    return { success: false as const, error: "Fehler beim Löschen der Abteilung." };
+  }
 }

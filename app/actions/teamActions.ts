@@ -59,6 +59,16 @@ export type TeamMemberDetail = TeamMemberRow & {
     finalGrade: string | null;
     status: string;
   }[];
+  certificates: {
+    id: string;
+    title: string;
+    description: string;
+    pdfUrl: string | null;
+    pdfName: string | null;
+    imageUrl: string | null;
+    imageName: string | null;
+    createdAt: Date;
+  }[];
 };
 
 export async function getMyTeamData(): Promise<TeamMemberRow[]> {
@@ -325,6 +335,19 @@ export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDet
         orderBy: { year: "desc" },
         select: { id: true, year: true, totalScore: true, finalGrade: true, status: true },
       },
+      certificates: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          pdfUrl: true,
+          pdfName: true,
+          imageUrl: true,
+          imageName: true,
+          createdAt: true,
+        },
+      },
     },
   });
 
@@ -408,6 +431,16 @@ export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDet
       totalScore: p.totalScore,
       finalGrade: p.finalGrade,
       status: p.status,
+    })),
+    certificates: user.certificates.map((c) => ({
+      id: c.id,
+      title: c.title,
+      description: c.description,
+      pdfUrl: c.pdfUrl,
+      pdfName: c.pdfName,
+      imageUrl: c.imageUrl,
+      imageName: c.imageName,
+      createdAt: c.createdAt,
     })),
   };
 }

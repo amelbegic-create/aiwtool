@@ -3,8 +3,16 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/access";
+import { put } from "@vercel/blob";
 
-export async function createRestaurant(data: { code: string; name: string; city?: string; address?: string }) {
+export async function createRestaurant(data: {
+  code: string;
+  name: string;
+  city?: string;
+  address?: string;
+  tagline?: string;
+  photoUrl?: string;
+}) {
   await requirePermission("restaurants:create");
 
   if (!data.code?.trim()) throw new Error("Code je obavezan.");
@@ -16,6 +24,8 @@ export async function createRestaurant(data: { code: string; name: string; city?
       name: data.name.trim(),
       city: data.city?.trim() || null,
       address: data.address?.trim() || null,
+      tagline: data.tagline?.trim() || null,
+      photoUrl: data.photoUrl?.trim() || null,
       isActive: true,
     },
   });
@@ -30,6 +40,8 @@ export async function updateRestaurant(data: {
   name: string;
   city?: string;
   address?: string;
+  tagline?: string;
+  photoUrl?: string;
   isActive?: boolean;
 }) {
   await requirePermission("restaurants:edit");
@@ -41,6 +53,8 @@ export async function updateRestaurant(data: {
       name: data.name.trim(),
       city: data.city?.trim() || null,
       address: data.address?.trim() || null,
+      tagline: data.tagline?.trim() || null,
+      photoUrl: data.photoUrl?.trim() || null,
       ...(typeof data.isActive === "boolean" ? { isActive: data.isActive } : {}),
     },
   });
@@ -72,4 +86,29 @@ export async function deleteRestaurant(id: string) {
 
   revalidatePath("/admin/restaurants");
   revalidatePath("/admin/users");
+}
+
+export async function uploadRestaurantImage(
+  formData: FormData
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  await requirePermission("restaurants:edit");
+  try {
+    const file = formData.get("file") as File | null;
+    if (!file?.size) return { success: false, error: "Keine Datei ausgewählt." };
+
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) return { success: false, error: "Blob-Token ist nicht konfiguriert." };
+
+    const ext = file.name.split(".").pop() || "jpg";
+    const blob = await put(`restaurants/hero-${Date.now()}.${ext}`, file, {
+      access: "public",
+      token,
+      addRandomSuffix: true,
+    });
+
+    return { success: true, url: blob.url };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Fehler beim Hochladen.";
+    return { success: false, error: message };
+  }
 }

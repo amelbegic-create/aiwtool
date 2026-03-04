@@ -112,6 +112,36 @@
   --sidebar-ring: #737373;
 }
 
+/* ─────────────────────────────────────
+   DESIGN TOKENS — SaaS Dashboard
+   ───────────────────────────────────── */
+
+/* Glassmorphism CSS variables */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.12);
+}
+
+/* Smooth page enter animation */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.page-enter {
+  animation: pageEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Event slider – hide scrollbar for .slider-track */
+.slider-track {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.slider-track::-webkit-scrollbar {
+  display: none;
+}
+
 /* Safe area for notched devices (iOS/Android) */
 .safe-area-t {
   padding-top: env(safe-area-inset-top, 0px);

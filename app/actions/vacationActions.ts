@@ -59,6 +59,7 @@ export async function getGlobalVacationStats(year: number) {
     select: {
       id: true,
       name: true,
+      email: true,
       vacationEntitlement: true,
       vacationCarryover: true,
       department: { select: { name: true, color: true } },
@@ -435,6 +436,7 @@ export async function getVacationAdminData(
     return {
       id: u.id,
       name: u.name,
+      email: u.email,
       restaurantNames,
       department: u.department?.name ?? null,
       departmentColor: u.department?.color ?? null,

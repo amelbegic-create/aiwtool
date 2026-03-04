@@ -829,7 +829,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     doc.setFontSize(7);
     doc.setFont("helvetica", "bold");
     doc.text("CL %", margin + 3, y + 24);
-    doc.text(`${fmtNum(totals.clPct)} %`, margin + leftColW - 3, y + 24, { align: "right" });
+    doc.text(`${fmtNum(totals.clPct, 2)} %`, margin + leftColW - 3, y + 24, { align: "right" });
     doc.text("Prod. (Bericht)", margin + 3, y + 30);
     doc.text(totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—", margin + leftColW - 3, y + 30, { align: "right" });
     doc.text("Prod. (REAL)", margin + 3, y + 36);
@@ -1101,7 +1101,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         doc.setFontSize(7);
         doc.setFont("helvetica", "bold");
         doc.text("CL %", margin + 3, y + 24);
-        doc.text(`${fmtNum(clPct)} %`, margin + leftColW - 3, y + 24, { align: "right" });
+        doc.text(`${fmtNum(clPct, 2)} %`, margin + leftColW - 3, y + 24, { align: "right" });
         doc.text("Prod. (Bericht)", margin + 3, y + 30);
         doc.text(istProd > 0 ? `${fmtNum(istProd)} €` : "—", margin + leftColW - 3, y + 30, { align: "right" });
         doc.text("Prod. (REAL)", margin + 3, y + 36);
@@ -1393,7 +1393,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                     {fmtNum(totals.clEuro)} €
                   </span>
                 </div>
-                <SummaryRow label="CL %" value={`${fmtNum(totals.clPct)} %`} bold color="text-[#1b3a26]" />
+                <SummaryRow label="CL %" value={`${fmtNum(totals.clPct, 2)} %`} bold color="text-[#1b3a26]" />
                 <div className="h-px bg-[#1b3a26]/20 my-1" />
                 <SummaryRow label="Prod. (Bericht)" value={totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—"} color="text-[#1b3a26]" />
                 <SummaryRow label="Prod. (REAL)" value={totals.realProd > 0 ? `${fmtNum(totals.realProd)} €` : "—"} color="text-[#1b3a26]" />
@@ -1411,7 +1411,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                         <th className="p-3 border border-border text-center w-28 bg-[#142e1e]">Netto Umsatz</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("geplanteProduktivitaetPct")}>Gepl. Prod. %</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 bg-[#142e1e]" onClick={() => handleCopyDown("produktiveStd")}>Produktive Std.</th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 leading-tight" onClick={() => handleCopyDown("sfStd")}>SF<br /><span className="normal-case text-[10px]">(productive)</span></th>
+                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 leading-tight" onClick={() => handleCopyDown("sfStd")}>SF<br /><span className="normal-case text-[10px]">(produktiv)</span></th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("hmStd")}>HM</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("nzEuro")}>NZ Euro</th>
                         <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 rounded-tr-lg" onClick={() => handleCopyDown("extraStd")}>Extra Std. Unproduktiv</th>

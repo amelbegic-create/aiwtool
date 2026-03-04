@@ -117,6 +117,7 @@ model User {
   dashboardChangelogUpdates DashboardChangelog[]
 
   ideas                Idea[]
+  certificates         UserCertificate[]
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -146,6 +147,29 @@ model Idea {
 
   @@index([userId])
   @@index([isRead])
+}
+
+// Zertifikate, Kurse und Schulungen pro Mitarbeiter
+model UserCertificate {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String   @db.Text
+
+  pdfUrl      String?
+  pdfName     String?
+  pdfSize     Int?
+
+  imageUrl    String?
+  imageName   String?
+  imageSize   Int?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }
 
 model VacationAllowance {
@@ -276,6 +300,8 @@ model Restaurant {
   name                String?
   city                String?
   address             String?
+  photoUrl            String?
+  tagline             String?
   isActive            Boolean              @default(true)
   openingHours        Json?                @default("{}")
   users               RestaurantUser[]

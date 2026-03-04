@@ -102,9 +102,13 @@ export default function DepartmentsClient({ departments, restaurants }: Departme
       return;
     setIsDeletingDeptId(id);
     try {
-      await deleteDepartment(id);
-      setDepartmentsList((prev) => prev.filter((d) => d.id !== id));
-      toast.success("Abteilung gelöscht.");
+      const res = await deleteDepartment(id);
+      if (res.success) {
+        setDepartmentsList((prev) => prev.filter((d) => d.id !== id));
+        toast.success("Abteilung gelöscht.");
+      } else {
+        toast.error(res.error ?? "Fehler beim Löschen der Abteilung.");
+      }
     } catch (err: any) {
       toast.error(err?.message ?? "Fehler beim Löschen der Abteilung.");
     } finally {

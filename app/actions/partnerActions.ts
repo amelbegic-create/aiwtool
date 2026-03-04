@@ -193,7 +193,11 @@ export async function updatePartnerCategory(id: string, name: string, icon?: str
 export async function deletePartnerCategory(id: string) {
   await checkPartnersManage();
   const count = await prisma.partnerCompany.count({ where: { categoryId: id } });
-  if (count > 0) throw new Error("Kategorija se koristi kod firmi. Prvo premjestite firme u drugu kategoriju.");
+  if (count > 0) {
+    throw new Error(
+      "Diese Kategorie wird bereits von Firmen verwendet. Bitte verschieben Sie die Firmen zuerst in eine andere Kategorie."
+    );
+  }
   await prisma.partnerCategoryModel.delete({ where: { id } });
   revalidatePath("/admin/partners");
   revalidatePath("/admin/partners/categories");

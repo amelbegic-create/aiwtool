@@ -168,11 +168,11 @@ export default function TopNavbar({
     });
   };
 
-  // Filtrirane (nepročitane) notifikacije
-  const unreadNotifications = notifications.filter((n) => !readIds.has(n.id));
-  const visibleNotifications = unreadNotifications.slice(0, 5);
-  const hiddenCount = unreadNotifications.length - visibleNotifications.length;
-  const unreadCount = unreadNotifications.length;
+  // Nepročitane notifikacije – koriste se samo za badge na zvonu
+  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+  // U listi prikazujemo sve notifikacije (max 5), ne samo nepročitane
+  const visibleNotifications = notifications.slice(0, 5);
+  const hiddenCount = notifications.length - visibleNotifications.length;
 
   // Zatvori dropdown klikom van
   useEffect(() => {

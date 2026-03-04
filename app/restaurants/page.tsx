@@ -5,8 +5,7 @@ import {
   MapPin, 
   Search, 
   ArrowLeft, 
-  Plus, 
-  ChevronRight 
+  Plus
 } from "lucide-react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -72,7 +71,7 @@ export default async function RestaurantsPage() {
         {/* GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {restaurants.map((r) => (
-                <Link key={r.id} href={`/restaurant/${r.code}`} className="group bg-white rounded-lg border border-slate-200 p-6 hover:border-[#1a3826] hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between h-52">
+                <div key={r.id} className="group bg-white rounded-lg border border-slate-200 p-6 hover:border-[#1a3826] hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between h-52">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110 group-hover:bg-[#1a3826]/5"></div>
                     <div>
                         <div className="flex justify-between items-start mb-4">
@@ -90,12 +89,10 @@ export default async function RestaurantsPage() {
                         </div>
                     </div>
                     <div className="pt-4 border-t border-slate-100 mt-2 flex items-center justify-between">
-                        <span className="text-xs font-medium text-slate-400">Otvori Alate</span>
-                        <div className="h-8 w-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-[#1a3826] group-hover:text-white transition-all">
-                             <ChevronRight className="w-4 h-4" />
-                        </div>
+                        <span className="text-xs font-medium text-slate-400">Standort</span>
+                        <span className="font-mono text-[10px] text-slate-400">#{r.code}</span>
                     </div>
-                </Link>
+                </div>
             ))}
         </div>
       </div>

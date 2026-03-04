@@ -82,17 +82,17 @@ export default function PartnerCategoriesClient({
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tight">
-              Abteilungen (Kategorien)
+            <h1 className="text-3xl sm:text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter leading-tight flex flex-wrap items-baseline gap-2">
+              PARTNER <span className="text-[#FFC72C]">ABTEILUNGEN</span>
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Abteilungen für Firmen und Partner anlegen oder umbenennen. Diese erscheinen in den Filtern.
+            <p className="text-muted-foreground text-xs sm:text-sm mt-1">
+              Abteilungen/Kategorien für Firmen und Partner verwalten. Diese erscheinen in den Filtern.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Link
               href="/admin/partners"
-              className="text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+              className="text-xs sm:text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
             >
               ← Zurück zu Firmen
             </Link>

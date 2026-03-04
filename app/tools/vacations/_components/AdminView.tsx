@@ -27,7 +27,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
-import { openPdfInSameTab } from "@/lib/pdfUtils";
+import { openPdfInSameTab, pdfToBlobUrl } from "@/lib/pdfUtils";
 
 // --- TIPOVI ---
 type TabType = "STATS" | "REQUESTS";
@@ -203,8 +203,13 @@ function drawPdfHeader(
 export function exportTablePDFWithData(
   stats: UserStat[],
   year: number,
-  reportRestaurantLabel?: string
-) {
+  reportRestaurantLabel?: string,
+  /**
+   * Ako je true, funkcija ne otvara PDF sama već vraća jsPDF instancu
+   * (koristi se za popup prikaz).
+   */
+  returnDoc?: boolean
+): jsPDF | void {
   const doc = new jsPDF();
   drawPdfHeader(doc, {
     title: "Urlaubsübersicht",
@@ -269,14 +274,18 @@ export function exportTablePDFWithData(
     alternateRowStyles: { fillColor: [252, 253, 254] },
     margin: { left: margin, right: margin },
   });
+  if (returnDoc) {
+    return doc;
+  }
   openPdfInSameTab(doc);
 }
 
 export function exportIndividualReportWithData(
   user: UserStat,
   allRequests: RequestWithUser[],
-  year: number
-) {
+  year: number,
+  returnDoc?: boolean
+): jsPDF | void {
   const doc = new jsPDF();
   const userRequests = allRequests.filter((r) => r.user.id === user.id);
 
@@ -417,7 +426,14 @@ export function exportIndividualReportWithData(
       }
     },
   });
-  const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
+  const safeName = (user.name || "Benutzer")
+    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+    .replace(/\s+/g, "_");
+
+  if (returnDoc) {
+    return doc;
+  }
+
   openPdfInSameTab(doc);
 }
 
@@ -436,8 +452,13 @@ export function exportTimelinePDFWithData(
   reportRestaurantLabel?: string,
   filename?: string,
   /** Ako proslijeđeno, koristi se za crvenu liniju (Feiertag); inače blockedDays */
-  holidayDates?: string[]
-) {
+  holidayDates?: string[],
+  /**
+   * Ako je true, funkcija samo vraća jsPDF instancu (za popup),
+   * umjesto da odmah otvori novi tab.
+   */
+  returnDoc?: boolean
+): jsPDF | void {
   const datesForRedLine = holidayDates ?? holidayDatesFromBlockedDays(blockedDays, year);
   const doc = new jsPDF("l", "mm", "a3");
   const width = doc.internal.pageSize.getWidth();
@@ -567,6 +588,11 @@ export function exportTimelinePDFWithData(
     doc.text(label, legendX + boxW + gap, legendY - 0.5);
     legendX += boxW + gap + labelW + itemGap;
   });
+
+  if (returnDoc) {
+    return doc;
+  }
+
   openPdfInSameTab(doc);
 }
 
@@ -688,113 +714,20 @@ export default function AdminView({
   // =====================================================================
   // 1. POJEDINAČNI IZVJEŠTAJ (ZA JEDNOG RADNIKA) — CLEAN + boja po odjelu
   // =====================================================================
-  const exportIndividualReport = (user: UserStat) => {
-    const doc = new jsPDF();
-    const userRequests = allRequests.filter((r) => r.user.id === user.id);
-
-    drawPdfHeader(doc, {
-      title: "Urlaubsübersicht",
-      subtitle: `Erstellt: ${formatDate(new Date().toISOString())}`,
-      restaurantName: user.restaurantNames?.[0] ?? undefined,
-      year: selectedYear,
-    });
-
-    const margin = 14;
-    const pageW = doc.internal.pageSize.getWidth();
-    const tableWidth = pageW - margin * 2;
-    doc.setTextColor(15, 23, 42);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(`Mitarbeiter: ${user.name || "N/A"}`, margin, 45);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    doc.text(`E-Mail: ${user.email || "N/A"}`, margin, 52);
-    doc.text(`Abteilung: ${user.department || "N/A"}`, margin, 58);
-
-    const startY = 66;
-    const boxW = 32;
-    const boxH = 12;
-    const boxGap = 3;
-    const boxCenterX = (x: number) => x + boxW / 2;
-    const greenBg = [26, 56, 38] as [number, number, number];
-
-    doc.setFillColor(...greenBg);
-    doc.setDrawColor(...greenBg);
-    doc.roundedRect(margin, startY, boxW, boxH, 1.5, 1.5, "FD");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(5.5);
-    doc.setTextColor(255, 255, 255);
-    doc.text("GESAMT", boxCenterX(margin), startY + 3.5, { align: "center" });
-    doc.setFontSize(10);
-    doc.text(String(user.total), boxCenterX(margin), startY + 9, { align: "center" });
-
-    doc.setFillColor(...greenBg);
-    doc.setDrawColor(...greenBg);
-    doc.roundedRect(margin + boxW + boxGap, startY, boxW, boxH, 1.5, 1.5, "FD");
-    doc.setFontSize(5.5);
-    doc.setTextColor(255, 255, 255);
-    doc.text("VERBRAUCHT", boxCenterX(margin + boxW + boxGap), startY + 3.5, { align: "center" });
-    doc.setFontSize(10);
-    doc.text(String(user.used), boxCenterX(margin + boxW + boxGap), startY + 9, { align: "center" });
-
-    doc.setFillColor(...greenBg);
-    doc.setDrawColor(...greenBg);
-    doc.roundedRect(margin + (boxW + boxGap) * 2, startY, boxW, boxH, 1.5, 1.5, "FD");
-    doc.setFontSize(5.5);
-    doc.setTextColor(255, 255, 255);
-    doc.text("RESTURLAUB", boxCenterX(margin + (boxW + boxGap) * 2), startY + 3.5, { align: "center" });
-    doc.setFontSize(10);
-    doc.text(String(user.remaining), boxCenterX(margin + (boxW + boxGap) * 2), startY + 9, { align: "center" });
-
-    const tableBody = userRequests.map((req) => [
-      formatDate(req.start),
-      formatDate(req.end),
-      req.days,
-      statusLabel(req.status),
-    ]);
-
-    // Clean tabela: bez “teškog grida”
-    autoTable(doc, {
-      startY: startY + 22,
-      head: [["Von", "Bis", "Tage", "Status"]],
-      body: tableBody,
-      theme: "plain",
-      styles: {
-        fontSize: 10,
-        cellPadding: 5,
-        textColor: [15, 23, 42],
-        lineWidth: 0.1,
-        lineColor: [0, 0, 0],
-        halign: "center",
-      },
-      headStyles: {
-        fillColor: [26, 56, 38],
-        textColor: [255, 255, 255],
-        fontStyle: "bold",
-        halign: "center",
-        lineWidth: 0.1,
-        lineColor: [0, 0, 0],
-      },
-      bodyStyles: { lineWidth: 0.1, lineColor: [0, 0, 0], halign: "center" },
-      columnStyles: {
-        0: { halign: "center", cellWidth: tableWidth * 0.28 },
-        1: { halign: "center", cellWidth: tableWidth * 0.28 },
-        2: { halign: "center", cellWidth: tableWidth * 0.14 },
-        3: { halign: "center", cellWidth: tableWidth * 0.30 },
-      },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      margin: { left: margin, right: margin },
-    });
-
-    const safeName = (user.name || "Benutzer").replace(/[^\p{L}\p{N}\s_-]/gu, "").replace(/\s+/g, "_");
-    openPdfInSameTab(doc);
+  const exportIndividualReport = (user: UserStat): jsPDF | null => {
+    const doc = exportIndividualReportWithData(
+      user,
+      allRequests as RequestWithUser[],
+      selectedYear,
+      true
+    );
+    return (doc as jsPDF) ?? null;
   };
 
   // =====================================================================
   // 2. TABLIČNI PDF — clean, bez boja, linije samo za redove s korisnicima
   // =====================================================================
-  const exportTablePDF = (overrideStats?: UserStat[]) => {
+  const exportTablePDF = (overrideStats?: UserStat[]): jsPDF => {
     const statsToUse = overrideStats || filteredStats;
 
     const doc = new jsPDF();
@@ -865,7 +798,7 @@ export default function AdminView({
       margin: { left: margin, right: margin },
     });
 
-    openPdfInSameTab(doc);
+    return doc;
   };
 
   // =====================================================================
@@ -875,7 +808,7 @@ export default function AdminView({
     overrideStats?: UserStat[],
     overrideRequests?: RequestWithUser[],
     filename?: string
-  ) => {
+  ): jsPDF => {
     const statsToUse = overrideStats || filteredStats;
     const requestsToUse = overrideRequests || allRequests;
 
@@ -1060,14 +993,28 @@ export default function AdminView({
       legendX += boxW + gap + labelW + itemGap;
     });
 
-    openPdfInSameTab(doc);
+    return doc;
+  };
+
+  const [pdfPopupUrl, setPdfPopupUrl] = useState<string | null>(null);
+  const [pdfPopupTitle, setPdfPopupTitle] = useState<string>("");
+
+  const closePdfPopup = () => {
+    if (pdfPopupUrl) {
+      URL.revokeObjectURL(pdfPopupUrl);
+    }
+    setPdfPopupUrl(null);
+    setPdfPopupTitle("");
   };
 
   const handleGlobalExport = async () => {
     setLoadingGlobal(true);
     try {
       const globalData = await getGlobalVacationStats(selectedYear);
-      exportTimelinePDF(globalData.usersStats, globalData.allRequests as any);
+      const doc = exportTimelinePDF(globalData.usersStats, globalData.allRequests as any);
+      const url = pdfToBlobUrl(doc);
+      setPdfPopupTitle(`Gesamt Export ${selectedYear}`);
+      setPdfPopupUrl(url);
     } catch {
       alert("Fehler beim Laden der globalen Daten.");
     } finally {
@@ -1118,11 +1065,14 @@ export default function AdminView({
       filteredUserIds.has(r.user.id)
     );
     const safeNames = selectedDeptNamesForExport.map((n) => n.replace(/\s+/g, "_"));
-    exportTimelinePDF(
+    const doc = exportTimelinePDF(
       filteredStats,
       filteredRequests as any,
       `Plan_${selectedYear}_${safeNames.join("_")}.pdf`
     );
+    const url = pdfToBlobUrl(doc);
+    setPdfPopupTitle(`Export nach Abteilungen ${selectedYear}`);
+    setPdfPopupUrl(url);
     setDeptExportModalOpen(false);
     setDeptExportData(null);
   };
@@ -1256,14 +1206,24 @@ export default function AdminView({
             {activeTab === "STATS" && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => router.push(`/tools/vacations/view/table?year=${selectedYear}`)}
+                  onClick={() => {
+                    const doc = exportTablePDF();
+                    const url = pdfToBlobUrl(doc);
+                    setPdfPopupTitle(`Tabelle ${selectedYear}`);
+                    setPdfPopupUrl(url);
+                  }}
                   className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e]"
                 >
                   <FileSpreadsheet size={16} /> TABELLE
                 </button>
 
                 <button
-                  onClick={() => exportTimelinePDF()}
+                  onClick={() => {
+                    const doc = exportTimelinePDF();
+                    const url = pdfToBlobUrl(doc);
+                    setPdfPopupTitle(`Plan (aktuell) ${selectedYear}`);
+                    setPdfPopupUrl(url);
+                  }}
                   className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e]"
                 >
                   <FileBarChart size={16} /> PLAN (AKTUELL)
@@ -1358,6 +1318,29 @@ export default function AdminView({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {pdfPopupUrl && (
+          <div className="fixed inset-0 top-14 md:top-16 z-[200] bg-black flex flex-col">
+            <div className="flex items-center justify-between px-4 py-2 bg-[#1b3a26] text-white shrink-0">
+              <span className="font-bold text-sm">
+                {pdfPopupTitle || "PDF Vorschau"}
+              </span>
+              <button
+                type="button"
+                onClick={closePdfPopup}
+                className="text-white hover:text-[#FFC72C] font-bold text-lg leading-none px-2"
+                aria-label="Schließen"
+              >
+                ✕
+              </button>
+            </div>
+            <iframe
+              src={pdfPopupUrl}
+              title={pdfPopupTitle || "PDF Vorschau"}
+              className="flex-1 w-full border-0 bg-white"
+            />
           </div>
         )}
 
@@ -1496,7 +1479,13 @@ export default function AdminView({
                     </div>
                   </div>
                   <button
-                    onClick={() => router.push(`/tools/vacations/report/${u.id}?year=${selectedYear}`)}
+                    onClick={() => {
+                      const doc = exportIndividualReport(u);
+                      if (!doc) return;
+                      const url = pdfToBlobUrl(doc);
+                      setPdfPopupTitle(`Urlaubsbericht ${selectedYear} – ${u.name || ""}`);
+                      setPdfPopupUrl(url);
+                    }}
                     className="w-full min-h-[44px] bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl font-bold text-xs uppercase inline-flex items-center justify-center gap-2 touch-manipulation"
                   >
                     <FileText size={14} /> PDF-Bericht
@@ -1562,7 +1551,13 @@ export default function AdminView({
                     </div>
                     <div className="col-span-2 text-right">
                       <button
-                        onClick={() => router.push(`/tools/vacations/report/${u.id}?year=${selectedYear}`)}
+                        onClick={() => {
+                          const doc = exportIndividualReport(u);
+                          if (!doc) return;
+                          const url = pdfToBlobUrl(doc);
+                          setPdfPopupTitle(`Urlaubsbericht ${selectedYear} – ${u.name || ""}`);
+                          setPdfPopupUrl(url);
+                        }}
                         className="bg-[#1a3826] hover:bg-[#142e1e] text-white px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase min-h-[44px]"
                       >
                         <FileText size={14} /> PDF

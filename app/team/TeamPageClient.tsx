@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -13,6 +13,9 @@ import {
   XCircle,
   Loader2,
   ClipboardList,
+  Award,
+  FileText,
+  ChevronDown,
 } from "lucide-react";
 import { getTeamMemberDetail, type TeamMemberRow, type TeamMemberDetail, type TeamMemberRowWithSupervisor } from "@/app/actions/teamActions";
 import { updateVacationStatus } from "@/app/actions/vacationActions";
@@ -40,9 +43,38 @@ export default function TeamPageClient({
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TeamMemberDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [activeTab, setActiveTab] = useState<"pregled" | "godisnji" | "pds">("pregled");
+  const [activeTab, setActiveTab] = useState<"pregled" | "godisnji" | "pds" | "certs">("pregled");
   const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
-  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [selectedDepts, setSelectedDepts] = useState<Set<string>>(new Set());
+  const [deptDropdownOpen, setDeptDropdownOpen] = useState(false);
+  const deptDropdownRef = useRef<HTMLDivElement>(null);
+  const [certPreview, setCertPreview] = useState<{
+    type: "pdf" | "image";
+    url: string;
+    name: string;
+  } | null>(null);
+
+  // Close dept dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (deptDropdownRef.current && !deptDropdownRef.current.contains(e.target as Node)) {
+        setDeptDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const toggleDept = (dept: string) => {
+    setSelectedDepts((prev) => {
+      const next = new Set(prev);
+      if (next.has(dept)) next.delete(dept);
+      else next.add(dept);
+      return next;
+    });
+  };
+
+  const clearDepts = () => setSelectedDepts(new Set());
 
   const openDetail = useCallback(async (userId: string) => {
     setDetailUserId(userId);
@@ -89,7 +121,7 @@ export default function TeamPageClient({
     if (isOfficeDept(member.department)) {
       return (
         <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500">
-          Administracija
+          Verwaltung
         </span>
       );
     }
@@ -118,9 +150,9 @@ export default function TeamPageClient({
     .sort((a, b) => a.localeCompare(b));
 
   const filteredTeam =
-    departmentFilter === "all"
+    selectedDepts.size === 0
       ? initialTeam
-      : initialTeam.filter((m) => (m.department || "").trim() === departmentFilter);
+      : initialTeam.filter((m) => selectedDepts.has((m.department || "").trim()));
 
   return (
     <>
@@ -138,24 +170,105 @@ export default function TeamPageClient({
         <>
           {/* Filterleiste */}
           <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <Users size={18} /> Mein Team
-            </h2>
-            {departmentOptions.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Abteilung</span>
-                <select
-                  value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="min-h-[36px] px-3 py-1.5 rounded-lg border border-slate-300 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a3826]"
+            {/* Result count */}
+            <p className="text-xs text-slate-500 font-medium">
+              {filteredTeam.length} von {initialTeam.length} Mitarbeiter
+              {selectedDepts.size > 0 && (
+                <button
+                  type="button"
+                  onClick={clearDepts}
+                  className="ml-2 text-[#1a3826] font-bold hover:underline"
                 >
-                  <option value="all">Alle</option>
-                  {departmentOptions.map((dep) => (
-                    <option key={dep} value={dep}>
-                      {dep}
-                    </option>
-                  ))}
-                </select>
+                  Filter löschen
+                </button>
+              )}
+            </p>
+
+            {departmentOptions.length > 0 && (
+              <div className="relative" ref={deptDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setDeptDropdownOpen((o) => !o)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-700 font-bold hover:border-[#1a3826] hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#1a3826] transition-all min-h-[36px]"
+                >
+                  <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">Abteilung</span>
+                  {selectedDepts.size > 0 ? (
+                    <span className="flex items-center gap-1.5">
+                      {/* Show first 2 selected, then +N */}
+                      {Array.from(selectedDepts).slice(0, 2).map((d) => (
+                        <span
+                          key={d}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-black bg-[#1a3826] text-white"
+                        >
+                          {d}
+                        </span>
+                      ))}
+                      {selectedDepts.size > 2 && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-slate-200 text-slate-600">
+                          +{selectedDepts.size - 2}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 font-medium">Alle</span>
+                  )}
+                  <ChevronDown
+                    size={14}
+                    className={`text-slate-400 transition-transform ${deptDropdownOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+
+                {deptDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-56 bg-white rounded-xl border border-slate-200 shadow-xl z-30 overflow-hidden">
+                    {/* "Alle" row */}
+                    <button
+                      type="button"
+                      onClick={clearDepts}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-slate-50 ${
+                        selectedDepts.size === 0 ? "text-[#1a3826]" : "text-slate-500"
+                      }`}
+                    >
+                      <span
+                        className={`h-4 w-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                          selectedDepts.size === 0
+                            ? "bg-[#1a3826] border-[#1a3826]"
+                            : "border-slate-300"
+                        }`}
+                      >
+                        {selectedDepts.size === 0 && <Check size={10} className="text-white" />}
+                      </span>
+                      Alle
+                    </button>
+
+                    <div className="border-t border-slate-100" />
+
+                    {/* Department checkboxes */}
+                    {departmentOptions.map((dep) => {
+                      const checked = selectedDepts.has(dep);
+                      return (
+                        <button
+                          key={dep}
+                          type="button"
+                          onClick={() => toggleDept(dep)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-slate-50"
+                        >
+                          <span
+                            className={`h-4 w-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              checked
+                                ? "bg-[#1a3826] border-[#1a3826]"
+                                : "border-slate-300"
+                            }`}
+                          >
+                            {checked && <Check size={10} className="text-white" />}
+                          </span>
+                          <span className={`font-medium ${checked ? "text-[#1a3826] font-bold" : "text-slate-700"}`}>
+                            {dep}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -369,7 +482,7 @@ export default function TeamPageClient({
             ) : detail ? (
               <>
                 <div className="flex border-b border-slate-200 bg-slate-50/50">
-                  {(["pregled", "godisnji", "pds"] as const).map((tab) => (
+                  {(["pregled", "godisnji", "pds", "certs"] as const).map((tab) => (
                     <button
                       key={tab}
                       type="button"
@@ -383,6 +496,7 @@ export default function TeamPageClient({
                       {tab === "pregled" && "Übersicht"}
                       {tab === "godisnji" && "Urlaub"}
                       {tab === "pds" && "PDS-Dossier"}
+                      {tab === "certs" && "Zertifikate"}
                     </button>
                   ))}
                 </div>
@@ -548,6 +662,92 @@ export default function TeamPageClient({
                       )}
                     </div>
                   )}
+
+                  {activeTab === "certs" && (
+                    <div className="space-y-4">
+                      {detail.certificates.length === 0 ? (
+                        <p className="text-slate-500 text-sm">
+                          Keine Zertifikate oder Schulungen hinterlegt.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {detail.certificates.map((cert) => (
+                            <div
+                              key={cert.id}
+                              className="relative rounded-2xl border border-slate-200 bg-white p-4 flex gap-3"
+                            >
+                              <div className="mt-1">
+                                <div className="h-9 w-9 rounded-full bg-[#1a3826]/10 flex items-center justify-center">
+                                  <Award size={18} className="text-[#1a3826]" />
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="font-semibold text-slate-900">{cert.title}</p>
+                                  <span className="text-[11px] text-slate-500">
+                                    {new Date(cert.createdAt).toLocaleDateString("de-DE", {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      year: "numeric",
+                                    })}
+                                  </span>
+                                  {cert.pdfUrl && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-semibold">
+                                      <FileText size={12} />
+                                      PDF
+                                    </span>
+                                  )}
+                                </div>
+                                {cert.description && (
+                                  <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                                    {cert.description}
+                                  </p>
+                                )}
+                                <div className="mt-1 flex flex-wrap items-center gap-3">
+                                  {cert.pdfUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setCertPreview({
+                                          type: "pdf",
+                                          url: cert.pdfUrl!,
+                                          name: cert.pdfName || cert.title,
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1a3826] hover:underline"
+                                    >
+                                      <FileText size={14} />
+                                      {cert.pdfName || "PDF öffnen"}
+                                    </button>
+                                  )}
+                                  {cert.imageUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setCertPreview({
+                                          type: "image",
+                                          url: cert.imageUrl!,
+                                          name: cert.imageName || cert.title,
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1a3826] hover:underline"
+                                    >
+                                      <FileText size={14} />
+                                      {cert.imageName || "Bild öffnen"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-[11px] text-slate-400">
+                        Dieser Bereich zeigt Zertifikate, Kurse und Schulungen, die im Admin‑Bereich
+                        hinterlegt wurden.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -557,6 +757,46 @@ export default function TeamPageClient({
             )}
           </div>
         </>
+      )}
+      {certPreview && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900 truncate">
+                  {certPreview.name}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {certPreview.type === "pdf" ? "PDF-Vorschau" : "Bildvorschau"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCertPreview(null)}
+                className="ml-3 inline-flex items-center justify-center h-9 w-9 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
+                aria-label="Schließen"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 bg-slate-50 flex items-center justify-center">
+              {certPreview.type === "pdf" ? (
+                <iframe
+                  src={certPreview.url}
+                  title={certPreview.name}
+                  className="w-full h-[70vh] border-0 bg-white"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={certPreview.url}
+                  alt={certPreview.name}
+                  className="max-h-[70vh] max-w-full object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

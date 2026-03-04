@@ -20,6 +20,8 @@ export default async function RestaurantsPage() {
     city: r.city || "",
     address: r.address || "",
     isActive: r.isActive,
+    tagline: r.tagline || "",
+    photoUrl: r.photoUrl || "",
   }));
 
   return <RestaurantClient restaurants={formatted} />;

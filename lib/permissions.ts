@@ -16,9 +16,10 @@ export type PermissionGroup = {
 /**
  * ✅ VAŽNO:
  * - GOD MODE role imaju sve permisije automatski (bypass).
- * - Ostale role (ADMIN/MANAGER/CREW) moraju imati eksplicitno dodijeljene permisije.
+ * - Ostale role (MANAGER/CREW) moraju imati eksplicitno dodijeljene permisije.
+ * - Po zahtjevu: SYSTEM_ARCHITECT, SUPER_ADMIN i ADMIN vide sve korisnike u svim restoranima.
  */
-export const GOD_MODE_ROLES = new Set(["SYSTEM_ARCHITECT", "SUPER_ADMIN"]);
+export const GOD_MODE_ROLES = new Set(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN"]);
 
 export const PERMISSIONS: PermissionGroup[] = [
   {

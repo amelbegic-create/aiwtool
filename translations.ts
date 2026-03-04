@@ -34,9 +34,9 @@ export const dict = {
   // --- Dashboard hero ---
   dashboard_hero_chip: "System aktiv",
   dashboard_hero_subtitle: "Operative Übersicht und Schnellzugriff.",
-  dashboard_greeting_morning: "Guten Morgen",
-  dashboard_greeting_day: "Guten Tag",
-  dashboard_greeting_default: "Willkommen zurück",
+  dashboard_greeting_morning: "Hello",
+  dashboard_greeting_day: "Hello",
+  dashboard_greeting_default: "Hello",
 
   // --- Dashboard pločice / tekstovi ---
   dashboard_tile_vacation_label: "Jahresurlaub",

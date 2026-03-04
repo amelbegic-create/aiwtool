@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import type { UserStat, RequestWithUser, BlockedDay } from "../_components/AdminView";
 import {
   exportTablePDFWithData,
@@ -28,20 +29,51 @@ export default function VacationTableView({
   viewType,
   globalHolidayDates = [],
 }: Props) {
+  const [pdfPopupUrl, setPdfPopupUrl] = useState<string | null>(null);
+  const [pdfPopupTitle, setPdfPopupTitle] = useState<string>("");
+
+  const closePdfPopup = () => {
+    if (pdfPopupUrl) {
+      URL.revokeObjectURL(pdfPopupUrl);
+    }
+    setPdfPopupUrl(null);
+    setPdfPopupTitle("");
+  };
+
   const handleTablePDF = () => {
-    exportTablePDFWithData(usersStats, selectedYear, reportRestaurantLabel);
+    const doc = exportTablePDFWithData(
+      usersStats,
+      selectedYear,
+      reportRestaurantLabel,
+      true
+    );
+    if (!doc) return;
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    setPdfPopupTitle(
+      `Urlaub Tabelle ${selectedYear} – ${reportRestaurantLabel || "Übersicht"}`
+    );
+    setPdfPopupUrl(url);
   };
 
   const handlePlanPDF = () => {
-    exportTimelinePDFWithData(
+    const doc = exportTimelinePDFWithData(
       usersStats,
       allRequests,
       blockedDays,
       selectedYear,
       reportRestaurantLabel,
       viewType === "plan" ? `Uebersichtsplan_${selectedYear}.pdf` : undefined,
-      globalHolidayDates.length > 0 ? globalHolidayDates : undefined
+      globalHolidayDates.length > 0 ? globalHolidayDates : undefined,
+      true
     );
+    if (!doc) return;
+    const blob = doc.output("blob");
+    const url = URL.createObjectURL(blob);
+    setPdfPopupTitle(
+      `Urlaubsplan ${selectedYear} – ${reportRestaurantLabel || "Übersicht"}`
+    );
+    setPdfPopupUrl(url);
   };
 
   const restaurantDisplay = (names: string[]) =>
@@ -129,6 +161,28 @@ export default function VacationTableView({
           </div>
         )}
       </div>
+      {pdfPopupUrl && (
+        <div className="fixed inset-0 top-14 md:top-16 z-[200] bg-black flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 bg-[#1b3a26] text-white shrink-0">
+            <span className="font-bold text-sm">
+              {pdfPopupTitle || "PDF Vorschau"}
+            </span>
+            <button
+              type="button"
+              onClick={closePdfPopup}
+              className="text-white hover:text-[#FFC72C] font-bold text-lg leading-none px-2"
+              aria-label="Schließen"
+            >
+              ✕
+            </button>
+          </div>
+          <iframe
+            src={pdfPopupUrl}
+            title={pdfPopupTitle || "PDF Vorschau"}
+            className="flex-1 w-full border-0 bg-white"
+          />
+        </div>
+      )}
     </div>
   );
 }

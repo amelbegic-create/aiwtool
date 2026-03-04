@@ -1,14 +1,27 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import Link from "next/link";
-import { ChevronRight, Sparkles, CalendarDays, UsersRound, Building2, AlertCircle, RefreshCw } from "lucide-react";
-import DashboardChangelogCard from "@/components/dashboard/DashboardChangelogCard";
-import DashboardModuleIcons from "@/components/dashboard/DashboardModuleIcons";
-import DeineIdeeCard from "@/components/dashboard/DeineIdeeCard";
-import { getDashboardHighlights } from "@/app/actions/dashboardHighlightActions";
+import Image from "next/image";
+import {
+  ChevronRight,
+  CalendarDays,
+  UsersRound,
+  Building2,
+  AlertCircle,
+  RefreshCw,
+  Sparkles,
+  Inbox,
+  Award,
+  TrendingUp,
+  Clock,
+} from "lucide-react";
+import DashboardChangelogButton from "@/components/dashboard/DashboardChangelogButton";
+import DeineIdeeButton from "@/components/dashboard/DeineIdeeButton";
+import EventSlider from "@/components/restaurant/EventSlider";
 import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
 import { dict } from "@/translations";
 
@@ -44,11 +57,7 @@ async function getVacationDaysSummary(userId: string) {
   const allowance = user.vacationAllowances?.[0]?.days ?? user.vacationEntitlement ?? 20;
   const total = Math.max(0, allowance) + Math.max(0, user.vacationCarryover ?? 0);
   const approved = await prisma.vacationRequest.findMany({
-    where: {
-      userId,
-      status: "APPROVED",
-      start: { gte: `${year}-01-01`, lte: `${year}-12-31` },
-    },
+    where: { userId, status: "APPROVED", start: { gte: `${year}-01-01`, lte: `${year}-12-31` } },
     select: { days: true },
   });
   const used = approved.reduce((s, r) => s + r.days, 0);
@@ -58,14 +67,65 @@ async function getVacationDaysSummary(userId: string) {
 async function getTeamCount(userId: string, role: string): Promise<number> {
   const godRoles = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
   if (godRoles.includes(role as Role)) {
-    return prisma.user.count({
+    return prisma.user.count({ where: { isActive: true, role: { not: Role.SYSTEM_ARCHITECT } } });
+  }
+  return prisma.user.count({ where: { supervisorId: userId, isActive: true } });
+}
+
+async function getTeamMembers(userId: string, role: string) {
+  const godRoles = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+  if (godRoles.includes(role as Role)) {
+    return prisma.user.findMany({
       where: { isActive: true, role: { not: Role.SYSTEM_ARCHITECT } },
+      select: { id: true, name: true, image: true },
+      take: 6,
+      orderBy: { name: "asc" },
     });
   }
-  return prisma.user.count({
+  return prisma.user.findMany({
     where: { supervisorId: userId, isActive: true },
+    select: { id: true, name: true, image: true },
+    take: 6,
+    orderBy: { name: "asc" },
   });
 }
+
+async function getPendingVacationCount(userId: string, role: string): Promise<number> {
+  const godRoles = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+  if (godRoles.includes(role as Role)) {
+    return prisma.vacationRequest.count({ where: { status: "PENDING" } });
+  }
+  return prisma.vacationRequest.count({ where: { status: "PENDING", supervisorId: userId } });
+}
+
+async function getCertificates(userId: string) {
+  return prisma.userCertificate.findMany({
+    where: { userId },
+    select: { id: true, title: true, description: true, imageUrl: true, createdAt: true },
+    take: 5,
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+const DB_ERROR_UI = (
+  <div className="min-h-screen bg-background font-sans text-foreground flex items-center justify-center p-4">
+    <div className="max-w-md w-full rounded-2xl border border-amber-200 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30 p-8 text-center shadow-lg">
+      <div className="mx-auto w-14 h-14 rounded-full bg-amber-200/80 dark:bg-amber-500/20 flex items-center justify-center mb-4">
+        <AlertCircle className="w-7 h-7 text-amber-700 dark:text-amber-400" />
+      </div>
+      <h1 className="text-xl font-bold text-foreground mb-2">Baza podataka nije dostupna</h1>
+      <p className="text-muted-foreground text-sm mb-6">
+        Server baze (Neon) je privremeno nedostupan. Provjerite projekt u Neon dashboardu i pokušajte ponovo.
+      </p>
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] px-5 py-2.5 font-bold text-sm hover:opacity-90 transition-opacity"
+      >
+        <RefreshCw size={18} /> Osvježi stranicu
+      </Link>
+    </div>
+  </div>
+);
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -78,220 +138,420 @@ export default async function DashboardPage() {
       select: { id: true, name: true, role: true, permissions: true },
     });
   } catch (e) {
-    if (isDbUnreachable(e)) {
-      return (
-        <div className="min-h-screen bg-background font-sans text-foreground flex items-center justify-center p-4">
-          <div className="max-w-md w-full rounded-2xl border border-amber-200 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30 p-8 text-center shadow-lg">
-            <div className="mx-auto w-14 h-14 rounded-full bg-amber-200/80 dark:bg-amber-500/20 flex items-center justify-center mb-4">
-              <AlertCircle className="w-7 h-7 text-amber-700 dark:text-amber-400" />
-            </div>
-            <h1 className="text-xl font-bold text-foreground mb-2">Baza podataka nije dostupna</h1>
-            <p className="text-muted-foreground text-sm mb-6">
-              Server baze (Neon) je privremeno nedostupan ili se budi iz stanja mirovanja. Provjerite da li je projekt u Neon dashboardu aktivan i pokušajte ponovo za nekoliko sekundi.
-            </p>
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] px-5 py-2.5 font-bold text-sm hover:opacity-90 transition-opacity"
-            >
-              <RefreshCw size={18} /> Osvježi stranicu
-            </Link>
-          </div>
-        </div>
-      );
-    }
+    if (isDbUnreachable(e)) return DB_ERROR_UI;
+    throw e;
+  }
+  if (!dbUser) redirect("/login");
+
+  let vacationSummary: Awaited<ReturnType<typeof getVacationDaysSummary>>;
+  let teamCount: number;
+  let teamMembers: Awaited<ReturnType<typeof getTeamMembers>>;
+  let pendingVacationCount: number;
+  let certificates: Awaited<ReturnType<typeof getCertificates>>;
+  let changelog: Awaited<ReturnType<typeof getDashboardChangelog>>;
+
+  try {
+    [vacationSummary, teamCount, teamMembers, pendingVacationCount, certificates, changelog] =
+      await Promise.all([
+        getVacationDaysSummary(dbUser.id),
+        getTeamCount(dbUser.id, String(dbUser.role)),
+        getTeamMembers(dbUser.id, String(dbUser.role)),
+        getPendingVacationCount(dbUser.id, String(dbUser.role)),
+        getCertificates(dbUser.id),
+        getDashboardChangelog(),
+      ]);
+  } catch (e) {
+    if (isDbUnreachable(e)) return DB_ERROR_UI;
     throw e;
   }
 
-  if (!dbUser) redirect("/login");
-
-  let highlights: Awaited<ReturnType<typeof getDashboardHighlights>>;
-  let vacationSummary: Awaited<ReturnType<typeof getVacationDaysSummary>>;
-  let teamCount: number;
-  let changelog: Awaited<ReturnType<typeof getDashboardChangelog>>;
-  try {
-    [highlights, vacationSummary, teamCount, changelog] = await Promise.all([
-      getDashboardHighlights(),
-      getVacationDaysSummary(dbUser.id),
-      getTeamCount(dbUser.id, String(dbUser.role)),
-      getDashboardChangelog(),
-    ]);
-  } catch (e) {
-    if (isDbUnreachable(e)) {
-      return (
-        <div className="min-h-screen bg-background font-sans text-foreground flex items-center justify-center p-4">
-          <div className="max-w-md w-full rounded-2xl border border-amber-200 dark:border-amber-500/50 bg-amber-50/80 dark:bg-amber-950/30 p-8 text-center shadow-lg">
-            <div className="mx-auto w-14 h-14 rounded-full bg-amber-200/80 dark:bg-amber-500/20 flex items-center justify-center mb-4">
-              <AlertCircle className="w-7 h-7 text-amber-700 dark:text-amber-400" />
-            </div>
-            <h1 className="text-xl font-bold text-foreground mb-2">Baza podataka nije dostupna</h1>
-            <p className="text-muted-foreground text-sm mb-6">
-              Server baze (Neon) je privremeno nedostupan ili se budi iz stanja mirovanja. Provjerite da li je projekt u Neon dashboardu aktivan i pokušajte ponovo za nekoliko sekundi.
-            </p>
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] text-white dark:text-[#1a3826] px-5 py-2.5 font-bold text-sm hover:opacity-90 transition-opacity"
-            >
-              <RefreshCw size={18} /> Osvježi stranicu
-            </Link>
-          </div>
-        </div>
-      );
-    }
-    throw e;
+  // Optional ambient header background from active restaurant photo
+  const cookieStore = await cookies();
+  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
+  let ambientPhotoUrl: string | null = null;
+  if (activeRestaurantId && activeRestaurantId !== "all") {
+    try {
+      const r = await prisma.restaurant.findUnique({
+        where: { id: activeRestaurantId },
+        select: { photoUrl: true },
+      });
+      ambientPhotoUrl = r?.photoUrl ?? null;
+    } catch { /* non-critical */ }
   }
 
   const greeting = getGreeting();
-  const firstName = (dbUser.name || (session.user as { name?: string }).name || "Benutzer").split(" ")[0];
+  const firstName = (
+    dbUser.name || (session.user as { name?: string }).name || "Benutzer"
+  ).split(" ")[0];
   const roleLabel = String(dbUser.role || "CREW");
+
+  // Vacation donut ring calculations
+  const vacTotal = vacationSummary?.total ?? 0;
+  const vacUsed = vacationSummary?.used ?? 0;
+  const vacRemaining = vacationSummary?.remaining ?? 0;
+  const vacUsedDeg = vacTotal > 0 ? Math.round((vacUsed / vacTotal) * 360) : 0;
+  const vacUsedPct = vacTotal > 0 ? Math.round((vacUsed / vacTotal) * 100) : 0;
+
+  const today = new Date().toLocaleDateString("de-AT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
-      <header className="bg-[#1a3826] text-white">
-        <div className="mx-auto max-w-6xl px-4 py-3 md:py-4 md:px-8">
-          <div className="relative overflow-hidden rounded-xl md:rounded-3xl bg-[#1a3826] py-3 md:py-4">
-            <div className="absolute top-0 right-0 w-48 h-48 md:w-72 md:h-72 bg-white/5 rounded-full blur-3xl -mr-16 md:-mr-24 -mt-16 md:-mt-24" />
-            <div className="absolute bottom-0 left-0 w-40 h-40 md:w-56 md:h-56 bg-[#FFC72C]/10 rounded-full blur-3xl -ml-16 md:-ml-20 -mb-16 md:-mb-20" />
-            <div className="relative z-10 flex flex-col gap-2 md:gap-3 pr-2">
-              <div className="min-w-0 pl-1">
-                <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white leading-tight">
-                  {greeting},{" "}
-                  <span className="text-[#FFC72C]">{firstName}</span>
-                  <span className="ml-2 md:ml-3 inline-flex items-center align-middle">
-                    <span className="rounded-lg bg-[#FFC72C] px-2.5 py-0.5 md:px-3 md:py-1 text-xs md:text-sm font-bold text-[#1a3826] shadow-sm">
-                      {roleLabel}
-                    </span>
-                  </span>
-                </h1>
-              </div>
+
+      {/* ══════════════════════════════════════
+          CINEMATIC HEADER
+      ══════════════════════════════════════ */}
+      <header className="relative bg-[#1a3826]">
+        {/* Ambient restaurant photo – čista zelena preko (bez gradijenta/sjena) */}
+        {ambientPhotoUrl && (
+          <>
+            <Image
+              src={ambientPhotoUrl}
+              alt=""
+              fill
+              className="object-cover object-center opacity-15"
+              aria-hidden
+              unoptimized={ambientPhotoUrl.includes("blob.vercel-storage.com")}
+            />
+            <div className="absolute inset-0 bg-[#1a3826]" />
+          </>
+        )}
+
+        <div className="relative z-10 mx-auto max-w-7xl px-4 md:px-8 pt-5 md:pt-6 pb-5 md:pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-[#FFC72C]/60 text-[10px] font-bold uppercase tracking-[0.2em] mb-1.5">
+              {today}
+            </p>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white leading-tight">
+              {greeting}, <span className="text-[#FFC72C]">{firstName}</span>
+            </h1>
+            <div className="mt-2">
+              <span className="inline-flex items-center rounded-md bg-[#FFC72C]/15 border border-[#FFC72C]/30 px-2.5 py-0.5 text-[11px] font-black text-[#FFC72C] tracking-wider uppercase">
+                {roleLabel}
+              </span>
             </div>
+          </div>
+          <div className="shrink-0 flex items-center gap-2">
+            <DeineIdeeButton />
+            <DashboardChangelogButton changelog={changelog} />
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 md:px-8 md:py-10 safe-area-l safe-area-r">
-        <div className="grid grid-cols-1 gap-6 md:gap-8 lg:grid-cols-12">
-          {/* Hero: Urlaubsstatus – veliki broj, gradijent, jak CTA */}
-          <div className="lg:col-span-5">
-            <Link
-              href="/tools/vacations"
-              className="group block h-full rounded-2xl md:rounded-3xl overflow-hidden border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50 via-white to-[#1a3826]/5 dark:from-[#1a3826]/20 dark:via-background dark:to-[#1a3826]/10 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
-            >
-              <div className="relative p-6 md:p-8 min-h-[200px] flex flex-col justify-between">
-                <div className="absolute top-4 right-4 md:top-6 md:right-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <CalendarDays className="h-24 w-24 md:h-32 md:w-32 text-[#1a3826] dark:text-[#FFC72C]" />
-                </div>
-                <div className="relative">
-                  <p className="text-sm font-bold uppercase tracking-wider text-[#1a3826]/70 dark:text-[#FFC72C]/80">
-                    {dict.dashboard_vacation_status_label}
-                  </p>
-                  {vacationSummary ? (
-                    <>
-                      <p className="mt-2 text-4xl md:text-5xl lg:text-6xl font-black tabular-nums text-[#1a3826] dark:text-[#FFC72C]">
-                        {vacationSummary.remaining}
-                      </p>
-                      <p className="mt-1 text-base font-semibold text-muted-foreground">
-                        {dict.dashboard_vacation_status_rest}
-                      </p>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        von {vacationSummary.total} · Verbraucht {vacationSummary.used}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="mt-2 text-lg text-muted-foreground">
-                      {dict.dashboard_vacation_status_not_available}
-                    </p>
-                  )}
-                </div>
-                <div className="relative mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] group-hover:gap-3 transition-all">
-                  {dict.dashboard_vacation_status_open_cta}{" "}
-                  <ChevronRight size={18} className="group-hover:translate-x-0.5" />
-                </div>
-              </div>
-            </Link>
-          </div>
-          <div className="lg:col-span-7">
-            <DashboardChangelogCard initial={changelog} />
-          </div>
-          {/* Mein Team – velika naglašena kartica s brojem */}
-          <div className="lg:col-span-4">
-            <Link
-              href="/team"
-              className="group block h-full rounded-2xl md:rounded-3xl overflow-hidden border border-amber-200/60 dark:border-amber-500/30 bg-gradient-to-br from-amber-50 via-yellow-50/50 to-amber-100/80 dark:from-amber-950/50 dark:via-yellow-950/30 dark:to-amber-900/40 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 p-6 md:p-8 min-h-[180px]"
-            >
-              <div className="flex flex-col h-full justify-between">
-                <div className="flex items-start justify-between">
-                  <div className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-gradient-to-br from-[#FFC72C] to-amber-400 text-[#1a3826] flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
-                    <UsersRound size={28} strokeWidth={2} className="md:w-8 md:h-8" />
+      {/* Wave separator */}
+      <div className="-mt-px pointer-events-none select-none" aria-hidden>
+        <svg
+          viewBox="0 0 1440 48"
+          preserveAspectRatio="none"
+          className="w-full h-8 md:h-12 fill-[#1a3826]"
+        >
+          <path d="M0,0 L0,22 C220,50 360,-6 520,22 C680,50 820,-6 1000,20 C1120,36 1270,6 1440,16 L1440,0 Z" />
+        </svg>
+      </div>
+
+      {/* ══════════════════════════════════════
+          MAIN CONTENT
+      ══════════════════════════════════════ */}
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8 pt-2 md:pt-4 pb-10 safe-area-l safe-area-r">
+
+        {/* ── HERO BENTO GRID ── */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-5 mb-8 md:mb-10">
+
+          {/* ▌ VACATION WIDGET — dark green, donut ring */}
+          <Link
+            href="/tools/vacations"
+            className="md:col-span-5 group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1a3826] to-[#0a1f14] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#1a3826]/20 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300"
+          >
+            {/* Decorative rings in corner */}
+            <div className="absolute right-5 bottom-5 w-40 h-40 rounded-full border-[2px] border-[#FFC72C]/10 pointer-events-none" />
+            <div className="absolute right-8 bottom-8 w-28 h-28 rounded-full border border-[#FFC72C]/5 pointer-events-none" />
+
+            <div className="relative z-10 flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-[#FFC72C]/70 text-[11px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                  <CalendarDays size={11} className="text-[#FFC72C]/60" />
+                  Jahresurlaub {new Date().getFullYear()}
+                </p>
+                <div className="flex items-end gap-3 mt-2">
+                  <span className="text-6xl md:text-7xl font-black tabular-nums text-white leading-none">
+                    {vacRemaining}
+                  </span>
+                  <div className="mb-2">
+                    <p className="text-white/50 text-xs font-bold leading-tight">Tage</p>
+                    <p className="text-white/50 text-xs font-bold leading-tight">übrig</p>
                   </div>
-                  {teamCount > 0 && (
-                    <span className="rounded-full bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 px-3 py-1 text-sm font-bold text-[#1a3826] dark:text-[#FFC72C]">
-                      {teamCount} {teamCount === 1 ? "Mitarbeiter" : "Mitarbeiter"}
-                    </span>
+                </div>
+                {vacTotal > 0 && (
+                  <p className="text-white/30 text-xs font-medium mt-2">
+                    von {vacTotal} Tagen · {vacUsed} verbraucht
+                  </p>
+                )}
+              </div>
+
+              {/* Donut ring (conic gradient) */}
+              {vacTotal > 0 && (
+                <div
+                  className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{
+                    background: `conic-gradient(from -90deg, #FFC72C 0deg ${vacUsedDeg}deg, rgba(255,255,255,0.08) ${vacUsedDeg}deg 360deg)`,
+                  }}
+                >
+                  <div className="w-[68px] h-[68px] rounded-full bg-[#0a1f14] flex flex-col items-center justify-center">
+                    <span className="text-base font-black text-[#FFC72C] leading-none">{vacUsedPct}%</span>
+                    <span className="text-[9px] text-white/40 font-medium mt-0.5">genutzt</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative z-10 flex items-center gap-2 text-[#FFC72C] text-sm font-bold group-hover:gap-3 transition-all">
+              Urlaub planen <ChevronRight size={16} />
+            </div>
+          </Link>
+
+          {/* ▌ TEAM CARD — McDonald's yellow, avatar stack */}
+          <Link
+            href="/team"
+            className="md:col-span-4 group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FFC72C] to-[#dfa820] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#FFC72C]/20 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300"
+          >
+            <div className="absolute -right-6 -bottom-6 w-48 h-48 rounded-full bg-[#1a3826]/10 blur-2xl pointer-events-none" />
+
+            <div className="relative z-10">
+              <p className="text-[#1a3826]/60 text-[11px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                <UsersRound size={11} />
+                Mein Team
+              </p>
+              <p className="text-6xl md:text-7xl font-black tabular-nums text-[#1a3826] leading-none mt-2">
+                {teamCount}
+              </p>
+              <p className="text-[#1a3826]/60 text-sm font-bold mt-1">Mitarbeiter</p>
+
+              {/* Avatar stack */}
+              {teamMembers.length > 0 && (
+                <div className="flex items-center mt-5">
+                  {teamMembers.slice(0, 5).map((member, i) => (
+                    <div
+                      key={member.id}
+                      className="w-9 h-9 rounded-full bg-[#1a3826] border-2 border-[#FFC72C] flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm"
+                      style={{ marginLeft: i > 0 ? "-10px" : "0", position: "relative", zIndex: 5 - i }}
+                    >
+                      {member.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={member.image} alt={member.name ?? ""} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[11px] font-black text-[#FFC72C]">
+                          {member.name?.charAt(0)?.toUpperCase() ?? "?"}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {teamCount > 5 && (
+                    <div
+                      className="w-9 h-9 rounded-full bg-[#1a3826]/80 border-2 border-[#FFC72C] flex items-center justify-center flex-shrink-0 shadow-sm"
+                      style={{ marginLeft: "-10px", position: "relative", zIndex: 0 }}
+                    >
+                      <span className="text-[10px] font-black text-[#FFC72C]">+{teamCount - 5}</span>
+                    </div>
                   )}
                 </div>
-                <div>
-                  <p className="text-lg md:text-xl font-black text-[#1a3826] dark:text-amber-100 uppercase tracking-tight">
-                    {dict.dashboard_team_card_title}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {dict.dashboard_team_card_subtitle}
-                  </p>
-                </div>
-                <span className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] dark:text-amber-300 group-hover:gap-3 transition-all">
-                  {dict.dashboard_team_card_link} <ChevronRight size={16} />
-                </span>
-              </div>
-            </Link>
+              )}
+            </div>
+
+            <div className="relative z-10 flex items-center gap-2 text-[#1a3826] text-sm font-bold group-hover:gap-3 transition-all">
+              Team öffnen <ChevronRight size={16} />
+            </div>
+          </Link>
+
+          {/* ▌ PENDING REQUESTS — royal blue, status indicator */}
+          <div className="md:col-span-3 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#4169E1] to-[#2a47c4] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#4169E1]/20">
+            <div className="absolute -right-6 -top-6 w-36 h-36 rounded-full bg-white/5 blur-2xl pointer-events-none" />
+            <div className="absolute -left-4 -bottom-4 w-24 h-24 rounded-full border border-white/10 pointer-events-none" />
+
+            <div className="relative z-10">
+              <p className="text-white/60 text-[11px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                <Inbox size={11} />
+                Offene Anträge
+              </p>
+              <p className="text-6xl md:text-7xl font-black tabular-nums text-white leading-none mt-2">
+                {pendingVacationCount}
+              </p>
+              <p className="text-white/60 text-sm font-bold mt-1">
+                {pendingVacationCount === 0
+                  ? "Alles erledigt"
+                  : pendingVacationCount === 1
+                  ? "Antrag wartet"
+                  : "Anträge warten"}
+              </p>
+            </div>
+
+            <div className="relative z-10">
+              <span
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  pendingVacationCount > 0
+                    ? "bg-white/20 text-white"
+                    : "bg-white/10 text-white/50"
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    pendingVacationCount > 0 ? "bg-white animate-pulse" : "bg-white/40"
+                  }`}
+                />
+                {pendingVacationCount > 0 ? "Aktion erforderlich" : "Alles in Ordnung"}
+              </span>
+            </div>
           </div>
-          {/* Module auf der Startseite – grid s hover lift */}
+        </div>
+
+        {/* ── MEISTGENUTZTE TOOLS (modern okvir) + rechts: nur Zertifikate ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6 mb-8 md:mb-10">
+          {/* Links: Meistgenutzte Tools u modernom okviru */}
           <div className="lg:col-span-8">
-            <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-md overflow-hidden">
-              <div className="px-6 py-4 border-b border-border bg-muted/30">
-                <h2 className="text-base font-bold text-card-foreground flex items-center gap-2">
-                  <Sparkles size={18} className="text-[#FFC72C]" />
-                  Module auf der Startseite
+            <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-border bg-muted/20 flex items-center gap-2">
+                <Sparkles size={16} className="text-[#FFC72C]" />
+                <h2 className="text-sm font-black text-foreground uppercase tracking-wide">
+                  Meistgenutzte Tools
                 </h2>
               </div>
-              <div className="p-6">
-                {highlights.length > 0 ? (
-                  <DashboardModuleIcons highlights={highlights} />
+              <div className="p-4 md:p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Produktivität */}
+              <Link
+                href="/tools/productivity"
+                className="group relative flex flex-col gap-3 p-5 md:p-6 rounded-2xl bg-gradient-to-br from-[#4169E1] to-[#2d4fb8] shadow-lg shadow-[#4169E1]/25 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden min-h-[160px] text-white"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-white/20 transition-all duration-300 group-hover:opacity-90">
+                    <TrendingUp size={24} strokeWidth={2} className="text-white/90" />
+                  </div>
+                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white/20 text-white">
+                    Ops
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-black leading-tight">Produktivität</p>
+                  <p className="mt-1 text-[11px] leading-snug text-white/70 line-clamp-2">
+                    Umsatz & Stationsplanung
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-white/80 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
+                  Öffnen <ChevronRight size={12} />
+                </div>
+              </Link>
+              {/* CL / Personaleinsatzplanung */}
+              <Link
+                href="/tools/labor-planner"
+                className="group relative flex flex-col gap-3 p-5 md:p-6 rounded-2xl bg-gradient-to-br from-[#FFC72C] to-[#e6b328] shadow-lg shadow-[#FFC72C]/25 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden min-h-[160px] text-[#1a3826]"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-[#1a3826]/15 transition-all duration-300 group-hover:opacity-90">
+                    <Clock size={24} strokeWidth={2} className="text-[#1a3826]" />
+                  </div>
+                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#1a3826]/15 text-[#1a3826]">
+                    Ops
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-black leading-tight">CL</p>
+                  <p className="mt-1 text-[11px] leading-snug text-[#1a3826]/70 line-clamp-2">
+                    Kosten- & Stundeneinsatzplanung
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-[#1a3826]/80 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
+                  Öffnen <ChevronRight size={12} />
+                </div>
+              </Link>
+              {/* Firmen und Partner */}
+              <Link
+                href="/tools/partners"
+                className="group relative flex flex-col gap-3 p-5 md:p-6 rounded-2xl bg-gradient-to-br from-[#1a3826] to-[#0f2218] shadow-lg shadow-[#1a3826]/25 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden min-h-[160px] text-white"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-white/20 transition-all duration-300 group-hover:opacity-90">
+                    <Building2 size={24} strokeWidth={2} className="text-[#FFC72C]" />
+                  </div>
+                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white/20 text-white">
+                    Ops
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-base font-black leading-tight">Firmen und Partner</p>
+                  <p className="mt-1 text-[11px] leading-snug text-white/70 line-clamp-2">
+                    Kontakte & Servicedienstleister
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-[#FFC72C] opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
+                  Öffnen <ChevronRight size={12} />
+                </div>
+              </Link>
+            </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Rechts: nur Meine Zertifikate (ista visina kao lijevi blok) */}
+          <div className="lg:col-span-4 flex">
+            <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden flex flex-col w-full min-h-0">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/20 shrink-0">
+                <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-tight text-foreground">
+                  <Award size={16} className="text-[#FFC72C]" />
+                  Meine Zertifikate
+                </h3>
+                <Link
+                  href="/profile"
+                  className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
+                >
+                  Alle <ChevronRight size={12} />
+                </Link>
+              </div>
+              <div className="p-4 flex-1 flex flex-col min-h-0">
+                {certificates.length > 0 ? (
+                  <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
+                    {certificates.slice(0, 4).map((cert) => (
+                      <div
+                        key={cert.id}
+                        className="flex items-center gap-3 rounded-xl bg-muted/30 p-3 border border-transparent hover:border-[#1a3826]/20 dark:hover:border-[#FFC72C]/20 transition-colors"
+                      >
+                        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#1a3826] to-[#0f2218] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                          {cert.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={cert.imageUrl} alt={cert.title} className="w-full h-full object-cover" />
+                          ) : (
+                            <Award size={16} className="text-[#FFC72C]" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-foreground leading-tight truncate">{cert.title}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {new Date(cert.createdAt).toLocaleDateString("de-AT", { month: "short", year: "numeric" })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground py-4">Keine Module hinzugefügt. Admin kann sie im Admin-Bereich hinzufügen.</p>
+                  <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 p-5 text-center flex-1 flex flex-col items-center justify-center min-h-[200px]">
+                    <Award size={20} className="text-muted-foreground/50 mx-auto mb-2" />
+                    <p className="text-xs font-bold text-muted-foreground">Keine Zertifikate</p>
+                    <Link href="/profile" className="mt-2 inline-flex items-center gap-0.5 text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline">
+                      Zum Profil <ChevronRight size={10} />
+                    </Link>
+                  </div>
                 )}
               </div>
             </div>
           </div>
-          {/* Firmen und Partner */}
-          <div className="lg:col-span-4">
-            <Link
-              href="/tools/partners"
-              className="group block h-full rounded-2xl md:rounded-3xl overflow-hidden border border-blue-200/60 dark:border-blue-500/30 bg-gradient-to-br from-blue-50 via-sky-50/50 to-blue-100/80 dark:from-blue-950/50 dark:via-sky-950/30 dark:to-blue-900/40 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 p-6 md:p-8 min-h-[180px]"
-            >
-              <div className="flex flex-col h-full justify-between">
-                <div className="flex items-start justify-between">
-                  <div className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-400 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-300">
-                    <Building2 size={28} strokeWidth={2} className="md:w-8 md:h-8" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-lg md:text-xl font-black text-[#1a3826] dark:text-sky-100 uppercase tracking-tight">
-                    Firmen und Partner
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    Wichtige Kontakte und Serviceunternehmen
-                  </p>
-                </div>
-                <span className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] dark:text-sky-300 group-hover:gap-3 transition-all">
-                  Öffnen <ChevronRight size={16} />
-                </span>
-              </div>
-            </Link>
-          </div>
-          {/* Deine Idee – Ideenbox für Mitarbeiter */}
-          <div className="lg:col-span-4">
-            <DeineIdeeCard />
-          </div>
         </div>
+
+        {/* ── EVENTS SLIDER (veliki ispod najkorištenijih alata) ── */}
+        <section className="border-t border-border pt-8">
+          <EventSlider />
+        </section>
       </main>
     </div>
   );

@@ -593,18 +593,21 @@ function ProductivityToolContent({
   );
 
   // Svi dani za konfiguraciju sati (prikazani u Einstellungen)
-  const HOURS_CONFIG_DAYS = useMemo(() => [
-    { key: "monday", defaultLabel: "Montag" },
-    { key: "tuesday", defaultLabel: "Dienstag" },
-    { key: "wednesday", defaultLabel: "Mittwoch" },
-    { key: "thursday", defaultLabel: "Donnerstag" },
-    { key: "friday", defaultLabel: "Freitag" },
-    { key: "saturday", defaultLabel: "Samstag" },
-    { key: "sunday", defaultLabel: "Sonntag" },
-    { key: "special_1", defaultLabel: "Sondertag 1" },
-    { key: "special_2", defaultLabel: "Sondertag 2" },
-    { key: "special_3", defaultLabel: "Sondertag 3" },
-  ], []);
+  const HOURS_CONFIG_DAYS = useMemo(
+    () => [
+      { key: "monday", defaultLabel: "Montag" },
+      { key: "tuesday", defaultLabel: "Dienstag" },
+      { key: "wednesday", defaultLabel: "Mittwoch" },
+      { key: "thursday", defaultLabel: "Donnerstag" },
+      { key: "friday", defaultLabel: "Freitag" },
+      { key: "saturday", defaultLabel: "Samstag" },
+      { key: "sunday", defaultLabel: "Sonntag" },
+      { key: "special_1", defaultLabel: "Sondertag 1" },
+      { key: "special_2", defaultLabel: "Sondertag 2" },
+      { key: "special_3", defaultLabel: "Sondertag 3" },
+    ],
+    []
+  );
 
   const handleApplyTemplate = useCallback(
     async (templateKey: string) => {
@@ -641,7 +644,7 @@ function ProductivityToolContent({
         setLoading(false);
       }
     },
-    [activeRestId]
+    [activeRestId, dayHoursConfig]
   );
 
   const handleApplyTemplateAndSave = useCallback(
@@ -706,7 +709,7 @@ function ProductivityToolContent({
         setLoading(false);
       }
     },
-    [activeRestId, selectedDate]
+    [activeRestId, selectedDate, dayHoursConfig]
   );
 
   const handleClearRow = useCallback((h: number) => {
@@ -1472,34 +1475,95 @@ function ProductivityToolContent({
                 <h3 className="text-sm font-bold text-[#1a3826] mb-3 flex items-center gap-1.5">
                   <Clock size={15} /> Öffnungszeiten &amp; Sondertag-Namen
                 </h3>
-                {/* Fixed-column grid: name(112px) | "Von"(28px) | from-input(44px) | arrow(16px) | to-input(44px) | "Uhr"(28px) */}
-                <div className="grid grid-cols-2 gap-x-5">
-                  {HOURS_CONFIG_DAYS.map(({ key, defaultLabel }) => {
-                    const isSpecial = key.startsWith("special_");
-                    const cfg = dayHoursConfig[key] ?? { from: 6, to: 1 };
-                    return (
-                      <div key={key} className="grid items-center gap-1 py-1 border-b border-border/30 last:border-b-0"
-                        style={{ gridTemplateColumns: "112px 28px 44px 14px 44px 28px" }}>
-                        {isSpecial ? (
-                          <input type="text" value={customDayNames[key] ?? ""}
-                            onChange={(e) => setCustomDayNames((p) => ({ ...p, [key]: e.target.value }))}
-                            placeholder={defaultLabel}
-                            className="h-7 px-2 text-xs border border-[#1b3a26]/30 rounded-md bg-[#1b3a26]/5 font-medium focus:ring-1 focus:ring-[#1b3a26]/40 outline-none w-full" />
-                        ) : (
+                {/* Lijevo: ponedjeljak–nedjelja; desno: Sondertage 1–3 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5">
+                  {/* Dani u sedmici */}
+                  <div>
+                    {HOURS_CONFIG_DAYS.filter((d) => !d.key.startsWith("special_")).map(({ key, defaultLabel }) => {
+                      const cfg = dayHoursConfig[key] ?? { from: 6, to: 1 };
+                      return (
+                        <div
+                          key={key}
+                          className="grid items-center gap-1 py-1 border-b border-border/30 last:border-b-0"
+                          style={{ gridTemplateColumns: "112px 28px 44px 14px 44px 28px" }}
+                        >
                           <span className="text-sm font-semibold text-[#1a3826]">{defaultLabel}</span>
-                        )}
-                        <span className="text-[11px] text-muted-foreground text-right pr-1">Von</span>
-                        <input type="number" min={0} max={23} value={cfg.from}
-                          onChange={(e) => setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, from: Number(e.target.value) } }))}
-                          className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none" />
-                        <span className="text-muted-foreground text-xs text-center">→</span>
-                        <input type="number" min={0} max={23} value={cfg.to}
-                          onChange={(e) => setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, to: Number(e.target.value) } }))}
-                          className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none" />
-                        <span className="text-[11px] text-muted-foreground pl-1">Uhr</span>
-                      </div>
-                    );
-                  })}
+                          <span className="text-[11px] text-muted-foreground text-right pr-1">Von</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={cfg.from}
+                            onChange={(e) =>
+                              setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, from: Number(e.target.value) } }))
+                            }
+                            className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none"
+                          />
+                          <span className="text-muted-foreground text-xs text-center">→</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={cfg.to}
+                            onChange={(e) =>
+                              setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, to: Number(e.target.value) } }))
+                            }
+                            className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none"
+                          />
+                          <span className="text-[11px] text-muted-foreground pl-1">Uhr</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Sondertage */}
+                  <div className="mt-2 sm:mt-0">
+                    {HOURS_CONFIG_DAYS.filter((d) => d.key.startsWith("special_")).map(({ key, defaultLabel }) => {
+                      const cfg = dayHoursConfig[key] ?? { from: 6, to: 1 };
+                      return (
+                        <div
+                          key={key}
+                          className="grid items-center gap-1 py-1 border-b border-border/30 last:border-b-0"
+                          style={{ gridTemplateColumns: "112px 28px 44px 14px 44px 28px" }}
+                        >
+                          <input
+                            type="text"
+                            value={customDayNames[key] ?? ""}
+                            onChange={(e) =>
+                              setCustomDayNames((p) => ({
+                                ...p,
+                                [key]: e.target.value,
+                              }))
+                            }
+                            placeholder={defaultLabel}
+                            className="h-7 px-2 text-xs border border-[#1b3a26]/30 rounded-md bg-[#1b3a26]/5 font-medium focus:ring-1 focus:ring-[#1b3a26]/40 outline-none w-full"
+                          />
+                          <span className="text-[11px] text-muted-foreground text-right pr-1">Von</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={cfg.from}
+                            onChange={(e) =>
+                              setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, from: Number(e.target.value) } }))
+                            }
+                            className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none"
+                          />
+                          <span className="text-muted-foreground text-xs text-center">→</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={cfg.to}
+                            onChange={(e) =>
+                              setDayHoursConfig((p) => ({ ...p, [key]: { ...cfg, to: Number(e.target.value) } }))
+                            }
+                            className="h-7 w-full border border-border rounded-md text-center text-sm font-bold bg-white focus:ring-1 focus:ring-[#1b3a26]/40 outline-none"
+                          />
+                          <span className="text-[11px] text-muted-foreground pl-1">Uhr</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2 pt-2 border-t border-border/30">
                   Diese Zeiten werden beim Anwenden einer Vorlage automatisch übernommen.
