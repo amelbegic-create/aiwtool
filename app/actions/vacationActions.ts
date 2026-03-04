@@ -315,36 +315,14 @@ export async function getVacationAdminData(
 
   if (activeRestaurantId && activeRestaurantId !== "all") {
     if (isGodMode) {
-      // God mode + odabrani restoran:
-      // Korak 1 – nađi "ankere" = samo NON-god-mode korisnike direktno u tom restoranu.
-      // God mode korisnike (Zoran) isključujemo iz ankera jer oni upravljaju svim
-      // restoranima — uključivanjem Zorana bi se povukli SVI njegovi podređeni.
-      const anchors = await prisma.restaurantUser.findMany({
-        where: {
-          restaurantId: activeRestaurantId,
-          user: { role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS } },
-        },
-        select: { userId: true },
-      });
-      const anchorIds = anchors.map((a) => a.userId);
-
-      // Korak 2 – prikaži: ankere + njihove podređene (nivo 1) + pod-podređene (nivo 2)
-      // Na ovaj način se pokrije SVAKI restoran bez obzira na dubinu hijerarhije
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const godRestaurantOR: any[] = [
-        { restaurants: { some: { restaurantId: activeRestaurantId } } },
-        ...(anchorIds.length > 0
-          ? [
-              { supervisorId: { in: anchorIds } },
-              { supervisor: { supervisorId: { in: anchorIds } } },
-            ]
-          : []),
-      ];
-      userWhereClause.OR = godRestaurantOR;
-
+      // God mode + odabrani restoran: prikaži samo korisnike koji imaju
+      // RestaurantUser unos za taj restoran. Supervisor chain inference
+      // ne koristimo jer manager može biti u više restorana i to bi
+      // povuklo podređene iz krivih restorana.
+      userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
       requestWhereClause.user = {
         role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
-        OR: godRestaurantOR,
+        restaurants: { some: { restaurantId: activeRestaurantId } },
       };
     } else {
       // Ne-god mode: samo direktni link na restoran
