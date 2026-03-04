@@ -305,6 +305,8 @@ export async function getVacationAdminData(
     Role.ADMIN,
   ];
 
+  // God mode (SYSTEM_ARCHITECT, SUPER_ADMIN, ADMIN) vidi SVE aktivne ne-admin zaposlene
+  // bez obzira na RestaurantUser vezu — restaurant filter se ne primjenjuje na user listu.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userWhereClause: any = {
     isActive: true,
@@ -313,18 +315,31 @@ export async function getVacationAdminData(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const requestWhereClause: any = { start: { gte: startOfYear, lte: endOfYear } };
 
-  if (activeRestaurantId && activeRestaurantId !== "all") {
-    userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
+  if (!isGodMode) {
+    // Ne-god mode: prikaži samo korisnike iz istih restorana
+    const filterRestaurantId = activeRestaurantId && activeRestaurantId !== "all"
+      ? activeRestaurantId
+      : undefined;
+    const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
+    const restaurantFilter = filterRestaurantId
+      ? { restaurantId: filterRestaurantId }
+      : myRestaurantIds.length > 0
+        ? { restaurantId: { in: myRestaurantIds } }
+        : undefined;
+
+    if (restaurantFilter) {
+      userWhereClause.restaurants = { some: restaurantFilter };
+      requestWhereClause.user = {
+        role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+        restaurants: { some: restaurantFilter },
+      };
+    }
+  } else if (activeRestaurantId && activeRestaurantId !== "all") {
+    // God mode s odabranim restornom: prikaži zahtjeve samo tog restorana,
+    // ali korisnici (usersStats) se NE filtriraju — god mode vidi sve zaposlene.
     requestWhereClause.user = {
       role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
       restaurants: { some: { restaurantId: activeRestaurantId } },
-    };
-  } else if (!isGodMode) {
-    const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
-    userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
-    requestWhereClause.user = {
-      role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
-      restaurants: { some: { restaurantId: { in: myRestaurantIds } } },
     };
   }
 
