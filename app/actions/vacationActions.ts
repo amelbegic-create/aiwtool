@@ -314,13 +314,32 @@ export async function getVacationAdminData(
   const requestWhereClause: any = { start: { gte: startOfYear, lte: endOfYear } };
 
   if (activeRestaurantId && activeRestaurantId !== "all") {
-    // Svi (uključujući god mode) vide samo zaposlene odabranog restorana.
-    // God mode ne filtrira po supervisorId — vidi SVE iz tog restorana.
-    userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
-    requestWhereClause.user = {
-      role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
-      restaurants: { some: { restaurantId: activeRestaurantId } },
-    };
+    if (isGodMode) {
+      // God mode + odabrani restoran: prikaži SVE koji su u tom restoranu
+      // ILI čiji je supervisor u tom restoranu (podređeni Alexandera koji su u 156)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const restaurantUserFilter: any = {
+        OR: [
+          { restaurants: { some: { restaurantId: activeRestaurantId } } },
+          { supervisor: { restaurants: { some: { restaurantId: activeRestaurantId } } } },
+        ],
+      };
+      Object.assign(userWhereClause, restaurantUserFilter);
+      requestWhereClause.user = {
+        role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+        OR: [
+          { restaurants: { some: { restaurantId: activeRestaurantId } } },
+          { supervisor: { restaurants: { some: { restaurantId: activeRestaurantId } } } },
+        ],
+      };
+    } else {
+      // Ne-god mode: samo direktni link na restoran
+      userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
+      requestWhereClause.user = {
+        role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+        restaurants: { some: { restaurantId: activeRestaurantId } },
+      };
+    }
   } else if (!isGodMode) {
     // Kad je "Alle" odabrano: ne-god mode vidi samo svoje restoane
     const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
