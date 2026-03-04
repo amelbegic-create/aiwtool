@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { Award, FileText, Plus, Loader2, Trash2, Pencil } from "lucide-react";
+import { Award, FileText, Plus, Loader2, Trash2, Pencil, X } from "lucide-react";
 import {
   createCertificate,
   deleteCertificate,
@@ -246,6 +246,7 @@ export default function CertificatesAdminClient({ users }: CertificatesAdminClie
   };
 
   return (
+    <>
     <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-6 flex flex-col gap-4">
       <header className="flex flex-col gap-4 border-b border-slate-100 pb-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -507,46 +508,48 @@ export default function CertificatesAdminClient({ users }: CertificatesAdminClie
               )}
             </div>
           </>
-        )}
-      </section>
-      {preview && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900 truncate">{preview.name}</p>
-                <p className="text-[11px] text-slate-500">
-                  {preview.type === "pdf" ? "PDF-Vorschau" : "Bildvorschau"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                className="ml-3 inline-flex items-center justify-center h-9 w-9 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
-                aria-label="Schließen"
-              >
-                <X size={18} />
-              </button>
+      )}
+    </section>
+
+    {preview && (
+      <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900 truncate">{preview.name}</p>
+              <p className="text-[11px] text-slate-500">
+                {preview.type === "pdf" ? "PDF-Vorschau" : "Bildvorschau"}
+              </p>
             </div>
-            <div className="flex-1 bg-slate-50 flex items-center justify-center">
-              {preview.type === "pdf" ? (
-                <iframe
-                  src={preview.url}
-                  title={preview.name}
-                  className="w-full h-[70vh] border-0 bg-white"
-                />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={preview.url}
-                  alt={preview.name}
-                  className="max-h-[70vh] max-w-full object-contain"
-                />
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setPreview(null)}
+              className="ml-3 inline-flex items-center justify-center h-9 w-9 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
+              aria-label="Schließen"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="flex-1 bg-slate-50 flex items-center justify-center">
+            {preview.type === "pdf" ? (
+              <iframe
+                src={preview.url}
+                title={preview.name}
+                className="w-full h-[70vh] border-0 bg-white"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={preview.url}
+                alt={preview.name}
+                className="max-h-[70vh] max-w-full object-contain"
+              />
+            )}
           </div>
         </div>
-      )}
+      </div>
+    )}
+    </>
   );
 }
 
