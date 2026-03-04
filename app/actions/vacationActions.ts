@@ -316,9 +316,14 @@ export async function getVacationAdminData(
   if (activeRestaurantId && activeRestaurantId !== "all") {
     if (isGodMode) {
       // God mode + odabrani restoran:
-      // Korak 1 – nađi sve "ankere" (korisnike direktno linkane na taj restoran)
+      // Korak 1 – nađi "ankere" = samo NON-god-mode korisnike direktno u tom restoranu.
+      // God mode korisnike (Zoran) isključujemo iz ankera jer oni upravljaju svim
+      // restoranima — uključivanjem Zorana bi se povukli SVI njegovi podređeni.
       const anchors = await prisma.restaurantUser.findMany({
-        where: { restaurantId: activeRestaurantId },
+        where: {
+          restaurantId: activeRestaurantId,
+          user: { role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS } },
+        },
         select: { userId: true },
       });
       const anchorIds = anchors.map((a) => a.userId);
