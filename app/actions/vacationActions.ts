@@ -315,22 +315,31 @@ export async function getVacationAdminData(
 
   if (activeRestaurantId && activeRestaurantId !== "all") {
     if (isGodMode) {
-      // God mode + odabrani restoran: prikaži SVE koji su u tom restoranu
-      // ILI čiji je supervisor u tom restoranu (podređeni Alexandera koji su u 156)
+      // God mode + odabrani restoran:
+      // Korak 1 – nađi sve "ankere" (korisnike direktno linkane na taj restoran)
+      const anchors = await prisma.restaurantUser.findMany({
+        where: { restaurantId: activeRestaurantId },
+        select: { userId: true },
+      });
+      const anchorIds = anchors.map((a) => a.userId);
+
+      // Korak 2 – prikaži: ankere + njihove podređene (nivo 1) + pod-podređene (nivo 2)
+      // Na ovaj način se pokrije SVAKI restoran bez obzira na dubinu hijerarhije
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const restaurantUserFilter: any = {
-        OR: [
-          { restaurants: { some: { restaurantId: activeRestaurantId } } },
-          { supervisor: { restaurants: { some: { restaurantId: activeRestaurantId } } } },
-        ],
-      };
-      Object.assign(userWhereClause, restaurantUserFilter);
+      const godRestaurantOR: any[] = [
+        { restaurants: { some: { restaurantId: activeRestaurantId } } },
+        ...(anchorIds.length > 0
+          ? [
+              { supervisorId: { in: anchorIds } },
+              { supervisor: { supervisorId: { in: anchorIds } } },
+            ]
+          : []),
+      ];
+      userWhereClause.OR = godRestaurantOR;
+
       requestWhereClause.user = {
         role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
-        OR: [
-          { restaurants: { some: { restaurantId: activeRestaurantId } } },
-          { supervisor: { restaurants: { some: { restaurantId: activeRestaurantId } } } },
-        ],
+        OR: godRestaurantOR,
       };
     } else {
       // Ne-god mode: samo direktni link na restoran
@@ -341,7 +350,7 @@ export async function getVacationAdminData(
       };
     }
   } else if (!isGodMode) {
-    // Kad je "Alle" odabrano: ne-god mode vidi samo svoje restoane
+    // Kad je "Alle" odabrano: ne-god mode vidi samo svoje restorane
     const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
     if (myRestaurantIds.length > 0) {
       userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
