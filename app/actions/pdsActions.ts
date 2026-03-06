@@ -1,3 +1,178 @@
+"use server";
+
+import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+import { requirePermission } from "@/lib/access";
+import { Role } from "@prisma/client";
+
+type SessionUser = { id?: string };
+
+export type PDSEvaluationRecord = {
+  id: string;
+  employeeId: string;
+  evaluatorId: string;
+  totalScore: number;
+  finalGrade: string;
+  evaluationData: unknown;
+  createdAt: Date;
+};
+
+/**
+ * Vrati ID restorana iz cookie-ja (`activeRestaurantId`) ili pada na
+ * primarni restoran korisnika ako cookie nije postavljen.
+ */
+async function resolveActiveRestaurantId(sessionUserId: string): Promise<string | null> {
+  const cookieStore = await cookies();
+  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
+  if (activeRestaurantId && activeRestaurantId !== "all") return activeRestaurantId;
+
+  const user = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    select: {
+      restaurants: { select: { restaurantId: true, isPrimary: true } },
+    },
+  });
+  if (!user) return null;
+
+  const primary = user.restaurants.find((r) => r.isPrimary)?.restaurantId;
+  if (primary) return primary;
+  return user.restaurants[0]?.restaurantId ?? null;
+}
+
+/**
+ * Dohvata sve korisnike koji se mogu evaluirati u trenutno aktivnom restoranu.
+ * Tipično: CREW i SHIFT_LEADER u tom restoranu.
+ */
+export async function getEmployeesForEvaluation() {
+  await requirePermission("pds:access");
+
+  const session = await getServerSession(authOptions);
+  const sessionUserId = (session?.user as SessionUser)?.id;
+  if (!sessionUserId) {
+    throw new Error("Nicht angemeldet.");
+  }
+
+  const restaurantId = await resolveActiveRestaurantId(sessionUserId);
+  if (!restaurantId) {
+    return [];
+  }
+
+  const employees = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      role: { in: [Role.CREW, Role.SHIFT_LEADER] },
+      restaurants: { some: { restaurantId } },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      department: { select: { name: true, color: true } },
+      restaurants: { select: { restaurant: { select: { code: true, name: true } } } },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return employees.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    department: u.department?.name ?? null,
+    departmentColor: u.department?.color ?? null,
+    restaurants: u.restaurants.map((r) => ({
+      code: r.restaurant.code,
+      name: r.restaurant.name,
+    })),
+  }));
+}
+
+/**
+ * Sprema jednu PDS PRO evaluaciju u bazu.
+ * `payload` treba da sadrži: employeeId, totalScore, finalGrade, evaluationData (serializable).
+ */
+export async function savePDSEvaluation(payload: {
+  employeeId: string;
+  totalScore: number;
+  finalGrade: string;
+  evaluationData: unknown;
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requirePermission("pds:access");
+
+    const session = await getServerSession(authOptions);
+    const sessionUserId = (session?.user as SessionUser)?.id;
+    if (!sessionUserId) {
+      return { ok: false, error: "Nicht angemeldet." };
+    }
+
+    const { employeeId, totalScore, finalGrade, evaluationData } = payload;
+    if (!employeeId) return { ok: false, error: "Mitarbeiter ist erforderlich." };
+
+    const numericScore = Number(totalScore);
+    if (!Number.isFinite(numericScore)) {
+      return { ok: false, error: "Ungültiger Gesamt-Score." };
+    }
+
+    await prisma.pDSEvaluation.create({
+      data: {
+        employeeId,
+        evaluatorId: sessionUserId,
+        totalScore: numericScore,
+        finalGrade,
+        evaluationData: evaluationData as any,
+      },
+    });
+
+    revalidatePath("/tools/pds");
+    revalidatePath("/team");
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Fehler beim Speichern der PDS-Evaluation.",
+    };
+  }
+}
+
+/**
+ * Historija PDS PRO evaluacija za jednog radnika.
+ */
+export async function getPDSHistory(
+  employeeId: string
+): Promise<{ ok: boolean; data?: PDSEvaluationRecord[]; error?: string }> {
+  try {
+    await requirePermission("pds:access");
+
+    const rows = await prisma.pDSEvaluation.findMany({
+      where: { employeeId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return {
+      ok: true,
+      data: rows.map((r) => ({
+        id: r.id,
+        employeeId: r.employeeId,
+        evaluatorId: r.evaluatorId,
+        totalScore: r.totalScore,
+        finalGrade: r.finalGrade,
+        evaluationData: r.evaluationData,
+        createdAt: r.createdAt,
+      })),
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Fehler beim Laden der PDS-Historie.",
+    };
+  }
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use server';
 

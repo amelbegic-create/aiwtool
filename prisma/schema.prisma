@@ -119,6 +119,10 @@ model User {
   ideas                Idea[]
   certificates         UserCertificate[]
 
+  // PDS PRO evaluacije (novi modul)
+  pdsEvaluationsReceived PDSEvaluation[] @relation("PDSEmployee")
+  pdsEvaluationsGiven    PDSEvaluation[] @relation("PDSEvaluator")
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }
@@ -291,6 +295,31 @@ model PDS {
   status             PDSStatus   @default(DRAFT)
 
   @@unique([userId, year])
+}
+
+// Jedna instanca PDS PRO evaluacije (snapshot svih unosa i izračuna)
+model PDSEvaluation {
+  id           String   @id @default(cuid())
+
+  // Radnik koji se ocjenjuje
+  employeeId   String
+  employee     User     @relation("PDSEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Evaluator / menadžer koji ocjenjuje
+  evaluatorId  String
+  evaluator    User     @relation("PDSEvaluator", fields: [evaluatorId], references: [id], onDelete: Cascade)
+
+  totalScore   Float
+  finalGrade   String
+
+  // Kompletan snapshot kalkulacije (niRules, gradeRules, goals, unosi, rezultati...)
+  evaluationData Json
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([employeeId, createdAt])
+  @@index([evaluatorId, createdAt])
 }
 
 // --- RESTAURANTS ---

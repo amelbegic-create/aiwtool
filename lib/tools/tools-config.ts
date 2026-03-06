@@ -1,6 +1,11 @@
-import { 
-  Users, LayoutDashboard, PlaneTakeoff, 
-  Briefcase, ClipboardList, Clock, TrendingUp,
+import {
+  Users,
+  LayoutDashboard,
+  PlaneTakeoff,
+  Briefcase,
+  ClipboardList,
+  Clock,
+  TrendingUp,
   BookOpen,
   Gift,
   Building2,
@@ -17,6 +22,7 @@ export const APP_TOOLS = [
   { id: 'team', name: 'Mein Team', href: '/team', icon: Users, category: 'staff' },
   { id: 'vacations', name: 'Urlaubsplanung', href: '/tools/vacations', icon: PlaneTakeoff, category: 'staff' },
   { id: 'PDS', name: 'PDS (Beurteilung)', href: '/tools/PDS', icon: ClipboardList, category: 'staff' },
+  { id: 'pds-pro', name: 'PDS PRO (Bonus)', href: '/tools/pds-pro', icon: ClipboardList, category: 'staff' },
   { id: 'rules', name: 'Bedienungsanleitungen', href: '/tools/rules', icon: BookOpen, category: 'staff' },
   { id: 'bonus', name: 'Prämien & Bonus', href: '/tools/bonusi', icon: Gift, category: 'staff' },
   // OPERATIONEN
@@ -29,6 +35,7 @@ export const APP_TOOLS = [
 export const TOOL_PERMISSION: Record<string, string> = {
   'vacations': 'vacation:access',
   'PDS': 'pds:access',
+  'pds-pro': 'pds:access',
   'rules': 'rules:access',
   'bonus': 'bonus:access',
   'labor-planner': 'labor:access',
