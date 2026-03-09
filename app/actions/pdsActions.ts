@@ -1,178 +1,4 @@
-"use server";
-
-import prisma from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/authOptions";
-import { cookies } from "next/headers";
-import { revalidatePath } from "next/cache";
-import { requirePermission } from "@/lib/access";
-import { Role } from "@prisma/client";
-
-type SessionUser = { id?: string };
-
-export type PDSEvaluationRecord = {
-  id: string;
-  employeeId: string;
-  evaluatorId: string;
-  totalScore: number;
-  finalGrade: string;
-  evaluationData: unknown;
-  createdAt: Date;
-};
-
-/**
- * Vrati ID restorana iz cookie-ja (`activeRestaurantId`) ili pada na
- * primarni restoran korisnika ako cookie nije postavljen.
- */
-async function resolveActiveRestaurantId(sessionUserId: string): Promise<string | null> {
-  const cookieStore = await cookies();
-  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
-  if (activeRestaurantId && activeRestaurantId !== "all") return activeRestaurantId;
-
-  const user = await prisma.user.findUnique({
-    where: { id: sessionUserId },
-    select: {
-      restaurants: { select: { restaurantId: true, isPrimary: true } },
-    },
-  });
-  if (!user) return null;
-
-  const primary = user.restaurants.find((r) => r.isPrimary)?.restaurantId;
-  if (primary) return primary;
-  return user.restaurants[0]?.restaurantId ?? null;
-}
-
-/**
- * Dohvata sve korisnike koji se mogu evaluirati u trenutno aktivnom restoranu.
- * Tipično: CREW i SHIFT_LEADER u tom restoranu.
- */
-export async function getEmployeesForEvaluation() {
-  await requirePermission("pds:access");
-
-  const session = await getServerSession(authOptions);
-  const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) {
-    throw new Error("Nicht angemeldet.");
-  }
-
-  const restaurantId = await resolveActiveRestaurantId(sessionUserId);
-  if (!restaurantId) {
-    return [];
-  }
-
-  const employees = await prisma.user.findMany({
-    where: {
-      isActive: true,
-      role: { in: [Role.CREW, Role.SHIFT_LEADER] },
-      restaurants: { some: { restaurantId } },
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      department: { select: { name: true, color: true } },
-      restaurants: { select: { restaurant: { select: { code: true, name: true } } } },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  return employees.map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    department: u.department?.name ?? null,
-    departmentColor: u.department?.color ?? null,
-    restaurants: u.restaurants.map((r) => ({
-      code: r.restaurant.code,
-      name: r.restaurant.name,
-    })),
-  }));
-}
-
-/**
- * Sprema jednu PDS PRO evaluaciju u bazu.
- * `payload` treba da sadrži: employeeId, totalScore, finalGrade, evaluationData (serializable).
- */
-export async function savePDSEvaluation(payload: {
-  employeeId: string;
-  totalScore: number;
-  finalGrade: string;
-  evaluationData: unknown;
-}): Promise<{ ok: boolean; error?: string }> {
-  try {
-    await requirePermission("pds:access");
-
-    const session = await getServerSession(authOptions);
-    const sessionUserId = (session?.user as SessionUser)?.id;
-    if (!sessionUserId) {
-      return { ok: false, error: "Nicht angemeldet." };
-    }
-
-    const { employeeId, totalScore, finalGrade, evaluationData } = payload;
-    if (!employeeId) return { ok: false, error: "Mitarbeiter ist erforderlich." };
-
-    const numericScore = Number(totalScore);
-    if (!Number.isFinite(numericScore)) {
-      return { ok: false, error: "Ungültiger Gesamt-Score." };
-    }
-
-    await prisma.pDSEvaluation.create({
-      data: {
-        employeeId,
-        evaluatorId: sessionUserId,
-        totalScore: numericScore,
-        finalGrade,
-        evaluationData: evaluationData as any,
-      },
-    });
-
-    revalidatePath("/tools/pds");
-    revalidatePath("/team");
-    return { ok: true };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "Fehler beim Speichern der PDS-Evaluation.",
-    };
-  }
-}
-
-/**
- * Historija PDS PRO evaluacija za jednog radnika.
- */
-export async function getPDSHistory(
-  employeeId: string
-): Promise<{ ok: boolean; data?: PDSEvaluationRecord[]; error?: string }> {
-  try {
-    await requirePermission("pds:access");
-
-    const rows = await prisma.pDSEvaluation.findMany({
-      where: { employeeId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return {
-      ok: true,
-      data: rows.map((r) => ({
-        id: r.id,
-        employeeId: r.employeeId,
-        evaluatorId: r.evaluatorId,
-        totalScore: r.totalScore,
-        finalGrade: r.finalGrade,
-        evaluationData: r.evaluationData,
-        createdAt: r.createdAt,
-      })),
-    };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "Fehler beim Laden der PDS-Historie.",
-    };
-  }
-}
-
+﻿
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use server';
 
@@ -195,7 +21,7 @@ async function requirePdsCreateRole() {
   if (!userId) throw new Error('Sie sind nicht angemeldet.');
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (!user || !PDS_CREATE_ROLES.has(String(user.role))) {
-    throw new Error('Nicht berechtigt: Nur ADMIN (oder System Architect / Super Admin) können PDS-Vorlagen erstellen.');
+    throw new Error('Nicht berechtigt: Nur ADMIN (oder System Architect / Super Admin) k├╢nnen PDS-Vorlagen erstellen.');
   }
 }
 
@@ -204,7 +30,7 @@ async function getActiveRestaurantId() {
   return cookieStore.get('activeRestaurantId')?.value;
 }
 
-/** Izračunaj konačnu ocjenu iz ukupnog broja bodova i skale (min–max = label). */
+/** Izra─ìunaj kona─ìnu ocjenu iz ukupnog broja bodova i skale (minΓÇômax = label). */
 function getFinalGradeFromScale(totalScore: number, scale: PDSScaleLevel[] | null | undefined): string | null {
   if (!scale || !Array.isArray(scale) || scale.length === 0) return null;
   const level = scale.find((s) => totalScore >= s.min && totalScore <= s.max);
@@ -256,7 +82,7 @@ export async function getPDSTemplateById(id: string) {
   };
 }
 
-/** Ažuriraj postojeći PDS template (ciljani restorani + pitanja). */
+/** A┼╛uriraj postoje─çi PDS template (ciljani restorani + pitanja). */
 export async function updatePDSTemplate(
   id: string,
   params: { title: string; year: number; isGlobal: boolean; restaurantIds: string[]; goals: PDSGoal[]; scale: PDSScaleLevel[] }
@@ -279,7 +105,7 @@ export async function updatePDSTemplate(
     } else {
       targetRestaurantIds = restaurantIds.filter(Boolean);
       if (targetRestaurantIds.length === 0) {
-        return { success: false as const, error: 'Bitte wählen Sie mindestens ein Restaurant oder aktivieren Sie „Alle Restaurants“.' };
+        return { success: false as const, error: 'Bitte w├ñhlen Sie mindestens ein Restaurant oder aktivieren Sie ΓÇ₧Alle RestaurantsΓÇ£.' };
       }
     }
 
@@ -295,7 +121,7 @@ export async function updatePDSTemplate(
       }
     });
 
-    // Ažuriraj sve PDS zapise za ovu godinu i ciljane restorane: nova skala + preračunati finalGrade
+    // A┼╛uriraj sve PDS zapise za ovu godinu i ciljane restorane: nova skala + prera─ìunati finalGrade
     const affectedPds = await db.pDS.findMany({
       where: { year, restaurantId: { in: targetRestaurantIds } },
       select: { id: true, goals: true }
@@ -323,7 +149,7 @@ export async function updatePDSTemplate(
   }
 }
 
-/** Obriši PDS template (ne briše postojeće PDS zapisnike). */
+/** Obri┼íi PDS template (ne bri┼íe postoje─çe PDS zapisnike). */
 export async function deletePDSTemplate(id: string) {
   try {
     await requirePdsCreateRole();
@@ -332,7 +158,7 @@ export async function deletePDSTemplate(id: string) {
     revalidatePath('/tools/PDS');
     return { success: true as const };
   } catch {
-    return { success: false as const, error: 'Fehler beim Löschen.' };
+    return { success: false as const, error: 'Fehler beim L├╢schen.' };
   }
 }
 
@@ -352,7 +178,7 @@ export async function getTemplateForRestaurantAndYear(restaurantId: string, year
   return template;
 }
 
-/** Kreiraj novi PDS obrazac (jedan red) i generiši PDS za sve ciljane restorane. */
+/** Kreiraj novi PDS obrazac (jedan red) i generi┼íi PDS za sve ciljane restorane. */
 export async function createPDSTemplate(params: {
   title: string;
   year: number;
@@ -380,7 +206,7 @@ export async function createPDSTemplate(params: {
     } else {
       targetRestaurantIds = restaurantIds.filter(Boolean);
       if (targetRestaurantIds.length === 0) {
-        return { success: false as const, error: 'Bitte wählen Sie mindestens ein Restaurant oder aktivieren Sie „Alle Restaurants“.' };
+        return { success: false as const, error: 'Bitte w├ñhlen Sie mindestens ein Restaurant oder aktivieren Sie ΓÇ₧Alle RestaurantsΓÇ£.' };
       }
     }
 
@@ -446,7 +272,7 @@ export async function createPDSTemplate(params: {
   }
 }
 
-/** Kreiraj ili ažuriraj template za odabrane restorane; generiše PDS za zaposlenike. (Legacy / iz SettingsModal.) */
+/** Kreiraj ili a┼╛uriraj template za odabrane restorane; generi┼íe PDS za zaposlenike. (Legacy / iz SettingsModal.) */
 export async function createTemplate(
   year: number,
   restaurantIds: string[],
@@ -475,7 +301,7 @@ export async function savePDSTemplate(
 ) {
   try {
     const restaurantId = await getActiveRestaurantId();
-    if (!restaurantId) return { success: false, error: 'Kein Restaurant ausgewählt!' };
+    if (!restaurantId) return { success: false, error: 'Kein Restaurant ausgew├ñhlt!' };
 
     return createTemplate(year, [restaurantId], goals, scale, managerId);
   } catch (error) {
@@ -488,7 +314,7 @@ export async function createBulkPDS(year: number, managerId: string) {
   try {
     await requirePdsCreateRole();
     const restaurantId = await getActiveRestaurantId();
-    if (!restaurantId) return { success: false, error: 'Kein Restaurant ausgewählt!' };
+    if (!restaurantId) return { success: false, error: 'Kein Restaurant ausgew├ñhlt!' };
 
     const tpl = await getTemplateForRestaurantAndYear(restaurantId, year);
 
@@ -510,7 +336,7 @@ export async function createBulkPDS(year: number, managerId: string) {
       include: { user: true }
     });
 
-    // Obriši postojeće PDS zapise za SYSTEM_ARCHITECT, ADMIN, SUPER_ADMIN u ovoj godini i restoranu
+    // Obri┼íi postoje─çe PDS zapise za SYSTEM_ARCHITECT, ADMIN, SUPER_ADMIN u ovoj godini i restoranu
     await db.pDS.deleteMany({
       where: {
         year,
@@ -520,7 +346,7 @@ export async function createBulkPDS(year: number, managerId: string) {
     });
 
     if (restaurantUsers.length === 0) {
-      return { success: true, count: 0, message: 'Keine Mitarbeiter im Restaurant (außer System Architect/Admin/Super Admin).' };
+      return { success: true, count: 0, message: 'Keine Mitarbeiter im Restaurant (au├ƒer System Architect/Admin/Super Admin).' };
     }
 
     let count = 0;
@@ -712,7 +538,7 @@ const PDS_STATUS_LABELS: Record<string, string> = {
   OPEN: 'Offen',
   IN_PROGRESS: 'In Bearbeitung',
   SUBMITTED: 'Eingereicht',
-  RETURNED: 'Zurückgegeben',
+  RETURNED: 'Zur├╝ckgegeben',
   APPROVED: 'Genehmigt',
   COMPLETED: 'Abgeschlossen'
 };

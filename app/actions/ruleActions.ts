@@ -58,12 +58,21 @@ export async function createCategory(name: string) {
     revalidatePath('/tools/rules');
 }
 
+export async function updateCategory(id: string, name: string) {
+    await checkAdmin();
+    if (!name?.trim()) throw new Error("Name ist Pflichtfeld.");
+    await prisma.ruleCategory.update({ where: { id }, data: { name: name.trim() } });
+    revalidatePath('/tools/rules');
+    revalidatePath('/admin/rules');
+}
+
 export async function deleteCategory(id: string) {
     await checkAdmin();
     const count = await prisma.rule.count({ where: { categoryId: id }});
-    if(count > 0) throw new Error("Kategorija nije prazna.");
+    if(count > 0) throw new Error("Diese Kategorie wird noch von Regeln verwendet und kann nicht gelöscht werden.");
     await prisma.ruleCategory.delete({ where: { id } });
     revalidatePath('/tools/rules');
+    revalidatePath('/admin/rules');
 }
 
 export async function getRules(restaurantId?: string) {

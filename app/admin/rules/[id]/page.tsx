@@ -14,7 +14,7 @@ export default async function AdminRulesEditPage({
 }) {
   const access = await tryRequirePermission("rules:access");
   if (!access.ok) {
-    return <NoPermission moduleName="Pravila (admin)" />;
+    return <NoPermission moduleName="Bedienungsanleitungen (Admin)" />;
   }
 
   const { id } = await params;
@@ -54,9 +54,9 @@ export default async function AdminRulesEditPage({
           href="/admin/rules"
           className="inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] hover:underline mb-6"
         >
-          <ArrowLeft size={18} /> Natrag na listu pravila
+          <ArrowLeft size={18} /> Zurück zur Übersicht
         </Link>
-        <h1 className="text-2xl font-black text-[#1a3826] mb-6">Uredi pravilo</h1>
+        <h1 className="text-2xl font-black text-[#1a3826] mb-6">Regel bearbeiten</h1>
         <RuleEditor
           initialRule={initialRule}
           categories={categories}

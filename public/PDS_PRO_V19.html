@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>PDS PRO Rechner V19 - Kompakte Ansicht</title>
+    <style>
+        :root { --mcd-red: #dd0000; --mcd-yellow: #ffbc0d; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .page { background: white; max-width: 1000px; margin: auto; padding: 40px; border-top: 10px solid var(--mcd-red); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; margin-bottom: 25px; padding-bottom: 15px; }
+        .section { margin-bottom: 25px; padding: 15px; border: 1px solid #efefef; border-radius: 8px; }
+        h2 { background: #f8f9fa; padding: 10px; border-left: 5px solid var(--mcd-yellow); font-size: 16px; text-transform: uppercase; margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        .readonly-pts { background: #f0f0f0 !important; font-weight: bold; text-align: center; color: #d32f2f; border: 1px solid #ccc; cursor: not-allowed; width: 70px; }
+        .input-res { padding: 8px; border: 1px solid #2196f3; border-radius: 4px; width: 100%; box-sizing: border-box; font-weight: bold; }
+        .btn-gear { cursor: pointer; background: #eee; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: 16px; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border: 2px solid #333; padding: 25px; z-index: 1000; border-radius: 10px; width: 580px; box-shadow: 0 0 100px rgba(0,0,0,0.5); max-height: 85vh; overflow-y: auto; }
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 999; }
+        .summary { background: #fffde7; border: 2px solid var(--mcd-yellow); padding: 25px; border-radius: 8px; margin-top: 25px; text-align: right; }
+        .final-sum { font-size: 2.2em; color: var(--mcd-red); font-weight: bold; }
+        .btn-action { background: #4CAF50; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        .btn-save { background: #2196F3; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 10px; }
+        .btn-export { background: #607D8B; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .type-selector { background: #f9f9f9; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #ddd; }
+        @media print { .no-print { display: none; } .page { box-shadow: none; border: none; padding: 0; } .input-res { border:none; } }
+    </style>
+</head>
+<body>
+<div class="overlay" id="overlay" onclick="closeModal()"></div>
+<div class="modal" id="modal">
+    <h3 id="modalTitle" style="color:var(--mcd-red); margin-top:0;">Logik bearbeiten</h3>
+    <div id="modalBody"></div>
+    <div style="text-align:right; margin-top:20px;">
+        <button onclick="closeModal()">Abbrechen</button>
+        <button onclick="saveSettings()" style="background:var(--mcd-red); color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer;">Speichern</button>
+    </div>
+</div>
+
+<div class="page">
+    <header>
+        <div><h1>AIW Services</h1><p>PDS Bonus Rechner Pro V19 (Mac)</p></div>
+        <div style="text-align:right;">
+            Mitarbeiter: <input type="text" id="empName" value="Endre FODOR" style="font-weight:bold; width: 150px;" oninput="autoSave()"><br>
+            Gehalt: <input type="number" id="baseSal" value="2500" oninput="calc();autoSave()" style="width:80px; margin-top:5px;"> €
+        </div>
+    </header>
+
+    <div class="section" style="background:#e8f5e9;">
+        <h2>1. Net-Income Erreichung <button class="btn-gear no-print" onclick="openNiSettings()">⚙️ Stufen</button></h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px;">
+            <div>Ergebnis (%): <input type="number" id="niInp" value="12" class="input-res" style="width: 80px;" oninput="calc();autoSave()"></div>
+            <div>Bonus (Auto): <input type="text" id="niRes" class="readonly-pts" readonly> Gehälter</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>2. Leistungsziele</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 45%;">Zielbezeichnung</th>
+                    <th style="width: 25%;">Ergebnis</th>
+                    <th style="width: 15%;">Punkte</th>
+                    <th style="width: 10%;" class="no-print">Logik</th>
+                    <th style="width: 5%;" class="no-print"></th>
+                </tr>
+            </thead>
+            <tbody id="goalBody"></tbody>
+        </table>
+        <button class="no-print btn-action" onclick="addGoal()">+ Weiteres Ziel hinzufügen</button>
+    </div>
+
+    <div class="summary">
+        <div>
+            Gesamtpunkte: <strong id="sumPts">0</strong> 
+            <button class="btn-gear no-print" onclick="openGradeSettings()" style="margin: 0 10px;">⚙️ Noten-Logik</button>
+            | Note: <strong id="resGrade">-</strong>
+        </div>
+        <div class="final-sum"><span id="finalEuro">0,00</span> €</div>
+        <div style="font-size:12px; color:#666; margin-bottom:15px;">Berechnung: (<span id="niSalDisp">0</span> NI + <span id="lSalDisp">0</span> Leistung) × Gehalt</div>
+        
+        <div class="no-print">
+            <button class="btn-save" onclick="manualSave()">💾 Als Standard speichern</button>
+            <button class="btn-export" onclick="exportData()">📥 Datei exportieren</button>
+            <button style="background:#f44336; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer; font-size:10px; margin-left:10px;" onclick="clearStorage()">Reset</button>
+        </div>
+    </div>
+
+    <div style="margin-top:40px; display:flex; justify-content:space-between; text-align:center; font-size:12px;">
+        <div style="border-top:1px solid #000; width:40%;">Unterschrift Mitarbeiter</div>
+        <div style="border-top:1px solid #000; width:40%;">Unterschrift Manager</div>
+    </div>
+    <button class="no-print" style="width:100%; margin-top:30px; padding:15px; background:var(--mcd-red); color:white; font-weight:bold; border:none; border-radius:5px; cursor:pointer;" onclick="window.print()">DRUCKEN / ALS PDF SPEICHERN</button>
+</div>
+
+<script>
+    let niRules = [{min: -999, max: -10, p: 1}, {min: -9.9, max: 10, p: 3}, {min: 10.1, max: 999, p: 4}];
+    let gradeRules = [
+        {min: 95, max: 1000, label: "Note 1", p: 2.0},
+        {min: 80, max: 94.9, label: "Note 2", p: 1.5},
+        {min: 60, max: 79.9, label: "Note 3", p: 0.5},
+        {min: 0, max: 59.9, label: "Note 4", p: 0}
+    ];
+    let goals = [
+        {name: "RGRV", val: 95.7, type: "num", rules: [{min: 0, max: 95, p: 5}, {min: 95.1, max: 100, p: 10}]},
+        {name: "FoodSafety Audit", val: 98, type: "num", rules: [{min: 0, max: 90, p: 0}, {min: 91, max: 100, p: 20}]},
+        {name: "R2P unter 95 Sek.", val: "Ja", type: "bool", yesP: 10}
+    ];
+
+    let currentId = null; 
+
+    function loadData() {
+        const saved = localStorage.getItem('pds_data_v19');
+        if (saved) {
+            const data = JSON.parse(saved);
+            niRules = data.niRules;
+            gradeRules = data.gradeRules;
+            goals = data.goals;
+            document.getElementById('empName').value = data.empName || "Endre FODOR";
+            document.getElementById('baseSal').value = data.baseSal || 2500;
+            document.getElementById('niInp').value = data.niInp || 0;
+        }
+        init();
+    }
+
+    function autoSave() {
+        const data = {
+            niRules, gradeRules, goals,
+            empName: document.getElementById('empName').value,
+            baseSal: document.getElementById('baseSal').value,
+            niInp: document.getElementById('niInp').value
+        };
+        localStorage.setItem('pds_data_v19', JSON.stringify(data));
+    }
+
+    function manualSave() { autoSave(); alert("Gespeichert!"); }
+    function clearStorage() { if(confirm("Reset?")) { localStorage.removeItem('pds_data_v19'); location.reload(); } }
+
+    function exportData() {
+        const htmlContent = document.documentElement.outerHTML;
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `PDS_${document.getElementById('empName').value.replace(/\s/g, '_')}.html`;
+        a.click();
+    }
+
+    function init() {
+        const body = document.getElementById('goalBody');
+        body.innerHTML = '';
+        goals.forEach((g, i) => {
+            const row = body.insertRow();
+            row.innerHTML = `
+                <td><input type="text" value="${g.name}" oninput="goals[${i}].name=this.value;autoSave()" class="input-res" style="border:none; background:transparent;"></td>
+                <td id="res-container-${i}">${renderResultInput(i)}</td>
+                <td><input type="text" id="pts-${i}" class="readonly-pts" readonly></td>
+                <td class="no-print"><button class="btn-gear" onclick="openGoalSettings(${i})">⚙️ Logik</button></td>
+                <td class="no-print"><button onclick="removeGoal(${i})" style="color:red; cursor:pointer; background:none; border:none;">🗑️</button></td>
+            `;
+        });
+        calc();
+    }
+
+    function renderResultInput(i) {
+        const g = goals[i];
+        if(g.type === 'num') {
+            return `<input type="number" step="0.1" value="${g.val}" class="input-res" oninput="goals[${i}].val=this.value;calc();autoSave()">`;
+        } else {
+            return `<select class="input-res" onchange="goals[${i}].val=this.value;calc();autoSave()">
+                        <option value="Ja" ${g.val==='Ja'?'selected':''}>Ja</option>
+                        <option value="Nein" ${g.val==='Nein'?'selected':''}>Nein</option>
+                    </select>`;
+        }
+    }
+
+    function addGoal() {
+        goals.push({name: "Neues Ziel", val: 0, type: "num", rules: [{min: 0, max: 100, p: 0}]});
+        init(); autoSave();
+    }
+
+    function removeGoal(i) { goals.splice(i, 1); init(); autoSave(); }
+
+    function calc() {
+        let tp = 0;
+        goals.forEach((g, i) => {
+            let p = 0;
+            if(g.type === 'num') {
+                const val = parseFloat(g.val);
+                const r = g.rules ? g.rules.find(r => val >= r.min && val <= r.max) : null;
+                p = r ? r.p : 0;
+            } else { p = (g.val === 'Ja') ? (g.yesP || 0) : 0; }
+            document.getElementById(`pts-${i}`).value = p;
+            tp += p;
+        });
+        document.getElementById('sumPts').innerText = tp;
+
+        const niVal = parseFloat(document.getElementById('niInp').value) || 0;
+        const niRule = niRules.find(r => niVal >= r.min && niVal <= r.max);
+        const niSal = niRule ? niRule.p : 0;
+        document.getElementById('niRes').value = niSal;
+        document.getElementById('niSalDisp').innerText = niSal;
+
+        const gradeRule = gradeRules.find(r => tp >= r.min && tp <= r.max);
+        let lSal = gradeRule ? gradeRule.p : 0;
+        let lLabel = gradeRule ? gradeRule.label : "-";
+        document.getElementById('resGrade').innerText = lLabel;
+        document.getElementById('lSalDisp').innerText = lSal;
+
+        const totalMult = niSal + lSal;
+        const salary = parseFloat(document.getElementById('baseSal').value) || 0;
+        document.getElementById('finalEuro').innerText = (totalMult * salary).toLocaleString('de-DE', {minimumFractionDigits:2}) + " €";
+    }
+
+    function openGoalSettings(i) {
+        currentId = i;
+        renderGoalModalContent();
+        showModal();
+    }
+
+    function renderGoalModalContent() {
+        const g = goals[currentId];
+        document.getElementById('modalTitle').innerText = "Konfiguration: " + g.name;
+        
+        let html = `
+            <div class="type-selector">
+                <strong>Eingabe-Typ:</strong> 
+                <select id="modalTypeSelector" onchange="updateModalType(this.value)" style="padding:5px; margin-left:10px;">
+                    <option value="num" ${g.type==='num'?'selected':''}>Zahl (z.B. %)</option>
+                    <option value="bool" ${g.type==='bool'?'selected':''}>Ja / Nein</option>
+                </select>
+            </div>
+            <div id="modalLogicContainer">`;
+            
+        if(g.type === 'num') {
+            html += renderRulesTable(g.rules || [{min:0, max:100, p:0}], "Punkte");
+        } else {
+            html += `Punkte, wenn Ergebnis "Ja": <input type="number" id="boolYes" value="${g.yesP || 0}" class="input-res" style="width:100px; margin-left:10px;">`;
+        }
+        
+        html += `</div>`;
+        document.getElementById('modalBody').innerHTML = html;
+    }
+
+    function updateModalType(newType) {
+        const g = goals[currentId];
+        g.type = newType;
+        if(newType === 'num' && !g.rules) g.rules = [{min:0, max:100, p:0}];
+        if(newType === 'bool' && !g.yesP) g.yesP = 10;
+        renderGoalModalContent();
+    }
+
+    function renderRulesTable(data, valLabel, isGrade = false) {
+        let html = `<table><thead><tr><th>Ab</th><th>Bis</th>${isGrade ? '<th>Name</th>' : ''}<th>${valLabel}</th><th></th></tr></thead><tbody id="mTableBody">`;
+        data.forEach((r, i) => {
+            html += `<tr>
+                <td><input type="number" step="0.1" value="${r.min}" class="m-min" style="width:60px"></td>
+                <td><input type="number" step="0.1" value="${r.max}" class="m-max" style="width:60px"></td>
+                ${isGrade ? `<td><input type="text" value="${r.label}" class="m-label" style="width:80px"></td>` : ''}
+                <td><input type="number" step="0.1" value="${r.p}" class="m-val" style="width:60px"></td>
+                <td><button onclick="this.parentElement.parentElement.remove()" style="border:none; background:none; cursor:pointer;">❌</button></td>
+            </tr>`;
+        });
+        html += '</tbody></table><button class="btn-action" onclick="addRow(' + isGrade + ')">+ Zeile hinzufügen</button>';
+        return html;
+    }
+
+    function addRow(isGrade) {
+        const tbody = document.getElementById('mTableBody');
+        const row = tbody.insertRow();
+        row.innerHTML = `<td><input type="number" step="0.1" value="0" class="m-min" style="width:60px"></td><td><input type="number" step="0.1" value="0" class="m-max" style="width:60px"></td>${isGrade ? '<td><input type="text" value="Neu" class="m-label" style="width:80px"></td>' : ''}<td><input type="number" step="0.1" value="0" class="m-val" style="width:60px"></td><td><button onclick="this.parentElement.parentElement.remove()" style="border:none; background:none; cursor:pointer;">❌</button></td>`;
+    }
+
+    function saveSettings() {
+        if(currentId === "NI") {
+            niRules = getTableData(false);
+        } else if(currentId === "GRADES") {
+            gradeRules = getTableData(true);
+        } else {
+            const g = goals[currentId];
+            const selectedType = document.getElementById('modalTypeSelector').value;
+            g.type = selectedType;
+            if(selectedType === 'num') g.rules = getTableData(false);
+            else g.yesP = parseFloat(document.getElementById('boolYes').value);
+        }
+        closeModal(); init(); autoSave();
+    }
+
+    function getTableData(isGrade) {
+        return Array.from(document.querySelectorAll('#mTableBody tr')).map(row => {
+            let obj = { min: parseFloat(row.querySelector('.m-min').value), max: parseFloat(row.querySelector('.m-max').value), p: parseFloat(row.querySelector('.m-val').value) };
+            if(isGrade) obj.label = row.querySelector('.m-label').value;
+            return obj;
+        });
+    }
+
+    function openNiSettings() { currentId = "NI"; document.getElementById('modalTitle').innerText = "Net-Income Stufen"; document.getElementById('modalBody').innerHTML = renderRulesTable(niRules, "Gehälter"); showModal(); }
+    function openGradeSettings() { currentId = "GRADES"; document.getElementById('modalTitle').innerText = "Noten-Logik"; document.getElementById('modalBody').innerHTML = renderRulesTable(gradeRules, "Gehälter", true); showModal(); }
+    function showModal() { document.getElementById('overlay').style.display='block'; document.getElementById('modal').style.display='block'; }
+    function closeModal() { document.getElementById('overlay').style.display='none'; document.getElementById('modal').style.display='none'; }
+    loadData();
+</script>
+</body>
+</html>

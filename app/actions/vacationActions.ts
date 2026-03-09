@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { revalidatePath } from "next/cache";
-import { requirePermission } from "@/lib/access";
+import { getDbUserForAccess, hasPermission, PermissionDeniedError, requirePermission } from "@/lib/access";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
 import { cookies } from "next/headers";
 import { Role } from "@prisma/client";
@@ -294,6 +294,7 @@ export async function getVacationAdminData(
   if (!user) throw new Error("Benutzer nicht gefunden.");
 
   const isGodMode = isGodModeRole(user.role as Role);
+  const isManager = user.role === Role.MANAGER;
   const startOfYear = `${selectedYear}-01-01`;
   const endOfYear = `${selectedYear}-12-31`;
   const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
@@ -315,35 +316,52 @@ export async function getVacationAdminData(
 
   if (activeRestaurantId && activeRestaurantId !== "all") {
     if (isGodMode) {
-      // God mode + odabrani restoran: prikaži samo korisnike koji imaju
-      // RestaurantUser unos za taj restoran. Supervisor chain inference
-      // ne koristimo jer manager može biti u više restorana i to bi
-      // povuklo podređene iz krivih restorana.
+      // God mode + odabrani restoran: zahtjevi samo gdje sam ja nadređeni, u tom restoranu
       userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
+      requestWhereClause.supervisorId = user.id;
+      requestWhereClause.restaurantId = activeRestaurantId;
       requestWhereClause.user = {
         role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
         restaurants: { some: { restaurantId: activeRestaurantId } },
       };
-    } else {
-      // Ne-god mode: samo direktni link na restoran
+    } else if (isManager) {
+      // MANAGER: vidi samo svoje direktne podređene u tom restoranu
+      userWhereClause.supervisorId = user.id;
       userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
+      requestWhereClause.supervisorId = user.id;
+      requestWhereClause.restaurantId = activeRestaurantId;
+    } else {
+      // Ostali (npr. buduće uloge): direktni link na restoran, samo zahtjevi gdje sam nadređeni
+      userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
+      requestWhereClause.supervisorId = user.id;
       requestWhereClause.user = {
         role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
         restaurants: { some: { restaurantId: activeRestaurantId } },
       };
     }
   } else if (!isGodMode) {
-    // Kad je "Alle" odabrano: ne-god mode vidi samo svoje restorane
+    // "Alle" bez odabranog restorana
     const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
-    if (myRestaurantIds.length > 0) {
+    if (isManager) {
+      // MANAGER: svi njegovi podređeni preko svih restorana koje vodi
+      userWhereClause.supervisorId = user.id;
+      if (myRestaurantIds.length > 0) {
+        userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
+        requestWhereClause.restaurantId = { in: myRestaurantIds };
+      }
+      requestWhereClause.supervisorId = user.id;
+    } else if (myRestaurantIds.length > 0) {
       userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
+      requestWhereClause.supervisorId = user.id;
       requestWhereClause.user = {
         role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
         restaurants: { some: { restaurantId: { in: myRestaurantIds } } },
       };
     }
+  } else {
+    // God mode + "Alle": zahtjevi samo gdje sam ja nadređeni (ne svi u sistemu)
+    requestWhereClause.supervisorId = user.id;
   }
-  // God mode + "Alle": nema filtera → vidi sve zaposlene u sistemu
 
   const blockedDaysWhere =
     activeRestaurantId && activeRestaurantId !== "all" ? { restaurantId: activeRestaurantId } : undefined;
@@ -621,7 +639,7 @@ export async function createVacationRequest(data: {
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    select: { id: true, isActive: true, role: true },
+    select: { id: true, isActive: true, role: true, supervisorId: true },
   });
   if (!user) throw new Error("Benutzer nicht gefunden.");
   if (user.isActive === false) throw new Error("Benutzer ist nicht aktiv.");
@@ -679,10 +697,14 @@ export async function createVacationRequest(data: {
   const isSelfServiceAdmin = SELF_SERVICE_VACATION_ROLES.has(user.role as Role);
   const status = isSelfServiceAdmin ? "APPROVED" : "PENDING";
 
+  // Supervisor za zahtjev: standardno ide nadređenom korisniku (manageru).
+  // Za self-service admin role ne treba supervisor (nema notifikacija).
+  const supervisorIdForRequest = isSelfServiceAdmin ? null : user.supervisorId ?? null;
+
   await prisma.vacationRequest.create({
     data: {
       userId: user.id,
-      supervisorId: null,
+      supervisorId: supervisorIdForRequest,
       restaurantId,
       start: data.start,
       end: data.end,
@@ -767,21 +789,7 @@ const ALLOWED_STATUS_TRANSITIONS = new Set([
 ]);
 
 export async function updateVacationStatus(requestId: string, status: string) {
-  await requirePermission("vacation:approve");
-
-  const session = await getServerSession(authOptions);
-  const sessionUserId = (session?.user as SessionUser)?.id;
-  if (!sessionUserId) throw new Error("Sie sind nicht angemeldet.");
-
-  const actingUser = await prisma.user.findUnique({
-    where: { id: sessionUserId },
-    select: {
-      id: true,
-      role: true,
-      restaurants: { select: { restaurantId: true } },
-    },
-  });
-  if (!actingUser) throw new Error("Benutzer nicht gefunden.");
+  const dbUser = await getDbUserForAccess();
 
   const req = await prisma.vacationRequest.findUnique({
     where: { id: requestId },
@@ -792,6 +800,27 @@ export async function updateVacationStatus(requestId: string, status: string) {
     },
   });
   if (!req) throw new Error("Antrag nicht gefunden.");
+
+  const hasApprovePermission = hasPermission(
+    String(dbUser.role),
+    dbUser.permissions || [],
+    "vacation:approve"
+  );
+  const isSupervisorOfRequest = req.supervisorId === dbUser.id;
+
+  if (!hasApprovePermission && !isSupervisorOfRequest) {
+    throw new PermissionDeniedError();
+  }
+
+  const actingUser = await prisma.user.findUnique({
+    where: { id: dbUser.id },
+    select: {
+      id: true,
+      role: true,
+      restaurants: { select: { restaurantId: true } },
+    },
+  });
+  if (!actingUser) throw new Error("Benutzer nicht gefunden.");
 
   const god = isGodModeRole(actingUser.role);
   const isAdmin = actingUser.role === "ADMIN";
@@ -805,9 +834,6 @@ export async function updateVacationStatus(requestId: string, status: string) {
       const requestRestaurantId = req.restaurantId;
       if (!requestRestaurantId || !managerRestaurantIds.includes(requestRestaurantId)) {
         throw new Error("Zugriff verweigert: Der Antrag stammt von einem anderen Restaurant.");
-      }
-      if (req.user?.role !== "CREW") {
-        throw new Error("Manager dürfen nur Anträge von Mitarbeitern (Crew) genehmigen, nicht von anderen Managern.");
       }
     }
   }

@@ -164,6 +164,7 @@ function ProductivityToolContent({
   const [pdfPopupUrl, setPdfPopupUrl] = useState<string | null>(null);
   const [dayHoursConfig, setDayHoursConfig] = useState<Record<string, { from: number; to: number }>>({});
   const [dayHoursLoaded, setDayHoursLoaded] = useState(false);
+  const [appliedTemplateKey, setAppliedTemplateKey] = useState<string>("");
 
   const hoursWhenModalOpenedRef = useRef({ from: 6, to: 1 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,6 +227,11 @@ function ProductivityToolContent({
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Novi datum ili restoran ⇒ još nije primijenjen template za tu kombinaciju
+  useEffect(() => {
+    setAppliedTemplateKey("");
+  }, [selectedDate, activeRestId]);
 
   useEffect(() => {
     if (urlId) setActiveRestId(urlId);
@@ -295,10 +301,16 @@ function ProductivityToolContent({
         if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
         if (d.customDayNames) setCustomDayNames(d.customDayNames);
         if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns); else setHiddenColumns([]);
-        if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
-        if (d.customStations) setCustomStations(d.customStations);
+        if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder); else setColumnOrder([]);
+        if (d.customStations) setCustomStations(d.customStations); else setCustomStations([]);
       } else {
+        // Nema spremljenih podataka za ovaj restoran+datum:
+        // resetuj sve vizualne konfiguracije (kolone, custom stanice, day names)
         setRows({});
+        setHiddenColumns([]);
+        setCustomStations([]);
+        setColumnOrder([]);
+        setCustomDayNames({});
       }
     } catch (err) {
       console.error(err);
@@ -331,11 +343,16 @@ function ProductivityToolContent({
           if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
           if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
           if (d.customDayNames) setCustomDayNames(d.customDayNames || {});
-          if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns || []);
-          if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder);
-          if (d.customStations) setCustomStations(d.customStations || []);
+          if (d.hiddenColumns) setHiddenColumns(d.hiddenColumns || []); else setHiddenColumns([]);
+          if (Array.isArray(d.columnOrder)) setColumnOrder(d.columnOrder); else setColumnOrder([]);
+          if (d.customStations) setCustomStations(d.customStations || []); else setCustomStations([]);
         } else {
+          // Prazan template za ovaj restoran – resetuj konfiguraciju
           setRows({});
+          setHiddenColumns([]);
+          setCustomStations([]);
+          setColumnOrder([]);
+          setCustomDayNames({});
         }
       } catch (err) {
         console.error(err);
@@ -575,6 +592,8 @@ function ProductivityToolContent({
         });
         if (res.ok) {
           toast.success("Gespeichert.");
+          // Nakon spremanja template-a automatski izađi iz načina uređivanja
+          setTemplateEditMode(false);
         } else {
           toast.error("Fehler beim Speichern.");
         }
@@ -1221,20 +1240,24 @@ function ProductivityToolContent({
                 <select
                   id="prod-template-select"
                   aria-label="Template übernehmen"
-                  className="h-8 pl-2 pr-7 rounded-lg border border-[#1b3a26]/25 bg-[#1b3a26]/5 text-foreground font-medium text-xs focus:ring-2 focus:ring-[#1b3a26]/30 outline-none cursor-pointer shrink-0"
-                  value=""
+                  className={`h-8 pl-2 pr-7 rounded-lg border font-bold text-xs focus:ring-2 focus:ring-[#1b3a26]/30 outline-none cursor-pointer shrink-0 ${
+                    appliedTemplateKey
+                      ? "bg-[#2563EB] border-[#2563EB] text-white"
+                      : "bg-[#1b3a26]/5 border-[#1b3a26]/25 text-foreground font-medium"
+                  }`}
+                  value={appliedTemplateKey}
                   onChange={(e) => {
                     const v = e.target.value;
                     if (!v) return;
-                    e.target.value = "";
                     if (!selectedDate) {
                       toast.error("Bitte zuerst ein Datum wählen.");
                       return;
                     }
+                    setAppliedTemplateKey(v);
                     handleApplyTemplateAndSave(v);
                   }}
                 >
-                  <option value="">Template wählen…</option>
+                  <option value="">{appliedTemplateKey ? getDayLabel(appliedTemplateKey) : "Template wählen…"}</option>
                   {TEMPLATE_KEYS.map((key) => (
                     <option key={key} value={key}>
                       {getDayLabel(key)}
@@ -1316,20 +1339,15 @@ function ProductivityToolContent({
       {templateEditMode && (
         <div className="w-full px-4 py-3 sm:px-6 md:px-8 bg-[#1b3a26]/10 border-b border-[#1b3a26]/20">
           <div className="max-w-[1920px] mx-auto flex flex-wrap items-center gap-3">
-            <span className="font-semibold text-[#1a3826]">Vorlage: {getDayLabel(templateEditKey)}</span>
+            <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-[#2563EB] text-white text-xs sm:text-sm font-bold uppercase tracking-wide">
+              Vorlage: {getDayLabel(templateEditKey)}
+            </span>
             <button
               type="button"
               onClick={() => saveTemplate(templateEditKey)}
-              className="h-10 px-4 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-sm flex items-center gap-2 shadow-sm"
+              className="h-9 sm:h-10 px-4 rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-sm flex items-center gap-2 shadow-sm"
             >
               <Save size={18} strokeWidth={2.5} /> Speichern
-            </button>
-            <button
-              type="button"
-              onClick={() => setTemplateEditMode(false)}
-              className="h-10 px-4 rounded-lg border-2 border-[#1b3a26]/30 text-[#1a3826] hover:bg-[#1b3a26]/10 font-semibold text-sm"
-            >
-              Fertig
             </button>
           </div>
         </div>

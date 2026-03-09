@@ -12,6 +12,7 @@ import {
   UsersRound,
   Building2,
   Gift,
+  FileText,
   LucideIcon,
   ArrowRight,
 } from "lucide-react";
@@ -21,11 +22,11 @@ const ICON_MAP: Record<string, LucideIcon> = {
   team: UsersRound,
   vacations: Plane,
   PDS: ClipboardCheck,
-  "pds-pro": ClipboardCheck,
   rules: BookMarked,
   "labor-planner": Clock,
   productivity: TrendingUp,
   partners: Building2,
+  vorlagen: FileText,
   "admin-panel": ShieldCheck,
   bonus: Gift,
 };
@@ -55,13 +56,6 @@ const CARD_STYLES: Record<string, CardStyle> = {
     category: "HR",
   },
   PDS: {
-    gradient: "from-[#4169E1] to-[#2d4fb8]",
-    textLight: true,
-    accentIcon: "text-white/90",
-    shadow: "shadow-[#4169E1]/25",
-    category: "HR",
-  },
-  "pds-pro": {
     gradient: "from-[#4169E1] to-[#2d4fb8]",
     textLight: true,
     accentIcon: "text-white/90",
@@ -103,6 +97,13 @@ const CARD_STYLES: Record<string, CardStyle> = {
     shadow: "shadow-[#FFC72C]/25",
     category: "HR",
   },
+  vorlagen: {
+    gradient: "from-[#1a3826] to-[#0f2218]",
+    textLight: true,
+    accentIcon: "text-[#FFC72C]",
+    shadow: "shadow-[#1a3826]/25",
+    category: "Docs",
+  },
   "admin-panel": {
     gradient: "from-[#1a3826] to-[#0f2218]",
     textLight: true,
@@ -116,11 +117,11 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   team: "Teamübersicht & Urlaubsfreigaben",
   vacations: "Jahresurlaub planen & verwalten",
   PDS: "Mitarbeiterbewertungen & Entwicklung",
-  "pds-pro": "PDS PRO Bonusrechner & Performance",
   rules: "Richtlinien, Verfahren & SOPs",
   "labor-planner": "Kosten- & Stundeneinsatzplanung",
   productivity: "Umsatz & Stationsplanung",
   partners: "Kontakte & Servicedienstleister",
+  vorlagen: "Offizielle Dokumente & Formulare",
   bonus: "Prämien- & Bonusabrechnungen",
   "admin-panel": "Systemverwaltung & Einstellungen",
 };

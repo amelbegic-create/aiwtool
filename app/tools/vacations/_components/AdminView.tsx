@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useMemo, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   updateVacationStatus,
   getGlobalVacationStats,
@@ -81,6 +81,8 @@ interface AdminViewProps {
   canLinkToAdminUserEdit?: boolean;
   /** Početni tab (STATS / REQUESTS / BLOCKED), npr. iz query parametra tab=requests */
   initialTab?: TabType;
+  /** Da li je korisnik restaurant manager (ograničen UI: nema globalnog exporta). */
+  isRestaurantManager?: boolean;
 }
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
@@ -606,6 +608,7 @@ export default function AdminView({
   globalHolidays: globalHolidaysProp = [],
   canLinkToAdminUserEdit = false,
   initialTab,
+  isRestaurantManager = false,
 }: AdminViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1176,7 +1179,7 @@ export default function AdminView({
 
             </div>
 
-            {canRegisterOwnVacation && (
+            {canRegisterOwnVacation && !isRestaurantManager && (
               <button
                 type="button"
                 onClick={() => setMyVacationModalOpen(true)}
@@ -1185,6 +1188,16 @@ export default function AdminView({
                 <CalendarPlus size={16} />
                 Meinen Urlaub eintragen
               </button>
+            )}
+
+            {canRegisterOwnVacation && isRestaurantManager && (
+              <Link
+                href={`/tools/vacations?year=${selectedYear}&view=self`}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-[#1a3826] text-white hover:bg-[#142e1e] shadow-sm transition-all"
+              >
+                <CalendarPlus size={16} />
+                Meinen Urlaub eintragen
+              </Link>
             )}
           </div>
         </div>
@@ -1229,22 +1242,26 @@ export default function AdminView({
                   <FileBarChart size={16} /> PLAN (AKTUELL)
                 </button>
 
-                <button
-                  onClick={handleGlobalExport}
-                  disabled={loadingGlobal}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e] disabled:opacity-70"
-                >
-                  <Globe size={16} /> {loadingGlobal ? "LADEN…" : "GESAMT EXPORT"}
-                </button>
+                {!isRestaurantManager && (
+                  <>
+                    <button
+                      onClick={handleGlobalExport}
+                      disabled={loadingGlobal}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e] disabled:opacity-70"
+                    >
+                      <Globe size={16} /> {loadingGlobal ? "LADEN…" : "GESAMT EXPORT"}
+                    </button>
 
-                <button
-                  onClick={handleOpenDeptExportModal}
-                  disabled={loadingDeptExport}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e] disabled:opacity-70"
-                >
-                  <FileBarChart size={16} />
-                  {loadingDeptExport ? "LADEN…" : "EXPORT NACH ABTEILUNGEN"}
-                </button>
+                    <button
+                      onClick={handleOpenDeptExportModal}
+                      disabled={loadingDeptExport}
+                      className="flex items-center gap-2 px-4 py-2 bg-[#1a3826] text-white rounded-lg text-xs font-black transition-all hover:bg-[#142e1e] disabled:opacity-70"
+                    >
+                      <FileBarChart size={16} />
+                      {loadingDeptExport ? "LADEN…" : "EXPORT NACH ABTEILUNGEN"}
+                    </button>
+                  </>
+                )}
               </div>
             )}
 

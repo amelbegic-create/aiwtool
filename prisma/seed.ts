@@ -51,6 +51,27 @@ async function main() {
       },
     });
   }
+
+  // --- VORLAGEN: kategorije za live (upsert po imenu – bez brisanja postojećih)
+  const vorlagenCategories = [
+    { name: 'Formulare', description: 'Offizielle Formulare und Anträge', iconName: 'FileText' },
+    { name: 'Schulungen', description: 'Unterlagen und Zertifikate für Schulungen', iconName: 'GraduationCap' },
+    { name: 'Arbeitsanleitungen', description: 'Bedienungsanleitungen und Prozesse', iconName: 'BookOpen' },
+    { name: 'Personal', description: 'Dokumente für Personalwesen', iconName: 'Users' },
+    { name: 'Finanzen', description: 'Formulare und Vorlagen für Finanzen', iconName: 'DollarSign' },
+  ];
+  for (const cat of vorlagenCategories) {
+    const existing = await prisma.templateCategory.findFirst({ where: { name: cat.name } });
+    if (!existing) {
+      await prisma.templateCategory.create({
+        data: {
+          name: cat.name,
+          description: cat.description ?? null,
+          iconName: cat.iconName ?? null,
+        },
+      });
+    }
+  }
 }
 
 main()

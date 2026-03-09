@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Share2,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -111,6 +112,7 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
   const [isRead, setIsRead] = useState(rule.isRead);
   const [isMarking, setIsMarking] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!rule?.id || rule.isRead) return;
@@ -152,6 +154,8 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
     }
   };
 
+  const closePdf = () => setPdfPreviewUrl(null);
+
   return (
     <div className="min-h-screen bg-background pb-16">
       {/* Breadcrumbs */}
@@ -175,12 +179,12 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
         </div>
       </div>
 
-      {/* Action bar */}
-      <div className="border-b border-border bg-card">
+      {/* Action bar – McDonald's zelena/žuta paleta */}
+      <div className="border-b border-[#1a3826]/10 bg-gradient-to-r from-[#1a3826]/5 to-transparent">
         <div className="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <Link
             href="/tools/rules"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] min-h-[44px] items-center touch-manipulation"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] min-h-[44px] touch-manipulation"
           >
             <ArrowLeft size={18} /> Zurück
           </Link>
@@ -188,14 +192,16 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-muted/50 hover:bg-muted text-sm font-semibold min-h-[44px] touch-manipulation"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#1a3826]/20 bg-white/80 hover:bg-[#1a3826]/5 dark:border-[#FFC72C]/30 dark:bg-[#1a3826]/20 dark:hover:bg-[#FFC72C]/10 text-sm font-semibold min-h-[44px] touch-manipulation text-foreground"
               title="Teilen"
             >
               <Share2 size={18} /> Teilen
             </button>
-            <span className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium">
-              {rule.category?.name}
-            </span>
+            {rule.category?.name && (
+              <span className="px-3 py-1.5 rounded-lg bg-[#1a3826]/10 text-[#1a3826] dark:bg-[#FFC72C]/20 dark:text-[#FFC72C] text-xs font-semibold border border-[#1a3826]/15 dark:border-[#FFC72C]/25">
+                {rule.category.name}
+              </span>
+            )}
             {isRead ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
                 <CheckCircle2 size={14} /> Gelesen
@@ -217,12 +223,11 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
       <div className="max-w-5xl mx-auto px-4 py-5 flex gap-6 flex-col lg:flex-row">
         {/* Glavni sadržaj */}
         <div className="flex-1 min-w-0 space-y-5">
-          {/* Naslov i meta na vrhu – čisto i uredno */}
-          <header className="border-b border-border pb-4">
-            <h1 className="text-xl md:text-2xl font-bold text-[#1a3826] leading-tight">
+          <header className="border-b border-[#1a3826]/15 dark:border-[#FFC72C]/20 pb-4">
+            <h1 className="text-xl md:text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] leading-tight tracking-tight">
               {rule.title}
             </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               {rule.category?.name && (
                 <span className="font-medium text-muted-foreground">{rule.category.name}</span>
               )}
@@ -237,14 +242,14 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
           </header>
 
           <div
-            className="prose prose-slate max-w-none prose-p:text-foreground prose-p:text-base prose-headings:text-slate-900 dark:prose-headings:text-foreground prose-headings:font-bold prose-a:text-[#1a3826] dark:prose-a:text-[#FFC72C] prose-strong:text-slate-900 dark:prose-strong:text-foreground prose-base rounded-xl border border-border bg-card p-6 shadow-sm text-base"
+            className="prose prose-slate max-w-none prose-p:text-foreground prose-p:text-base prose-headings:text-[#1a3826] dark:prose-headings:text-[#FFC72C] prose-headings:font-bold prose-a:text-[#1a3826] dark:prose-a:text-[#FFC72C] prose-strong:text-foreground prose-base rounded-xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card p-6 shadow-sm text-base"
             style={{ fontSize: "1rem" }}
             dangerouslySetInnerHTML={{ __html: ruleContentToHtml(rule.content) }}
           />
 
           {rule.videoUrl && (
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Video</p>
+            <div className="rounded-xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card p-4 shadow-sm">
+              <p className="text-xs font-semibold text-[#1a3826]/80 dark:text-[#FFC72C]/90 uppercase tracking-wider mb-3">Video</p>
               <div className="aspect-video rounded-lg overflow-hidden bg-slate-900">
                 {(rule.videoUrl.includes("youtube") || rule.videoUrl.includes("youtu.be")) ? (
                   <iframe src={youtubeEmbed} className="w-full h-full" allowFullScreen title="Video" />
@@ -256,12 +261,12 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
           )}
 
           {hasImages && (
-            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+            <div className="rounded-xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card p-4 shadow-sm">
+              <p className="text-xs font-semibold text-[#1a3826]/80 dark:text-[#FFC72C]/90 uppercase tracking-wider mb-3">
                 Galerie ({rule.images.length})
               </p>
               <div className="relative rounded-lg overflow-hidden bg-muted aspect-video">
-                <Image src={rule.images[galleryIndex].url} alt={`Galerija ${galleryIndex + 1} od ${rule.images.length}`} fill className="object-contain" sizes="(max-width: 768px) 100vw, 640px" />
+                <Image src={rule.images[galleryIndex].url} alt={`Galeriebild ${galleryIndex + 1} von ${rule.images.length}`} fill className="object-contain" sizes="(max-width: 768px) 100vw, 640px" />
                 {rule.images.length > 1 && (
                   <>
                     <button
@@ -292,7 +297,7 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                       idx === galleryIndex ? "border-[#1a3826]" : "border-transparent opacity-70"
                     )}
                   >
-                    <Image src={img.url} alt={`Slika ${idx + 1}`} fill className="object-cover" sizes="56px" />
+                    <Image src={img.url} alt={`Bild ${idx + 1}`} fill className="object-cover" sizes="56px" />
                   </button>
                 ))}
               </div>
@@ -300,33 +305,80 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
           )}
         </div>
 
-        {/* Sa strane: Dokumenti */}
+        {/* Sidebar: Dokumente */}
         {pdfs.length > 0 && (
           <aside className="lg:w-64 shrink-0">
-            <div className="lg:sticky lg:top-20 rounded-xl border border-border bg-card p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+            <div className="lg:sticky lg:top-20 rounded-xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card p-4 shadow-sm">
+              <p className="text-xs font-semibold text-[#1a3826]/80 dark:text-[#FFC72C]/90 uppercase tracking-wider mb-3">
                 Dokumente ({pdfs.length})
               </p>
               <div className="space-y-2">
                 {pdfs.map((u, idx) => (
-                  <a
-                    key={`${u}-${idx}`}
-                    href={u}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-muted hover:bg-accent border border-border transition touch-manipulation"
+                  <button
+                    key={`pdf-${idx}`}
+                    type="button"
+                    onClick={() => setPdfPreviewUrl(u)}
+                    title="PDF öffnen"
+                    className="w-full flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left"
                   >
-                    <FileText size={18} className="text-red-500 shrink-0" />
+                    <FileText size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
                     <span className="text-sm font-medium text-foreground truncate flex-1">PDF {idx + 1}</span>
-                    <span className="text-xs font-bold text-muted-foreground uppercase">Öffnen</span>
+                    <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase">Öffnen</span>
                     <Download size={16} className="text-muted-foreground shrink-0" />
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
           </aside>
         )}
       </div>
+
+      {/* PDF Preview Modal – McDonald's zeleni header, ~15% veći za bolju čitljivost */}
+      {pdfPreviewUrl !== null && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={(e) => { if (e.target === e.currentTarget) closePdf(); }}
+        >
+          <div className="relative bg-card rounded-2xl shadow-2xl border border-[#1a3826]/20 w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Modal Header – zelena pozadina, bijeli tekst, žuti/bijeli CTA */}
+            <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826] border-b border-[#FFC72C]/20">
+              <div className="flex items-center gap-2.5">
+                <FileText size={20} className="text-[#FFC72C]" aria-hidden />
+                <span className="text-sm md:text-base font-black text-white uppercase tracking-wider">
+                  Dokument anzeigen
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={pdfPreviewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#FFC72C] text-[#1a3826] hover:bg-[#FFC72C]/90 transition shadow-sm"
+                >
+                  <Download size={16} />
+                  Herunterladen
+                </a>
+                <button
+                  type="button"
+                  onClick={closePdf}
+                  className="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10 transition"
+                  aria-label="Schließen"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            {/* iFrame – maksimalna čitljivost PDF-a */}
+            <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900/50 min-h-0">
+              <iframe
+                src={pdfPreviewUrl}
+                className="w-full h-full border-0"
+                title="PDF Vorschau"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

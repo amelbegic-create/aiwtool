@@ -9,7 +9,7 @@ import { ArrowLeft } from "lucide-react";
 export default async function AdminRulesCreatePage() {
   const access = await tryRequirePermission("rules:access");
   if (!access.ok) {
-    return <NoPermission moduleName="Pravila (admin)" />;
+    return <NoPermission moduleName="Bedienungsanleitungen (Admin)" />;
   }
 
   const [categories, restaurants] = await Promise.all([
@@ -24,7 +24,7 @@ export default async function AdminRulesCreatePage() {
           href="/admin/rules"
           className="inline-flex items-center gap-2 text-sm font-bold text-[#1a3826] hover:text-[#142e1e] mb-6"
         >
-          <ArrowLeft size={18} /> Natrag na listu pravila
+          <ArrowLeft size={18} /> Zurück zur Übersicht
         </Link>
         <RuleEditor
           initialRule={null}

@@ -13,7 +13,7 @@ import { Toaster } from "sonner";
 import { Role } from "@prisma/client";
 import { dict } from "@/translations";
 import { getNotificationsForUser } from "@/app/actions/notificationActions";
-// UKLONIO SAM IMPORT switchRestaurant JER GA NE SMIJEMO KORISTITI OVDJE
+import { ensureActiveRestaurantId } from "@/app/actions/restaurantContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -41,10 +41,6 @@ export default async function RootLayout({
   let topbarNotifications: Awaited<ReturnType<typeof getNotificationsForUser>>["items"] = [];
 
   if (session?.user) {
-      const cookieStore = await cookies();
-      const rawActive = cookieStore.get('activeRestaurantId')?.value;
-      activeRestaurantId = rawActive && rawActive !== 'all' ? rawActive : undefined;
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const user = session.user as any;
       const userId = user.id;
@@ -52,6 +48,8 @@ export default async function RootLayout({
 
       // Samo SYSTEM_ARCHITECT, SUPER_ADMIN i ADMIN vide sve restorane. MANAGER i CREW samo svoje.
       const canSeeAllRestaurants = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'].includes(role);
+
+      let preferredRestaurantId: string | undefined;
 
       if (canSeeAllRestaurants) {
           const allRests = await prisma.restaurant.findMany({
@@ -62,13 +60,15 @@ export default async function RootLayout({
       } else {
           const relations = await prisma.restaurantUser.findMany({
               where: { userId },
-              select: { restaurant: { select: { id: true, name: true, code: true } } },
+              select: { restaurantId: true, isPrimary: true, restaurant: { select: { id: true, name: true, code: true } } },
           });
           userRestaurants = relations.map((rel) => ({
               id: rel.restaurant.id,
               name: rel.restaurant.name,
               code: rel.restaurant.code,
           }));
+          const primary = relations.find((r) => r.isPrimary);
+          preferredRestaurantId = primary?.restaurantId;
       }
 
       // --- NUMERIČKO SORTIRANJE ---
@@ -85,9 +85,15 @@ export default async function RootLayout({
       // Bez opcije "Alle Restaurants" – nikad ne prikazujemo "all" u switcheru
       userRestaurants = userRestaurants.filter((r) => r.id !== "all");
 
-      // Ne postavljati activeRestaurantId iz prvog restorana ovdje kad je cookie prazan,
-      // da RestaurantSwitcher (client) može postaviti cookie i odraditi refresh.
-      // TopNavbar koristi effectiveActiveId u switcheru (prvi restoran ako nema cookie).
+      // Auto-odabir restorana nakon logina: ako nema cookie ili je nevaljan, postavi prvi/primary
+      const allowedIds = userRestaurants.map((r) => r.id);
+      if (allowedIds.length > 0) {
+          const resolved = await ensureActiveRestaurantId({
+              allowedRestaurantIds: allowedIds,
+              preferredRestaurantId,
+          });
+          activeRestaurantId = resolved && resolved !== "all" ? resolved : undefined;
+      }
 
       // --- NOTIFIKACIJE ZA TOPNAV (zahtjevi) ---
       const ADMIN_ROLES = new Set<Role>([

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import DashboardChangelogButton from "@/components/dashboard/DashboardChangelogButton";
 import DeineIdeeButton from "@/components/dashboard/DeineIdeeButton";
+import CertificatesWidget from "@/components/dashboard/CertificatesWidget";
 import EventSlider from "@/components/restaurant/EventSlider";
 import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
 import { dict } from "@/translations";
@@ -102,7 +103,15 @@ async function getCertificates(userId: string) {
   try {
     return await prisma.userCertificate.findMany({
       where: { userId },
-      select: { id: true, title: true, description: true, imageUrl: true, createdAt: true },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        imageUrl: true,
+        pdfUrl: true,
+        pdfName: true,
+        createdAt: true,
+      },
       take: 5,
       orderBy: { createdAt: "desc" },
     });
@@ -190,6 +199,10 @@ export default async function DashboardPage() {
   ).split(" ")[0];
   const roleLabel = String(dbUser.role || "CREW");
 
+  // Popup für Zertifikate – nur für normale Mitarbeiter (nicht für Admins)
+  const godRoles: string[] = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+  const certPopupEnabled = !godRoles.includes(String(dbUser.role));
+
   // Vacation donut ring calculations
   const vacTotal = vacationSummary?.total ?? 0;
   const vacUsed = vacationSummary?.used ?? 0;
@@ -203,6 +216,7 @@ export default async function DashboardPage() {
     month: "long",
     year: "numeric",
   });
+  const currentYear = new Date().getFullYear();
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
@@ -372,7 +386,10 @@ export default async function DashboardPage() {
           </Link>
 
           {/* ▌ PENDING REQUESTS — royal blue, status indicator */}
-          <div className="md:col-span-3 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#4169E1] to-[#2a47c4] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#4169E1]/20">
+          <Link
+            href={`/tools/vacations?tab=requests&year=${currentYear}`}
+            className="md:col-span-3 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#4169E1] to-[#2a47c4] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#4169E1]/20 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300"
+          >
             <div className="absolute -right-6 -top-6 w-36 h-36 rounded-full bg-white/5 blur-2xl pointer-events-none" />
             <div className="absolute -left-4 -bottom-4 w-24 h-24 rounded-full border border-white/10 pointer-events-none" />
 
@@ -409,7 +426,7 @@ export default async function DashboardPage() {
                 {pendingVacationCount > 0 ? "Aktion erforderlich" : "Alles in Ordnung"}
               </span>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* ── MEISTGENUTZTE TOOLS (modern okvir) + rechts: nur Zertifikate ── */}
@@ -502,59 +519,24 @@ export default async function DashboardPage() {
           {/* Rechts: nur Meine Zertifikate (ista visina kao lijevi blok) */}
           <div className="lg:col-span-4 flex">
             <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden flex flex-col w-full min-h-0">
-              <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/20 shrink-0">
+              <div className="px-4 py-3 border-b border-border flex items-center bg-muted/20 shrink-0">
                 <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-tight text-foreground">
                   <Award size={16} className="text-[#FFC72C]" />
                   Meine Zertifikate
                 </h3>
-                <Link
-                  href="/profile"
-                  className="text-xs font-bold text-muted-foreground hover:text-foreground flex items-center gap-0.5 transition-colors"
-                >
-                  Alle <ChevronRight size={12} />
-                </Link>
               </div>
               <div className="p-4 flex-1 flex flex-col min-h-0">
-                {certificates.length > 0 ? (
-                  <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
-                    {certificates.slice(0, 4).map((cert) => (
-                      <div
-                        key={cert.id}
-                        className="flex items-center gap-3 rounded-xl bg-muted/30 p-3 border border-transparent hover:border-[#1a3826]/20 dark:hover:border-[#FFC72C]/20 transition-colors"
-                      >
-                        <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-[#1a3826] to-[#0f2218] flex items-center justify-center flex-shrink-0 overflow-hidden">
-                          {cert.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={cert.imageUrl} alt={cert.title} className="w-full h-full object-cover" />
-                          ) : (
-                            <Award size={16} className="text-[#FFC72C]" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-black text-foreground leading-tight truncate">{cert.title}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {new Date(cert.createdAt).toLocaleDateString("de-AT", { month: "short", year: "numeric" })}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 p-5 text-center flex-1 flex flex-col items-center justify-center min-h-[200px]">
-                    <Award size={20} className="text-muted-foreground/50 mx-auto mb-2" />
-                    <p className="text-xs font-bold text-muted-foreground">Keine Zertifikate</p>
-                    <Link href="/profile" className="mt-2 inline-flex items-center gap-0.5 text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline">
-                      Zum Profil <ChevronRight size={10} />
-                    </Link>
-                  </div>
-                )}
+                <CertificatesWidget
+                  certificates={certificates}
+                  canOpenPopup={certPopupEnabled}
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── EVENTS SLIDER (veliki ispod najkorištenijih alata) ── */}
-        <section className="border-t border-border pt-8">
+        {/* ── EVENTS SLIDER (kompaktni) ── */}
+        <section className="border-t border-border pt-5">
           <EventSlider />
         </section>
       </main>

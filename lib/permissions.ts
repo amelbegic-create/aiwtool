@@ -105,6 +105,15 @@ export const PERMISSIONS: PermissionGroup[] = [
     items: [{ key: "ideenbox:access", label: "Ideenbox lesen & verwalten" }],
   },
   {
+    id: "vorlagen",
+    title: "Vorlagen",
+    subtitle: "Offizielle Dokumente und Formulare",
+    items: [
+      { key: "vorlagen:access", label: "Zugriff auf Vorlagen" },
+      { key: "vorlagen:manage", label: "Vorlagen verwalten (Upload, Löschen)" },
+    ],
+  },
+  {
     id: "admin",
     title: "Verwaltung",
     subtitle: "Benutzer, Restaurants, Berechtigungen und System",

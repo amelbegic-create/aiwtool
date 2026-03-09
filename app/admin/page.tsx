@@ -10,6 +10,8 @@ import {
   FileText,
   CalendarDays,
   Lightbulb,
+  FolderOpen,
+  Map,
   LucideIcon,
 } from "lucide-react";
 import NoPermission from "@/components/NoPermission";
@@ -41,6 +43,8 @@ const TAG_STYLES: Record<string, string> = {
     "from-orange-500/18 via-orange-500/8 to-orange-500/8 text-orange-700 dark:text-orange-300 border-orange-200/60 dark:border-orange-500/40",
   Ideenbox:
     "from-yellow-500/20 via-yellow-500/10 to-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-200/70 dark:border-yellow-500/40",
+  Vorlagen:
+    "from-purple-500/18 via-purple-500/8 to-purple-500/8 text-purple-700 dark:text-purple-300 border-purple-200/60 dark:border-purple-500/40",
 };
 
 export default async function AdminHome() {
@@ -51,8 +55,9 @@ export default async function AdminHome() {
   const partnersAccess = await tryRequirePermission("partners:manage");
   const holidaysAccess = await tryRequirePermission("holidays:manage");
   const ideenboxAccess = await tryRequirePermission("ideenbox:access");
+  const vorlagenAccess = await tryRequirePermission("vorlagen:manage");
 
-  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok || pdsAccess.ok || partnersAccess.ok || holidaysAccess.ok || ideenboxAccess.ok;
+  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok || pdsAccess.ok || partnersAccess.ok || holidaysAccess.ok || ideenboxAccess.ok || vorlagenAccess.ok;
   if (!hasAnyAdminAccess) {
     return <NoPermission moduleName="Verwaltung" />;
   }
@@ -72,6 +77,13 @@ export default async function AdminHome() {
       desc: "Standorte anlegen, bearbeiten und Status (aktiv/inaktiv).",
       href: "/admin/restaurants",
       icon: Building2,
+      tag: "Locations",
+    },
+    {
+      title: "Sitzplan",
+      desc: "PDF-Layouts (Pläne) pro Restaurant hochladen und verwalten.",
+      href: "/admin/sitzplan",
+      icon: Map,
       tag: "Locations",
     },
     ...(usersAccess.ok
@@ -145,6 +157,17 @@ export default async function AdminHome() {
             icon: Lightbulb,
             tag: "Ideenbox",
             badge: ideenboxUnreadCount,
+          },
+        ]
+      : []),
+    ...(vorlagenAccess.ok
+      ? [
+          {
+            title: "Vorlagen",
+            desc: "Offizielle Dokumente und Formulare hochladen und verwalten.",
+            href: "/admin/vorlagen",
+            icon: FolderOpen,
+            tag: "Vorlagen",
           },
         ]
       : []),

@@ -100,7 +100,7 @@ export default function EventSlider({
   }, []);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-black text-foreground uppercase tracking-tight">
@@ -126,11 +126,11 @@ export default function EventSlider({
         </div>
       </div>
 
-      {/* Slider track — 3 velike kartice u prikazu */}
+      {/* Slider track — 3 kompaktne kartice u prikazu */}
       <div
         ref={scrollRef}
         onScroll={updateScrollState}
-        className="slider-track flex gap-4 overflow-x-auto pb-3 pr-4 md:pr-8 scroll-smooth"
+        className="slider-track flex gap-3 overflow-x-auto pb-2 pr-3 md:pr-6 scroll-smooth"
         style={{ scrollSnapType: "x mandatory" }}
       >
         {items.map((item, i) => (
@@ -140,10 +140,10 @@ export default function EventSlider({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.07, duration: 0.4 }}
             style={{ scrollSnapAlign: "start", flexShrink: 0 }}
-            className="w-[300px] sm:w-[340px] md:w-[380px]"
+            className="w-[260px] sm:w-[300px] md:w-[340px]"
           >
             <div
-              className={`group relative h-[220px] rounded-3xl overflow-hidden cursor-pointer bg-gradient-to-br ${item.gradient} hover:-translate-y-1.5 transition-all duration-300 shadow-xl hover:shadow-2xl ring-1 ring-black/5`}
+              className={`group relative h-[180px] md:h-[190px] rounded-3xl overflow-hidden cursor-pointer bg-gradient-to-br ${item.gradient} hover:-translate-y-1 transition-all duration-300 shadow-lg hover:shadow-xl ring-1 ring-black/5`}
             >
               {/* Background image */}
               {item.imageUrl && (

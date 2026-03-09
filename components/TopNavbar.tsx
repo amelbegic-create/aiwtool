@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
 import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
 import RestaurantSwitcher from "./RestaurantSwitcher";
@@ -22,10 +22,11 @@ interface UserWithRole {
 const brandFont = Kanit({ subsets: ["latin"], weight: ["600", "800", "900"] });
 
 const CATEGORY_LABELS: Record<string, string> = {
-  general: dict.nav_dashboard,
-  staff: dict.nav_staff_tools,
-  operations: "Operations",
-  other: "Other",
+  dashboard: "Dashboard",
+  restaurant: "Restaurant",
+  personal: "Personal",
+  finanz: "Finanz",
+  vorlagen: "Vorlagen",
 };
 
 interface RichNotification {
@@ -121,24 +122,28 @@ export default function TopNavbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [showAllModal, setShowAllModal] = useState(false);
-  const [readIds, setReadIds] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
-    try {
-      const stored = localStorage.getItem("notif_read_ids");
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Inicijaliziraj readIds iz localStorage na klijentu
+  const notifIdsKey = useMemo(
+    () => [...notifications].map((n) => n.id).sort().join(","),
+    [notifications]
+  );
+
+  // Inicijaliziraj readIds iz localStorage i drži ih u syncu s trenutnim notifikacijama (badge = lista)
   useEffect(() => {
     try {
+      const ids = notifIdsKey ? notifIdsKey.split(",") : [];
       const stored = localStorage.getItem("notif_read_ids");
-      if (stored) setReadIds(new Set(JSON.parse(stored)));
+      const raw = stored ? (JSON.parse(stored) as string[]) : [];
+      const currentIds = Array.isArray(raw) ? raw : [];
+      const validIds = currentIds.filter((id) => ids.includes(id));
+      setReadIds(new Set(validIds));
+      if (validIds.length !== currentIds.length) {
+        localStorage.setItem("notif_read_ids", JSON.stringify(validIds));
+      }
     } catch { /* ignore */ }
-  }, []);
+  }, [notifIdsKey]);
 
   // Prikaži "Gespeichert" toast nakon automatskog snimanja pri izlasku iz modula
   useEffect(() => {
@@ -168,11 +173,12 @@ export default function TopNavbar({
     });
   };
 
-  // Nepročitane notifikacije – koriste se samo za badge na zvonu
-  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
-  // U listi prikazujemo sve notifikacije (max 5), ne samo nepročitane
-  const visibleNotifications = notifications.slice(0, 5);
-  const hiddenCount = notifications.length - visibleNotifications.length;
+  // Nepročitane notifikacije – koriste se za badge i listu
+  const unreadNotifications = notifications.filter((n) => !readIds.has(n.id));
+  const unreadCount = unreadNotifications.length;
+  // U listi prikazujemo samo nepročitane (max 5)
+  const visibleNotifications = unreadNotifications.slice(0, 5);
+  const hiddenCount = unreadNotifications.length - visibleNotifications.length;
 
   // Zatvori dropdown klikom van
   useEffect(() => {
@@ -256,23 +262,53 @@ export default function TopNavbar({
         <nav className="hidden md:flex h-full items-center gap-1">
           {TOOL_CATEGORIES.map((category) => {
             const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
-            const isGeneral = category.id === 'general';
-            const isActiveCategory = categoryTools.some(t => pathname.startsWith(t.href)) || (isGeneral && pathname === '/dashboard');
+            const isDashboard = category.id === 'dashboard';
+            const isVorlagen = category.id === 'vorlagen';
+            const isActiveCategory = 
+              (isDashboard && pathname === '/dashboard') ||
+              (isVorlagen && pathname.startsWith('/tools/vorlagen')) ||
+              categoryTools.some(t => pathname.startsWith(t.href));
             const displayLabel = CATEGORY_LABELS[category.id] || category.label;
+
+            if (isDashboard) {
+              return (
+                <div key={category.id} className="relative h-full flex items-center">
+                  <Link 
+                    href="/dashboard"
+                    className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${isActiveCategory ? 'bg-white/10 text-[#FFC72C]' : 'hover:bg-white/5 text-emerald-100/60 hover:text-white'}`}
+                  >
+                    <LayoutGrid size={14} />
+                    {displayLabel}
+                  </Link>
+                </div>
+              );
+            }
+
+            if (isVorlagen) {
+              return (
+                <div key={category.id} className="relative h-full flex items-center">
+                  <Link 
+                    href="/tools/vorlagen"
+                    className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${isActiveCategory ? 'bg-white/10 text-[#FFC72C]' : 'hover:bg-white/5 text-emerald-100/60 hover:text-white'}`}
+                  >
+                    {displayLabel}
+                  </Link>
+                </div>
+              );
+            }
 
             return (
               <div key={category.id} className="relative group h-full flex items-center">
-                <Link 
-                  href={isGeneral ? "/dashboard" : `/tools/categories/${category.id}`}
+                <button
+                  type="button"
                   className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${isActiveCategory ? 'bg-white/10 text-[#FFC72C]' : 'hover:bg-white/5 text-emerald-100/60 hover:text-white'}`}
                 >
-                  {isGeneral && <LayoutGrid size={14} />}
                   {displayLabel}
-                  {!isGeneral && <ChevronDown size={12} className="opacity-40 group-hover:rotate-180 transition-transform" />}
-                </Link>
+                  <ChevronDown size={12} className="opacity-40 group-hover:rotate-180 transition-transform" />
+                </button>
 
                 {/* Dropdown Menu */}
-                {!isGeneral && categoryTools.length > 0 && (
+                {categoryTools.length > 0 && (
                   <div className="absolute top-[90%] left-0 w-64 bg-card rounded-xl shadow-2xl border border-border overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-1 group-hover:translate-y-0 z-50">
                     <div className="p-2 space-y-0.5 text-card-foreground">
                       {categoryTools.map((tool) => (
@@ -338,7 +374,7 @@ export default function TopNavbar({
                   </div>
                 </div>
 
-                {/* Liste – max 5 */}
+                {/* Liste – max 5 nepročitanih */}
                 <div className="divide-y divide-border/50">
                   {visibleNotifications.length === 0 ? (
                     <div className="px-5 py-10 text-center">
@@ -489,20 +525,52 @@ export default function TopNavbar({
               <nav className="space-y-1">
                 {TOOL_CATEGORIES.map((category) => {
                   const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
-                  const isGeneral = category.id === 'general';
+                  const isDashboard = category.id === 'dashboard';
+                  const isVorlagen = category.id === 'vorlagen';
+
+                  if (isDashboard) {
+                    return (
+                      <div key={category.id}>
+                        <Link
+                          href="/dashboard"
+                          onClick={closeMenu}
+                          className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
+                        >
+                          <LayoutGrid size={18} />
+                          <span className="uppercase tracking-widest text-xs font-black">
+                            {CATEGORY_LABELS[category.id] || category.label}
+                          </span>
+                        </Link>
+                      </div>
+                    );
+                  }
+
+                  if (isVorlagen) {
+                    return (
+                      <div key={category.id}>
+                        <Link
+                          href="/tools/vorlagen"
+                          onClick={closeMenu}
+                          className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
+                        >
+                          <FileText size={18} />
+                          <span className="uppercase tracking-widest text-xs font-black">
+                            {CATEGORY_LABELS[category.id] || category.label}
+                          </span>
+                        </Link>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={category.id}>
-                      <Link
-                        href={isGeneral ? "/dashboard" : `/tools/categories/${category.id}`}
-                        onClick={closeMenu}
-                        className="flex items-center justify-between px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
-                      >
+                      <div className="flex items-center justify-between px-4 py-3.5 rounded-xl text-white min-h-[44px]">
                         <span className="uppercase tracking-widest text-xs font-black">
                           {CATEGORY_LABELS[category.id] || category.label}
                         </span>
                         <ChevronDown size={16} className="text-white/40 rotate-[-90deg]" />
-                      </Link>
-                      {!isGeneral && categoryTools.length > 0 && (
+                      </div>
+                      {categoryTools.length > 0 && (
                         <div className="ml-4 mt-1 space-y-0.5 pl-4 border-l border-white/10">
                           {categoryTools.map((tool) => (
                             <Link
@@ -575,13 +643,13 @@ export default function TopNavbar({
 
           {/* Liste */}
           <div className="divide-y divide-border max-h-[65vh] overflow-y-auto">
-            {notifications.length === 0 ? (
+            {unreadNotifications.length === 0 ? (
               <div className="px-5 py-12 text-center">
                 <Bell size={36} className="mx-auto mb-3 text-muted-foreground/30" />
                 <p className="text-sm text-muted-foreground">Keine Benachrichtigungen.</p>
               </div>
             ) : (
-              notifications.map((n) => {
+            unreadNotifications.map((n) => {
                 const meta = kindMeta(n.kind, n.vacationStatus);
                 const isAdminKind = n.kind === "admin_vacation_pending" || n.kind === "admin_vacation_storno";
                 const isRead = readIds.has(n.id);

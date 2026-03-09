@@ -51,14 +51,18 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
   const initialTab =
     initialTabParam === "requests" ? "REQUESTS" : initialTabParam === "blocked" ? "BLOCKED" : "STATS";
 
+  const viewParam = (searchParams.view || "").toLowerCase();
+  const forceSelfView = viewParam === "self";
+
   const startOfYear = `${selectedYear}-01-01`;
   const endOfYear = `${selectedYear}-12-31`;
 
   const isGodMode = user.role === Role.SYSTEM_ARCHITECT || user.role === Role.SUPER_ADMIN;
   const isAdmin = user.role === Role.ADMIN;
-  const isManagerView = isGodMode || isAdmin;
+  const isRestaurantManager = user.role === Role.MANAGER;
+  const isManagerView = isGodMode || isAdmin || isRestaurantManager;
 
-  if (isManagerView) {
+  if (isManagerView && !forceSelfView) {
     const [adminData, globalHolidays] = await Promise.all([
       getVacationAdminData(selectedYear, activeRestaurantId, sessionUserId),
       getHolidaysForYear(selectedYear),
@@ -67,7 +71,8 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     const canRegisterOwnVacation =
       user.role === Role.SYSTEM_ARCHITECT ||
       user.role === Role.SUPER_ADMIN ||
-      user.role === Role.ADMIN;
+      user.role === Role.ADMIN ||
+      user.role === Role.MANAGER;
 
     const dbUserForAccess = await getDbUserForAccess();
     const canLinkToAdminUserEdit = hasPermission(
@@ -87,6 +92,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         globalHolidays={globalHolidays}
         canLinkToAdminUserEdit={canLinkToAdminUserEdit}
         initialTab={initialTab}
+        isRestaurantManager={isRestaurantManager}
       />
     );
   }

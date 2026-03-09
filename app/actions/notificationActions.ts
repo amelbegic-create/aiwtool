@@ -65,11 +65,12 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
   since.setDate(since.getDate() - 14);
 
   if (isAdmin) {
-    // 1) PENDING zahtjevi od ostalih (admin dobiva notifikaciju za svaki)
+    // 1) PENDING zahtjevi: notifikacija samo nadređenom (supervisorId) – ni admin ni system arhitekt ne primaju sve, samo ako su oni nadređeni
     const pendingRequests = await prisma.vacationRequest.findMany({
       where: {
         status: "PENDING",
         userId: { not: userId },
+        supervisorId: userId,
       },
       include: {
         user: { select: { name: true, image: true } },
@@ -96,12 +97,12 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
       });
     }
 
-    // 2) CANCEL_PENDING zahtjevi
+    // 2) CANCEL_PENDING: samo nadređenom koji može odobriti storniranje
     const cancelRequests = await prisma.vacationRequest.findMany({
-      where:
-        user.role === Role.SYSTEM_ARCHITECT
-          ? { status: "CANCEL_PENDING" }
-          : { status: "CANCEL_PENDING", user: { supervisorId: userId } },
+      where: {
+        status: "CANCEL_PENDING",
+        supervisorId: userId,
+      },
       include: {
         user: { select: { name: true, image: true } },
         restaurant: { select: { name: true } },
