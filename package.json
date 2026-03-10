@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "import-partners": "tsx scripts/import-partners.ts"
+    "import-partners": "tsx scripts/import-partners.ts",
+    "vercel:env": "node scripts/vercel-env-push.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

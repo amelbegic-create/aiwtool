@@ -6,6 +6,9 @@
  *
  * Pokretanje: npx tsx scripts/migrate-partners-to-live.ts
  *
+ * Za ovu skriptu u .env (privremeno) trebaju RADNA_DATABASE_URL i LIVE_DATABASE_URL.
+ * To nisu dio standardnog .env za app/Vercel – dodaj ih samo dok radiš migraciju, pa ukloni.
+ *
  * Napomena: Na live bazi će se DODATI svi zapisi; ako već postoje kategorije/firme
  * s istim imenom, nastat će duplikati (ili prilagodi skriptu da provjeri postojeće).
  */

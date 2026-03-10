@@ -99,7 +99,10 @@ export default async function RootLayout({
           topbarNotifications = notifResult.items;
       } catch (dbErr) {
           console.error("[Layout] DB/notifications error:", dbErr);
-          layoutError = "Baza nije dostupna. Na Vercelu provjerite DATABASE_URL i DIRECT_URL (LIVE baza).";
+          const hasDbUrl = !!process.env.DATABASE_URL;
+          layoutError = hasDbUrl
+            ? "Baza nije dostupna (povezivanje ne uspijeva). Provjerite DATABASE_URL i DIRECT_URL – moraju biti LIVE Neon URL-ovi."
+            : "DATABASE_URL nije postavljen na ovom projektu. Dodajte env varijable u projekt koji služi www.aiw.services.";
       }
   }
 
@@ -107,12 +110,14 @@ export default async function RootLayout({
     return (
       <html lang="de">
         <body className={inter.className} style={{ margin: 0, padding: "2rem", fontFamily: "system-ui", background: "#f5f5f5" }}>
-          <div style={{ maxWidth: "480px", margin: "0 auto", background: "#fff", padding: "2rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
+          <div style={{ maxWidth: "520px", margin: "0 auto", background: "#fff", padding: "2rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
             <h1 style={{ color: "#1a3826", marginBottom: "0.5rem" }}>Konfiguracija aplikacije</h1>
             <p style={{ color: "#666", marginBottom: "1rem" }}>{layoutError}</p>
+            <p style={{ fontSize: "0.875rem", color: "#888", marginBottom: "0.75rem" }}>
+              <strong>Važno:</strong> Ako koristite www.aiw.services, env varijable moraju biti u <strong>onom Vercel projektu na kojem je ta domena</strong> (Settings → Domains). To je često drugi projekt od onoga na koji šaljete iz CLI-ja.
+            </p>
             <p style={{ fontSize: "0.875rem", color: "#888" }}>
-              Vercel → Project → Settings → Environment Variables. Postavite za <strong>Production</strong>:<br />
-              DATABASE_URL, DIRECT_URL (LIVE Neon), NEXTAUTH_SECRET, NEXTAUTH_URL (https://www.aiw.services).
+              Vercel → odaberi <strong>projekt s domenom aiw.services</strong> → Settings → Environment Variables → Production. Dodaj: DATABASE_URL, DIRECT_URL (LIVE Neon), NEXTAUTH_SECRET, NEXTAUTH_URL = https://www.aiw.services, BLOB_READ_WRITE_TOKEN, RESEND_API_KEY. Zatim Redeploy.
             </p>
           </div>
         </body>
