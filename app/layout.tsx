@@ -33,79 +33,91 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getServerSession(authOptions);
-  
+  let session: Awaited<ReturnType<typeof getServerSession>> = null;
   let userRestaurants: { id: string; name: string | null; code: string }[] = [];
   let activeRestaurantId: string | undefined = undefined;
   let pendingNotifications = 0;
   let topbarNotifications: Awaited<ReturnType<typeof getNotificationsForUser>>["items"] = [];
+  let layoutError: string | null = null;
 
-  if (session?.user) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const user = session.user as any;
-      const userId = user.id;
-      const role = user.role;
+  try {
+    session = await getServerSession(authOptions);
+  } catch (authErr) {
+    console.error("[Layout] getServerSession error:", authErr);
+    layoutError = "NEXTAUTH_SECRET ili NEXTAUTH_URL nisu postavljeni na Vercelu.";
+  }
 
-      // Samo SYSTEM_ARCHITECT, SUPER_ADMIN i ADMIN vide sve restorane. MANAGER i CREW samo svoje.
-      const canSeeAllRestaurants = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'].includes(role);
+  if (!layoutError && session?.user) {
+      try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const user = session.user as any;
+          const userId = user.id;
+          const role = user.role;
 
-      let preferredRestaurantId: string | undefined;
+          const canSeeAllRestaurants = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'].includes(role);
+          let preferredRestaurantId: string | undefined;
 
-      if (canSeeAllRestaurants) {
-          const allRests = await prisma.restaurant.findMany({
-              where: { isActive: true },
-              select: { id: true, name: true, code: true }
+          if (canSeeAllRestaurants) {
+              const allRests = await prisma.restaurant.findMany({
+                  where: { isActive: true },
+                  select: { id: true, name: true, code: true }
+              });
+              userRestaurants = allRests;
+          } else {
+              const relations = await prisma.restaurantUser.findMany({
+                  where: { userId },
+                  select: { restaurantId: true, isPrimary: true, restaurant: { select: { id: true, name: true, code: true } } },
+              });
+              userRestaurants = relations.map((rel) => ({
+                  id: rel.restaurant.id,
+                  name: rel.restaurant.name,
+                  code: rel.restaurant.code,
+              }));
+              const primary = relations.find((r) => r.isPrimary);
+              preferredRestaurantId = primary?.restaurantId;
+          }
+
+          userRestaurants.sort((a, b) => {
+             const numA = parseInt(a.name || "0");
+             const numB = parseInt(b.name || "0");
+             if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+             return (a.name || "").localeCompare(b.name || "");
           });
-          userRestaurants = allRests;
-      } else {
-          const relations = await prisma.restaurantUser.findMany({
-              where: { userId },
-              select: { restaurantId: true, isPrimary: true, restaurant: { select: { id: true, name: true, code: true } } },
-          });
-          userRestaurants = relations.map((rel) => ({
-              id: rel.restaurant.id,
-              name: rel.restaurant.name,
-              code: rel.restaurant.code,
-          }));
-          const primary = relations.find((r) => r.isPrimary);
-          preferredRestaurantId = primary?.restaurantId;
+          userRestaurants = userRestaurants.filter((r) => r.id !== "all");
+
+          const allowedIds = userRestaurants.map((r) => r.id);
+          if (allowedIds.length > 0) {
+              const resolved = await ensureActiveRestaurantId({
+                  allowedRestaurantIds: allowedIds,
+                  preferredRestaurantId,
+              });
+              activeRestaurantId = resolved && resolved !== "all" ? resolved : undefined;
+          }
+
+          const notifResult = await getNotificationsForUser(userId);
+          pendingNotifications = notifResult.count;
+          topbarNotifications = notifResult.items;
+      } catch (dbErr) {
+          console.error("[Layout] DB/notifications error:", dbErr);
+          layoutError = "Baza nije dostupna. Na Vercelu provjerite DATABASE_URL i DIRECT_URL (LIVE baza).";
       }
+  }
 
-      // --- NUMERIČKO SORTIRANJE ---
-      userRestaurants.sort((a, b) => {
-         const numA = parseInt(a.name || "0");
-         const numB = parseInt(b.name || "0");
-         
-         if (!isNaN(numA) && !isNaN(numB)) {
-             return numA - numB;
-         }
-         return (a.name || "").localeCompare(b.name || "");
-      });
-
-      // Bez opcije "Alle Restaurants" – nikad ne prikazujemo "all" u switcheru
-      userRestaurants = userRestaurants.filter((r) => r.id !== "all");
-
-      // Auto-odabir restorana nakon logina: ako nema cookie ili je nevaljan, postavi prvi/primary
-      const allowedIds = userRestaurants.map((r) => r.id);
-      if (allowedIds.length > 0) {
-          const resolved = await ensureActiveRestaurantId({
-              allowedRestaurantIds: allowedIds,
-              preferredRestaurantId,
-          });
-          activeRestaurantId = resolved && resolved !== "all" ? resolved : undefined;
-      }
-
-      // --- NOTIFIKACIJE ZA TOPNAV (zahtjevi) ---
-      const ADMIN_ROLES = new Set<Role>([
-        Role.SUPER_ADMIN,
-        Role.ADMIN,
-        Role.SYSTEM_ARCHITECT,
-        Role.MANAGER,
-      ]);
-
-      const notifResult = await getNotificationsForUser(userId);
-      pendingNotifications = notifResult.count;
-      topbarNotifications = notifResult.items;
+  if (layoutError) {
+    return (
+      <html lang="de">
+        <body className={inter.className} style={{ margin: 0, padding: "2rem", fontFamily: "system-ui", background: "#f5f5f5" }}>
+          <div style={{ maxWidth: "480px", margin: "0 auto", background: "#fff", padding: "2rem", borderRadius: "12px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
+            <h1 style={{ color: "#1a3826", marginBottom: "0.5rem" }}>Konfiguracija aplikacije</h1>
+            <p style={{ color: "#666", marginBottom: "1rem" }}>{layoutError}</p>
+            <p style={{ fontSize: "0.875rem", color: "#888" }}>
+              Vercel → Project → Settings → Environment Variables. Postavite za <strong>Production</strong>:<br />
+              DATABASE_URL, DIRECT_URL (LIVE Neon), NEXTAUTH_SECRET, NEXTAUTH_URL (https://www.aiw.services).
+            </p>
+          </div>
+        </body>
+      </html>
+    );
   }
 
   return (
