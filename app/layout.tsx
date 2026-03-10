@@ -17,6 +17,18 @@ import { ensureActiveRestaurantId } from "@/app/actions/restaurantContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
+/** Vadi kratku, sigurnu poruku iz greške (bez connection stringova). */
+function getSafeErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const maxLen = 280;
+  let out = raw
+    .replace(/postgresql:\/\/[^\s]+/gi, "[REDACTED]")
+    .replace(/[\s\S]*?@ep-[^\s]+/g, "[REDACTED]")
+    .trim();
+  if (out.length > maxLen) out = out.slice(0, maxLen) + "…";
+  return out || "Nepoznata greška.";
+}
+
 // Cache-bust za favicon da live uvijek dobije aktualnu ikonu (logo.png u public/)
 const FAVICON_VERSION = "3";
 export const metadata: Metadata = {
@@ -100,9 +112,11 @@ export default async function RootLayout({
       } catch (dbErr) {
           console.error("[Layout] DB/notifications error:", dbErr);
           const hasDbUrl = !!process.env.DATABASE_URL;
-          layoutError = hasDbUrl
+          const detail = getSafeErrorMessage(dbErr);
+          const base = hasDbUrl
             ? "Baza nije dostupna (povezivanje ne uspijeva). Provjerite DATABASE_URL i DIRECT_URL – moraju biti LIVE Neon URL-ovi."
             : "DATABASE_URL nije postavljen na ovom projektu. Dodajte env varijable u projekt koji služi www.aiw.services.";
+          layoutError = `${base} Detalj: ${detail}`;
       }
   }
 
