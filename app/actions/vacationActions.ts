@@ -206,6 +206,7 @@ export async function getVacationReportForUser(userId: string, year: number) {
         end: true,
         days: true,
         status: true,
+        note: true,
         restaurant: { select: { name: true } },
         user: {
           select: {
@@ -267,6 +268,7 @@ export async function getVacationReportForUser(userId: string, year: number) {
     end: req.end,
     days: req.days,
     status: req.status,
+    note: req.note,
     restaurantName: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "–",
     user: {
       id: req.user.id,
@@ -289,12 +291,17 @@ export async function getVacationAdminData(
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    select: { id: true, role: true, restaurants: { select: { restaurantId: true } } },
+    select: {
+      id: true,
+      role: true,
+      restaurants: { select: { restaurantId: true } },
+    },
   });
   if (!user) throw new Error("Benutzer nicht gefunden.");
 
   const isGodMode = isGodModeRole(user.role as Role);
   const isManager = user.role === Role.MANAGER;
+  const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
   const startOfYear = `${selectedYear}-01-01`;
   const endOfYear = `${selectedYear}-12-31`;
   const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
@@ -305,7 +312,6 @@ export async function getVacationAdminData(
     Role.SUPER_ADMIN,
     Role.ADMIN,
   ];
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userWhereClause: any = {
     isActive: true,
@@ -314,53 +320,85 @@ export async function getVacationAdminData(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const requestWhereClause: any = { start: { gte: startOfYear, lte: endOfYear } };
 
-  if (activeRestaurantId && activeRestaurantId !== "all") {
-    if (isGodMode) {
-      // God mode + odabrani restoran: zahtjevi samo gdje sam ja nadređeni, u tom restoranu
+  // Pomoćni filter za restorane koje manager vodi
+  const restaurantFilterForManager =
+    activeRestaurantId && activeRestaurantId !== "all"
+      ? { restaurantId: activeRestaurantId }
+      : myRestaurantIds.length > 0
+      ? { restaurantId: { in: myRestaurantIds } }
+      : undefined;
+
+  if (isGodMode) {
+    // System Architect / Super Admin / Admin:
+    // - uvijek puni pristup admin pogledu
+    // - ali nikad ne prikazujemo ghost role u statistikama (već isključeno gore)
+    if (activeRestaurantId && activeRestaurantId !== "all") {
+      // God mode + konkretan restoran: svi radnici tog restorana
       userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
-      requestWhereClause.supervisorId = user.id;
       requestWhereClause.restaurantId = activeRestaurantId;
-      requestWhereClause.user = {
-        role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
-        restaurants: { some: { restaurantId: activeRestaurantId } },
-      };
-    } else if (isManager) {
-      // MANAGER: vidi samo svoje direktne podređene u tom restoranu
-      userWhereClause.supervisorId = user.id;
-      userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
-      requestWhereClause.supervisorId = user.id;
-      requestWhereClause.restaurantId = activeRestaurantId;
-    } else {
-      // Ostali (npr. buduće uloge): direktni link na restoran, samo zahtjevi gdje sam nadređeni
-      userWhereClause.restaurants = { some: { restaurantId: activeRestaurantId } };
-      requestWhereClause.supervisorId = user.id;
       requestWhereClause.user = {
         role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
         restaurants: { some: { restaurantId: activeRestaurantId } },
       };
     }
-  } else if (!isGodMode) {
-    // "Alle" bez odabranog restorana
-    const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
-    if (isManager) {
-      // MANAGER: svi njegovi podređeni preko svih restorana koje vodi
-      userWhereClause.supervisorId = user.id;
-      if (myRestaurantIds.length > 0) {
-        userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
-        requestWhereClause.restaurantId = { in: myRestaurantIds };
-      }
-      requestWhereClause.supervisorId = user.id;
+    // God mode + "Alle": nema dodatnih ograničenja – vidi sve radnike (osim ghost rola)
+    // i sve zahtjeve u zadanoj godini.
+  } else if (isManager) {
+    // Restaurant Manager:
+    // - vidi SVE ljude u svojim restoranima (po aktivnom restoranu ili svim koje vodi)
+    // - vidi SVE svoje podređene (supervisorId = user.id), bez obzira na restoran
+    // - uvijek vidi sebe (zbog exporta)
+
+    const orClauses: any[] = [{ id: user.id }];
+
+    if (restaurantFilterForManager) {
+      orClauses.push({
+        restaurants: { some: restaurantFilterForManager },
+      });
     } else if (myRestaurantIds.length > 0) {
-      userWhereClause.restaurants = { some: { restaurantId: { in: myRestaurantIds } } };
-      requestWhereClause.supervisorId = user.id;
-      requestWhereClause.user = {
-        role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+      orClauses.push({
         restaurants: { some: { restaurantId: { in: myRestaurantIds } } },
+      });
+    }
+
+    orClauses.push({ supervisorId: user.id });
+
+    userWhereClause.OR = orClauses;
+
+    const baseUserFilterForRequests: any = {
+      role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+    };
+    if (restaurantFilterForManager) {
+      baseUserFilterForRequests.restaurants = { some: restaurantFilterForManager };
+    } else if (myRestaurantIds.length > 0) {
+      baseUserFilterForRequests.restaurants = {
+        some: { restaurantId: { in: myRestaurantIds } },
       };
     }
+
+    requestWhereClause.OR = [
+      // Svi zahtjevi radnika u restoranima koje vodi
+      {
+        user: baseUserFilterForRequests,
+      },
+      // Svi zahtjevi njegovih podređenih (gdje god da rade)
+      {
+        supervisorId: user.id,
+      },
+      // Njegovi vlastiti zahtjevi
+      {
+        userId: user.id,
+      },
+    ];
   } else {
-    // God mode + "Alle": zahtjevi samo gdje sam ja nadređeni (ne svi u sistemu)
+    // Ostale role koje ipak imaju vacation:access (npr. specijalne uloge):
+    // - vide samo radnike kojima su nadređeni i njihove zahtjeve.
+    userWhereClause.supervisorId = user.id;
     requestWhereClause.supervisorId = user.id;
+    requestWhereClause.user = {
+      role: { notIn: EXCLUDED_ROLES_FOR_ADMIN_STATS },
+      supervisorId: user.id,
+    };
   }
 
   const blockedDaysWhere =
@@ -379,6 +417,7 @@ export async function getVacationAdminData(
         end: true,
         days: true,
         status: true,
+        note: true,
         restaurant: { select: { name: true } },
         user: {
           select: {
@@ -441,6 +480,7 @@ export async function getVacationAdminData(
     end: req.end,
     days: req.days,
     status: req.status,
+    note: req.note,
     restaurantName: req.restaurant?.name ?? req.user.restaurants[0]?.restaurant.name ?? "–",
     user: {
       id: req.user.id,
@@ -788,7 +828,7 @@ const ALLOWED_STATUS_TRANSITIONS = new Set([
   "PENDING", // Poništi odbijanje: vrati zahtjev na čekanju
 ]);
 
-export async function updateVacationStatus(requestId: string, status: string) {
+export async function updateVacationStatus(requestId: string, status: string, comment?: string) {
   const dbUser = await getDbUserForAccess();
 
   const req = await prisma.vacationRequest.findUnique({
@@ -842,9 +882,14 @@ export async function updateVacationStatus(requestId: string, status: string) {
     throw new Error(`Ungültiger Status: ${status}`);
   }
 
+  const updateData: { status: string; note?: string | null } = { status };
+  if (comment !== undefined) {
+    updateData.note = comment.trim() ? comment.trim() : null;
+  }
+
   await prisma.vacationRequest.update({
     where: { id: requestId },
-    data: { status },
+    data: updateData,
   });
 
   revalidatePath("/tools/vacations");

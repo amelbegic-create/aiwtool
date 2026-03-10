@@ -39,6 +39,7 @@ interface VacationRequest {
   end: string;
   days: number;
   status: string;
+   note?: string | null;
 }
 
 interface UserData {
@@ -501,9 +502,16 @@ export default function UserView({
                           <Calendar size={11} className="text-muted-foreground shrink-0" />
                           {formatDate(req.start)} – {formatDate(req.end)}
                         </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          <Briefcase size={11} className="inline mr-1" />
-                          {req.days} {req.days === 1 ? "Tag" : "Tage"}
+                        <div className="text-[11px] text-muted-foreground mt-0.5 flex flex-col gap-0.5">
+                          <div>
+                            <Briefcase size={11} className="inline mr-1" />
+                            {req.days} {req.days === 1 ? "Tag" : "Tage"}
+                          </div>
+                          {req.note && (
+                            <div className="text-[10px] text-red-600 dark:text-red-300 font-semibold whitespace-pre-line">
+                              Grund: {req.note}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">

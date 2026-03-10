@@ -21,7 +21,6 @@ import {
   Globe,
   Eye,
   EyeOff,
-  ArrowLeft,
 } from "lucide-react";
 import {
   saveRule,
@@ -326,14 +325,6 @@ export default function RuleEditor({
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 md:py-8">
-        {/* Back link */}
-        <Link
-          href="/admin/rules"
-          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-[#1a3826] transition mb-6"
-        >
-          <ArrowLeft size={16} /> Zurück zur Übersicht
-        </Link>
-
         {/* Card */}
         <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
           {/* Card header */}
@@ -344,12 +335,12 @@ export default function RuleEditor({
               </div>
               <div>
                 <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
-                  {isEdit ? "Regel bearbeiten" : "Neue Regel erstellen"}
+                  {isEdit ? "Regel bearbeiten" : "Neu erstellen"}
                 </h1>
                 <p className="text-white/70 text-sm mt-0.5">
                   {isEdit
                     ? "Bestehendes Dokument anpassen und speichern."
-                    : "Neue Arbeitsanweisung oder Richtlinie anlegen."}
+                    : "Neue Bedienungsanleitung anlegen."}
                 </p>
               </div>
             </div>

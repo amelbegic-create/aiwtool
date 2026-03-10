@@ -170,11 +170,8 @@ export default function AdminRulesClient({
               Admin · Bedienungsanleitungen
             </p>
             <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase text-[#1a3826]">
-              Regeln &amp; <span className="text-[#FFC72C]">Arbeitsanweisungen</span>
+              Bedienungs<span className="text-[#FFC72C]">anleitungen</span>
             </h1>
-            <p className="text-sm text-muted-foreground font-medium mt-1">
-              Übersicht aller Dokumente mit Lesestatus, Bearbeitung und Kategorieverwaltung.
-            </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -188,7 +185,7 @@ export default function AdminRulesClient({
               href="/admin/rules/create"
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a3826] text-white text-sm font-black shadow-lg hover:opacity-90 transition"
             >
-              <Plus size={18} /> Neue Regel anlegen
+              <Plus size={18} /> Neu erstellen
             </Link>
           </div>
         </header>

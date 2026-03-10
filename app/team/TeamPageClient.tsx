@@ -99,9 +99,18 @@ export default function TeamPageClient({
   const handleVacationStatus = useCallback(
     async (requestId: string, status: "APPROVED" | "REJECTED") => {
       if (!detailUserId) return;
+      let comment: string | undefined;
+      if (status === "REJECTED") {
+        const input = window.prompt(
+          "Unesite razlog odbijanja (vidi ga radnik u svojim zahtjevima):",
+          ""
+        );
+        if (input === null) return;
+        comment = input.trim();
+      }
       setUpdatingRequestId(requestId);
       try {
-        await updateVacationStatus(requestId, status);
+        await updateVacationStatus(requestId, status, comment);
         toast.success(status === "APPROVED" ? "Anfrage genehmigt." : "Anfrage abgelehnt.");
         const d = await getTeamMemberDetail(detailUserId);
         setDetail(d);

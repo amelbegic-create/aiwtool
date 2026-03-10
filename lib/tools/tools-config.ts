@@ -21,7 +21,6 @@ export const TOOL_CATEGORIES = [
   { id: 'restaurant', label: 'RESTAURANT', icon: Store },
   { id: 'personal', label: 'PERSONAL', icon: Users },
   { id: 'finanz', label: 'FINANZ', icon: Euro },
-  { id: 'vorlagen', label: 'VORLAGEN', icon: FileText },
 ];
 
 export const APP_TOOLS = [
@@ -29,6 +28,7 @@ export const APP_TOOLS = [
   { id: 'partners', name: 'Firmen und Partner', href: '/tools/partners', icon: Building2, category: 'restaurant' },
   { id: 'rules', name: 'Bedienungsanleitungen', href: '/tools/rules', icon: BookOpen, category: 'restaurant' },
   { id: 'sitzplan', name: 'Sitzplan & Layout', href: '/tools/sitzplan', icon: Map, category: 'restaurant' },
+  { id: 'vorlagen', name: 'Vorlagen', href: '/tools/vorlagen', icon: FileText, category: 'restaurant' },
   // PERSONAL
   { id: 'vacations', name: 'Urlaubsplanung', href: '/tools/vacations', icon: PlaneTakeoff, category: 'personal' },
   { id: 'PDS', name: 'PDS (Beurteilung)', href: '/tools/PDS', icon: ClipboardList, category: 'personal' },

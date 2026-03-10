@@ -36,15 +36,18 @@ export interface RuleStatsResult {
 async function checkAdmin() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Unauthorized");
-  
+
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) throw new Error("User not found");
-  
-  const allowed = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'];
-  // FIX: Cast u string da izbjegnemo TS greške
-  if (!allowed.includes(user.role as string)) {
-      throw new Error("Forbidden");
+
+  const roleAllowed = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER"].includes(user.role as string);
+  const perms = Array.isArray(user.permissions) ? user.permissions : [];
+  const hasRulesPermission = perms.includes("rules:manage") || perms.includes("rules:access");
+
+  if (!roleAllowed && !hasRulesPermission) {
+    throw new Error("Forbidden");
   }
+
   return user;
 }
 

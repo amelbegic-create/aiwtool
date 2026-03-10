@@ -112,7 +112,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
         userId: user.id,
         start: { gte: startOfYear, lte: endOfYear },
       },
-      select: { id: true, start: true, end: true, days: true, status: true },
+      select: { id: true, start: true, end: true, days: true, status: true, note: true },
       orderBy: { createdAt: "desc" },
     }),
     getUserTotalForYear(sessionUserId, selectedYear),
@@ -127,6 +127,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     end: req.end,
     days: req.days,
     status: req.status,
+    note: req.note,
   }));
 
   const usedThisYear = myRequests

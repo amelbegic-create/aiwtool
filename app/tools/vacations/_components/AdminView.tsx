@@ -58,6 +58,7 @@ export interface RequestWithUser {
   end: string;
   days: number;
   status: string;
+  note?: string | null;
   restaurantName?: string;
   user: {
     id: string;
@@ -699,8 +700,24 @@ export default function AdminView({
       CANCELLED: "Stornierung des Urlaubs genehmigen? Die Tage werden dem Mitarbeiter wieder gutgeschrieben.",
       PENDING: "Antrag wieder auf „Ausstehend“ setzen?",
     };
+
+    let comment: string | undefined = undefined;
+    if (status === "REJECTED" || status === "RETURNED") {
+      const input = window.prompt(
+        "Unesite razlog (vidi ga radnik u svojim zahtjevima):",
+        ""
+      );
+      if (input === null) {
+        return; // user cancelled
+      }
+      comment = input.trim();
+    } else if (status === "PENDING") {
+      // čišćenje prethodnog razloga
+      comment = "";
+    }
+
     if (confirm(messages[status])) {
-      await updateVacationStatus(id, status);
+      await updateVacationStatus(id, status, comment);
       toast.success(
         status === "APPROVED"
           ? "Antrag genehmigt."

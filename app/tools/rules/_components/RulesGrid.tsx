@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { BookOpen, Search, LayoutGrid, List, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface RulesGridProps {
@@ -63,7 +64,7 @@ export default function RulesGrid({
         : "bg-white/15 text-white/90 border-white/25";
 
   const getPriorityLabel = (p: string) =>
-    p === "URGENT" ? "HITNO" : p === "MANDATORY" ? "OBAVEZNO" : "INFO";
+    p === "URGENT" ? "DRINGEND" : p === "MANDATORY" ? "PFLICHT" : "INFO";
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground pb-24">
@@ -76,7 +77,7 @@ export default function RulesGrid({
                 <Search size={20} className="text-[#1a3826]/60 dark:text-[#FFC72C]/70 shrink-0" />
                 <input
                   type="search"
-                  placeholder="Pravila pretražiti…"
+                  placeholder="Richtlinien durchsuchen…"
                   className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-foreground placeholder:text-muted-foreground"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -95,7 +96,7 @@ export default function RulesGrid({
             </div>
             <div className="px-4 pb-4">
               <p className="text-xs font-semibold text-[#1a3826]/70 dark:text-[#FFC72C]/80 uppercase tracking-wider mb-2">
-                Kategorije pravila
+                Kategorien
               </p>
               <div className="flex gap-2 overflow-x-auto scrollbar-hide scroll-smooth pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {categoryTabs.map((tab) => {
@@ -122,11 +123,10 @@ export default function RulesGrid({
 
               <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                 <span className="hidden sm:inline">
-                  Pronađeno{" "}
                   <span className="font-semibold text-[#1a3826] dark:text-[#FFC72C]">
                     {filtered.length}
                   </span>{" "}
-                  pravila
+                  {filtered.length === 1 ? "Richtlinie" : "Richtlinien"} gefunden
                 </span>
                 <div className="ml-auto inline-flex items-center gap-1 rounded-xl border border-[#1a3826]/15 dark:border-[#FFC72C]/25 bg-background/80 px-1 py-0.5">
                   <button
@@ -138,10 +138,10 @@ export default function RulesGrid({
                         ? "bg-[#1a3826] text-white shadow-sm"
                         : "text-muted-foreground hover:text-foreground hover:bg-[#1a3826]/5"
                     )}
-                    aria-label="Ikone prikaz"
+                    aria-label="Karten"
                   >
                     <LayoutGrid size={14} />
-                    <span className="hidden sm:inline">Ikone</span>
+                    <span className="hidden sm:inline">Karten</span>
                   </button>
                   <button
                     type="button"
@@ -152,10 +152,10 @@ export default function RulesGrid({
                         ? "bg-[#1a3826] text-white shadow-sm"
                         : "text-muted-foreground hover:text-foreground hover:bg-[#1a3826]/5"
                     )}
-                    aria-label="Lista prikaz"
+                    aria-label="Liste"
                   >
                     <List size={14} />
-                    <span className="hidden sm:inline">Lista</span>
+                    <span className="hidden sm:inline">Liste</span>
                   </button>
                 </div>
               </div>
@@ -178,9 +178,9 @@ export default function RulesGrid({
               <div className="h-16 w-16 rounded-2xl bg-[#1a3826]/8 dark:bg-[#FFC72C]/12 flex items-center justify-center mx-auto mb-5">
                 <BookOpen size={30} className="text-[#1a3826] dark:text-[#FFC72C]" />
               </div>
-              <h2 className="text-xl font-bold text-foreground">Nema rezultata</h2>
+              <h2 className="text-xl font-bold text-foreground">Keine Ergebnisse</h2>
               <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                Promijeni kategoriju ili pojam pretrage da vidiš pravila.
+                Kategorie oder Suchbegriff ändern, um Richtlinien anzuzeigen.
               </p>
             </motion.div>
           ) : (
@@ -212,27 +212,43 @@ export default function RulesGrid({
                             "flex flex-col p-5 md:p-6"
                           )}
                         >
-                          <div className="flex flex-wrap items-center gap-2 mb-3 shrink-0">
-                            {rule.category?.name && (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#FFC72C]/18 text-[#FFC72C] border border-[#FFC72C]/40 shadow-inner">
-                                {rule.category.name}
-                              </span>
+                          <div className="flex items-start gap-3 flex-1 min-h-0">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-2 shrink-0">
+                                {rule.category?.name && (
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#FFC72C]/18 text-[#FFC72C] border border-[#FFC72C]/40 shadow-inner">
+                                    {rule.category.name}
+                                  </span>
+                                )}
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-inner",
+                                    priorityTone
+                                  )}
+                                >
+                                  {priorityLabel}
+                                </span>
+                              </div>
+                              <h2 className="text-base md:text-lg font-black text-white leading-snug line-clamp-3">
+                                {rule.title}
+                              </h2>
+                            </div>
+                            {(rule.imageUrl || rule.images?.[0]?.url) && (
+                              <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0 rounded-lg overflow-hidden bg-white/10">
+                                <Image
+                                  src={rule.imageUrl || rule.images?.[0]?.url || ""}
+                                  alt=""
+                                  fill
+                                  className="object-contain"
+                                  sizes="96px"
+                                  unoptimized={(rule.imageUrl || rule.images?.[0]?.url || "").includes("blob.vercel-storage.com")}
+                                />
+                              </div>
                             )}
-                            <span
-                              className={cn(
-                                "inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-inner",
-                                priorityTone
-                              )}
-                            >
-                              {priorityLabel}
-                            </span>
                           </div>
-                          <h2 className="text-base md:text-lg font-black text-white leading-snug line-clamp-3 flex-1">
-                            {rule.title}
-                          </h2>
                           <div className="mt-3 flex items-center justify-between text-xs">
                             <span className="text-white/60 font-medium">
-                              Pravilo
+                              Richtlinie
                               {rule.category?.name ? ` · ${rule.category.name}` : ""}
                             </span>
                             <span className="flex items-center gap-1.5 text-[#FFC72C] font-bold opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
@@ -264,7 +280,20 @@ export default function RulesGrid({
                             "px-4 sm:px-5 py-3.5 sm:py-4 shadow-md hover:shadow-xl hover:border-[#FFC72C]/50 transition-all duration-200"
                           )}
                         >
-                          <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            {(rule.imageUrl || rule.images?.[0]?.url) && (
+                              <div className="relative w-14 h-14 shrink-0 rounded-lg overflow-hidden bg-white/10">
+                                <Image
+                                  src={rule.imageUrl || rule.images?.[0]?.url || ""}
+                                  alt=""
+                                  fill
+                                  className="object-contain"
+                                  sizes="56px"
+                                  unoptimized={(rule.imageUrl || rule.images?.[0]?.url || "").includes("blob.vercel-storage.com")}
+                                />
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 text-[10px] mb-0.5">
                               {rule.category?.name && (
                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full font-bold uppercase tracking-wider bg-[#FFC72C]/18 text-[#FFC72C] border border-[#FFC72C]/40">
@@ -283,9 +312,10 @@ export default function RulesGrid({
                             <h2 className="text-sm sm:text-base font-semibold text-white leading-snug line-clamp-1 sm:line-clamp-2">
                               {rule.title}
                             </h2>
+                            </div>
                           </div>
                           <div className="flex items-center gap-1.5 text-[#FFC72C] text-xs font-bold shrink-0 opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all duration-200">
-                            Detalji
+                            Details
                             <ChevronRight size={14} />
                           </div>
                         </Link>

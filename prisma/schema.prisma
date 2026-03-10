@@ -429,7 +429,7 @@ model VacationRequest {
   end          String
   days         Int
   status       String      @default("PENDING")
-  note         String?     // opcionalna napomena (npr. za self-service admina)
+  note         String?     // opcionalna napomena (npr. za self-service admina ili razlog odbijanja)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 

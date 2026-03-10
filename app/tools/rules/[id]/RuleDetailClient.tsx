@@ -138,49 +138,24 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
     router.refresh();
   };
 
-  const handleShare = async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    const title = rule.title;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, url });
-      } catch (e) {
-        if ((e as Error).name !== "AbortError") {
-          if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url);
-        }
-      }
-    } else if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
+  const closePdf = () => setPdfPreviewUrl(null);
+
+  const pdfDisplayName = (url: string, index: number) => {
+    try {
+      const withoutQuery = url.split("?")[0];
+      const lastSegment = withoutQuery.split("/").filter(Boolean).pop() ?? "";
+      if (!lastSegment) return `PDF ${index + 1}`;
+      const decoded = decodeURIComponent(lastSegment);
+      return decoded || `PDF ${index + 1}`;
+    } catch {
+      return `PDF ${index + 1}`;
     }
   };
 
-  const closePdf = () => setPdfPreviewUrl(null);
-
   return (
     <div className="min-h-screen bg-background pb-16">
-      {/* Breadcrumbs */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <nav className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-            <Link href="/dashboard" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
-              Tools
-            </Link>
-            <ChevronRight size={14} className="opacity-60" />
-            <Link href="/tools/rules" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
-              Bedienungsanleitungen
-            </Link>
-            {rule.category?.name && (
-              <>
-                <ChevronRight size={14} className="opacity-60" />
-                <span className="text-foreground font-medium">{rule.category.name}</span>
-              </>
-            )}
-          </nav>
-        </div>
-      </div>
-
       {/* Action bar – McDonald's zelena/žuta paleta */}
-      <div className="border-b border-[#1a3826]/10 bg-gradient-to-r from-[#1a3826]/5 to-transparent">
+      <div className="border-b border-[#1a3826]/10 bg-gradient-to-r from-[#1a3826]/5 to-transparent sticky top-0 z-20 bg-background/95 backdrop-blur">
         <div className="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <Link
             href="/tools/rules"
@@ -189,14 +164,6 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
             <ArrowLeft size={18} /> Zurück
           </Link>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={handleShare}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#1a3826]/20 bg-white/80 hover:bg-[#1a3826]/5 dark:border-[#FFC72C]/30 dark:bg-[#1a3826]/20 dark:hover:bg-[#FFC72C]/10 text-sm font-semibold min-h-[44px] touch-manipulation text-foreground"
-              title="Teilen"
-            >
-              <Share2 size={18} /> Teilen
-            </button>
             {rule.category?.name && (
               <span className="px-3 py-1.5 rounded-lg bg-[#1a3826]/10 text-[#1a3826] dark:bg-[#FFC72C]/20 dark:text-[#FFC72C] text-xs font-semibold border border-[#1a3826]/15 dark:border-[#FFC72C]/25">
                 {rule.category.name}
@@ -322,7 +289,9 @@ export default function RuleDetailClient({ rule, userId: _userId }: { rule: Rule
                     className="w-full flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left"
                   >
                     <FileText size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
-                    <span className="text-sm font-medium text-foreground truncate flex-1">PDF {idx + 1}</span>
+                    <span className="text-sm font-medium text-foreground truncate flex-1">
+                      {pdfDisplayName(u, idx)}
+                    </span>
                     <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase">Öffnen</span>
                     <Download size={16} className="text-muted-foreground shrink-0" />
                   </button>

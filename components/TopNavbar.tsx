@@ -17,6 +17,7 @@ interface UserWithRole {
   email?: string | null;
   image?: string | null;
   role?: string;
+  permissions?: string[];
 }
 
 const brandFont = Kanit({ subsets: ["latin"], weight: ["600", "800", "900"] });
@@ -196,6 +197,7 @@ export default function TopNavbar({
 
   const user = session?.user as UserWithRole | undefined;
   const role = user?.role;
+  const permissions = user?.permissions || [];
 
   const isPerRestaurantOnly = pathname.startsWith("/tools/labor-planner");
 
@@ -206,7 +208,25 @@ export default function TopNavbar({
     role === 'ADMIN' || 
     role === 'MANAGER';
 
-  const hasAdminPrivileges = role === 'SYSTEM_ARCHITECT' || role === 'SUPER_ADMIN' || role === 'ADMIN';
+  const hasAdminPrivileges =
+    role === 'SYSTEM_ARCHITECT' || role === 'SUPER_ADMIN' || role === 'ADMIN';
+
+  // Admin ikonica treba biti vidljiva i korisnicima koji imaju admin-permisije po modulima,
+  // čak i ako im je rola npr. CREW.
+  const hasAnyAdminPermission =
+    hasAdminPrivileges ||
+    permissions.some((p) =>
+      [
+        "users:access",
+        "restaurants:access",
+        "rules:access",
+        "pds:access",
+        "partners:manage",
+        "holidays:manage",
+        "ideenbox:access",
+        "vorlagen:manage",
+      ].includes(p)
+    );
 
   // Sakrij navbar na login stranici
   if (pathname === "/login" || pathname === "/select-restaurant") return null;
@@ -460,8 +480,8 @@ export default function TopNavbar({
               </div>
             )}
           </div>
-          {/* Admin panel – samo za ADMIN / SUPER_ADMIN / SYSTEM_ARCHITECT */}
-          {hasAdminPrivileges && (
+          {/* Admin panel – za ADMIN/SUPER_ADMIN/SYSTEM_ARCHITECT ili korisnike s admin-permisijama */}
+          {hasAnyAdminPermission && (
             <Link
               href="/admin"
               onClick={closeMenu}

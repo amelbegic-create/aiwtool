@@ -15,6 +15,7 @@ import {
   FileText,
   Download,
   Share2,
+  X,
 } from "lucide-react";
 
 type PartnerData = {
@@ -38,7 +39,21 @@ type PartnerData = {
 
 export default function PartnerDetailClient({ partner }: { partner: PartnerData }) {
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const hasGallery = partner.galleryUrls.length > 0;
+
+  const pdfLabel = React.useMemo(() => {
+    if (!partner.priceListPdfUrl) return "PDF öffnen";
+    try {
+      const withoutQuery = partner.priceListPdfUrl.split("?")[0];
+      const fileName = decodeURIComponent(withoutQuery.split("/").pop() || "");
+      if (!fileName) return "PDF öffnen";
+      const cleaned = fileName.replace(/^[0-9]+-/, "");
+      return cleaned || "PDF öffnen";
+    } catch {
+      return "PDF öffnen";
+    }
+  }, [partner.priceListPdfUrl]);
 
   const handleShare = async () => {
     const url = typeof window !== "undefined" ? window.location.href : "";
@@ -57,23 +72,6 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
 
   return (
     <div className="min-h-screen bg-background pb-16">
-      {/* Breadcrumbs – kao Pravila */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <nav className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
-            <Link href="/dashboard" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
-              Start
-            </Link>
-            <ChevronRight size={14} className="opacity-60" />
-            <Link href="/tools/partners" className="hover:text-[#1a3826] dark:hover:text-[#FFC72C] transition-colors">
-              Firmen und Partner
-            </Link>
-            <ChevronRight size={14} className="opacity-60" />
-            <span className="text-foreground font-medium truncate max-w-[200px]">{partner.companyName}</span>
-          </nav>
-        </div>
-      </div>
-
       {/* Action bar – kao Pravila */}
       <div className="border-b border-border bg-card">
         <div className="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
@@ -270,27 +268,74 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
               )}
             </div>
 
-            {/* Cjenovnik PDF – kao Dokumente u Pravilima */}
+            {/* Preisliste PDF – popup kao u modulu pravila */}
             {partner.priceListPdfUrl && (
               <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-                  Cjenovnik / Preisliste
+                  Preisliste
                 </p>
-                <a
-                  href={partner.priceListPdfUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-muted hover:bg-accent border border-border transition touch-manipulation"
+                <button
+                  type="button"
+                  onClick={() => setPdfPreviewUrl(partner.priceListPdfUrl)}
+                  className="w-full flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left"
                 >
-                  <FileText size={18} className="text-red-500 shrink-0" />
-                  <span className="text-sm font-medium text-foreground truncate flex-1">PDF öffnen</span>
+                  <FileText size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
+                  <span className="text-sm font-medium text-foreground truncate flex-1">{pdfLabel}</span>
+                  <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase">Öffnen</span>
                   <Download size={16} className="text-muted-foreground shrink-0" />
-                </a>
+                </button>
               </div>
             )}
           </div>
         </aside>
       </div>
+
+      {/* PDF Preview Modal – isti template kao u modulu pravila (zeleni header) */}
+      {pdfPreviewUrl !== null && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPdfPreviewUrl(null);
+          }}
+        >
+          <div className="relative bg-card rounded-2xl shadow-2xl border border-[#1a3826]/20 w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826] border-b border-[#FFC72C]/20">
+              <div className="flex items-center gap-2.5">
+                <FileText size={20} className="text-[#FFC72C]" aria-hidden />
+                <span className="text-sm md:text-base font-black text-white uppercase tracking-wider">
+                  Dokument anzeigen
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={pdfPreviewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#FFC72C] text-[#1a3826] hover:bg-[#FFC72C]/90 transition shadow-sm"
+                >
+                  <Download size={16} />
+                  Herunterladen
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPdfPreviewUrl(null)}
+                  className="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10 transition"
+                  aria-label="Schließen"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900/50 min-h-0">
+              <iframe
+                src={pdfPreviewUrl}
+                className="w-full h-full border-0"
+                title="PDF Vorschau"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

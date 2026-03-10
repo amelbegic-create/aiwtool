@@ -70,16 +70,24 @@ export default async function RootLayout({
           let preferredRestaurantId: string | undefined;
 
           if (canSeeAllRestaurants) {
-              const allRests = await prisma.restaurant.findMany({
-                  where: { isActive: true },
-                  select: { id: true, name: true, code: true }
-              });
+              const [allRests, notifResult] = await Promise.all([
+                  prisma.restaurant.findMany({
+                      where: { isActive: true },
+                      select: { id: true, name: true, code: true }
+                  }),
+                  getNotificationsForUser(userId),
+              ]);
               userRestaurants = allRests;
+              pendingNotifications = notifResult.count;
+              topbarNotifications = notifResult.items;
           } else {
-              const relations = await prisma.restaurantUser.findMany({
-                  where: { userId },
-                  select: { restaurantId: true, isPrimary: true, restaurant: { select: { id: true, name: true, code: true } } },
-              });
+              const [relations, notifResult] = await Promise.all([
+                  prisma.restaurantUser.findMany({
+                      where: { userId },
+                      select: { restaurantId: true, isPrimary: true, restaurant: { select: { id: true, name: true, code: true } } },
+                  }),
+                  getNotificationsForUser(userId),
+              ]);
               userRestaurants = relations.map((rel) => ({
                   id: rel.restaurant.id,
                   name: rel.restaurant.name,
@@ -87,6 +95,8 @@ export default async function RootLayout({
               }));
               const primary = relations.find((r) => r.isPrimary);
               preferredRestaurantId = primary?.restaurantId;
+              pendingNotifications = notifResult.count;
+              topbarNotifications = notifResult.items;
           }
 
           userRestaurants.sort((a, b) => {
@@ -108,10 +118,6 @@ export default async function RootLayout({
                         : allowedIds[0];
               activeRestaurantId = resolved && resolved !== "all" ? resolved : undefined;
           }
-
-          const notifResult = await getNotificationsForUser(userId);
-          pendingNotifications = notifResult.count;
-          topbarNotifications = notifResult.items;
       } catch (dbErr) {
           console.error("[Layout] DB/notifications error:", dbErr);
           const hasDbUrl = !!process.env.DATABASE_URL;

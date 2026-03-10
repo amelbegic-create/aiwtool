@@ -46,7 +46,7 @@ export default async function RulesPage() {
               BEDIENUNGS<span className="text-[#FFC72C]">ANLEITUNGEN</span>
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Wichtige Richtlinien und Anleitungen für Mitarbeiter.
+              Bedienungsanleitungen inkl. Fotos und Videos.
             </p>
           </div>
         </div>

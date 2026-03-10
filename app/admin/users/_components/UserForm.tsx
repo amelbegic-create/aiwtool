@@ -321,8 +321,10 @@ export default function UserForm({
         });
       }
       toast.success("Gespeichert.");
-      router.push("/admin/users");
-      router.refresh();
+      // Odgodi navigaciju da izbjegnemo removeChild grešku pri unmountu (toast + refresh + push u istom ticku)
+      setTimeout(() => {
+        router.push("/admin/users");
+      }, 150);
     } catch (e) {
       const message =
         e instanceof Error ? e.message : typeof e === "string" ? e : "Fehler beim Speichern des Benutzers";
