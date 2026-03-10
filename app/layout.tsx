@@ -13,7 +13,7 @@ import { Toaster } from "sonner";
 import { Role } from "@prisma/client";
 import { dict } from "@/translations";
 import { getNotificationsForUser } from "@/app/actions/notificationActions";
-import { ensureActiveRestaurantId } from "@/app/actions/restaurantContext";
+import { getActiveRestaurantId } from "@/app/actions/restaurantContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -99,10 +99,13 @@ export default async function RootLayout({
 
           const allowedIds = userRestaurants.map((r) => r.id);
           if (allowedIds.length > 0) {
-              const resolved = await ensureActiveRestaurantId({
-                  allowedRestaurantIds: allowedIds,
-                  preferredRestaurantId,
-              });
+              const fromCookie = await getActiveRestaurantId();
+              const resolved =
+                  fromCookie && allowedIds.includes(fromCookie)
+                      ? fromCookie
+                      : preferredRestaurantId && allowedIds.includes(preferredRestaurantId)
+                        ? preferredRestaurantId
+                        : allowedIds[0];
               activeRestaurantId = resolved && resolved !== "all" ? resolved : undefined;
           }
 
