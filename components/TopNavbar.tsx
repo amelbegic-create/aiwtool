@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, FileText } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
