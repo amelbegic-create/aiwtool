@@ -500,7 +500,8 @@ export async function upsertPersonalEntry(
   if (dbUser.id !== userId) throw new Error("Keine Berechtigung.");
   const normalizedColor =
     color && /^#[0-9A-Fa-f]{6}$/.test(color) ? color : undefined;
-  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  // Normaliziraj na \"sigurnu\" točku unutar dana (12:00 UTC) kako bi izbjegli pomak -1/+1 dan zbog vremenskih zona.
+  const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12, 0, 0));
   await prisma.calendarPersonalEntry.upsert({
     where: {
       userId_date: {
@@ -526,7 +527,7 @@ export async function upsertPersonalEntry(
 export async function deletePersonalEntry(userId: string, date: Date) {
   const dbUser = await getDbUserForAccess();
   if (dbUser.id !== userId) throw new Error("Keine Berechtigung.");
-  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12, 0, 0));
   await prisma.calendarPersonalEntry.deleteMany({
     where: {
       userId,

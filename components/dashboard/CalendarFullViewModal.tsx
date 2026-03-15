@@ -16,7 +16,15 @@ import {
 } from "date-fns";
 import { de } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, X, Smartphone } from "lucide-react";
-import { getCalendarEvents, getCalendarDataForExport, upsertPersonalEntry, type CalendarEventItem, type CalendarEventType } from "@/app/actions/calendarActions";
+import {
+  getCalendarEvents,
+  getCalendarDataForExport,
+  upsertPersonalEntry,
+  deletePersonalEntry,
+  deleteCalendarEvent,
+  type CalendarEventItem,
+  type CalendarEventType,
+} from "@/app/actions/calendarActions";
 import { createEvents } from "ics";
 
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -62,6 +70,7 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
   const [events, setEvents] = useState<CalendarEventItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventItem | null>(null);
+  const [selectedDayForPopup, setSelectedDayForPopup] = useState<Date | null>(null);
   const [personalModalOpen, setPersonalModalOpen] = useState(false);
   const [personalDate, setPersonalDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [personalTitle, setPersonalTitle] = useState("");
@@ -208,6 +217,21 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
 
   const headerTitle = format(monthStart, "MMMM yyyy", { locale: de });
 
+  const handleDeleteEvent = async (ev: CalendarEventItem) => {
+    // vacation iz VacationRequest i virtualni eventi se ne brišu ovdje
+    if (ev.id.startsWith("vac-")) return;
+    if (ev.id.startsWith("pe-")) {
+      const d = parseEventDate(ev);
+      await deletePersonalEntry(userId, d);
+    } else if (canWrite) {
+      await deleteCalendarEvent(ev.id, userId);
+    } else {
+      return;
+    }
+    setSelectedEvent(null);
+    await loadEvents();
+  };
+
   if (!open) return null;
 
   return (
@@ -222,6 +246,61 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
         className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-[#1a3826]/20 dark:border-[#FFC72C]/30"
         onClick={(e) => e.stopPropagation()}
       >
+        {selectedDayForPopup && (
+          <div
+            className="absolute inset-0 z-10 flex items-start justify-center pt-24 bg-black/40 px-4 pb-4 rounded-3xl"
+            onClick={() => setSelectedDayForPopup(null)}
+          >
+            <div
+              className="max-w-md w-full rounded-2xl bg-white dark:bg-[#1a3826] border border-[#1a3826]/20 dark:border-[#FFC72C]/30 shadow-xl p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-black text-[#1a3826] dark:text-[#FFC72C]">
+                  {format(selectedDayForPopup, "d. MMMM yyyy", { locale: de })}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDayForPopup(null)}
+                  className="p-1.5 rounded-lg border border-[#1a3826]/20 dark:border-[#FFC72C]/30 hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
+                  aria-label="Schließen"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <ul className="space-y-1 max-h-64 overflow-y-auto">
+                {(() => {
+                  const key = format(selectedDayForPopup, "yyyy-MM-dd");
+                  const list = eventsByDay.get(key) ?? [];
+                  if (list.length === 0) {
+                    return (
+                      <li className="text-sm text-muted-foreground">
+                        Keine Einträge für diesen Tag.
+                      </li>
+                    );
+                  }
+                  return list.map((ev) => (
+                    <li key={`${ev.id}-${key}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedEvent(ev);
+                          setSelectedDayForPopup(null);
+                        }}
+                        className="w-full text-left px-2 py-1 rounded-lg text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10 flex items-center justify-between gap-2"
+                      >
+                        <span className="font-medium truncate">{ev.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {getEventLabel(ev)}
+                        </span>
+                      </button>
+                    </li>
+                  ));
+                })()}
+              </ul>
+            </div>
+          </div>
+        )}
         {selectedEvent && (
           <div
             className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 p-4 rounded-3xl"
@@ -253,13 +332,24 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
               <p className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-wider">
                 {getEventLabel(selectedEvent)}
               </p>
-              <button
-                type="button"
-                onClick={() => setSelectedEvent(null)}
-                className="mt-4 w-full py-2 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
-              >
-                Schließen
-              </button>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedEvent(null)}
+                  className="flex-1 py-2 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
+                >
+                  Schließen
+                </button>
+                {((canWrite && !selectedEvent.id.startsWith("vac-")) || selectedEvent.id.startsWith("pe-")) && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteEvent(selectedEvent)}
+                    className="py-2 px-3 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700"
+                  >
+                    Löschen
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -341,6 +431,7 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
                       className={`min-h-[60px] border-b border-r border-gray-100 dark:border-[#1a3826]/10 p-1.5 ${
                         !isCurrentMonth ? "bg-gray-50/50 dark:bg-[#1a3826]/5" : ""
                       }`}
+                      onClick={() => setSelectedDayForPopup(day)}
                     >
                       <div
                         className={`text-xs font-bold mb-1 ${
@@ -356,7 +447,10 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
                           <button
                             key={`${ev.id}-${key}`}
                             type="button"
-                            onClick={() => setSelectedEvent(ev)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedEvent(ev);
+                            }}
                             className="w-full text-left rounded px-1.5 py-0.5 text-[10px] font-medium truncate text-white cursor-pointer"
                             style={{ backgroundColor: `${getEventColor(ev)}CC` }}
                           >
