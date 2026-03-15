@@ -18,6 +18,8 @@ import {
   X,
 } from "lucide-react";
 
+type DocItem = { fileUrl: string; fileName: string; fileType: string };
+
 type PartnerData = {
   id: string;
   companyName: string;
@@ -28,6 +30,7 @@ type PartnerData = {
   websiteUrl: string | null;
   galleryUrls: string[];
   priceListPdfUrl: string | null;
+  documents: DocItem[];
   contacts: Array<{
     id: string;
     contactName: string;
@@ -39,8 +42,17 @@ type PartnerData = {
 
 export default function PartnerDetailClient({ partner }: { partner: PartnerData }) {
   const [galleryIndex, setGalleryIndex] = useState(0);
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<{ url: string; fileName: string; viewable: boolean } | null>(null);
   const hasGallery = partner.galleryUrls.length > 0;
+
+  const isViewableInIframe = (fileType: string) => {
+    const t = (fileType || "").toLowerCase();
+    return t.includes("pdf") || t.startsWith("image/");
+  };
+
+  const openDoc = (url: string, fileName: string, viewable: boolean) => {
+    setDocumentPreview({ url, fileName, viewable });
+  };
 
   const pdfLabel = React.useMemo(() => {
     if (!partner.priceListPdfUrl) return "PDF öffnen";
@@ -268,7 +280,25 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
               )}
             </div>
 
-            {/* Preisliste PDF – popup kao u modulu pravila */}
+            {/* Webseite */}
+            {partner.websiteUrl && (
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Webseite</p>
+                <a
+                  href={partner.websiteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left w-full"
+                >
+                  <Globe size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
+                  <span className="text-sm font-medium text-[#1a3826] dark:text-[#FFC72C] truncate flex-1">
+                    {partner.websiteUrl.replace(/^https?:\/\//i, "")}
+                  </span>
+                </a>
+              </div>
+            )}
+
+            {/* Preisliste PDF – popup */}
             {partner.priceListPdfUrl && (
               <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
@@ -276,7 +306,7 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
                 </p>
                 <button
                   type="button"
-                  onClick={() => setPdfPreviewUrl(partner.priceListPdfUrl)}
+                  onClick={() => openDoc(partner.priceListPdfUrl!, pdfLabel, true)}
                   className="w-full flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left"
                 >
                   <FileText size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
@@ -286,29 +316,53 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
                 </button>
               </div>
             )}
+
+            {/* Dokumente (uploadani PDF, Excel, Word, …) */}
+            {partner.documents.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                  Dokumente ({partner.documents.length})
+                </p>
+                <ul className="space-y-2">
+                  {partner.documents.map((doc, idx) => (
+                    <li key={`${doc.fileUrl}-${idx}`}>
+                      <button
+                        type="button"
+                        onClick={() => openDoc(doc.fileUrl, doc.fileName, isViewableInIframe(doc.fileType))}
+                        className="w-full flex items-center gap-3 min-h-[44px] px-3 py-2.5 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left"
+                      >
+                        <FileText size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
+                        <span className="text-sm font-medium text-foreground truncate flex-1">{doc.fileName}</span>
+                        <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase shrink-0">Öffnen</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </aside>
       </div>
 
-      {/* PDF Preview Modal – isti template kao u modulu pravila (zeleni header) */}
-      {pdfPreviewUrl !== null && (
+      {/* Dokument-Popup (PDF/Slike u iframe-u, ostalo nur Herunterladen) */}
+      {documentPreview !== null && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setPdfPreviewUrl(null);
+            if (e.target === e.currentTarget) setDocumentPreview(null);
           }}
         >
           <div className="relative bg-card rounded-2xl shadow-2xl border border-[#1a3826]/20 w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826] border-b border-[#FFC72C]/20">
-              <div className="flex items-center gap-2.5">
-                <FileText size={20} className="text-[#FFC72C]" aria-hidden />
-                <span className="text-sm md:text-base font-black text-white uppercase tracking-wider">
-                  Dokument anzeigen
+              <div className="flex items-center gap-2.5 min-w-0">
+                <FileText size={20} className="text-[#FFC72C] shrink-0" aria-hidden />
+                <span className="text-sm md:text-base font-black text-white uppercase tracking-wider truncate">
+                  {documentPreview.fileName}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <a
-                  href={pdfPreviewUrl}
+                  href={documentPreview.url}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#FFC72C] text-[#1a3826] hover:bg-[#FFC72C]/90 transition shadow-sm"
@@ -318,7 +372,7 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
                 </a>
                 <button
                   type="button"
-                  onClick={() => setPdfPreviewUrl(null)}
+                  onClick={() => setDocumentPreview(null)}
                   className="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10 transition"
                   aria-label="Schließen"
                 >
@@ -327,11 +381,28 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
               </div>
             </div>
             <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900/50 min-h-0">
-              <iframe
-                src={pdfPreviewUrl}
-                className="w-full h-full border-0"
-                title="PDF Vorschau"
-              />
+              {documentPreview.viewable ? (
+                <iframe
+                  src={documentPreview.url}
+                  className="w-full h-full border-0"
+                  title={documentPreview.fileName}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-4 p-6 text-center">
+                  <p className="text-muted-foreground text-sm">
+                    Vorschau für diesen Dateityp nicht möglich. Bitte herunterladen.
+                  </p>
+                  <a
+                    href={documentPreview.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1a3826] text-[#FFC72C] font-semibold hover:opacity-90"
+                  >
+                    <Download size={18} />
+                    Herunterladen
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>

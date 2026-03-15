@@ -315,7 +315,7 @@ export function exportIndividualReportWithData(
   doc.roundedRect(margin, cardTop, contentWidth, cardHeight, 4, 4, "FD");
 
   // Lijeva strana: podaci o zaposleniku
-  let textX = margin + cardPaddingX;
+  const textX = margin + cardPaddingX;
   let textY = cardTop + cardPaddingY + 2;
 
   doc.setTextColor(15, 23, 42);

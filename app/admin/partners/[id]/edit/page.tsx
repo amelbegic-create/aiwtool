@@ -28,6 +28,14 @@ export default async function EditPartnerPage({ params }: { params: Promise<{ id
         websiteUrl: partner.websiteUrl,
         priceListPdfUrl: partner.priceListPdfUrl ?? null,
         galleryUrls: partner.galleryUrls ?? [],
+        documents:
+          "documents" in partner && Array.isArray(partner.documents)
+            ? partner.documents.map((d: { fileUrl: string; fileName: string; fileType: string }) => ({
+                fileUrl: d.fileUrl,
+                fileName: d.fileName,
+                fileType: d.fileType,
+              }))
+            : [],
         contacts: partner.contacts,
       }}
     />

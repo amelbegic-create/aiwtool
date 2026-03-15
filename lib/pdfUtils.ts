@@ -1,4 +1,4 @@
-import type { jsPDF } from "jspdf";
+import { jsPDF } from "jspdf";
 
 /**
  * Opens the generated PDF in a **new browser tab** using a blob URL,
@@ -25,7 +25,7 @@ export function openPdfInSameTab(doc: jsPDF): void {
  * kako bi se izbjegao runtime crash.
  */
 export function pdfToBlobUrl(doc?: jsPDF | null): string {
-  const instance = doc ?? (new (require("jspdf").jsPDF)() as jsPDF);
+  const instance = doc ?? new jsPDF();
   const blob = instance.output("blob");
   return URL.createObjectURL(blob);
 }

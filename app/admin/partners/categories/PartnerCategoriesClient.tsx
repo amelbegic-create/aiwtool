@@ -60,20 +60,20 @@ export default function PartnerCategoriesClient({
       toast.success("Gespeichert.");
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Greška.");
+      toast.error(e instanceof Error ? e.message : "Fehler.");
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Obrisati ovu kategoriju? Firme u njoj moraju biti premještene u drugu kategoriju."))
+    if (!confirm("Diese Kategorie wirklich löschen? Firmen darin müssen in eine andere Kategorie verschoben werden."))
       return;
     try {
       await deletePartnerCategory(id);
       setEditingId(null);
-      toast.success("Kategorija je obrisana.");
+      toast.success("Kategorie wurde gelöscht.");
       router.refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Greška.");
+      toast.error(e instanceof Error ? e.message : "Fehler.");
     }
   };
 

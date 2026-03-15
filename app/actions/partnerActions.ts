@@ -15,6 +15,12 @@ export type PartnerContactInput = {
   role?: string;
 };
 
+export type PartnerDocumentInput = {
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+};
+
 export type PartnerCompanyInput = {
   categoryId: string;
   companyName: string;
@@ -24,6 +30,7 @@ export type PartnerCompanyInput = {
   websiteUrl?: string;
   priceListPdfUrl?: string | null;
   galleryUrls?: string[];
+  documents?: PartnerDocumentInput[];
   contacts: PartnerContactInput[];
 };
 
@@ -44,11 +51,23 @@ export async function getPartners() {
   });
 }
 
+/** Jedan partner s dokumentima za prikaz na stranici detalja (tools/partners/[id]). Pristup već provjerava stranica. */
+export async function getPartnerForDetail(id: string) {
+  return prisma.partnerCompany.findUnique({
+    where: { id },
+    include: {
+      contacts: true,
+      category: true,
+      documents: { orderBy: { sortOrder: "asc" } },
+    },
+  });
+}
+
 export async function getPartnerById(id: string) {
   await requirePermission("partners:manage");
   return prisma.partnerCompany.findUnique({
     where: { id },
-    include: { contacts: true, category: true },
+    include: { contacts: true, category: true, documents: { orderBy: { sortOrder: "asc" } } },
   });
 }
 
@@ -160,6 +179,35 @@ export async function uploadPartnerPriceListPdf(
   }
 }
 
+/** Upload dokumenta (PDF, Excel, Word, Text, Bilder) za partnera. */
+export async function uploadPartnerDocument(
+  formData: FormData,
+): Promise<
+  { success: true; url: string; fileName: string; fileType: string } | { success: false; error: string }
+> {
+  try {
+    await checkPartnersManage();
+    const file = formData.get("file") as File | null;
+    if (!file?.size) return { success: false, error: "Keine Datei ausgewählt." };
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) return { success: false, error: "Blob nicht konfiguriert." };
+    const name = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const blob = await put(`partners/documents/${Date.now()}-${name}`, file, {
+      access: "public",
+      token,
+      addRandomSuffix: true,
+    });
+    return {
+      success: true,
+      url: blob.url,
+      fileName: file.name,
+      fileType: file.type || "application/octet-stream",
+    };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Fehler beim Hochladen." };
+  }
+}
+
 export async function createPartnerCategory(name: string, icon?: string | null) {
   await checkPartnersManage();
   if (!name?.trim()) throw new Error("Naziv kategorije je obavezan.");
@@ -210,6 +258,13 @@ export async function createPartner(data: PartnerCompanyInput) {
   if (!data.companyName?.trim()) throw new Error("Naziv firme je obavezan.");
   if (!data.categoryId?.trim()) throw new Error("Kategorija je obavezna.");
 
+  const docs = (data.documents ?? []).map((d, i) => ({
+    fileUrl: d.fileUrl,
+    fileName: d.fileName,
+    fileType: d.fileType,
+    sortOrder: i,
+  }));
+
   await prisma.partnerCompany.create({
     data: {
       categoryId: data.categoryId.trim(),
@@ -222,6 +277,7 @@ export async function createPartner(data: PartnerCompanyInput) {
       galleryUrls: data.galleryUrls && data.galleryUrls.length > 0
         ? data.galleryUrls.map((u) => u.trim()).filter(Boolean)
         : [],
+      documents: docs.length > 0 ? { create: docs } : undefined,
       contacts: {
         create: (data.contacts || [])
           .filter((c) => c.contactName?.trim())
@@ -245,8 +301,16 @@ export async function updatePartner(id: string, data: PartnerCompanyInput) {
   if (!data.companyName?.trim()) throw new Error("Naziv firme je obavezan.");
   if (!data.categoryId?.trim()) throw new Error("Kategorija je obavezna.");
 
+  const docs = (data.documents ?? []).map((d, i) => ({
+    fileUrl: d.fileUrl,
+    fileName: d.fileName,
+    fileType: d.fileType,
+    sortOrder: i,
+  }));
+
   await prisma.$transaction(async (tx) => {
     await tx.partnerContact.deleteMany({ where: { partnerCompanyId: id } });
+    await tx.partnerCompanyDocument.deleteMany({ where: { partnerCompanyId: id } });
     await tx.partnerCompany.update({
       where: { id },
       data: {
@@ -264,6 +328,11 @@ export async function updatePartner(id: string, data: PartnerCompanyInput) {
           : undefined,
       },
     });
+    if (docs.length > 0) {
+      await tx.partnerCompanyDocument.createMany({
+        data: docs.map((d) => ({ partnerCompanyId: id, ...d })),
+      });
+    }
     const validContacts = (data.contacts || []).filter((c) => c.contactName?.trim());
     if (validContacts.length > 0) {
       await tx.partnerContact.createMany({

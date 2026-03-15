@@ -46,7 +46,9 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-const YEAR_OPTIONS = [2026, 2027, 2028, 2029, 2030];
+const YEAR_MIN = 2021;
+const YEAR_MAX = 2030;
+const YEAR_OPTIONS = Array.from({ length: YEAR_MAX - YEAR_MIN + 1 }, (_, i) => YEAR_MIN + i);
 
 export default function BesuchsberichteListClient({
   category,

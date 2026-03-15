@@ -5,7 +5,7 @@ import Image from "next/image";
 import { authOptions } from "@/lib/authOptions";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
-import { getPartners, getPartnerCategories } from "@/app/actions/partnerActions";
+import { getPartnerForDetail, getPartnerCategories } from "@/app/actions/partnerActions";
 import {
   Building2,
   Phone,
@@ -43,8 +43,10 @@ export default async function PartnerDetailPage({ params }: { params: { id: stri
     return <NoPermission moduleName="Firmen und Partner" />;
   }
 
-  const [partners] = await Promise.all([getPartners(), getPartnerCategories()]);
-  const partner = partners.find((p) => p.id === params.id);
+  const [partner, _categories] = await Promise.all([
+    getPartnerForDetail(params.id),
+    getPartnerCategories(),
+  ]);
   if (!partner) notFound();
 
   const websiteUrl = normalizeWebsiteUrl((partner as { websiteUrl?: string | null }).websiteUrl);
@@ -52,6 +54,9 @@ export default async function PartnerDetailPage({ params }: { params: { id: stri
     ? (partner as { galleryUrls: string[] }).galleryUrls
     : [];
   const priceListPdfUrl = (partner as { priceListPdfUrl?: string | null }).priceListPdfUrl ?? null;
+  const documents = Array.isArray((partner as { documents?: Array<{ fileUrl: string; fileName: string; fileType: string }> }).documents)
+    ? (partner as { documents: Array<{ fileUrl: string; fileName: string; fileType: string }> }).documents
+    : [];
 
   const partnerData = {
     id: partner.id,
@@ -63,6 +68,7 @@ export default async function PartnerDetailPage({ params }: { params: { id: stri
     websiteUrl,
     galleryUrls,
     priceListPdfUrl,
+    documents,
     contacts: partner.contacts,
   };
 

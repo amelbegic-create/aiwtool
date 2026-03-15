@@ -211,11 +211,11 @@ export default function DashboardCalendarCard({
         </div>
 
         {/* ── Footer: otvori puni kalendar ── */}
-        <div className="shrink-0 px-3 py-1.5 border-t border-gray-100 dark:border-gray-800">
+        <div className="shrink-0 px-3 py-2 rounded-b-xl bg-[#1a3826] border-t border-[#1a3826]">
           <button
             type="button"
             onClick={() => setPopupOpen(true)}
-            className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] flex items-center gap-1 hover:opacity-70 transition-opacity"
+            className="text-xs font-bold text-white flex items-center gap-1 hover:opacity-90 transition-opacity"
           >
             Mehr anzeigen <ChevronRight size={12} />
           </button>

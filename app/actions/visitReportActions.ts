@@ -109,7 +109,7 @@ export async function getCategories(restaurantId: string) {
   }
   return prisma.visitReportCategory.findMany({
     where: { restaurantId },
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: { _count: { select: { items: true } } },
   });
 }
@@ -117,11 +117,18 @@ export async function getCategories(restaurantId: string) {
 export async function createCategory(restaurantId: string, data: { name: string; description?: string; iconName?: string }) {
   await ensureCanManageRestaurant(restaurantId);
 
+  const maxOrder = await prisma.visitReportCategory.aggregate({
+    where: { restaurantId },
+    _max: { sortOrder: true },
+  });
+  const sortOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+
   const category = await prisma.visitReportCategory.create({
     data: {
       name: data.name.trim(),
       description: data.description?.trim() || null,
       iconName: data.iconName?.trim() || null,
+      sortOrder,
       restaurantId,
     },
   });
@@ -129,6 +136,67 @@ export async function createCategory(restaurantId: string, data: { name: string;
   revalidatePath("/admin/besuchsberichte");
   revalidatePath("/tools/besuchsberichte");
   return category;
+}
+
+/** Create the same category (name, description) for multiple restaurants. */
+export async function createCategoryForRestaurants(
+  restaurantIds: string[],
+  data: { name: string; description?: string; iconName?: string }
+) {
+  if (restaurantIds.length === 0) return [];
+  const dbUser = await requirePermission("besuchsberichte:manage");
+  const allowed = await getAllowedRestaurantIdsForUser(dbUser.id);
+  const ids = restaurantIds.filter((id) => allowed.includes(id));
+  if (ids.length === 0) throw new Error("Sie haben keine Berechtigung für die gewählten Standorte.");
+
+  const created: Awaited<ReturnType<typeof prisma.visitReportCategory.create>>[] = [];
+  for (const restaurantId of ids) {
+    const maxOrder = await prisma.visitReportCategory.aggregate({
+      where: { restaurantId },
+      _max: { sortOrder: true },
+    });
+    const sortOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+    const category = await prisma.visitReportCategory.create({
+      data: {
+        name: data.name.trim(),
+        description: data.description?.trim() || null,
+        iconName: data.iconName?.trim() || null,
+        sortOrder,
+        restaurantId,
+      },
+    });
+    created.push(category);
+  }
+
+  revalidatePath("/admin/besuchsberichte");
+  revalidatePath("/tools/besuchsberichte");
+  return created;
+}
+
+export async function updateCategoryOrder(restaurantId: string, categoryIds: string[]) {
+  await ensureCanManageRestaurant(restaurantId);
+  if (categoryIds.length === 0) return;
+
+  const existing = await prisma.visitReportCategory.findMany({
+    where: { id: { in: categoryIds }, restaurantId },
+    select: { id: true },
+  });
+  const validIds = new Set(existing.map((c) => c.id));
+  if (validIds.size !== categoryIds.length) {
+    throw new Error("Einige Kategorien gehören nicht zu diesem Standort.");
+  }
+
+  await prisma.$transaction(
+    categoryIds.map((id, index) =>
+      prisma.visitReportCategory.update({
+        where: { id },
+        data: { sortOrder: index },
+      })
+    )
+  );
+
+  revalidatePath("/admin/besuchsberichte");
+  revalidatePath("/tools/besuchsberichte");
 }
 
 export async function updateCategory(
@@ -298,6 +366,45 @@ export async function updateItem(
   revalidatePath("/tools/besuchsberichte");
   revalidatePath(`/tools/besuchsberichte/${existing.categoryId}`);
   revalidatePath(`/tools/besuchsberichte/${data.categoryId}`);
+}
+
+/** Replace the file of an existing item (title, description, category, year stay the same). */
+export async function replaceItemFile(itemId: string, restaurantId: string, formData: FormData) {
+  const file = formData.get("file") as File;
+  if (!file || file.size === 0) throw new Error("Datei ist erforderlich.");
+
+  await ensureCanManageRestaurant(restaurantId);
+
+  const item = await prisma.visitReportItem.findUnique({
+    where: { id: itemId },
+    include: { category: true },
+  });
+  if (!item || item.category.restaurantId !== restaurantId) {
+    throw new Error("Dokument nicht gefunden oder kein Zugriff.");
+  }
+
+  try {
+    await del(item.fileUrl);
+  } catch (err) {
+    console.error("Fehler beim Löschen der alten Datei von Vercel Blob:", err);
+  }
+
+  const blob = await put(`besuchsberichte/${Date.now()}-${file.name}`, file, {
+    access: "public",
+    addRandomSuffix: true,
+  });
+
+  await prisma.visitReportItem.update({
+    where: { id: itemId },
+    data: {
+      fileUrl: blob.url,
+      fileType: file.type || "application/octet-stream",
+    },
+  });
+
+  revalidatePath("/admin/besuchsberichte");
+  revalidatePath("/tools/besuchsberichte");
+  revalidatePath(`/tools/besuchsberichte/${item.categoryId}`);
 }
 
 export async function deleteItem(id: string, restaurantId: string) {

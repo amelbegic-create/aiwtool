@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import {
   Pencil,
   Trash2,
@@ -15,19 +24,31 @@ import {
   Folder,
   FolderOpen,
   ArrowLeft,
+  GripVertical,
+  RefreshCw,
 } from "lucide-react";
 import {
   getCategories,
   getItems,
   createCategory,
+  createCategoryForRestaurants,
   updateCategory,
+  updateCategoryOrder,
   deleteCategory,
   createItem,
+  replaceItemFile,
   deleteItem,
+  getRestaurantsForBesuchsberichteAdmin,
 } from "@/app/actions/visitReportActions";
 import { toast } from "sonner";
 
-const YEAR_OPTIONS = [2026, 2027, 2028, 2029, 2030];
+const YEAR_MIN = 2021;
+const YEAR_MAX = 2030;
+const YEAR_OPTIONS = Array.from({ length: YEAR_MAX - YEAR_MIN + 1 }, (_, i) => YEAR_MIN + i);
+
+/** Accepted file types: PDF, images, Word, Excel, CSV, text */
+const FILE_ACCEPT =
+  ".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv";
 
 type Category = {
   id: string;
@@ -47,6 +68,77 @@ type Item = {
   category?: { name: string; iconName: string | null };
 };
 
+function DraggableFolderRow({
+  cat,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  cat: Category;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: cat.id });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: cat.id });
+  const ref = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      setDropRef(node);
+    },
+    [setNodeRef, setDropRef]
+  );
+  return (
+    <div
+      ref={ref}
+      className={`flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/20 ${isDragging ? "opacity-60 bg-muted/40" : ""} ${isOver ? "ring-1 ring-inset ring-[#1a3826]/30 dark:ring-[#FFC72C]/30" : ""}`}
+    >
+      <span
+        className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 text-muted-foreground hover:text-foreground shrink-0"
+        {...listeners}
+        {...attributes}
+        title="Reihenfolge ändern"
+      >
+        <GripVertical size={16} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-foreground truncate">{cat.name}</p>
+        {cat.description && (
+          <p className="text-xs text-muted-foreground truncate mt-0.5">{cat.description}</p>
+        )}
+        <p className="text-xs text-muted-foreground mt-1">
+          {cat._count?.items ?? 0} Dokument(e)
+        </p>
+      </div>
+      <div className="flex gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-medium hover:opacity-90"
+        >
+          <FolderOpen size={14} /> Öffnen
+        </button>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="p-2 rounded-lg border border-border hover:bg-muted"
+          title="Bearbeiten"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40"
+          title="Löschen"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminBesuchsberichteClient({
   initialRestaurantId,
 }: {
@@ -56,15 +148,24 @@ export default function AdminBesuchsberichteClient({
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
-  const [selectedYear, setSelectedYear] = useState(YEAR_OPTIONS.includes(new Date().getFullYear()) ? new Date().getFullYear() : 2026);
+  const [selectedYear, setSelectedYear] = useState(YEAR_OPTIONS.includes(new Date().getFullYear()) ? new Date().getFullYear() : YEAR_OPTIONS[0]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showItemModal, setShowItemModal] = useState(false);
+  const [showReplaceFileModal, setShowReplaceFileModal] = useState(false);
+  const [editingItemForReplace, setEditingItemForReplace] = useState<Item | null>(null);
+  const [replaceFile, setReplaceFile] = useState<File | null>(null);
+  const [replacing, setReplacing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   const [categoryName, setCategoryName] = useState("");
   const [categoryDescription, setCategoryDescription] = useState("");
+  const [categoryScope, setCategoryScope] = useState<"one" | "all" | "selected">("one");
+  const [selectedRestaurantIds, setSelectedRestaurantIds] = useState<string[]>([]);
+  const [copyToRestaurantIds, setCopyToRestaurantIds] = useState<string[]>([]);
+  const [adminRestaurants, setAdminRestaurants] = useState<{ id: string; name: string | null; code: string | null }[]>([]);
 
   const [itemTitle, setItemTitle] = useState("");
   const [itemDescription, setItemDescription] = useState("");
@@ -107,15 +208,40 @@ export default function AdminBesuchsberichteClient({
 
   const selectedCategory = selectedCategoryId ? categories.find((c) => c.id === selectedCategoryId) : null;
 
+  /** Restorani sortirani po broju (code), pa po nazivu */
+  const sortedAdminRestaurants = useMemo(() => {
+    return [...adminRestaurants].sort((a, b) => {
+      const codeA = (a.code ?? "").trim();
+      const codeB = (b.code ?? "").trim();
+      const numA = parseInt(codeA, 10);
+      const numB = parseInt(codeB, 10);
+      if (!Number.isNaN(numA) && !Number.isNaN(numB)) return numA - numB;
+      if (!Number.isNaN(numA)) return -1;
+      if (!Number.isNaN(numB)) return 1;
+      return (a.name ?? codeA).localeCompare(b.name ?? codeB, "de", { numeric: true });
+    });
+  }, [adminRestaurants]);
+
+  /** Za „Ordner bearbeiten”: ostali standorti (bez trenutnog) za kopiranje */
+  const otherRestaurantsForCopy = useMemo(
+    () => (initialRestaurantId ? sortedAdminRestaurants.filter((r) => r.id !== initialRestaurantId) : sortedAdminRestaurants),
+    [sortedAdminRestaurants, initialRestaurantId]
+  );
+
   const openCategoryModal = (cat?: Category) => {
+    getRestaurantsForBesuchsberichteAdmin().then(setAdminRestaurants);
     if (cat) {
       setEditingCategory(cat);
       setCategoryName(cat.name);
       setCategoryDescription(cat.description || "");
+      setCopyToRestaurantIds([]);
     } else {
       setEditingCategory(null);
       setCategoryName("");
       setCategoryDescription("");
+      setCategoryScope("one");
+      setSelectedRestaurantIds(initialRestaurantId ? [initialRestaurantId] : []);
+      setCopyToRestaurantIds([]);
     }
     setShowCategoryModal(true);
   };
@@ -125,6 +251,7 @@ export default function AdminBesuchsberichteClient({
     setEditingCategory(null);
     setCategoryName("");
     setCategoryDescription("");
+    setCopyToRestaurantIds([]);
   };
 
   const handleSaveCategory = async () => {
@@ -140,14 +267,43 @@ export default function AdminBesuchsberichteClient({
           description: categoryDescription,
           iconName: null,
         });
-        toast.success("Ordner aktualisiert.");
+        if (copyToRestaurantIds.length > 0) {
+          await createCategoryForRestaurants(copyToRestaurantIds, {
+            name: categoryName,
+            description: categoryDescription,
+            iconName: null,
+          });
+          toast.success(`Ordner aktualisiert und in ${copyToRestaurantIds.length} weitere Standort(e) kopiert.`);
+        } else {
+          toast.success("Ordner aktualisiert.");
+        }
       } else {
-        await createCategory(initialRestaurantId, {
-          name: categoryName,
-          description: categoryDescription,
-          iconName: null,
-        });
-        toast.success("Ordner erstellt.");
+        if (categoryScope === "all" && adminRestaurants.length > 0) {
+          const ids = adminRestaurants.map((r) => r.id);
+          await createCategoryForRestaurants(ids, {
+            name: categoryName,
+            description: categoryDescription,
+            iconName: null,
+          });
+          toast.success(`Ordner in ${ids.length} Standort(en) erstellt.`);
+        } else if (categoryScope === "selected" && selectedRestaurantIds.length > 0) {
+          await createCategoryForRestaurants(selectedRestaurantIds, {
+            name: categoryName,
+            description: categoryDescription,
+            iconName: null,
+          });
+          toast.success(`Ordner in ${selectedRestaurantIds.length} Standort(en) erstellt.`);
+        } else if (categoryScope === "selected") {
+          toast.error("Bitte wählen Sie mindestens einen Standort.");
+          return;
+        } else {
+          await createCategory(initialRestaurantId, {
+            name: categoryName,
+            description: categoryDescription,
+            iconName: null,
+          });
+          toast.success("Ordner erstellt.");
+        }
       }
       closeCategoryModal();
       router.refresh();
@@ -173,6 +329,33 @@ export default function AdminBesuchsberichteClient({
     }
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleFolderDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id || !initialRestaurantId) return;
+      const oldIndex = categories.findIndex((c) => c.id === active.id);
+      const newIndex = categories.findIndex((c) => c.id === over.id);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const reordered = [...categories];
+      const [removed] = reordered.splice(oldIndex, 1);
+      reordered.splice(newIndex, 0, removed);
+      const orderedIds = reordered.map((c) => c.id);
+      try {
+        await updateCategoryOrder(initialRestaurantId, orderedIds);
+        setCategories(reordered);
+        toast.success("Reihenfolge gespeichert.");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler.");
+      }
+    },
+    [categories, initialRestaurantId, router]
+  );
+
   const openItemModal = () => {
     setItemTitle("");
     setItemDescription("");
@@ -186,6 +369,41 @@ export default function AdminBesuchsberichteClient({
     setItemTitle("");
     setItemDescription("");
     setItemFile(null);
+  };
+
+  const openReplaceFileModal = (item: Item) => {
+    setEditingItemForReplace(item);
+    setReplaceFile(null);
+    setShowReplaceFileModal(true);
+  };
+
+  const closeReplaceFileModal = () => {
+    setShowReplaceFileModal(false);
+    setEditingItemForReplace(null);
+    setReplaceFile(null);
+  };
+
+  const handleReplaceFile = async () => {
+    if (!editingItemForReplace || !initialRestaurantId || !replaceFile) {
+      toast.error("Bitte wählen Sie eine neue Datei.");
+      return;
+    }
+    setReplacing(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", replaceFile);
+      await replaceItemFile(editingItemForReplace.id, initialRestaurantId, fd);
+      toast.success("Datei ersetzt.");
+      closeReplaceFileModal();
+      router.refresh();
+      const y = YEAR_OPTIONS.includes(selectedYear) ? selectedYear : YEAR_OPTIONS[0];
+      const list = await getItems(selectedCategoryId!, y, initialRestaurantId);
+      setItems(list);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Ersetzen.");
+    } finally {
+      setReplacing(false);
+    }
   };
 
   const handleUploadItem = async () => {
@@ -296,47 +514,17 @@ export default function AdminBesuchsberichteClient({
                     Noch keine Ordner. &quot;Neuer Ordner&quot; klicken.
                   </div>
                 ) : (
-                  categories.map((cat) => (
-                    <div
-                      key={cat.id}
-                      className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/20"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-foreground truncate">{cat.name}</p>
-                        {cat.description && (
-                          <p className="text-xs text-muted-foreground truncate mt-0.5">{cat.description}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {cat._count?.items ?? 0} Dokument(e)
-                        </p>
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCategoryId(cat.id)}
-                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-medium hover:opacity-90"
-                        >
-                          <FolderOpen size={14} /> Öffnen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openCategoryModal(cat)}
-                          className="p-2 rounded-lg border border-border hover:bg-muted"
-                          title="Bearbeiten"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40"
-                          title="Löschen"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                  <DndContext sensors={sensors} onDragEnd={handleFolderDragEnd}>
+                    {categories.map((cat) => (
+                      <DraggableFolderRow
+                        key={cat.id}
+                        cat={cat}
+                        onOpen={() => setSelectedCategoryId(cat.id)}
+                        onEdit={() => openCategoryModal(cat)}
+                        onDelete={() => handleDeleteCategory(cat.id)}
+                      />
+                    ))}
+                  </DndContext>
                 )}
               </div>
             </section>
@@ -418,6 +606,14 @@ export default function AdminBesuchsberichteClient({
                         </a>
                         <button
                           type="button"
+                          onClick={() => openReplaceFileModal(t)}
+                          className="p-2 rounded-lg border border-border hover:bg-muted"
+                          title="Datei ersetzen"
+                        >
+                          <RefreshCw size={14} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleDeleteItem(t.id)}
                           className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40"
                           title="Löschen"
@@ -435,7 +631,7 @@ export default function AdminBesuchsberichteClient({
 
         {showCategoryModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-sm">
+            <div className={`bg-card rounded-xl shadow-xl border border-border w-full ${editingCategory ? "max-w-md" : "max-w-sm"}`}>
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <h3 className="font-bold text-foreground uppercase">
                   {editingCategory ? "Ordner bearbeiten" : "Neuer Ordner"}
@@ -445,6 +641,82 @@ export default function AdminBesuchsberichteClient({
                 </button>
               </div>
               <div className="p-4 space-y-3">
+                {!editingCategory && (
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-2">Ordner anlegen in</label>
+                    <div className="flex flex-col gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="categoryScope"
+                          checked={categoryScope === "one"}
+                          onChange={() => setCategoryScope("one")}
+                          className="rounded-full border-border"
+                        />
+                        <span className="text-sm">Nur diesen Standort</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="categoryScope"
+                          checked={categoryScope === "all"}
+                          onChange={() => setCategoryScope("all")}
+                          className="rounded-full border-border"
+                        />
+                        <span className="text-sm">Alle Standorte ({adminRestaurants.length})</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="categoryScope"
+                          checked={categoryScope === "selected"}
+                          onChange={() => setCategoryScope("selected")}
+                          className="rounded-full border-border"
+                        />
+                        <span className="text-sm">Ausgewählte Standorte ({selectedRestaurantIds.length}/{adminRestaurants.length})</span>
+                      </label>
+                      {categoryScope === "selected" && adminRestaurants.length > 0 && (
+                        <div className="mt-2 pl-6 space-y-2">
+                          <div className="flex gap-3 text-xs">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRestaurantIds(sortedAdminRestaurants.map((r) => r.id))}
+                              className="text-[#1a3826] dark:text-[#FFC72C] font-medium hover:underline"
+                            >
+                              Alle auswählen
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRestaurantIds([])}
+                              className="text-muted-foreground font-medium hover:underline"
+                            >
+                              Keine auswählen
+                            </button>
+                          </div>
+                          <div className="max-h-40 overflow-y-auto border border-border rounded-lg p-2 space-y-1.5 bg-muted/20">
+                            {sortedAdminRestaurants.map((r) => (
+                              <label key={r.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRestaurantIds.includes(r.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedRestaurantIds((prev) => [...prev, r.id]);
+                                    } else {
+                                      setSelectedRestaurantIds((prev) => prev.filter((id) => id !== r.id));
+                                    }
+                                  }}
+                                  className="rounded border-border"
+                                />
+                                <span className="truncate">{r.name || r.code || r.id}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-semibold text-foreground mb-1">Name *</label>
                   <input
@@ -465,6 +737,53 @@ export default function AdminBesuchsberichteClient({
                     placeholder="Kurzbeschreibung"
                   />
                 </div>
+                {editingCategory && otherRestaurantsForCopy.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-foreground mb-2">
+                      Ordner zusätzlich in folgende Standorte kopieren (nur Ordner, keine Dokumente)
+                    </label>
+                    <div className="flex gap-3 text-xs mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setCopyToRestaurantIds(otherRestaurantsForCopy.map((r) => r.id))}
+                        className="text-[#1a3826] dark:text-[#FFC72C] font-medium hover:underline"
+                      >
+                        Alle auswählen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCopyToRestaurantIds([])}
+                        className="text-muted-foreground font-medium hover:underline"
+                      >
+                        Keine auswählen
+                      </button>
+                    </div>
+                    <div className="max-h-32 overflow-y-auto border border-border rounded-lg p-2 space-y-1.5 bg-muted/20">
+                      {otherRestaurantsForCopy.map((r) => (
+                        <label key={r.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={copyToRestaurantIds.includes(r.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setCopyToRestaurantIds((prev) => [...prev, r.id]);
+                              } else {
+                                setCopyToRestaurantIds((prev) => prev.filter((id) => id !== r.id));
+                              }
+                            }}
+                            className="rounded border-border"
+                          />
+                          <span className="truncate">{r.name || r.code || r.id}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {copyToRestaurantIds.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        {copyToRestaurantIds.length} Standort(e) ausgewählt – beim Speichern wird der Ordner dort angelegt.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="p-4 border-t border-border flex justify-end">
                 <button
@@ -521,11 +840,11 @@ export default function AdminBesuchsberichteClient({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-foreground mb-1">Datei *</label>
+                  <label className="block text-xs font-semibold text-foreground mb-1">Datei * (PDF, Bilder, Word, Excel, CSV, Text)</label>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
+                    accept={FILE_ACCEPT}
                     onChange={(e) => setItemFile(e.target.files?.[0] || null)}
                     className="w-full text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-[#1a3826] file:text-white hover:file:opacity-90"
                   />
@@ -540,6 +859,52 @@ export default function AdminBesuchsberichteClient({
                   className="px-4 py-2 bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white rounded-lg text-sm font-semibold flex items-center gap-2 hover:opacity-90 disabled:opacity-50"
                 >
                   <Upload size={14} /> {uploading ? "Lädt…" : "Hochladen"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showReplaceFileModal && editingItemForReplace && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-card rounded-xl shadow-xl border border-border w-full max-w-md">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <h3 className="font-bold text-foreground uppercase">Datei ersetzen</h3>
+                <button type="button" onClick={closeReplaceFileModal} className="text-muted-foreground hover:text-foreground">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-4 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Dokument: <span className="font-medium text-foreground">{editingItemForReplace.title}</span>
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">Neue Datei * (PDF, Bilder, Word, Excel, CSV, Text)</label>
+                  <input
+                    ref={replaceFileInputRef}
+                    type="file"
+                    accept={FILE_ACCEPT}
+                    onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
+                    className="w-full text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-[#1a3826] file:text-white hover:file:opacity-90"
+                  />
+                  {replaceFile && <p className="text-xs text-muted-foreground mt-1 truncate">{replaceFile.name}</p>}
+                </div>
+              </div>
+              <div className="p-4 border-t border-border flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeReplaceFileModal}
+                  className="px-4 py-2 rounded-lg border border-border hover:bg-muted text-sm font-medium"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReplaceFile}
+                  disabled={!replaceFile || replacing}
+                  className="px-4 py-2 bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white rounded-lg text-sm font-semibold flex items-center gap-2 hover:opacity-90 disabled:opacity-50"
+                >
+                  <RefreshCw size={14} /> {replacing ? "Ersetzen…" : "Ersetzen"}
                 </button>
               </div>
             </div>

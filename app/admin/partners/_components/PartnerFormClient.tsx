@@ -7,14 +7,16 @@ import Image from "next/image";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Save, Plus, Trash2, User, Building2, FolderTree, ExternalLink, ImagePlus, Loader2, X, Images, FileText } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, User, Building2, FolderTree, ExternalLink, ImagePlus, Loader2, X, Images, FileText, FileUp } from "lucide-react";
 import {
   createPartner,
   updatePartner,
   uploadPartnerLogo,
   uploadPartnerGalleryImage,
   uploadPartnerPriceListPdf,
+  uploadPartnerDocument,
   type PartnerContactInput,
+  type PartnerDocumentInput,
 } from "@/app/actions/partnerActions";
 import { toast } from "sonner";
 
@@ -34,8 +36,13 @@ const formSchema = z.object({
   websiteUrl: z.string().optional(),
   priceListPdfUrl: z.string().optional(),
   galleryUrls: z.array(z.string()).default([]),
+  documents: z.array(z.object({ fileUrl: z.string(), fileName: z.string(), fileType: z.string() })).default([]),
   contacts: z.array(contactSchema),
 });
+
+/** PDF, Bilder, Word, Excel, CSV, Text */
+const DOCUMENT_ACCEPT =
+  ".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,image/*,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv";
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -53,6 +60,7 @@ type PartnerFormClientProps = {
     websiteUrl: string | null;
     priceListPdfUrl: string | null;
     galleryUrls: string[];
+    documents?: PartnerDocumentInput[];
     contacts: Array<{
       id: string;
       contactName: string;
@@ -79,6 +87,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           websiteUrl: initialData.websiteUrl ?? "",
           priceListPdfUrl: initialData.priceListPdfUrl ?? "",
           galleryUrls: initialData.galleryUrls ?? [],
+          documents: initialData.documents ?? [],
           contacts:
             initialData.contacts.length > 0
               ? initialData.contacts.map((c) => ({
@@ -98,25 +107,29 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           websiteUrl: "",
           priceListPdfUrl: "",
           galleryUrls: [],
+          documents: [],
           contacts: [{ contactName: "", phone: "", email: "", role: "" }],
         },
   });
 
   const logoUrl = form.watch("logoUrl");
   const galleryUrls = form.watch("galleryUrls");
+  const documents = form.watch("documents") ?? [];
   const [logoUploading, setLogoUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [pdfUploading, setPdfUploading] = useState(false);
+  const [documentUploading, setDocumentUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
   const priceListPdfUrl = form.watch("priceListPdfUrl");
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Bitte ein Bild wählen (z. B. JPG, PNG).");
+      toast.error("Izaberite sliku (npr. JPG, PNG).");
       return;
     }
     e.target.value = "";
@@ -142,7 +155,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.type !== "application/pdf") {
-      toast.error("Bitte nur PDF-Dateien (z. B. Cjenovnik) hochladen.");
+      toast.error("Bitte nur PDF-Dateien hochladen.");
       return;
     }
     e.target.value = "";
@@ -153,7 +166,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
       const result = await uploadPartnerPriceListPdf(formData);
       if (result.success) {
         form.setValue("priceListPdfUrl", result.url);
-        toast.success("Cjenovnik (PDF) wurde hochgeladen.");
+        toast.success("Preisliste (PDF) wurde hochgeladen.");
       } else {
         toast.error(result.error ?? "Fehler beim Hochladen.");
       }
@@ -161,6 +174,35 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
       toast.error("Fehler beim Hochladen.");
     } finally {
       setPdfUploading(false);
+    }
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (files.length === 0) return;
+    setDocumentUploading(true);
+    const currentDocs = form.getValues("documents") ?? [];
+    const added: { fileUrl: string; fileName: string; fileType: string }[] = [];
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.set("file", file);
+        const result = await uploadPartnerDocument(fd);
+        if (result.success) {
+          added.push({ fileUrl: result.url, fileName: result.fileName, fileType: result.fileType });
+        } else {
+          toast.error(result.error ?? "Fehler beim Hochladen.");
+        }
+      }
+      if (added.length > 0) {
+        form.setValue("documents", [...currentDocs, ...added], { shouldDirty: true });
+        toast.success(added.length === 1 ? "Dokument hinzugefügt." : `${added.length} Dokumente hinzugefügt.`);
+      }
+    } catch {
+      toast.error("Fehler beim Hochladen.");
+    } finally {
+      setDocumentUploading(false);
     }
   };
 
@@ -225,6 +267,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           websiteUrl: values.websiteUrl?.trim() || undefined,
           priceListPdfUrl: values.priceListPdfUrl?.trim() || null,
           galleryUrls: values.galleryUrls ?? [],
+          documents: values.documents ?? [],
           contacts,
         });
         toast.success("Gespeichert.");
@@ -238,6 +281,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           websiteUrl: values.websiteUrl?.trim() || undefined,
           priceListPdfUrl: values.priceListPdfUrl?.trim() || null,
           galleryUrls: values.galleryUrls ?? [],
+          documents: values.documents ?? [],
           contacts,
         });
         toast.success("Gespeichert.");
@@ -252,23 +296,23 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 to-background font-sans text-foreground">
-      <div className="max-w-2xl mx-auto px-4 py-8 md:py-12">
+      <div className="max-w-6xl mx-auto px-4 py-8 md:py-12">
         <Link
           href="/admin/partners"
           className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] mb-8"
         >
-          <ArrowLeft size={18} /> Nazad na listu firmi
+          <ArrowLeft size={18} /> Zurück zur Firmenliste
         </Link>
 
         <div className="bg-card rounded-3xl border border-border shadow-xl overflow-hidden">
-          <div className="bg-[#1a3826] dark:bg-[#1a3826]/90 px-6 py-6 text-white">
+          <div className="bg-[#1a3826] dark:bg-[#1a3826]/90 px-6 md:px-8 py-6 text-white">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 rounded-2xl bg-white/20 flex items-center justify-center">
                 <Building2 size={24} />
               </div>
               <div>
-                <h1 className="text-xl md:text-2xl font-black tracking-tight">
-                  {isEdit ? "Unternehmen bearbeiten" : "Neues Unternehmen"}
+                <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight">
+                  {isEdit ? "UNTERNEHMEN BEARBEITEN" : "NEUES UNTERNEHMEN"}
                 </h1>
                 <p className="text-white/80 text-sm mt-0.5">
                   {isEdit ? "Daten und Kontakte ändern" : "Partner oder Serviceunternehmen hinzufügen"}
@@ -280,10 +324,10 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
           <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 md:p-8 space-y-8">
             <section className="space-y-4">
               <h2 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Building2 size={16} /> Stammdaten
+                <Building2 size={16} /> STAMMDATEN
               </h2>
-              <div className="grid gap-4">
-                <div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                <div className="lg:col-span-2">
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <label className="text-sm font-semibold text-foreground">
                       Abteilung (Kategorie) *
@@ -318,11 +362,11 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
-                    Naziv firme *
+                    Firmenname *
                   </label>
                   <input
                     {...form.register("companyName")}
-                    placeholder="npr. Tech Support d.o.o."
+                    placeholder="z. B. Tech Support GmbH"
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-[#1a3826] dark:focus:ring-[#FFC72C] focus:border-transparent"
                   />
                   {form.formState.errors.companyName && (
@@ -330,6 +374,19 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                   )}
                 </div>
                 <div>
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Website
+                  </label>
+                  <input
+                    {...form.register("websiteUrl")}
+                    placeholder="https://firma.at"
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-[#1a3826] dark:focus:ring-[#FFC72C] focus:border-transparent"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Offizielle Website des Unternehmens (optional).
+                  </p>
+                </div>
+                <div className="lg:col-span-2">
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
                     Logo / Titelbild
                   </label>
@@ -360,7 +417,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                           type="button"
                           onClick={() => form.setValue("logoUrl", "")}
                           className="absolute -top-2 -right-2 p-1.5 rounded-full bg-red-500 text-white shadow hover:bg-red-600"
-                          title="Ukloni logo"
+                          title="Logo entfernen"
                         >
                           <X size={14} />
                         </button>
@@ -377,25 +434,12 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                     </button>
                   </div>
                 </div>
-                <div>
+                <div className="lg:col-span-2">
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
-                    Website
-                  </label>
-                  <input
-                    {...form.register("websiteUrl")}
-                    placeholder="https://firma.de"
-                    className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-[#1a3826] dark:focus:ring-[#FFC72C] focus:border-transparent"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    Offizielle Website des Unternehmens (optional).
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">
-                    Cjenovnik / Preisliste (PDF)
+                    Preisliste (PDF)
                   </label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    PDF-Dokument (z. B. Cjenovnik) wird auf der Detailseite der Firma angezeigt. Optional.
+                    PDF-Dokument wird auf der Detailseite der Firma angezeigt. Optional.
                   </p>
                   <input
                     ref={pdfInputRef}
@@ -432,11 +476,69 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                       className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-border text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
                     >
                       {pdfUploading ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
-                      {priceListPdfUrl ? "PDF ersetzen" : "Cjenovnik (PDF) hinzufügen"}
+                      {priceListPdfUrl ? "PDF ersetzen" : "Preisliste (PDF) hinzufügen"}
                     </button>
                   </div>
                 </div>
-                <div>
+                <div className="lg:col-span-2">
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Dokumente (PDF, Excel, Word, Text, Bilder)
+                  </label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Mehrere Dateien für diese Firma hochladen. Optional.
+                  </p>
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    accept={DOCUMENT_ACCEPT}
+                    multiple
+                    className="sr-only"
+                    onChange={handleDocumentUpload}
+                  />
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => documentInputRef.current?.click()}
+                      disabled={documentUploading}
+                      className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-dashed border-border text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-50"
+                    >
+                      {documentUploading ? <Loader2 size={18} className="animate-spin" /> : <FileUp size={18} />}
+                      Dokumente hinzufügen (mehrere Dateien)
+                    </button>
+                    {documents.length > 0 && (
+                      <ul className="space-y-1.5">
+                        {documents.map((doc, idx) => (
+                          <li
+                            key={`${doc.fileUrl}-${idx}`}
+                            className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-border bg-muted/30"
+                          >
+                            <a
+                              href={doc.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 text-sm font-medium text-foreground truncate min-w-0 hover:underline"
+                            >
+                              <FileText size={14} className="shrink-0 text-red-500" />
+                              <span className="truncate">{doc.fileName}</span>
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = documents.filter((_, i) => i !== idx);
+                                form.setValue("documents", next, { shouldDirty: true });
+                              }}
+                              className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40 shrink-0"
+                              title="Entfernen"
+                            >
+                              <X size={14} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                <div className="lg:col-span-2">
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
                     Galerie-Bilder
                   </label>
@@ -492,7 +594,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                     )}
                   </div>
                 </div>
-                <div>
+                <div className="lg:col-span-2">
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
                     Leistungsbeschreibung
                   </label>
@@ -503,7 +605,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                     className="w-full px-4 py-3 rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-[#1a3826] dark:focus:ring-[#FFC72C] resize-none"
                   />
                 </div>
-                <div>
+                <div className="lg:col-span-2">
                   <label className="block text-sm font-semibold text-foreground mb-1.5">
                     Anmerkungen
                   </label>
@@ -520,7 +622,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <User size={16} /> Ansprechpartner
+                  <User size={16} /> ANSPRECHPARTNER
                 </h2>
                 <button
                   type="button"
@@ -530,7 +632,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                   <Plus size={18} /> Kontakt hinzufügen
                 </button>
               </div>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {fields.map((field, index) => (
                   <div
                     key={field.id}
@@ -544,7 +646,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                           onClick={() => remove(index)}
                           className="text-xs text-red-600 hover:underline font-bold"
                         >
-                          Ukloni
+                          Entfernen
                         </button>
                       )}
                     </div>
@@ -566,7 +668,7 @@ export default function PartnerFormClient({ categories, initialData }: PartnerFo
                       />
                       <input
                         {...form.register(`contacts.${index}.email`)}
-                        placeholder="Email"
+                        placeholder="E-Mail"
                         type="email"
                         className="px-3 py-2.5 rounded-lg border border-border bg-background text-sm"
                       />

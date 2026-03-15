@@ -49,7 +49,7 @@ U istom `.env` postoje i reference na produkcijsku (LIVE) bazu:
 
 Za **lokalno prebacivanje** između RADNA i LIVE baze:
 
-1. Za RADNA (preporučeno za razvoj): neka `DATABASE_URL` i `DIRECT_URL` budu jednaki `RADNA_DATABASE_URL` i `RADNA_DIRECT_URL`.
-2. Za kratko spajanje na LIVE (npr. migracija): ručno kopirati vrijednosti iz `LIVE_DATABASE_URL` / `LIVE_DIRECT_URL` u `DATABASE_URL` / `DIRECT_URL`, odraditi posao, zatim **vratiti natrag** na RADNA.
+1. **Na RADNA (razvoj):** u `.env` postavi `RADNA_DATABASE_URL` i `RADNA_DIRECT_URL` (connection stringovi za radnu bazu), zatim pokreni `node scripts/use-radna-db.mjs` – skripta prepisuje `DATABASE_URL` i `DIRECT_URL` u `.env` na te vrijednosti. Ili ručno neka `DATABASE_URL` i `DIRECT_URL` budu jednaki `RADNA_DATABASE_URL` i `RADNA_DIRECT_URL`.
+2. Za kratko spajanje na LIVE (npr. migracija): ručno kopirati vrijednosti iz `LIVE_DATABASE_URL` / `LIVE_DIRECT_URL` u `DATABASE_URL` / `DIRECT_URL`, odraditi posao, zatim pokrenuti `node scripts/use-radna-db.mjs` da se **vrati** na RADNA.
 
 Napomena: Vercel koristi svoje env varijable postavljene u **Project Settings → Environment Variables** (vidi `VERCEL.md` / `VERCEL_DEPLOY.md`), tako da promjene lokalnog `.env` ne utječu na produkcijsku bazu.

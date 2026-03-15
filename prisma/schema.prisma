@@ -102,12 +102,14 @@ model VisitReportCategory {
   name         String
   description  String?
   iconName     String?
+  sortOrder    Int               @default(0)
   restaurantId String
   restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   items        VisitReportItem[]
   createdAt    DateTime          @default(now())
 
   @@index([restaurantId])
+  @@index([restaurantId, sortOrder])
 }
 
 model VisitReportItem {
@@ -684,24 +686,36 @@ model PartnerCategoryModel {
 }
 
 model PartnerCompany {
-  id                 String                @id @default(cuid())
-  categoryId         String?                // opcionalno dok se ne migriraju stari podaci
-  category           PartnerCategoryModel? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  id                 String                     @id @default(cuid())
+  categoryId         String?                     // opcionalno dok se ne migriraju stari podaci
+  category           PartnerCategoryModel?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   companyName        String
-  logoUrl            String?               // logo / naslovnica firme (URL slike)
-  serviceDescription String?               @db.Text
-  notes              String?               @db.Text
+  logoUrl            String?                    // logo / naslovnica firme (URL slike)
+  serviceDescription String?                    @db.Text
+  notes              String?                    @db.Text
   websiteUrl         String?
-  priceListPdfUrl    String?               // cjenovnik / PDF dokument
-  galleryUrls        String[]              @default([])
+  priceListPdfUrl    String?                    // cjenovnik / PDF dokument
+  galleryUrls        String[]                   @default([])
   contacts           PartnerContact[]
+  documents          PartnerCompanyDocument[]
 
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
 
   @@index([categoryId])
 }
 
+model PartnerCompanyDocument {
+  id               String         @id @default(cuid())
+  partnerCompanyId String
+  partnerCompany   PartnerCompany @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
+  fileUrl          String
+  fileName         String         // originalno ime datoteke
+  fileType         String         // MIME npr. application/pdf
+  sortOrder        Int            @default(0)
+
+  @@index([partnerCompanyId])
+}
 
 model PartnerContact {
   id               String         @id @default(cuid())
