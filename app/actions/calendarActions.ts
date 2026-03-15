@@ -46,7 +46,7 @@ export async function getCalendarEvents(
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
 
-  const [events, approvedVacations, personalEntries] = await Promise.all([
+  const [events, approvedVacations, personalEntries, holidays] = await Promise.all([
     prisma.calendarEvent.findMany({
       where: {
         date: { lte: end },
@@ -70,6 +70,12 @@ export async function getCalendarEvents(
       where: {
         userId,
         date: { gte: start, lte: end },
+      },
+    }),
+    prisma.holiday.findMany({
+      where: {
+        month,
+        OR: [{ year: null }, { year }],
       },
     }),
   ]);
@@ -133,6 +139,21 @@ export async function getCalendarEvents(
     }
   }
 
+  // Globalni praznici (Feiertage) – isti za sve korisnike
+  for (const h of holidays) {
+    const yearForHoliday = h.year ?? year;
+    const d = new Date(yearForHoliday, h.month - 1, h.day);
+    if (d < start || d > end) continue;
+    result.push({
+      id: `hol-${h.id}-${yearForHoliday}-${h.month}-${h.day}`,
+      title: h.label ?? "Feiertag",
+      date: d,
+      type: "personal",
+      categoryLabel: h.label ?? "Feiertag",
+      color: "#FFBC0D",
+    });
+  }
+
   result.sort((a, b) => a.date.getTime() - b.date.getTime());
   return result;
 }
@@ -148,7 +169,7 @@ export async function getCalendarEventsForDateRange(
   const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0);
   const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
 
-  const [events, approvedVacations, personalEntries] = await Promise.all([
+  const [events, approvedVacations, personalEntries, holidays] = await Promise.all([
     prisma.calendarEvent.findMany({
       where: {
         date: { lte: end },
@@ -172,6 +193,21 @@ export async function getCalendarEventsForDateRange(
       where: {
         userId,
         date: { gte: start, lte: end },
+      },
+    }),
+    prisma.holiday.findMany({
+      where: {
+        OR: [
+          {
+            year: null,
+          },
+          {
+            year: {
+              gte: start.getFullYear(),
+              lte: end.getFullYear(),
+            },
+          },
+        ],
       },
     }),
   ]);
@@ -228,6 +264,30 @@ export async function getCalendarEventsForDateRange(
         date: d,
         type: "vacation",
         isFromVacationRequest: true,
+      });
+    }
+  }
+
+  // Globalni praznici u rasponu datuma
+  for (const h of holidays) {
+    // Ako je year null, uzmi svaku godinu u rasponu; ovdje je dovoljno mapirati na godinu startDate
+    const years =
+      h.year != null
+        ? [h.year]
+        : Array.from(
+            { length: end.getFullYear() - start.getFullYear() + 1 },
+            (_, i) => start.getFullYear() + i
+          );
+    for (const y of years) {
+      const d = new Date(y, h.month - 1, h.day);
+      if (!isWithinInterval(d, { start, end })) continue;
+      result.push({
+        id: `hol-${h.id}-${y}-${h.month}-${h.day}`,
+        title: h.label ?? "Feiertag",
+        date: d,
+        type: "personal",
+        categoryLabel: h.label ?? "Feiertag",
+        color: "#FFBC0D",
       });
     }
   }

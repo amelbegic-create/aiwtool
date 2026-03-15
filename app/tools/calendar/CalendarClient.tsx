@@ -456,12 +456,51 @@ export default function CalendarClient({
   };
 
   const upcomingEvents = useMemo(() => {
-    const today = format(new Date(), "yyyy-MM-dd");
-    return [...events]
-      .map((e) => ({ ...e, date: parseEventDate(e) }))
-      .filter((e) => format(e.date, "yyyy-MM-dd") >= today)
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .slice(0, 10);
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+
+    // Grupiraj po ID-u kako višednevni eventi ne bi bili duplirani u listi
+    const byId = new Map<
+      string,
+      {
+        base: CalendarEventItem;
+        start: Date;
+        end: Date;
+      }
+    >();
+
+    for (const ev of events) {
+      const d = parseEventDate(ev);
+      const endD =
+        ev.endDate && typeof ev.endDate !== "string"
+          ? ev.endDate
+          : ev.endDate && typeof ev.endDate === "string"
+          ? parseISO(ev.endDate)
+          : d;
+
+      const existing = byId.get(ev.id);
+      if (!existing) {
+        byId.set(ev.id, {
+          base: ev,
+          start: d,
+          end: endD,
+        });
+      } else {
+        if (d < existing.start) existing.start = d;
+        if (endD > existing.end) existing.end = endD;
+      }
+    }
+
+    const list = Array.from(byId.values())
+      .filter((item) => format(item.end, "yyyy-MM-dd") >= todayKey)
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .slice(0, 10)
+      .map((item) => ({
+        ...item.base,
+        date: item.start,
+        endDate: item.end,
+      }));
+
+    return list;
   }, [events]);
 
   const exportToICS = async () => {
@@ -581,13 +620,28 @@ export default function CalendarClient({
             <p className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-wider">
               {getEventLabel(selectedEvent)}
             </p>
-            <button
-              type="button"
-              onClick={() => setSelectedEvent(null)}
-              className="mt-4 w-full py-2 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
-            >
-              Schließen
-            </button>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedEvent(null)}
+                className="flex-1 py-2 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
+              >
+                Schließen
+              </button>
+              {((canWrite && !selectedEvent.id.startsWith("vac-")) ||
+                selectedEvent.id.startsWith("pe-")) && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleDeleteEvent(selectedEvent.id, selectedEvent);
+                    setSelectedEvent(null);
+                  }}
+                  className="py-2 px-3 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700"
+                >
+                  Löschen
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
