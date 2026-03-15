@@ -41,6 +41,12 @@ const TYPE_LABELS: Record<CalendarEventType, string> = {
   vacation: "Urlaub",
 };
 
+// Pretvori string "yyyy-MM-dd" u Date fiksiran na 12:00 UTC da izbjegnemo pomak -1/+1 dan zbog vremenskih zona.
+function dateStringToUtcNoon(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map((v) => parseInt(v, 10));
+  return new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
+}
+
 function getEventColor(ev: CalendarEventItem): string {
   if (ev.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(ev.categoryColor)) return ev.categoryColor;
   if (ev.color && /^#[0-9A-Fa-f]{6}$/.test(ev.color)) return ev.color;
@@ -200,7 +206,7 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
   const handleSavePersonalEntry = async () => {
     setPersonalSaving(true);
     try {
-      const d = parseISO(personalDate);
+      const d = dateStringToUtcNoon(personalDate);
       await upsertPersonalEntry(
         userId,
         d,

@@ -83,6 +83,12 @@ const PERSONAL_COLORS = [
   "#ea580c",
 ];
 
+// Pretvori string "yyyy-MM-dd" u Date fiksiran na 12:00 UTC da izbjegnemo pomak -1/+1 dan zbog vremenskih zona.
+function dateStringToUtcNoon(dateStr: string): Date {
+  const [year, month, day] = dateStr.split("-").map((v) => parseInt(v, 10));
+  return new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
+}
+
 function CategoriesModal({
   categories,
   onClose,
@@ -403,8 +409,8 @@ export default function CalendarClient({
     if (!newTitle.trim() || !newCategoryId) return;
     setAdding(true);
     try {
-      const start = parseISO(newDate);
-      const end = newEndDate && newEndDate >= newDate ? parseISO(newEndDate) : null;
+      const start = dateStringToUtcNoon(newDate);
+      const end = newEndDate && newEndDate >= newDate ? dateStringToUtcNoon(newEndDate) : null;
       await addCalendarEvent(userId, {
         title: newTitle.trim(),
         date: start,
