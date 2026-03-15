@@ -21,10 +21,10 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
     return <NoPermission moduleName="Urlaub" />;
   }
 
+  const sessionUserId = accessResult.user.id;
+
   const cookieStore = await cookies();
   const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
-
-  const sessionUserId = (session.user as any).id;
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },

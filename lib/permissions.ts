@@ -57,6 +57,14 @@ export const PERMISSIONS: PermissionGroup[] = [
     ],
   },
   {
+    id: "calendar",
+    title: "Kalender",
+    subtitle: "Termine, Urlaub und Schichten – wer darf Einträge erstellen",
+    items: [
+      { key: "calendar:write", label: "Događaje u kalendar upisivati" },
+    ],
+  },
+  {
     id: "labor",
     title: "Arbeitsplaner",
     subtitle: "Budget und Arbeitsplanung",
@@ -111,6 +119,15 @@ export const PERMISSIONS: PermissionGroup[] = [
     items: [
       { key: "vorlagen:access", label: "Zugriff auf Vorlagen" },
       { key: "vorlagen:manage", label: "Vorlagen verwalten (Upload, Löschen)" },
+    ],
+  },
+  {
+    id: "besuchsberichte",
+    title: "Besuchsberichte",
+    subtitle: "Besuchsberichte pro Standort, nach Jahren",
+    items: [
+      { key: "besuchsberichte:access", label: "Zugriff auf Besuchsberichte" },
+      { key: "besuchsberichte:manage", label: "Kategorien und Dokumente verwalten (pro Standort)" },
     ],
   },
   {

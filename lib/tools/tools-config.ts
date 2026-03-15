@@ -10,10 +10,12 @@ import {
   Gift,
   Building2,
   FileText,
+  FileCheck,
   Award,
   Store,
   Euro,
   Map,
+  Calendar,
 } from "lucide-react";
 
 export const TOOL_CATEGORIES = [
@@ -29,8 +31,10 @@ export const APP_TOOLS = [
   { id: 'rules', name: 'Bedienungsanleitungen', href: '/tools/rules', icon: BookOpen, category: 'restaurant' },
   { id: 'sitzplan', name: 'Sitzplan & Layout', href: '/tools/sitzplan', icon: Map, category: 'restaurant' },
   { id: 'vorlagen', name: 'Vorlagen', href: '/tools/vorlagen', icon: FileText, category: 'restaurant' },
+  { id: 'besuchsberichte', name: 'Besuchsberichte', href: '/tools/besuchsberichte', icon: FileCheck, category: 'restaurant' },
   // PERSONAL
   { id: 'vacations', name: 'Urlaubsplanung', href: '/tools/vacations', icon: PlaneTakeoff, category: 'personal' },
+  { id: 'calendar', name: 'Mein Kalender', href: '/tools/calendar', icon: Calendar, category: 'personal' },
   { id: 'PDS', name: 'PDS (Beurteilung)', href: '/tools/PDS', icon: ClipboardList, category: 'personal' },
   { id: 'team', name: 'Mein Team', href: '/team', icon: Users, category: 'personal' },
   { id: 'certificates', name: 'Zertifikate', href: '/tools/certificates', icon: Award, category: 'personal' },
@@ -43,6 +47,7 @@ export const APP_TOOLS = [
 /** Permission key potreban za pristup modulu (za brze akcije i highlight). */
 export const TOOL_PERMISSION: Record<string, string> = {
   'vacations': 'vacation:access',
+  'calendar': 'vacation:access',
   'PDS': 'pds:access',
   'rules': 'rules:access',
   'bonus': 'bonus:access',
@@ -50,5 +55,6 @@ export const TOOL_PERMISSION: Record<string, string> = {
   'productivity': 'productivity:access',
   'partners': 'partners:access',
   'vorlagen': 'vorlagen:access',
+  'besuchsberichte': 'besuchsberichte:access',
   'admin-panel': 'users:access',
 };

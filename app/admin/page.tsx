@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   ClipboardList,
   FileText,
+  FileCheck,
   CalendarDays,
   Lightbulb,
   FolderOpen,
@@ -45,6 +46,8 @@ const TAG_STYLES: Record<string, string> = {
     "from-yellow-500/20 via-yellow-500/10 to-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-200/70 dark:border-yellow-500/40",
   Vorlagen:
     "from-purple-500/18 via-purple-500/8 to-purple-500/8 text-purple-700 dark:text-purple-300 border-purple-200/60 dark:border-purple-500/40",
+  Besuchsberichte:
+    "from-teal-500/18 via-teal-500/8 to-teal-500/8 text-teal-700 dark:text-teal-300 border-teal-200/60 dark:border-teal-500/40",
 };
 
 export default async function AdminHome() {
@@ -56,8 +59,9 @@ export default async function AdminHome() {
   const holidaysAccess = await tryRequirePermission("holidays:manage");
   const ideenboxAccess = await tryRequirePermission("ideenbox:access");
   const vorlagenAccess = await tryRequirePermission("vorlagen:manage");
+  const besuchsberichteAccess = await tryRequirePermission("besuchsberichte:manage");
 
-  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok || pdsAccess.ok || partnersAccess.ok || holidaysAccess.ok || ideenboxAccess.ok || vorlagenAccess.ok;
+  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok || pdsAccess.ok || partnersAccess.ok || holidaysAccess.ok || ideenboxAccess.ok || vorlagenAccess.ok || besuchsberichteAccess.ok;
   if (!hasAnyAdminAccess) {
     return <NoPermission moduleName="Verwaltung" />;
   }
@@ -168,6 +172,17 @@ export default async function AdminHome() {
             href: "/admin/vorlagen",
             icon: FolderOpen,
             tag: "Vorlagen",
+          },
+        ]
+      : []),
+    ...(besuchsberichteAccess.ok
+      ? [
+          {
+            title: "Besuchsberichte",
+            desc: "Kategorien und Dokumente pro Standort, nach Jahr.",
+            href: "/admin/besuchsberichte",
+            icon: FileCheck,
+            tag: "Besuchsberichte",
           },
         ]
       : []),

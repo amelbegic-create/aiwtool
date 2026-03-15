@@ -96,6 +96,91 @@ model TemplateItem {
   @@index([categoryId])
 }
 
+// --- BESUCHSBERICHTE (pro Restoran, po godinama) ---
+model VisitReportCategory {
+  id           String            @id @default(cuid())
+  name         String
+  description  String?
+  iconName     String?
+  restaurantId String
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items        VisitReportItem[]
+  createdAt    DateTime          @default(now())
+
+  @@index([restaurantId])
+}
+
+model VisitReportItem {
+  id          String              @id @default(cuid())
+  title       String
+  description String?
+  fileUrl     String
+  fileType    String
+  categoryId  String
+  category    VisitReportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  year        Int
+  createdAt   DateTime            @default(now())
+
+  @@index([categoryId, year])
+}
+
+// --- AIW KALENDER (custom events) ---
+model CalendarEventCategory {
+  id        String   @id @default(cuid())
+  name      String
+  color     String?  // optional hex e.g. #FFBC0D
+  sortOrder Int?     // optional for display order
+  events    CalendarEvent[]
+
+  @@index([sortOrder])
+}
+
+model CalendarPersonalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  title     String
+  color     String?  // optional hex e.g. #FFBC0D
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([userId, date])
+}
+
+model CalendarEvent {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  date       DateTime
+  endDate    DateTime? // optional: multi-day event
+  type       String    // legacy: "personal" | "shift" | "vacation"; new: from category.name or "custom"
+  color      String?   // optional: hex e.g. #FFBC0D for custom (praznik, etc.)
+  categoryId String?
+  category   CalendarEventCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([categoryId])
+}
+
+// --- TO-DO LIST ---
+model Todo {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  completed Boolean  @default(false)
+  order     Int      @default(0)
+  priority  Int      @default(2) // 1=high, 2=medium, 3=low
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
 // --- USERS & AUTH ---
 model User {
   id                  String    @id @default(cuid())
@@ -142,6 +227,9 @@ model User {
 
   ideas                Idea[]
   certificates         UserCertificate[]
+  calendarEvents       CalendarEvent[]
+  calendarPersonalEntries CalendarPersonalEntry[]
+  todos                Todo[]
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -343,6 +431,7 @@ model Restaurant {
   vacationRequests    VacationRequest[]
   pdsTemplates        PDSTemplate[] // Many-to-many: PDS obrasci koji ciljaju ovaj restoran
   pdsList             PDS[]
+  visitReportCategories VisitReportCategory[]
 
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt

@@ -14,7 +14,6 @@ import {
   AlertCircle,
   RefreshCw,
   Sparkles,
-  Inbox,
   Award,
   TrendingUp,
   Clock,
@@ -22,9 +21,14 @@ import {
 import DashboardChangelogButton from "@/components/dashboard/DashboardChangelogButton";
 import DeineIdeeButton from "@/components/dashboard/DeineIdeeButton";
 import CertificatesWidget from "@/components/dashboard/CertificatesWidget";
+import DashboardCalendarCard from "@/components/dashboard/DashboardCalendarCard";
 import EventSlider from "@/components/restaurant/EventSlider";
+import { hasPermission } from "@/lib/access";
 import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
+import { getCalendarEvents } from "@/app/actions/calendarActions";
+import { getTodos } from "@/app/actions/todoActions";
 import { dict } from "@/translations";
+import DashboardTodoCard from "@/components/dashboard/DashboardTodoCard";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +67,35 @@ async function getVacationDaysSummary(userId: string) {
   });
   const used = approved.reduce((s, r) => s + r.days, 0);
   return { total, used, remaining: Math.max(0, total - used) };
+}
+
+/** Returns YYYY-MM-DD strings for every day in approved vacation in the given year. Never throws. */
+async function getApprovedVacationDates(userId: string, year: number): Promise<string[]> {
+  try {
+    const approved = await prisma.vacationRequest.findMany({
+      where: { userId, status: "APPROVED", start: { gte: `${year}-01-01`, lte: `${year}-12-31` } },
+      select: { start: true, end: true },
+    });
+    const out: string[] = [];
+    for (const r of approved) {
+      const start = new Date(r.start);
+      const end = new Date(r.end);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) continue;
+      const d = new Date(start);
+      while (d <= end) {
+        const y = d.getFullYear();
+        const m = d.getMonth() + 1;
+        const day = d.getDate();
+        if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(day)) {
+          out.push(`${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
+        }
+        d.setDate(d.getDate() + 1);
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 async function getTeamCount(userId: string, role: string): Promise<number> {
@@ -160,19 +193,25 @@ export default async function DashboardPage() {
   let vacationSummary: Awaited<ReturnType<typeof getVacationDaysSummary>>;
   let teamCount: number;
   let teamMembers: Awaited<ReturnType<typeof getTeamMembers>>;
-  let pendingVacationCount: number;
   let certificates: Awaited<ReturnType<typeof getCertificates>>;
   let changelog: Awaited<ReturnType<typeof getDashboardChangelog>>;
+  let calendarEvents: Awaited<ReturnType<typeof getCalendarEvents>>;
+  let initialTodos: Awaited<ReturnType<typeof getTodos>>;
+
+  const now = new Date();
+  const currentYearForCalendar = now.getFullYear();
+  const currentMonthForCalendar = now.getMonth() + 1;
 
   try {
-    [vacationSummary, teamCount, teamMembers, pendingVacationCount, certificates, changelog] =
+    [vacationSummary, teamCount, teamMembers, certificates, changelog, calendarEvents, initialTodos] =
       await Promise.all([
         getVacationDaysSummary(dbUser.id),
         getTeamCount(dbUser.id, String(dbUser.role)),
         getTeamMembers(dbUser.id, String(dbUser.role)),
-        getPendingVacationCount(dbUser.id, String(dbUser.role)),
         getCertificates(dbUser.id),
         getDashboardChangelog(),
+        getCalendarEvents(dbUser.id, currentYearForCalendar, currentMonthForCalendar),
+        getTodos(dbUser.id),
       ]);
   } catch (e) {
     if (isDbUnreachable(e)) return DB_ERROR_UI;
@@ -277,156 +316,131 @@ export default async function DashboardPage() {
       ══════════════════════════════════════ */}
       <main className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8 pt-2 md:pt-4 pb-10 safe-area-l safe-area-r">
 
-        {/* ── HERO BENTO GRID ── */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-5 mb-8 md:mb-10">
+        {/* ── Kartice u jednom horizontalnom redu (slika 2): Kalendar | MEIN TEAM | JAHRESURLAUB | To-Do ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5 items-stretch min-h-[240px]">
+          {/* 1. Mein Kalender */}
+          <div className="min-h-0 flex flex-col">
+            <DashboardCalendarCard
+              userId={dbUser.id}
+              initialEvents={calendarEvents}
+              initialYear={currentYearForCalendar}
+              initialMonth={currentMonthForCalendar}
+              canWriteCalendar={hasPermission(dbUser.role, dbUser.permissions ?? [], "calendar:write")}
+            />
+          </div>
 
-          {/* ▌ VACATION WIDGET — dark green, donut ring */}
-          <Link
-            href="/tools/vacations"
-            className="md:col-span-5 group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1a3826] to-[#0a1f14] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#1a3826]/20 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300"
-          >
-            {/* Decorative rings in corner */}
-            <div className="absolute right-5 bottom-5 w-40 h-40 rounded-full border-[2px] border-[#FFC72C]/10 pointer-events-none" />
-            <div className="absolute right-8 bottom-8 w-28 h-28 rounded-full border border-[#FFC72C]/5 pointer-events-none" />
-
-            <div className="relative z-10 flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-[#FFC72C]/70 text-[11px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                  <CalendarDays size={11} className="text-[#FFC72C]/60" />
-                  Jahresurlaub {new Date().getFullYear()}
+          {/* 2. MEIN TEAM */}
+          <div className="min-h-0 flex flex-col">
+            <Link
+              href="/team"
+              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#FFC72C] to-[#dfa820] p-5 flex flex-row justify-between items-stretch gap-4 shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 min-h-[140px] h-full"
+            >
+              <div className="absolute -right-2 -bottom-2 w-20 h-20 rounded-full bg-[#1a3826]/10 blur-xl pointer-events-none" />
+              <div className="absolute right-8 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-[#1a3826]/5 pointer-events-none" />
+              <div className="relative z-10 flex flex-col justify-between h-full min-w-0 flex-1">
+                <p className="text-[#1a3826] text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+                  <UsersRound size={12} className="text-[#1a3826]" />
+                  MEIN TEAM
                 </p>
-                <div className="flex items-end gap-3 mt-2">
-                  <span className="text-6xl md:text-7xl font-black tabular-nums text-white leading-none">
-                    {vacRemaining}
-                  </span>
-                  <div className="mb-2">
-                    <p className="text-white/50 text-xs font-bold leading-tight">Tage</p>
-                    <p className="text-white/50 text-xs font-bold leading-tight">übrig</p>
-                  </div>
-                </div>
-                {vacTotal > 0 && (
-                  <p className="text-white/30 text-xs font-medium mt-2">
-                    von {vacTotal} Tagen · {vacUsed} verbraucht
+                <div className="py-1">
+                  <p className="text-3xl font-black tabular-nums text-[#1a3826] leading-none">
+                    {teamCount}
                   </p>
-                )}
-              </div>
-
-              {/* Donut ring (conic gradient) */}
-              {vacTotal > 0 && (
-                <div
-                  className="w-24 h-24 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{
-                    background: `conic-gradient(from -90deg, #FFC72C 0deg ${vacUsedDeg}deg, rgba(255,255,255,0.08) ${vacUsedDeg}deg 360deg)`,
-                  }}
-                >
-                  <div className="w-[68px] h-[68px] rounded-full bg-[#0a1f14] flex flex-col items-center justify-center">
-                    <span className="text-base font-black text-[#FFC72C] leading-none">{vacUsedPct}%</span>
-                    <span className="text-[9px] text-white/40 font-medium mt-0.5">genutzt</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="relative z-10 flex items-center gap-2 text-[#FFC72C] text-sm font-bold group-hover:gap-3 transition-all">
-              Urlaub planen <ChevronRight size={16} />
-            </div>
-          </Link>
-
-          {/* ▌ TEAM CARD — McDonald's yellow, avatar stack */}
-          <Link
-            href="/team"
-            className="md:col-span-4 group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FFC72C] to-[#dfa820] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#FFC72C]/20 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300"
-          >
-            <div className="absolute -right-6 -bottom-6 w-48 h-48 rounded-full bg-[#1a3826]/10 blur-2xl pointer-events-none" />
-
-            <div className="relative z-10">
-              <p className="text-[#1a3826]/60 text-[11px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                <UsersRound size={11} />
-                Mein Team
-              </p>
-              <p className="text-6xl md:text-7xl font-black tabular-nums text-[#1a3826] leading-none mt-2">
-                {teamCount}
-              </p>
-              <p className="text-[#1a3826]/60 text-sm font-bold mt-1">Mitarbeiter</p>
-
-              {/* Avatar stack */}
-              {teamMembers.length > 0 && (
-                <div className="flex items-center mt-5">
-                  {teamMembers.slice(0, 5).map((member, i) => (
-                    <div
-                      key={member.id}
-                      className="w-9 h-9 rounded-full bg-[#1a3826] border-2 border-[#FFC72C] flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm"
-                      style={{ marginLeft: i > 0 ? "-10px" : "0", position: "relative", zIndex: 5 - i }}
-                    >
-                      {member.image ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={member.image} alt={member.name ?? ""} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[11px] font-black text-[#FFC72C]">
-                          {member.name?.charAt(0)?.toUpperCase() ?? "?"}
-                        </span>
+                  <p className="text-[#1a3826]/70 text-sm font-bold mt-0.5">Mitarbeiter</p>
+                  {teamMembers.length > 0 && (
+                    <div className="flex items-center mt-2 flex-wrap gap-0.5">
+                      {teamMembers.slice(0, 5).map((member, i) => (
+                        <div
+                          key={member.id}
+                          className="w-6 h-6 rounded-full bg-[#1a3826] border-2 border-[#FFC72C] flex items-center justify-center overflow-hidden flex-shrink-0 shadow-sm"
+                          style={{ marginLeft: i > 0 ? "-5px" : "0", position: "relative", zIndex: 5 - i }}
+                        >
+                          {member.image ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={member.image} alt={member.name ?? ""} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] font-black text-white">
+                              {member.name?.charAt(0)?.toUpperCase() ?? "?"}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                      {teamCount > 5 && (
+                        <div
+                          className="w-6 h-6 rounded-full bg-[#1a3826] border-2 border-[#FFC72C] flex items-center justify-center flex-shrink-0 shadow-sm"
+                          style={{ marginLeft: "-5px", position: "relative", zIndex: 0 }}
+                        >
+                          <span className="text-[8px] font-black text-white">+{teamCount - 5}</span>
+                        </div>
                       )}
-                    </div>
-                  ))}
-                  {teamCount > 5 && (
-                    <div
-                      className="w-9 h-9 rounded-full bg-[#1a3826]/80 border-2 border-[#FFC72C] flex items-center justify-center flex-shrink-0 shadow-sm"
-                      style={{ marginLeft: "-10px", position: "relative", zIndex: 0 }}
-                    >
-                      <span className="text-[10px] font-black text-[#FFC72C]">+{teamCount - 5}</span>
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+                <span className="flex items-center gap-1.5 text-[#1a3826] text-sm font-bold group-hover:gap-2 transition-all shrink-0">
+                  Team öffnen <ChevronRight size={14} />
+                </span>
+              </div>
+              <div className="relative z-10 w-10 shrink-0" aria-hidden />
+            </Link>
+          </div>
 
-            <div className="relative z-10 flex items-center gap-2 text-[#1a3826] text-sm font-bold group-hover:gap-3 transition-all">
-              Team öffnen <ChevronRight size={16} />
-            </div>
-          </Link>
+          {/* 3. JAHRESURLAUB */}
+          <div className="min-h-0 flex flex-col">
+            <Link
+              href="/tools/vacations"
+              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#1a3826] to-[#0a1f14] p-5 flex flex-row justify-between items-stretch gap-4 shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 min-h-[140px] h-full"
+            >
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
+              <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-[#FFC72C]/10 blur-xl pointer-events-none" />
+              <div className="relative z-10 flex flex-col justify-between h-full min-w-0 flex-1">
+                <p className="text-[#FFC72C] text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+                  <CalendarDays size={12} className="text-white/80" />
+                  JAHRESURLAUB {currentYear}
+                </p>
+                <div className="py-1">
+                  <div className="flex items-end gap-1.5">
+                    <span className="text-3xl font-black tabular-nums text-white leading-none">
+                      {vacRemaining}
+                    </span>
+                    <div className="mb-0.5">
+                      <p className="text-white/80 text-sm font-bold leading-tight">Tage</p>
+                      <p className="text-white/80 text-sm font-bold leading-tight">übrig</p>
+                    </div>
+                  </div>
+                  {vacTotal > 0 && (
+                    <p className="text-white/50 text-xs font-medium mt-1">
+                      von {vacTotal} – {vacUsed} verbraucht
+                    </p>
+                  )}
+                </div>
+                <span className="flex items-center gap-1.5 text-[#FFC72C] text-sm font-bold group-hover:gap-2 transition-all shrink-0">
+                  Urlaub planen <ChevronRight size={14} />
+                </span>
+              </div>
+              <div className="relative z-10 flex items-center shrink-0">
+                {vacTotal > 0 ? (
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: `conic-gradient(from -90deg, #FFC72C 0deg ${vacUsedDeg}deg, rgba(255,255,255,0.12) ${vacUsedDeg}deg 360deg)`,
+                    }}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#0a1f14] flex flex-col items-center justify-center">
+                      <span className="text-[10px] font-black text-[#FFC72C] leading-none">{vacUsedPct}%</span>
+                      <span className="text-[7px] text-white/50 font-medium">genutzt</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0" />
+                )}
+              </div>
+            </Link>
+          </div>
 
-          {/* ▌ PENDING REQUESTS — royal blue, status indicator */}
-          <Link
-            href={`/tools/vacations?tab=requests&year=${currentYear}`}
-            className="md:col-span-3 relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#4169E1] to-[#2a47c4] p-6 md:p-8 min-h-[230px] md:min-h-[250px] flex flex-col justify-between shadow-xl shadow-[#4169E1]/20 hover:-translate-y-0.5 hover:shadow-2xl transition-all duration-300"
-          >
-            <div className="absolute -right-6 -top-6 w-36 h-36 rounded-full bg-white/5 blur-2xl pointer-events-none" />
-            <div className="absolute -left-4 -bottom-4 w-24 h-24 rounded-full border border-white/10 pointer-events-none" />
-
-            <div className="relative z-10">
-              <p className="text-white/60 text-[11px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                <Inbox size={11} />
-                Offene Anträge
-              </p>
-              <p className="text-6xl md:text-7xl font-black tabular-nums text-white leading-none mt-2">
-                {pendingVacationCount}
-              </p>
-              <p className="text-white/60 text-sm font-bold mt-1">
-                {pendingVacationCount === 0
-                  ? "Alles erledigt"
-                  : pendingVacationCount === 1
-                  ? "Antrag wartet"
-                  : "Anträge warten"}
-              </p>
-            </div>
-
-            <div className="relative z-10">
-              <span
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold ${
-                  pendingVacationCount > 0
-                    ? "bg-white/20 text-white"
-                    : "bg-white/10 text-white/50"
-                }`}
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    pendingVacationCount > 0 ? "bg-white animate-pulse" : "bg-white/40"
-                  }`}
-                />
-                {pendingVacationCount > 0 ? "Aktion erforderlich" : "Alles in Ordnung"}
-              </span>
-            </div>
-          </Link>
+          {/* 4. Meine Aufgaben (To-Do) */}
+          <div className="min-h-0 flex flex-col">
+            <DashboardTodoCard userId={dbUser.id} initialTodos={initialTodos} />
+          </div>
         </div>
 
         {/* ── MEISTGENUTZTE TOOLS (modern okvir) + rechts: nur Zertifikate ── */}
