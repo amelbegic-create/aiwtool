@@ -42,6 +42,24 @@ Ako je baza prazna ili treba migracije:
   ```
 - Ili koristi Neon SQL Editor za pokretanje migracija.
 
+## 5. Greška: "CalendarEvent does not exist" / dashboard ne radi
+
+Ako nakon deploya dashboard baci grešku tipa **`The table public.CalendarEvent does not exist`**, LIVE baza nije usklađena sa shemom. Treba jednom pokrenuti sinkronizaciju **prema LIVE bazi**:
+
+**Opcija A (preporučeno)** – u `.env` dodaj `LIVE_DATABASE_URL` (i po želji `LIVE_DIRECT_URL`) s connection stringom za **produkcijsku** bazu, zatim u rootu projekta:
+
+```bash
+node scripts/push-live-db.mjs
+```
+
+**Opcija B** – u `.env` privremeno prepiši `DATABASE_URL` i `DIRECT_URL` na vrijednosti produkcijske baze, pa:
+
+```bash
+npx prisma db push
+```
+
+Zatim vrati `DATABASE_URL` i `DIRECT_URL` na RADNA vrijednosti. Nakon toga Vercel aplikacija (koja već koristi produkcijsku bazu preko env varijabli) će raditi bez promjene koda.
+
 ---
 
 Sve je spremno za rad kao na lokalnom serveru nakon postavljanja env varijabli.
