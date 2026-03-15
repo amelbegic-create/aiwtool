@@ -73,7 +73,7 @@ function parseEventDate(e: CalendarEventItem): Date {
   return typeof e.date === "string" ? parseISO(e.date) : e.date;
 }
 
-const PRESET_COLORS = [
+const PERSONAL_COLORS = [
   "#FFBC0D",
   "#DA291C",
   "#1a3826",
@@ -250,7 +250,11 @@ function getEventStyle(ev: CalendarEventItem): { bg: string; text: string } {
     return { bg: "bg-violet-500/25", text: "text-violet-800 dark:text-violet-200" };
   }
   const s = TYPE_STYLES[ev.type as CalendarEventType];
-  return { bg: s.bg, text: s.text };
+  if (s) {
+    return { bg: s.bg, text: s.text };
+  }
+  // Fallback za custom kategorije bez definiranog type-styla
+  return { bg: "bg-[#FFBC0D]/20", text: "text-gray-900 dark:text-white" };
 }
 
 export default function CalendarClient({
@@ -286,6 +290,7 @@ export default function CalendarClient({
   const [selectedDayForPersonal, setSelectedDayForPersonal] = useState<Date | null>(null);
   const [personalEntryTitle, setPersonalEntryTitle] = useState("");
   const [personalEntrySaving, setPersonalEntrySaving] = useState(false);
+  const [personalEntryColor, setPersonalEntryColor] = useState<string>("#FFBC0D");
 
   useEffect(() => {
     getCalendarCategories().then(setCategories);
@@ -434,9 +439,15 @@ export default function CalendarClient({
     if (!selectedDayForPersonal) return;
     setPersonalEntrySaving(true);
     try {
-      await upsertPersonalEntry(userId, selectedDayForPersonal, personalEntryTitle.trim() || "Osobno");
+      await upsertPersonalEntry(
+        userId,
+        selectedDayForPersonal,
+        personalEntryTitle.trim() || "Osobno",
+        personalEntryColor
+      );
       setSelectedDayForPersonal(null);
       setPersonalEntryTitle("");
+      setPersonalEntryColor("#FFBC0D");
       router.refresh();
       await loadMonth(year, month);
     } finally {
@@ -521,7 +532,10 @@ export default function CalendarClient({
 
   const getEventLabel = (ev: CalendarEventItem): string => {
     if (ev.isPersonalEntry) return "Osobni Eintrag";
-    return ev.categoryLabel ?? TYPE_STYLES[ev.type as CalendarEventType].label;
+    if (ev.categoryLabel) return ev.categoryLabel;
+    const style = TYPE_STYLES[ev.type as CalendarEventType];
+    if (style) return style.label;
+    return "Termin";
   };
 
   const formatEventDateRange = (ev: CalendarEventItem): string => {
@@ -581,7 +595,11 @@ export default function CalendarClient({
       {selectedDayForPersonal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => { setSelectedDayForPersonal(null); setPersonalEntryTitle(""); }}
+        onClick={() => {
+          setSelectedDayForPersonal(null);
+          setPersonalEntryTitle("");
+          setPersonalEntryColor("#FFBC0D");
+        }}
           role="dialog"
           aria-modal="true"
           aria-label="Osobni Eintrag"
@@ -600,6 +618,25 @@ export default function CalendarClient({
               placeholder="Titel (nur für Sie sichtbar)"
               className="w-full bg-transparent border border-gray-300 dark:border-[#FFC72C]/30 rounded-lg px-3 py-2 text-sm mb-4 focus:ring-2 focus:ring-[#1a3826]/20 dark:focus:ring-[#FFC72C]/20 outline-none"
             />
+            <div className="mb-4">
+              <p className="text-xs text-muted-foreground mb-1">Farbe (optional)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {PERSONAL_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setPersonalEntryColor(c)}
+                    className={`w-6 h-6 rounded-full border transition-transform ${
+                      personalEntryColor === c
+                        ? "ring-2 ring-[#1a3826] border-white"
+                        : "border-gray-300 hover:scale-110"
+                    }`}
+                    style={{ backgroundColor: c }}
+                    aria-label="Farbe wählen"
+                  />
+                ))}
+              </div>
+            </div>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -611,7 +648,11 @@ export default function CalendarClient({
               </button>
               <button
                 type="button"
-                onClick={() => { setSelectedDayForPersonal(null); setPersonalEntryTitle(""); }}
+                onClick={() => {
+                  setSelectedDayForPersonal(null);
+                  setPersonalEntryTitle("");
+                  setPersonalEntryColor("#FFBC0D");
+                }}
                 className="py-2 px-4 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm"
               >
                 Abbrechen
@@ -712,6 +753,9 @@ export default function CalendarClient({
                           const existing = dayEvents.find((e) => e.id === `pe-${key}`);
                           setSelectedDayForPersonal(day);
                           setPersonalEntryTitle(existing?.title ?? "");
+                          setPersonalEntryColor(
+                            (existing && (existing.color as string | undefined)) || "#FFBC0D"
+                          );
                         }}
                         className={`text-xs font-bold mb-1 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-[#1a3826]/30 dark:hover:ring-[#FFC72C]/30 ${
                           isToday
