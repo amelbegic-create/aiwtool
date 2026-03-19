@@ -5,7 +5,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Save, FileDown, CalendarDays, Trash2, FileUp } from "lucide-react";
+import { Save, FileDown, CalendarDays, Trash2 } from "lucide-react";
 
 // --- TIPOVI (Excel Crewlabor Bedarf) ---
 
@@ -302,11 +302,6 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   const [pdfPopupUrl, setPdfPopupUrl] = useState<string | null>(null);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [importPdfOpen, setImportPdfOpen] = useState(false);
-  const [importPdfFiles, setImportPdfFiles] = useState<File[]>([]);
-  const [importPdfStoreCode, setImportPdfStoreCode] = useState<string>("");
-  const [importPdfYear, setImportPdfYear] = useState<number>(new Date().getFullYear());
-  const [importPdfMonth, setImportPdfMonth] = useState<number>(new Date().getMonth() + 1);
   const currentRestaurantIdRef = React.useRef<string | null>(null);
   const tableWrapperRef = React.useRef<HTMLDivElement>(null);
   const hasUnsavedChangesRef = React.useRef(false);
@@ -1261,166 +1256,6 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       )}
 
-      {/* Import PDF Modal (temporary) */}
-      {importPdfOpen && (
-        <div
-          className="fixed inset-0 z-[250] flex items-start justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setImportPdfOpen(false);
-          }}
-        >
-          <div className="relative bg-card rounded-2xl shadow-2xl border border-[#1a3826]/20 w-full max-w-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826] border-b border-[#FFC72C]/20">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <FileUp size={20} className="text-[#FFC72C] shrink-0" aria-hidden />
-                <span className="text-sm md:text-base font-black text-white uppercase tracking-wider truncate">
-                  PDF Import (CL Monats-Export)
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setImportPdfOpen(false)}
-                className="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10 transition"
-                aria-label="Schließen"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">STORE Code</label>
-                  <input
-                    type="text"
-                    value={importPdfStoreCode}
-                    onChange={(e) => setImportPdfStoreCode(e.target.value)}
-                    className="mt-1 w-full p-2 bg-muted border border-border rounded-lg text-sm font-medium text-foreground focus:ring-2 focus:ring-ring outline-none"
-                    placeholder="z.B. 39"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 uppercase">Jahr</label>
-                  <select
-                    value={importPdfYear}
-                    onChange={(e) => setImportPdfYear(Number(e.target.value))}
-                    className="mt-1 w-full p-2 bg-muted border border-border rounded-lg text-sm font-medium text-foreground focus:ring-2 focus:ring-ring outline-none"
-                  >
-                    {[2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">Monat</label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {MONTH_NAMES_DE.map((mName, i) => (
-                    <button
-                      key={mName}
-                      type="button"
-                      onClick={() => setImportPdfMonth(i + 1)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-full transition-all ${
-                        importPdfMonth === i + 1
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      {mName.substring(0, 3)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase">PDF Dateien</label>
-                <input
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  multiple
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files ?? []);
-                    setImportPdfFiles(files);
-                  }}
-                  className="mt-2 w-full"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Može više fajlova. Import pokušava auto-detektovati STORE i Monat/Gesamt aus PDF-u, a ovo je fallback.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setImportPdfOpen(false);
-                    setImportPdfFiles([]);
-                  }}
-                  className="px-4 py-2.5 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 text-sm font-bold"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (importPdfFiles.length === 0) {
-                      toast.error("Bitte mindestens eine PDF auswählen.");
-                      return;
-                    }
-                    if (!importPdfStoreCode.trim()) {
-                      toast.error("Bitte STORE Code unbenennen (Fallback) angeben.");
-                      return;
-                    }
-
-                    try {
-                      const formData = new FormData();
-                      formData.append("storeCode", importPdfStoreCode.trim());
-                      formData.append("year", String(importPdfYear));
-                      formData.append("month", String(importPdfMonth));
-                      importPdfFiles.forEach((f) => formData.append("files", f));
-
-                      toast.loading("Import läuft...");
-                      const res = await fetch("/api/labor-planner/import-pdf", {
-                        method: "POST",
-                        body: formData,
-                      });
-                      const json = await res.json().catch(() => ({}));
-                      if (!res.ok || !json?.success) {
-                        throw new Error(json?.error || "Fehler beim Import.");
-                      }
-
-                      toast.success(`Import erfolgreich (${json.importedCount ?? importPdfFiles.length}).`);
-                      setImportPdfOpen(false);
-                      setImportPdfFiles([]);
-                      setYear(importPdfYear);
-                      setMonth(importPdfMonth);
-
-                      // Brza verifikacija: reload podataka za odabrani store/month/year (fallback)
-                      if (json?.restaurantId) {
-                        const newParams = new URLSearchParams(searchParams.toString());
-                        newParams.set("restaurantId", json.restaurantId);
-                        router.replace(`?${newParams.toString()}`, { scroll: false });
-                      } else {
-                        router.refresh();
-                      }
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Import fehlgeschlagen.");
-                    }
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-[#FFC72C] hover:bg-[#e6b225] text-[#1a3826] text-sm font-black flex items-center gap-2"
-                >
-                  <FileUp size={16} />
-                  Import starten
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* HEADER – unificirani layout */}
       <div className="mx-auto mb-6 md:mb-8" style={{ maxWidth: "1600px" }}>
         <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
@@ -1445,21 +1280,6 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
             >
               <Save size={18} strokeWidth={2.5} className="shrink-0" />
               <span className="whitespace-nowrap">Speichern</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const selectedRest = restaurants.find((r) => r.id === selectedRestaurantId);
-                setImportPdfStoreCode(selectedRest?.code ?? "");
-                setImportPdfYear(year);
-                setImportPdfMonth(month);
-                setImportPdfOpen(true);
-              }}
-              className="h-10 px-4 rounded-lg bg-[#FFC72C] hover:bg-[#e6b225] text-[#1a3826] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
-              title="PDF Import"
-            >
-              <FileUp size={18} strokeWidth={2.5} className="shrink-0" />
-              <span className="whitespace-nowrap">Import PDF</span>
             </button>
             <button
               onClick={handlePrintSingle}
