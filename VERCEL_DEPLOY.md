@@ -14,7 +14,7 @@ Kod je na GitHubu: **https://github.com/amelbegic-create/aiwtool**
 3. Odaberi `amelbegic-create/aiwtool` (ili fork).
 4. **Framework Preset**: Next.js (auto-detektovan).
 5. **Root Directory**: `./` (ostavi prazno ili `.`).
-6. **Build Command**: ostavi prazno (koristi se [`vercel.json`](vercel.json): `prisma generate && prisma db push && next build` – `db push` usklađuje shemu s produkcijskom bazom iz Vercel env-a).
+6. **Build Command**: ostavi prazno (koristi se [`vercel.json`](vercel.json): `prisma generate && prisma db push --accept-data-loss && next build` – `db push` usklađuje shemu s produkcijskom bazom iz Vercel env-a).
 7. **Output Directory**: ostavi prazno.
 
 ## 2. Environment Variables (obavezno)
@@ -34,7 +34,8 @@ U **Project Settings → Environment Variables** dodaj za **Production** (i po �
 
 ## 3. Deploy
 
-- Push na povezanu granu ili **Deploy** u Vercel dashboardu. Build pokreće `prisma generate && prisma db push && next build` (vidi `vercel.json`), zatim `next start`.
+- Push na povezanu granu ili **Deploy** u Vercel dashboardu. Build pokreće `prisma generate && prisma db push --accept-data-loss && next build` (vidi `vercel.json`), zatim `next start`.
+- **`--accept-data-loss`:** Prisma zahtijeva ovaj flag kad bi sinkronizacija sheme mogla ukloniti kolone/tablice ili drastično promijeniti tipove (npr. nakon IAM / enum promjena). Pri većim releaseovima napravi **Neon branch backup** ili snapshot prije deploya. Ako u logu vidiš neočekivano brisanje, prvo uskladi bazu ručno (migracije / SQL), ne deployaj slijepo.
 - U **Build Logs** provjeri da `prisma db push` prođe; ako padne, aplikacija se ne deploya do kraja.
 - **Nakon deploya (IAM):** jednokratno na **LIVE** bazi (privremeno postavi `DATABASE_URL`/`DIRECT_URL` u shellu ili koristi samo za tu naredbu):
 
