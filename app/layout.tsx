@@ -14,6 +14,7 @@ import { Role } from "@prisma/client";
 import { dict } from "@/translations";
 import { getNotificationsForUser } from "@/app/actions/notificationActions";
 import { resolveActiveRestaurantId } from "@/app/actions/restaurantContext";
+import ActiveRestaurantCookieSync from "@/components/ActiveRestaurantCookieSync";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -66,7 +67,7 @@ export default async function RootLayout({
           const userId = user.id;
           const role = user.role;
 
-          const canSeeAllRestaurants = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'].includes(role);
+          const canSeeAllRestaurants = ["SYSTEM_ARCHITECT", "ADMIN"].includes(role);
           let preferredRestaurantId: string | undefined;
 
           if (canSeeAllRestaurants) {
@@ -154,6 +155,7 @@ export default async function RootLayout({
         <AuthProvider>
             {session?.user && (
                 <>
+                    <ActiveRestaurantCookieSync />
                     <TopNavbar 
                         restaurants={userRestaurants} 
                         activeRestaurantId={activeRestaurantId}

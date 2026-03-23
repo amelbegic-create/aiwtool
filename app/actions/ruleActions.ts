@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import { RulePriority, RuleStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { put } from "@vercel/blob";
+import { Role } from "@prisma/client";
+import { stealthArchitectWhere } from "@/lib/userVisibility";
 
 export interface RuleFormData {
   id?: string;
@@ -40,7 +42,7 @@ async function checkAdmin() {
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) throw new Error("User not found");
 
-  const roleAllowed = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER"].includes(user.role as string);
+  const roleAllowed = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT"].includes(user.role as string);
   const perms = Array.isArray(user.permissions) ? user.permissions : [];
   const hasRulesPermission = perms.includes("rules:manage") || perms.includes("rules:access");
 
@@ -88,7 +90,7 @@ export async function getRules(restaurantId?: string) {
   });
   if (!user) return [];
 
-  const isBoss = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user.role as string);
+  const isBoss = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT"].includes(user.role as string);
 
   const statusFilter = isBoss ? {} : { isActive: true };
   let whereClause: Prisma.RuleWhereInput = { ...statusFilter };
@@ -210,7 +212,7 @@ export async function markRuleAsRead(ruleId: string) {
 }
 
 export async function getRuleStats(ruleId: string): Promise<RuleStatsResult> {
-  await checkAdmin();
+  const viewer = await checkAdmin();
   const rule = await prisma.rule.findUnique({
     where: { id: ruleId },
     include: { readReceipts: { include: { user: { select: { id: true, name: true, email: true } } } }, restaurants: true },
@@ -227,7 +229,7 @@ export async function getRuleStats(ruleId: string): Promise<RuleStatsResult> {
 
   if (rule.isGlobal) {
     const allUsers = await prisma.user.findMany({
-      where: { isActive: true, role: { not: "SYSTEM_ARCHITECT" } },
+      where: { isActive: true, ...stealthArchitectWhere(viewer.role) },
       select: { id: true, name: true, email: true },
     });
     const unread = allUsers.filter((u) => !readUserIds.has(u.id)).map((u) => ({ id: u.id, name: u.name, email: u.email }));
@@ -237,11 +239,15 @@ export async function getRuleStats(ruleId: string): Promise<RuleStatsResult> {
   const restaurantIds = rule.restaurants.map((rr) => rr.restaurantId);
   const relations = await prisma.restaurantUser.findMany({
     where: { restaurantId: { in: restaurantIds } },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: { user: { select: { id: true, name: true, email: true, role: true } } },
   });
+  const viewerIsArchitect = String(viewer.role) === Role.SYSTEM_ARCHITECT;
   const unreadUserIds = new Map<string, { id: string; name: string | null; email: string | null }>();
   for (const r of relations) {
-    if (!readUserIds.has(r.userId)) unreadUserIds.set(r.userId, r.user);
+    if (!readUserIds.has(r.userId)) {
+      if (!viewerIsArchitect && r.user.role === Role.SYSTEM_ARCHITECT) continue;
+      unreadUserIds.set(r.userId, r.user);
+    }
   }
   const unread = Array.from(unreadUserIds.values());
   return { read, unread };

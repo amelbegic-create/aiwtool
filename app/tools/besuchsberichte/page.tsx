@@ -30,6 +30,7 @@ export default async function BesuchsberichtePage() {
       <BesuchsberichteCategoriesClient
         categories={categories}
         hasRestaurant={!!restaurantId}
+        restaurantId={restaurantId}
       />
     </div>
   );

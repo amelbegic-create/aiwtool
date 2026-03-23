@@ -77,7 +77,7 @@ export default function RulesGrid({
                 <Search size={20} className="text-[#1a3826]/60 dark:text-[#FFC72C]/70 shrink-0" />
                 <input
                   type="search"
-                  placeholder="Richtlinien durchsuchen…"
+                  placeholder="Bedienungsanleitungen durchsuchen....."
                   className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-foreground placeholder:text-muted-foreground"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -126,7 +126,7 @@ export default function RulesGrid({
                   <span className="font-semibold text-[#1a3826] dark:text-[#FFC72C]">
                     {filtered.length}
                   </span>{" "}
-                  {filtered.length === 1 ? "Richtlinie" : "Richtlinien"} gefunden
+                  {filtered.length === 1 ? "Bedienungsanleitung" : "Bedienungsanleitungen"} vorhanden
                 </span>
                 <div className="ml-auto inline-flex items-center gap-1 rounded-xl border border-[#1a3826]/15 dark:border-[#FFC72C]/25 bg-background/80 px-1 py-0.5">
                   <button
@@ -180,7 +180,7 @@ export default function RulesGrid({
               </div>
               <h2 className="text-xl font-bold text-foreground">Keine Ergebnisse</h2>
               <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                Kategorie oder Suchbegriff ändern, um Richtlinien anzuzeigen.
+                Kategorie oder Suchbegriff ändern, um Bedienungsanleitungen anzuzeigen.
               </p>
             </motion.div>
           ) : (
@@ -248,7 +248,7 @@ export default function RulesGrid({
                           </div>
                           <div className="mt-3 flex items-center justify-between text-xs">
                             <span className="text-white/60 font-medium">
-                              Richtlinie
+                              Bedienungsanleitung
                               {rule.category?.name ? ` · ${rule.category.name}` : ""}
                             </span>
                             <span className="flex items-center gap-1.5 text-[#FFC72C] font-bold opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">

@@ -13,7 +13,7 @@ export default async function RestaurantsHubPage() {
   return (
     <div className="min-h-screen bg-background">
       <RestaurantsHubClient
-        sitzplanPdfUrl={sitzplanData?.sitzplanPdfUrl ?? null}
+        sitzplanPdfs={sitzplanData?.sitzplanPdfs ?? []}
         restaurantName={sitzplanData?.restaurantName ?? "Restaurant"}
       />
     </div>

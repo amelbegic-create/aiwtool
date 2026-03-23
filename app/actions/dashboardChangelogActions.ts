@@ -4,11 +4,11 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
+import { canEditDashboardChangelog } from "@/lib/permissions";
 
 export type ChangelogEntry = {
   content: string;
   updatedAt: string;
-  updatedByName?: string | null;
 };
 
 /** Erstellt die Tabelle, falls sie fehlt (z. B. bei neuem Deployment). */
@@ -31,14 +31,12 @@ export async function getDashboardChangelog(): Promise<ChangelogEntry | null> {
       select: {
         content: true,
         updatedAt: true,
-        updatedBy: { select: { name: true } },
       },
     });
     if (!row) return null;
     return {
       content: row.content,
       updatedAt: row.updatedAt.toISOString(),
-      updatedByName: row.updatedBy?.name ?? null,
     };
   } catch {
     return null;
@@ -54,8 +52,8 @@ export async function updateDashboardChangelog(content: string): Promise<{ ok: b
     where: { id: userId },
     select: { role: true },
   });
-  if (user?.role !== "SYSTEM_ARCHITECT") {
-    return { ok: false, error: "Nur System Architect darf die Änderungen bearbeiten." };
+  if (!canEditDashboardChangelog(user?.role)) {
+    return { ok: false, error: "Nur Administratoren dürfen die Änderungen bearbeiten." };
   }
 
   try {

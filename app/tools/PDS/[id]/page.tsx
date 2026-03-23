@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from 'next/navigation';
-import PDSFormClient from './PDSFormClient';
+import PDSFormClient from "./PDSFormClient";
+import { isGlobalScopeRole } from "@/lib/permissions";
 
 export default async function PDSDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -19,7 +20,7 @@ export default async function PDSDetailPage(props: { params: Promise<{ id: strin
 
   if (!pds) return <div className="p-10 text-center font-bold text-slate-500 uppercase tracking-widest">PDS-Dokument nicht gefunden.</div>;
 
-  const isAdminOrGod = ['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
+  const isAdminOrGod = isGlobalScopeRole(currentUser?.role);
   const isAssignedManager = currentUser?.id === pds.managerId;
   const isEmployeeSupervisor = pds.user?.supervisorId === currentUser?.id;
 

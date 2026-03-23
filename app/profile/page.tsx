@@ -84,13 +84,15 @@ export default function ProfilePage() {
   };
 
   const roleLabel =
-    user?.role === "SYSTEM_ARCHITECT" || user?.role === "SUPER_ADMIN"
+    user?.role === "SYSTEM_ARCHITECT"
       ? "System"
       : user?.role === "ADMIN"
         ? "Admin"
         : user?.role === "MANAGER"
           ? "Manager"
-          : "Mitarbeiter";
+          : user?.role === "MANAGEMENT"
+            ? "Management"
+            : "Mitarbeiter";
 
   return (
     <div className="min-h-screen bg-background">

@@ -8,6 +8,7 @@ import AdminControlsClient from './components/AdminControlsClient';
 import PDSListClient from './components/PDSListClient';
 import { cookies } from 'next/headers';
 import { tryRequirePermission, getDbUserForAccess, hasPermission } from "@/lib/access";
+import { isGlobalScopeRole } from "@/lib/permissions";
 import NoPermission from "@/components/NoPermission";
 import { getTemplateForRestaurantAndYear } from '@/app/actions/pdsActions';
 
@@ -33,7 +34,7 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
     where: { email: session.user.email },
     include: { restaurants: { select: { restaurantId: true } } },
   });
-  const isAdminOrGod = ['ADMIN', 'SUPER_ADMIN', 'SYSTEM_ARCHITECT'].includes(currentUser?.role || '');
+  const isAdminOrGod = isGlobalScopeRole(currentUser?.role);
   const isManager = currentUser?.role === 'MANAGER';
   const managerRestaurantIds = (currentUser?.restaurants ?? []).map((r) => r.restaurantId);
 
@@ -64,7 +65,7 @@ export default async function PDSDashboard(props: { searchParams: Promise<{ year
 
   // Admin/SuperAdmin/System Architect: vide sve PDS-eve za restoran i godinu.
   // Svi ostali (MANAGER, CREW, ...) vide samo svoj PDS za tu godinu.
-  const EXCLUDED_PDS_ROLES = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'] as const;
+  const EXCLUDED_PDS_ROLES = ["SYSTEM_ARCHITECT", "ADMIN"] as const;
   const pdsList = await db.pDS.findMany({
     where: isAdminOrGod
       ? {

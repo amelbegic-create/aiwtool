@@ -2,6 +2,11 @@
 
 Kod je na GitHubu: **https://github.com/amelbegic-create/aiwtool**
 
+## 0. Sigurnost (connection string)
+
+- **Nikad** ne dijeliti `DATABASE_URL` / lozinke u chatu, ticketima ili skrinšotima.
+- Ako je string procurio: u **Neon** rotiraj lozinku / kreiraj novi connection string, pa u **Vercel → Settings → Environment Variables** ažuriraj `DATABASE_URL` i `DIRECT_URL` za Production (i Preview ako treba).
+
 ## 1. Poveži repo s Vercelom
 
 1. Idi na [vercel.com](https://vercel.com) i uloguj se.
@@ -9,7 +14,7 @@ Kod je na GitHubu: **https://github.com/amelbegic-create/aiwtool**
 3. Odaberi `amelbegic-create/aiwtool` (ili fork).
 4. **Framework Preset**: Next.js (auto-detektovan).
 5. **Root Directory**: `./` (ostavi prazno ili `.`).
-6. **Build Command**: ostavi prazno (koristi se `vercel.json`: `prisma generate && next build`).
+6. **Build Command**: ostavi prazno (koristi se [`vercel.json`](vercel.json): `prisma generate && prisma db push && next build` – `db push` usklađuje shemu s produkcijskom bazom iz Vercel env-a).
 7. **Output Directory**: ostavi prazno.
 
 ## 2. Environment Variables (obavezno)
@@ -29,8 +34,20 @@ U **Project Settings → Environment Variables** dodaj za **Production** (i po �
 
 ## 3. Deploy
 
-- Klikni **Deploy**. Vercel će pokrenuti `prisma generate && next build` i `next start`.
-- Nakon prvog deploya provjeri **Functions** i **Logs** ako nešto pukne.
+- Push na povezanu granu ili **Deploy** u Vercel dashboardu. Build pokreće `prisma generate && prisma db push && next build` (vidi `vercel.json`), zatim `next start`.
+- U **Build Logs** provjeri da `prisma db push` prođe; ako padne, aplikacija se ne deploya do kraja.
+- **Nakon deploya (IAM):** jednokratno na **LIVE** bazi (privremeno postavi `DATABASE_URL`/`DIRECT_URL` u shellu ili koristi samo za tu naredbu):
+
+  ```bash
+  npx tsx prisma/backfill-iam-permissions.ts
+  ```
+
+  Time se novi permission ključevi (npr. `dashboard_news:manage`) spajaju u `User.permissions` za ADMIN/MANAGER/sve korisnike prema logici skripte. **Ne pokretaj** `npm run` seed na produkciji osim ako namjerno želiš seed podatke.
+
+## 3b. Smoke test (produkcija)
+
+- Login, `/dashboard`, `/admin`, moduli ovisni o novim dozvolama.
+- Ako admin nema novi modul: provjeri backfill iz koraka 3.
 
 ## 4. Prva migracija baze (ako treba)
 

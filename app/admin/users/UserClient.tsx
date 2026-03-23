@@ -22,7 +22,7 @@ import Link from "next/link";
 import { createUser, deleteUser, updateUser } from "../../actions/adminActions";
 import { toast } from "sonner";
 import { getRolePermissionPreset } from "../../actions/rolePresetActions";
-import { PERMISSIONS, ALL_PERMISSION_KEYS, GOD_MODE_ROLES } from "@/lib/permissions";
+import { PERMISSIONS, ALL_PERMISSION_KEYS, isGodModeRole } from "@/lib/permissions";
 import { Role } from "@prisma/client";
 import { useRouter } from "next/navigation";
 
@@ -65,18 +65,17 @@ const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
 // ✅ Role enum ostaje isti, ali label u UI je po želji
 const ROLE_LABELS: Record<Role, string> = {
-  SYSTEM_ARCHITECT: "SYSTEM_ARCHITECT",
-  SUPER_ADMIN: "Abteilungsleiter",
-  ADMIN: "Management",
+  SYSTEM_ARCHITECT: "System Architect",
+  ADMIN: "Administration",
   MANAGER: "Restaurant Manager",
-  SHIFT_LEADER: "Shift Leader",
-  CREW: "Crew",
+  MANAGEMENT: "Management / Büro",
+  MITARBEITER: "Mitarbeiter:in",
 };
 
-const roles: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"];
+const roles: Role[] = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT", "MITARBEITER"];
 
-function isGodMode(role: Role) {
-  return GOD_MODE_ROLES.has(String(role));
+function isBypassRole(role: Role) {
+  return isGodModeRole(role);
 }
 
 function safeInt(v: any, fallback = 0) {
@@ -111,7 +110,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
     lastName: "",
     email: "",
     password: "",
-    role: "CREW" as Role,
+    role: "MITARBEITER" as Role,
     departmentId: "" as string,
     vacationEntitlement: 20,
     vacationCarryover: 0,
@@ -128,8 +127,8 @@ export default function UserClient({ users = [], restaurants = [], departments =
     // Uvijek prvo setuj rolu (da UI odmah reflektuje izbor)
     setFormData((prev) => ({ ...prev, role: nextRole }));
 
-    if (isGodMode(nextRole)) {
-      // God-mode: permisije nisu ručne
+    if (isBypassRole(nextRole)) {
+      // SYSTEM_ARCHITECT: puni bypass u runtime-u; u formi prikazujemo sve ključeve kao referencu
       setFormData((prev) => ({ ...prev, role: nextRole, permissions: ALL_PERMISSION_KEYS }));
       return;
     }
@@ -166,7 +165,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
   const supervisorOptions = useMemo(() => {
     return users
       .filter((u) => u.isActive !== false) // samo aktivni
-      .filter((u) => u.role !== "CREW") // nadređeni obično nije CREW
+      .filter((u) => u.role !== "MITARBEITER") // nadređeni obično nije einfache/r Mitarbeiter:in
       .map((u) => ({
         id: u.id,
         name: u.name || "Benutzer",
@@ -198,7 +197,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
       lastName: "",
       email: "",
       password: "",
-      role: "CREW",
+      role: "MITARBEITER",
       departmentId: "",
       vacationEntitlement: 20,
       vacationCarryover: 0,
@@ -212,7 +211,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
     });
     setIsModalOpen(true);
     // Default: CREW → automatski povuci preset permisije
-    void applyRolePreset("CREW");
+    void applyRolePreset("MITARBEITER");
   };
 
   // Kept for future use (e.g. edit from table row)
@@ -338,7 +337,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
     }
   };
 
-  const godMode = isGodMode(formData.role);
+  const bypassRole = isBypassRole(formData.role);
 
   // ✅ Filtered module list (left)
   const modulesFiltered = useMemo(() => {
@@ -456,7 +455,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                     <h3 className="font-bold text-base text-foreground truncate">{u.name}</h3>
                     <p className="text-xs text-muted-foreground font-mono truncate mt-0.5">{u.email}</p>
                   <span className="inline-flex items-center gap-2 mt-3 px-2.5 py-1 rounded-lg bg-muted text-[10px] font-black uppercase text-muted-foreground">
-                    {isGodMode(u.role) && <ShieldCheck size={12} className="text-[#1a3826] shrink-0" />}
+                    {isBypassRole(u.role) && <ShieldCheck size={12} className="text-[#1a3826] shrink-0" />}
                     {ROLE_LABELS[u.role]}
                   </span>
                     {(u.restaurantIds || []).length > 0 && (
@@ -533,7 +532,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
 
                 <div className="col-span-2">
                   <span className="inline-flex items-center gap-2 px-2 py-1 rounded-lg bg-muted text-[10px] font-black uppercase text-muted-foreground">
-                    {isGodMode(u.role) && <ShieldCheck size={14} className="text-[#1a3826]" />}
+                    {isBypassRole(u.role) && <ShieldCheck size={14} className="text-[#1a3826]" />}
                     {ROLE_LABELS[u.role]}
                   </span>
                 </div>
@@ -590,7 +589,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                   <div>
                     <h2 className="text-xl font-black text-foreground">{isEditing ? "Benutzer bearbeiten" : "Neuen Benutzer anlegen"}</h2>
                     <p className="text-xs text-muted-foreground font-semibold">
-                      Globale Berechtigungen • ADMIN/SYSTEM_ARCHITECT haben alle automatisch
+                      Globale Berechtigungen • nur SYSTEM_ARCHITECT bypass; ADMIN über Checkboxen / Presets
                     </p>
                   </div>
                   <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-xl hover:bg-accent" aria-label="Schließen">
@@ -673,9 +672,9 @@ export default function UserClient({ users = [], restaurants = [], departments =
                           )}
                         </div>
 
-                        {godMode && (
+                        {bypassRole && (
                           <div className="mt-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                            <ShieldCheck size={18} /> Diese Rolle erhält automatisch alle Berechtigungen.
+                            <ShieldCheck size={18} /> System Architect: Berechtigungen werden serverseitig vollständig angewendet.
                           </div>
                         )}
                       </div>
@@ -763,7 +762,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                             </p>
                           </div>
 
-                          {!godMode && (
+                          {!bypassRole && (
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => setFormData({ ...formData, permissions: ALL_PERMISSION_KEYS })}
@@ -783,7 +782,7 @@ export default function UserClient({ users = [], restaurants = [], departments =
                           )}
                         </div>
 
-                        {godMode ? (
+                        {bypassRole ? (
                           <div className="p-6">
                             <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm font-bold">
                               Berechtigungen sind für diese Rolle automatisch gesetzt.

@@ -10,7 +10,7 @@ import {
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
-import { Role } from "@prisma/client";
+import { isGlobalScopeRole } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +29,7 @@ export default async function RestaurantsPage() {
   });
 
   const userRole = user?.role;
-  const isAdmin =
-    userRole === Role.SYSTEM_ARCHITECT || userRole === Role.SUPER_ADMIN || userRole === Role.ADMIN;
+  const isAdmin = !!userRole && isGlobalScopeRole(userRole);
 
   let restaurants;
   if (isAdmin) {

@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // pdf-parse koristi Node native modul u server actions
+  serverExternalPackages: ["pdf-parse"],
   // Ensures Vercel picks up latest commit (redeploy trigger)
 
   compiler: {

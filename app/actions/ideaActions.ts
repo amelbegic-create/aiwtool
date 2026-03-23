@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma";
 import { getDbUserForAccess, requirePermission, tryRequirePermission } from "@/lib/access";
 import { put } from "@vercel/blob";
+import { revalidatePath } from "next/cache";
 
 export type IdeaWithUser = {
   id: string;
@@ -126,20 +127,37 @@ export async function submitIdea(formData: FormData): Promise<{ ok: boolean; err
   }
 }
 
+function ideaListInclude() {
+  return {
+    user: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        restaurants: { include: { restaurant: { select: { id: true, name: true, code: true } } } },
+      },
+    },
+  };
+}
+
+/** Aktivne ideje (ne arhivirane). */
 export async function getIdeas(): Promise<IdeaWithUser[]> {
   await requirePermission("ideenbox:access");
   const rows = await prisma.idea.findMany({
+    where: { isArchived: false },
     orderBy: { createdAt: "desc" },
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          restaurants: { include: { restaurant: { select: { id: true, name: true, code: true } } } },
-        },
-      },
-    },
+    include: ideaListInclude(),
+  });
+  return rows as IdeaWithUser[];
+}
+
+/** Arhivirane ideje. */
+export async function getArchivedIdeas(): Promise<IdeaWithUser[]> {
+  await requirePermission("ideenbox:access");
+  const rows = await prisma.idea.findMany({
+    where: { isArchived: true },
+    orderBy: { createdAt: "desc" },
+    include: ideaListInclude(),
   });
   return rows as IdeaWithUser[];
 }
@@ -148,6 +166,32 @@ export async function markIdeaAsRead(id: string): Promise<{ ok: boolean; error?:
   try {
     await requirePermission("ideenbox:access");
     await prisma.idea.update({ where: { id }, data: { isRead: true } });
+    revalidatePath("/admin/ideenbox");
+    revalidatePath("/admin");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
+  }
+}
+
+export async function archiveIdea(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requirePermission("ideenbox:access");
+    await prisma.idea.update({ where: { id }, data: { isArchived: true, isRead: true } });
+    revalidatePath("/admin/ideenbox");
+    revalidatePath("/admin");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
+  }
+}
+
+export async function unarchiveIdea(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requirePermission("ideenbox:access");
+    await prisma.idea.update({ where: { id }, data: { isArchived: false } });
+    revalidatePath("/admin/ideenbox");
+    revalidatePath("/admin");
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
@@ -157,5 +201,5 @@ export async function markIdeaAsRead(id: string): Promise<{ ok: boolean; error?:
 export async function getUnreadIdeasCount(): Promise<number> {
   const result = await tryRequirePermission("ideenbox:access");
   if (!result.ok) return 0;
-  return prisma.idea.count({ where: { isRead: false } });
+  return prisma.idea.count({ where: { isRead: false, isArchived: false } });
 }

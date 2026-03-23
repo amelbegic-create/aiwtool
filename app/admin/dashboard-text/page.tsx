@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
+import { canEditDashboardChangelog } from "@/lib/permissions";
 import DashboardTextClient from "./DashboardTextClient";
 
 export default async function DashboardTextPage() {
@@ -11,7 +12,8 @@ export default async function DashboardTextPage() {
   if (!session?.user?.email) redirect("/login");
 
   const role = (session.user as { role?: string })?.role;
-  if (role !== "SYSTEM_ARCHITECT") {
+  const permissions = (session.user as { permissions?: string[] })?.permissions ?? [];
+  if (!canEditDashboardChangelog(role, permissions)) {
     redirect("/admin");
   }
 
@@ -30,7 +32,7 @@ export default async function DashboardTextPage() {
             Aktuelle Änderungen
           </h1>
           <p className="text-muted-foreground text-sm font-medium mt-0.5">
-            Dieser Text erscheint auf der Startseite für alle Nutzer. Nur Sie können ihn bearbeiten.
+            Dieser Text erscheint auf der Startseite für alle Nutzer. Bearbeitbar durch Admin, Super Admin und System Architect.
           </p>
         </div>
       </div>

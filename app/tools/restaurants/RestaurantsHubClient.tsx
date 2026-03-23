@@ -2,16 +2,36 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Map, Building2, BookOpen, ChevronRight, X } from "lucide-react";
+import type { SitzplanPdfEntry } from "@/lib/sitzplanUrls";
 
 interface RestaurantsHubClientProps {
-  sitzplanPdfUrl: string | null;
+  sitzplanPdfs: SitzplanPdfEntry[];
   restaurantName: string;
 }
 
-export default function RestaurantsHubClient({ sitzplanPdfUrl, restaurantName }: RestaurantsHubClientProps) {
+export default function RestaurantsHubClient({ sitzplanPdfs, restaurantName }: RestaurantsHubClientProps) {
+  const router = useRouter();
   const [sitzplanModalOpen, setSitzplanModalOpen] = useState(false);
+
+  const openSitzplan = () => {
+    const n = sitzplanPdfs.length;
+    if (n === 0) {
+      setSitzplanModalOpen(true);
+      return;
+    }
+    if (n === 1) {
+      setSitzplanModalOpen(true);
+      return;
+    }
+    router.push("/tools/sitzplan/waehlen");
+  };
+
+  const singleUrl = sitzplanPdfs.length === 1 ? sitzplanPdfs[0].url : null;
+  const singleTitle =
+    sitzplanPdfs.length === 1 ? sitzplanPdfs[0].fileName : `Sitzplan – ${restaurantName}`;
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground">
@@ -26,10 +46,9 @@ export default function RestaurantsHubClient({ sitzplanPdfUrl, restaurantName }:
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Sitzplan & Layout – otvara modal */}
           <motion.button
             type="button"
-            onClick={() => setSitzplanModalOpen(true)}
+            onClick={openSitzplan}
             className="group text-left block rounded-2xl md:rounded-3xl overflow-hidden border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card shadow-md hover:shadow-xl hover:-translate-y-1 hover:border-[#1a3826]/25 dark:hover:border-[#FFC72C]/40 transition-all duration-300 p-6 flex flex-col min-h-[200px]"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -49,7 +68,6 @@ export default function RestaurantsHubClient({ sitzplanPdfUrl, restaurantName }:
             </div>
           </motion.button>
 
-          {/* Firmen und Partner – link */}
           <Link
             href="/tools/partners"
             className="group block rounded-2xl md:rounded-3xl overflow-hidden border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card shadow-md hover:shadow-xl hover:-translate-y-1 hover:border-[#1a3826]/25 dark:hover:border-[#FFC72C]/40 transition-all duration-300 p-6 flex flex-col min-h-[200px]"
@@ -68,7 +86,6 @@ export default function RestaurantsHubClient({ sitzplanPdfUrl, restaurantName }:
             </div>
           </Link>
 
-          {/* Bedienungsanleitungen – link */}
           <Link
             href="/tools/rules"
             className="group block rounded-2xl md:rounded-3xl overflow-hidden border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card shadow-md hover:shadow-xl hover:-translate-y-1 hover:border-[#1a3826]/25 dark:hover:border-[#FFC72C]/40 transition-all duration-300 p-6 flex flex-col min-h-[200px]"
@@ -89,7 +106,6 @@ export default function RestaurantsHubClient({ sitzplanPdfUrl, restaurantName }:
         </div>
       </div>
 
-      {/* Sitzplan Modal */}
       {sitzplanModalOpen && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
@@ -98,31 +114,29 @@ export default function RestaurantsHubClient({ sitzplanPdfUrl, restaurantName }:
           }}
         >
           <div
-            className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+            className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header – zelena pozadina */}
-            <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826] border-b border-[#FFC72C]/20">
-              <h2 className="text-lg font-black text-white">
-                Sitzplan – {restaurantName}
+            <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826] border-b border-[#FFC72C]/20 gap-3">
+              <h2 className="text-lg font-black text-white truncate" title={singleTitle}>
+                {singleTitle}
               </h2>
               <button
                 type="button"
                 onClick={() => setSitzplanModalOpen(false)}
-                className="p-2 rounded-lg text-white/70 hover:bg-white/15 hover:text-white transition"
+                className="p-2 rounded-lg text-white/70 hover:bg-white/15 hover:text-white transition shrink-0"
                 aria-label="Schließen"
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 min-h-0 p-4 overflow-auto">
-              {sitzplanPdfUrl ? (
+            <div className="flex-1 min-h-0 p-4 overflow-hidden">
+              {singleUrl ? (
                 <iframe
-                  src={sitzplanPdfUrl}
-                  className="w-full h-[70vh] rounded-md border border-border"
-                  title="Sitzplan PDF"
+                  src={singleUrl}
+                  className="w-full h-[min(78vh,720px)] rounded-md border border-border"
+                  title={singleTitle}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -137,7 +151,6 @@ export default function RestaurantsHubClient({ sitzplanPdfUrl, restaurantName }:
               )}
             </div>
 
-            {/* Footer – Schließen */}
             <div className="shrink-0 px-5 py-4 border-t border-border bg-muted/20 flex justify-end">
               <button
                 type="button"

@@ -1,16 +1,13 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { Role } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
+import { stealthArchitectWhere } from "@/lib/userVisibility";
 import { computeCarryOverForYear, VACATION_YEAR_MIN } from "@/lib/vacationCarryover";
 
-/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u "Mom Timu". */
-const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
-
-/** Ghost/Test: SYSTEM_ARCHITECT & SUPER_ADMIN vide sve aktivne korisnike kao "svoj tim". */
+/** Ghost/Test: global-scope uloge vide sve aktivne korisnike kao "svoj tim" (uz stealth za arhitekta). */
 function isGodModeRole(role: string) {
   return GOD_MODE_ROLES.has(String(role));
 }
@@ -85,31 +82,33 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
   const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
   const rangeEnd = endOfYear;
 
+  const teamMemberInclude = {
+    department: { select: { name: true, color: true } },
+    restaurants: { select: { restaurant: { select: { code: true, name: true } } } },
+    vacations: {
+      where: {
+        status: "APPROVED",
+        start: { lte: endOfYear },
+        end: { gte: startOfYear },
+      },
+      select: { start: true, end: true, days: true },
+    },
+    vacationAllowances: {
+      where: { year: { gte: VACATION_YEAR_MIN, lte: currentYear } },
+      select: { year: true, days: true },
+    },
+    pdsList: {
+      orderBy: { year: "desc" } as const,
+      take: 1,
+      select: { id: true, year: true, totalScore: true, finalGrade: true, status: true },
+    },
+  };
+
   const subordinates = await prisma.user.findMany({
     where: seeAllAsTeam
-      ? { isActive: true, ...STEALTH_ROLE_FILTER }
+      ? { isActive: true, ...stealthArchitectWhere(dbUser.role) }
       : { supervisorId: userId, isActive: true },
-    include: {
-      department: { select: { name: true, color: true } },
-      restaurants: { select: { restaurant: { select: { code: true, name: true } } } },
-      vacations: {
-        where: {
-          status: "APPROVED",
-          start: { lte: endOfYear },
-          end: { gte: startOfYear },
-        },
-        select: { start: true, end: true, days: true },
-      },
-      vacationAllowances: {
-        where: { year: { gte: VACATION_YEAR_MIN, lte: currentYear } },
-        select: { year: true, days: true },
-      },
-      pdsList: {
-        orderBy: { year: "desc" },
-        take: 1,
-        select: { id: true, year: true, totalScore: true, finalGrade: true, status: true },
-      },
-    },
+    include: teamMemberInclude,
     orderBy: { name: "asc" },
   });
 
@@ -137,7 +136,9 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
       return map;
     });
 
-  return subordinates.map((u) => {
+  const mapUserToTeamRow = (
+    u: (typeof subordinates)[number]
+  ): TeamMemberRow => {
     const used = u.vacations.reduce((sum, v) => sum + v.days, 0);
     const allowancesByYear = new Map<number, { days: number }>();
     for (const a of u.vacationAllowances ?? []) {
@@ -183,7 +184,30 @@ export async function getMyTeamData(): Promise<TeamMemberRow[]> {
       lastPdsId,
       restaurants: (u.restaurants ?? []).map((r) => ({ code: r.restaurant.code, name: r.restaurant.name })),
     };
-  });
+  };
+
+  let rows = subordinates.map(mapUserToTeamRow);
+
+  if (!seeAllAsTeam) {
+    // Šef / supervisor vidi i sebe na vrhu (osim podređenih sortiranih po imenu).
+    const me = await prisma.user.findFirst({
+      where: { id: userId, isActive: true },
+      include: teamMemberInclude,
+    });
+    if (me) {
+      const selfRow = mapUserToTeamRow(me);
+      rows = rows.filter((r) => r.id !== userId);
+      rows = [selfRow, ...rows];
+    }
+  } else {
+    const selfIdx = rows.findIndex((r) => r.id === userId);
+    if (selfIdx > 0) {
+      const [selfRow] = rows.splice(selfIdx, 1);
+      rows.unshift(selfRow);
+    }
+  }
+
+  return rows;
 }
 
 /** Placeholder: optional user subtitle. Returns ok so UI does not break. */
@@ -199,10 +223,16 @@ export async function updateOrgChartSubtitle(
  */
 export async function getTeamTreeData(): Promise<TeamMemberRowWithSupervisor[]> {
   const session = await getServerSession(authOptions);
-  if (!(session?.user as { id?: string })?.id) return [];
+  const sessionUserId = (session?.user as { id?: string })?.id;
+  if (!sessionUserId) return [];
+
+  const viewer = await prisma.user.findUnique({
+    where: { id: sessionUserId },
+    select: { role: true },
+  });
 
   const idsToFetch = await prisma.user.findMany({
-    where: { isActive: true, ...STEALTH_ROLE_FILTER },
+    where: { isActive: true, ...stealthArchitectWhere(viewer?.role) },
     select: { id: true },
   }).then((rows) => rows.map((r) => r.id));
 
@@ -313,9 +343,13 @@ export async function getTeamMemberDetail(userId: string): Promise<TeamMemberDet
 
   const user = await prisma.user.findFirst({
     where: {
-      ...STEALTH_ROLE_FILTER,
       id: userId,
-      ...(canSeeAnyone ? {} : { supervisorId: currentUserId }),
+      ...stealthArchitectWhere(currentUser?.role),
+      ...(canSeeAnyone
+        ? {}
+        : {
+            OR: [{ supervisorId: currentUserId }, { id: currentUserId }],
+          }),
     },
     include: {
       department: { select: { name: true, color: true } },

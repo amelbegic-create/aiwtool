@@ -1,18 +1,15 @@
 import prisma from "@/lib/prisma";
-import { Role } from "@prisma/client";
 import UserClient from "./UserClient";
 import { requirePermission } from "@/lib/access";
+import { stealthArchitectWhere } from "@/lib/userVisibility";
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
-/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u Admin panelu. */
-const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
-
 export default async function UsersPage() {
-  await requirePermission("users:access");
+  const viewer = await requirePermission("users:access");
 
   const users = await prisma.user.findMany({
-    where: STEALTH_ROLE_FILTER,
+    where: stealthArchitectWhere(viewer.role),
     orderBy: { createdAt: "desc" },
     include: {
       restaurants: { select: { restaurantId: true } },
@@ -60,7 +57,7 @@ export default async function UsersPage() {
   });
 
   const departments = await prisma.department.findMany({
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     select: { id: true, name: true },
   });
 

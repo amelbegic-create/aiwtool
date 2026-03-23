@@ -5,11 +5,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { revalidatePath } from "next/cache";
 import { getDbUserForAccess, hasPermission, PermissionDeniedError, requirePermission } from "@/lib/access";
-import { GOD_MODE_ROLES } from "@/lib/permissions";
+import { isGlobalScopeRole } from "@/lib/permissions";
+import { stealthArchitectWhere } from "@/lib/userVisibility";
+import { assertVacationApproverScope } from "@/lib/vacationApprovalScope";
 import { cookies } from "next/headers";
 import { Role } from "@prisma/client";
 import { VACATION_YEAR_MIN, computeCarryOverForYear } from "@/lib/vacationCarryover";
 import { IS_VACATION_ROLLOUT_PHASE, getEarliestAllowedVacationStart } from "@/lib/vacationConfig";
+import { sortUserStatsForVacationTable } from "@/lib/vacationTableSort";
 
 /** Session user shape from next-auth (id from our callback). */
 type SessionUser = { id?: string };
@@ -19,20 +22,45 @@ function yearFromISO(dateStr: string) {
   return Number.isFinite(y) ? y : new Date().getFullYear();
 }
 
-function isGodModeRole(role: Role) {
-  return GOD_MODE_ROLES.has(String(role));
-}
-
 async function resolveRestaurantIdForSessionUser(sessionUserId: string) {
   const cookieStore = await cookies();
-  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
-
-  if (activeRestaurantId && activeRestaurantId !== "all") return activeRestaurantId;
+  const cookieVal = cookieStore.get("activeRestaurantId")?.value;
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
-    select: { restaurants: { select: { restaurantId: true, isPrimary: true } } },
+    select: {
+      role: true,
+      restaurants: { select: { restaurantId: true, isPrimary: true } },
+    },
   });
+
+  const god = user && isGlobalScopeRole(user.role as Role);
+  const myIds = new Set((user?.restaurants ?? []).map((r) => r.restaurantId));
+
+  if (cookieVal === "all" && god) {
+    const primary = user?.restaurants.find((r) => r.isPrimary)?.restaurantId;
+    if (primary) return primary;
+    const first = user?.restaurants[0]?.restaurantId;
+    if (first) return first;
+    const anyRest = await prisma.restaurant.findFirst({
+      where: { isActive: true },
+      select: { id: true },
+    });
+    if (!anyRest) throw new Error("Kein Restaurant im System.");
+    return anyRest.id;
+  }
+
+  if (cookieVal && cookieVal !== "all") {
+    if (god) {
+      const exists = await prisma.restaurant.findFirst({
+        where: { id: cookieVal, isActive: true },
+        select: { id: true },
+      });
+      if (exists) return cookieVal;
+    } else if (myIds.has(cookieVal)) {
+      return cookieVal;
+    }
+  }
 
   const primary = user?.restaurants.find((r) => r.isPrimary)?.restaurantId;
   if (primary) return primary;
@@ -40,14 +68,20 @@ async function resolveRestaurantIdForSessionUser(sessionUserId: string) {
   const first = user?.restaurants[0]?.restaurantId;
   if (first) return first;
 
-  const anyRest = await prisma.restaurant.findFirst({ select: { id: true } });
-  if (!anyRest) throw new Error("Kein Restaurant im System.");
-  return anyRest.id;
+  if (god) {
+    const anyRest = await prisma.restaurant.findFirst({
+      where: { isActive: true },
+      select: { id: true },
+    });
+    if (anyRest) return anyRest.id;
+  }
+
+  throw new Error("Kein Restaurant zugeordnet. Bitte wenden Sie sich an die Administration.");
 }
 
 // --- GLOBALNI EXPORT DATA ---
 export async function getGlobalVacationStats(year: number) {
-  await requirePermission("vacation:export");
+  const dbViewer = await requirePermission("vacation:export");
 
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year}-12-31`;
@@ -55,11 +89,12 @@ export async function getGlobalVacationStats(year: number) {
   const rangeEnd = `${year}-12-31`;
 
   const allUsers = await prisma.user.findMany({
-    where: { isActive: true, role: { not: "SYSTEM_ARCHITECT" } },
+    where: { isActive: true, ...stealthArchitectWhere(dbViewer.role) },
     select: {
       id: true,
       name: true,
       email: true,
+      role: true,
       vacationEntitlement: true,
       vacationCarryover: true,
       department: { select: { name: true, color: true } },
@@ -76,7 +111,6 @@ export async function getGlobalVacationStats(year: number) {
       },
       restaurants: { select: { restaurant: { select: { name: true } } } },
     },
-    orderBy: { name: "asc" },
   });
 
   const allRequestsRaw = await prisma.vacationRequest.findMany({
@@ -140,6 +174,7 @@ export async function getGlobalVacationStats(year: number) {
     return {
       id: u.id,
       name: u.name,
+      role: u.role,
       restaurantNames: restaurantNames,
       department: u.department?.name ?? null,
       departmentColor: u.department?.color ?? null,
@@ -150,6 +185,8 @@ export async function getGlobalVacationStats(year: number) {
       remaining,
     };
   });
+
+  const usersStatsSorted = sortUserStatsForVacationTable(usersStats);
 
   const allRequests = allRequestsRaw.map((req) => ({
     id: req.id,
@@ -165,7 +202,7 @@ export async function getGlobalVacationStats(year: number) {
     },
   }));
 
-  return { usersStats, allRequests };
+  return { usersStats: usersStatsSorted, allRequests };
 }
 
 /** Jedan korisnik: stat + svi zahtjevi (svi statusi) za godinu – za report/[userId] stranicu. */
@@ -241,7 +278,7 @@ export async function getVacationReportForUser(userId: string, year: number) {
   }
   const defaultAllowance = userRow.vacationEntitlement ?? 20;
   const defaultCarryover = Math.max(0, Math.floor(Number(userRow.vacationCarryover) ?? 0));
-  const { total, carriedOver } = computeCarryOverForYear(
+  const { total, carriedOver, allowance } = computeCarryOverForYear(
     allowancesByYear,
     usedByYear,
     defaultAllowance,
@@ -257,9 +294,10 @@ export async function getVacationReportForUser(userId: string, year: number) {
     department: userRow.department?.name ?? null,
     departmentColor: userRow.department?.color ?? null,
     carriedOver,
+    allowance,
     total,
     used,
-    remaining: total - used,
+    remaining: Math.max(0, total - used),
   };
 
   const requests = requestsRaw.map((req) => ({
@@ -299,19 +337,17 @@ export async function getVacationAdminData(
   });
   if (!user) throw new Error("Benutzer nicht gefunden.");
 
-  const isGodMode = isGodModeRole(user.role as Role);
+  const isGodMode = isGlobalScopeRole(user.role as Role);
   const isManager = user.role === Role.MANAGER;
   const myRestaurantIds = user.restaurants.map((r) => r.restaurantId);
   const startOfYear = `${selectedYear}-01-01`;
   const endOfYear = `${selectedYear}-12-31`;
   const rangeStart = `${VACATION_YEAR_MIN}-01-01`;
   const rangeEnd = `${selectedYear}-12-31`;
+  const scopeRestaurantId =
+    activeRestaurantId && activeRestaurantId !== "all" ? activeRestaurantId : null;
 
-  const EXCLUDED_ROLES_FOR_ADMIN_STATS: Role[] = [
-    Role.SYSTEM_ARCHITECT,
-    Role.SUPER_ADMIN,
-    Role.ADMIN,
-  ];
+  const EXCLUDED_ROLES_FOR_ADMIN_STATS: Role[] = [Role.SYSTEM_ARCHITECT, Role.ADMIN];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userWhereClause: any = {
     isActive: true,
@@ -435,6 +471,8 @@ export async function getVacationAdminData(
       select: {
         id: true,
         name: true,
+        email: true,
+        role: true,
         vacationEntitlement: true,
         vacationCarryover: true,
         department: { select: { name: true, color: true } },
@@ -442,13 +480,18 @@ export async function getVacationAdminData(
           where: { status: "APPROVED", start: { gte: startOfYear, lte: endOfYear } },
           select: { days: true },
         },
-        restaurants: { select: { restaurantId: true, restaurant: { select: { name: true } } } },
+        restaurants: {
+          select: {
+            restaurantId: true,
+            vacationListOrder: true,
+            restaurant: { select: { name: true } },
+          },
+        },
         vacationAllowances: {
           where: { year: { gte: VACATION_YEAR_MIN, lte: selectedYear } },
           select: { year: true, days: true },
         },
       },
-      orderBy: { name: "asc" },
     }),
     prisma.vacationRequest.findMany({
       where: { status: "APPROVED", start: { gte: rangeStart, lte: rangeEnd } },
@@ -508,10 +551,16 @@ export async function getVacationAdminData(
       defaultCarryover,
       selectedYear
     );
+    const vacationListOrder = scopeRestaurantId
+      ? u.restaurants.find((r) => r.restaurantId === scopeRestaurantId)?.vacationListOrder ?? 0
+      : 0;
+
     return {
       id: u.id,
       name: u.name,
       email: u.email,
+      role: u.role,
+      vacationListOrder,
       restaurantNames,
       department: u.department?.name ?? null,
       departmentColor: u.department?.color ?? null,
@@ -522,11 +571,47 @@ export async function getVacationAdminData(
     };
   });
 
+  const usersStatsSorted = sortUserStatsForVacationTable(usersStats);
+
   const reportRestaurantLabel =
     reportRestaurantResult?.name ??
     (activeRestaurantId && activeRestaurantId !== "all" ? `Restaurant ${activeRestaurantId}` : "Alle Restaurants");
 
-  return { usersStats, allRequests, blockedDays, reportRestaurantLabel };
+  return { usersStats: usersStatsSorted, allRequests, blockedDays, reportRestaurantLabel };
+}
+
+/** Samo SYSTEM_ARCHITECT, ADMIN – redoslijed tablice Urlaub za jedan restoran. */
+export async function saveVacationEmployeeSortOrder(restaurantId: string, orderedUserIds: string[]) {
+  const dbUser = await getDbUserForAccess();
+  const role = dbUser.role as Role;
+  if (role !== Role.SYSTEM_ARCHITECT && role !== Role.ADMIN) {
+    throw new PermissionDeniedError();
+  }
+  await requirePermission("vacation:access");
+
+  if (!restaurantId?.trim()) throw new Error("Restaurant ist erforderlich.");
+  const rest = await prisma.restaurant.findFirst({
+    where: { id: restaurantId, isActive: true },
+    select: { id: true },
+  });
+  if (!rest) throw new Error("Restaurant nicht gefunden.");
+
+  const ids = orderedUserIds.filter(Boolean);
+  if (ids.length === 0) return { ok: true as const };
+
+  await prisma.$transaction(
+    ids.map((userId, index) =>
+      prisma.restaurantUser.updateMany({
+        where: { userId, restaurantId },
+        data: { vacationListOrder: (index + 1) * 10 },
+      })
+    )
+  );
+
+  revalidatePath("/tools/vacations");
+  revalidatePath("/tools/vacations/view/table");
+  revalidatePath("/tools/vacations/view/plan");
+  return { ok: true as const };
 }
 
 // --- BLOKIRANI DANI ---
@@ -621,6 +706,22 @@ export async function getUserTotalForYear(userId: string, year: number) {
   return { total: result.total, allowance: result.allowance, carryover: result.carriedOver };
 }
 
+/** Dashboard / widgets: gleiche Logik wie Urlaubsmodul (Vortrag + Jahresanspruch, Verbrauch nur APPROVED im Jahr). */
+export async function getUserVacationYearSnapshot(userId: string, year: number) {
+  const [totals, used] = await Promise.all([
+    getUserTotalForYear(userId, year),
+    getUsedApprovedDaysForYear(userId, year),
+  ]);
+  const remaining = Math.max(0, totals.total - used);
+  return {
+    carryover: totals.carryover,
+    allowance: totals.allowance,
+    total: totals.total,
+    used,
+    remaining,
+  };
+}
+
 async function getUsedApprovedDaysForYear(userId: string, year: number) {
   const startOfYear = `${year}-01-01`;
   const endOfYear = `${year}-12-31`;
@@ -662,11 +763,7 @@ async function getUsedByYearForUser(
 }
 
 /** Role koji mogu sami sebi odmah odobriti godišnji (self-service) – bez notifikacija. */
-const SELF_SERVICE_VACATION_ROLES = new Set<Role>([
-  Role.SYSTEM_ARCHITECT,
-  Role.SUPER_ADMIN,
-  Role.ADMIN,
-]);
+const SELF_SERVICE_VACATION_ROLES = new Set<Role>([Role.SYSTEM_ARCHITECT, Role.ADMIN]);
 
 export async function createVacationRequest(data: {
   start: string;
@@ -733,7 +830,7 @@ export async function createVacationRequest(data: {
     );
   }
 
-  // Self-service: SYSTEM_ARCHITECT / SUPER_ADMIN / ADMIN odmah APPROVED, bez notifikacija
+  // Self-service: SYSTEM_ARCHITECT / ADMIN odmah APPROVED, bez notifikacija
   const isSelfServiceAdmin = SELF_SERVICE_VACATION_ROLES.has(user.role as Role);
   const status = isSelfServiceAdmin ? "APPROVED" : "PENDING";
 
@@ -862,21 +959,18 @@ export async function updateVacationStatus(requestId: string, status: string, co
   });
   if (!actingUser) throw new Error("Benutzer nicht gefunden.");
 
-  const god = isGodModeRole(actingUser.role);
-  const isAdmin = actingUser.role === "ADMIN";
-
-  if (!god && !isAdmin) {
-    if (req.supervisorId != null && req.supervisorId !== actingUser.id) {
-      throw new Error("Sie sind nicht berechtigt, diesen Antrag zu genehmigen. Bitte wenden Sie sich an den Administrator.");
-    }
-    if (actingUser.role === "MANAGER") {
-      const managerRestaurantIds = (actingUser.restaurants ?? []).map((r) => r.restaurantId);
-      const requestRestaurantId = req.restaurantId;
-      if (!requestRestaurantId || !managerRestaurantIds.includes(requestRestaurantId)) {
-        throw new Error("Zugriff verweigert: Der Antrag stammt von einem anderen Restaurant.");
-      }
-    }
-  }
+  assertVacationApproverScope(
+    {
+      acting: actingUser,
+      request: {
+        supervisorId: req.supervisorId,
+        restaurantId: req.restaurantId,
+        employeeUserId: req.user.id,
+      },
+      hasVacationApprovePermission: hasApprovePermission,
+    },
+    "status"
+  );
 
   if (!ALLOWED_STATUS_TRANSITIONS.has(status)) {
     throw new Error(`Ungültiger Status: ${status}`);
@@ -893,6 +987,68 @@ export async function updateVacationStatus(requestId: string, status: string, co
   });
 
   revalidatePath("/tools/vacations");
+  revalidatePath("/");
+}
+
+/**
+ * Nadređeni / osoba s vacation:approve: briše samo APPROVED zahtjev (dana se vraćaju jer used = suma APPROVED).
+ * Isti pristupni model kao updateVacationStatus.
+ */
+export async function deleteApprovedVacationAsApprover(requestId: string) {
+  const dbUser = await getDbUserForAccess();
+
+  const req = await prisma.vacationRequest.findUnique({
+    where: { id: requestId },
+    select: {
+      status: true,
+      supervisorId: true,
+      restaurantId: true,
+      user: { select: { id: true, role: true } },
+    },
+  });
+  if (!req) throw new Error("Antrag nicht gefunden.");
+  if (req.status !== "APPROVED") {
+    throw new Error("Nur genehmigte Anträge können auf diese Weise gelöscht werden.");
+  }
+
+  const hasApprovePermission = hasPermission(
+    String(dbUser.role),
+    dbUser.permissions || [],
+    "vacation:approve"
+  );
+  const isSupervisorOfRequest = req.supervisorId === dbUser.id;
+
+  if (!hasApprovePermission && !isSupervisorOfRequest) {
+    throw new PermissionDeniedError();
+  }
+
+  const actingUser = await prisma.user.findUnique({
+    where: { id: dbUser.id },
+    select: {
+      id: true,
+      role: true,
+      restaurants: { select: { restaurantId: true } },
+    },
+  });
+  if (!actingUser) throw new Error("Benutzer nicht gefunden.");
+
+  assertVacationApproverScope(
+    {
+      acting: actingUser,
+      request: {
+        supervisorId: req.supervisorId,
+        restaurantId: req.restaurantId,
+        employeeUserId: req.user.id,
+      },
+      hasVacationApprovePermission: hasApprovePermission,
+    },
+    "delete"
+  );
+
+  await prisma.vacationRequest.delete({ where: { id: requestId } });
+  revalidatePath("/tools/vacations");
+  revalidatePath("/tools/vacations/view/table");
+  revalidatePath("/tools/vacations/view/plan");
   revalidatePath("/");
 }
 
@@ -933,7 +1089,7 @@ export async function deleteVacationRequest(requestId: string) {
   const request = await prisma.vacationRequest.findUnique({ where: { id: requestId } });
   if (!request) throw new Error("Antrag existiert nicht.");
 
-  const isAdminLike = ["ADMIN", "SYSTEM_ARCHITECT", "SUPER_ADMIN", "MANAGER"].includes(String(user.role));
+  const isAdminLike = ["ADMIN", "SYSTEM_ARCHITECT", "MANAGER"].includes(String(user.role));
   if (!isAdminLike && request.userId !== user.id) throw new Error("Das ist nicht Ihr Antrag.");
 
   await prisma.vacationRequest.delete({ where: { id: requestId } });

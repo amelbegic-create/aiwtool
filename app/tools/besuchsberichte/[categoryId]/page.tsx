@@ -31,10 +31,17 @@ export default async function BesuchsberichteCategoryPage({
 
   const { categoryId } = await params;
   const { year: yearParam } = await searchParams;
+  const YEAR_MIN = 2021;
+  const YEAR_MAX = 2030;
   const currentYear = new Date().getFullYear();
   const year = yearParam ? parseInt(yearParam, 10) : currentYear;
-  const clampedYear = Number.isFinite(year) ? Math.min(2030, Math.max(2026, year)) : currentYear;
-  const safeYear = clampedYear >= 2026 && clampedYear <= 2030 ? clampedYear : (currentYear >= 2026 && currentYear <= 2030 ? currentYear : 2026);
+  const clampedYear = Number.isFinite(year) ? Math.min(YEAR_MAX, Math.max(YEAR_MIN, year)) : currentYear;
+  const safeYear =
+    clampedYear >= YEAR_MIN && clampedYear <= YEAR_MAX
+      ? clampedYear
+      : currentYear >= YEAR_MIN && currentYear <= YEAR_MAX
+        ? currentYear
+        : YEAR_MIN;
 
   const restaurantId = await resolveRestaurantIdForUser(userId);
   if (!restaurantId) {

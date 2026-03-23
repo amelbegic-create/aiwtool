@@ -18,7 +18,7 @@ export function getAllowedQuickActions(
   role: string,
   permissions: string[]
 ): QuickActionItem[] {
-  const isAdmin = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER"].includes(String(role));
+  const isAdmin = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT"].includes(String(role));
 
   if (isAdmin) {
     return [

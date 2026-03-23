@@ -6,22 +6,11 @@ import prisma from "@/lib/prisma";
 import { Role } from "@prisma/client";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  ChevronRight,
-  CalendarDays,
-  UsersRound,
-  Building2,
-  AlertCircle,
-  RefreshCw,
-  Sparkles,
-  Award,
-  TrendingUp,
-  Clock,
-} from "lucide-react";
+import { ChevronRight, UsersRound, AlertCircle, RefreshCw } from "lucide-react";
 import DashboardChangelogButton from "@/components/dashboard/DashboardChangelogButton";
 import DeineIdeeButton from "@/components/dashboard/DeineIdeeButton";
-import CertificatesWidget from "@/components/dashboard/CertificatesWidget";
 import DashboardCalendarCard from "@/components/dashboard/DashboardCalendarCard";
+import DashboardNewsSlider from "@/components/dashboard/DashboardNewsSlider";
 import EventSlider from "@/components/restaurant/EventSlider";
 import { hasPermission } from "@/lib/access";
 import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
@@ -29,6 +18,9 @@ import { getCalendarEvents } from "@/app/actions/calendarActions";
 import { getTodos } from "@/app/actions/todoActions";
 import { dict } from "@/translations";
 import DashboardTodoCard from "@/components/dashboard/DashboardTodoCard";
+import DashboardVacationCard from "@/components/dashboard/DashboardVacationCard";
+import { getUserVacationYearSnapshot, getVacationReportForUser } from "@/app/actions/vacationActions";
+import { getActiveDashboardNews } from "@/app/actions/dashboardNewsActions";
 
 export const dynamic = "force-dynamic";
 
@@ -46,27 +38,6 @@ function getGreeting(): string {
   if (h >= 5 && h < 12) return dict.dashboard_greeting_morning;
   if (h >= 12 && h < 18) return dict.dashboard_greeting_day;
   return dict.dashboard_greeting_default;
-}
-
-async function getVacationDaysSummary(userId: string) {
-  const year = new Date().getFullYear();
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      vacationEntitlement: true,
-      vacationCarryover: true,
-      vacationAllowances: { where: { year }, select: { days: true } },
-    },
-  });
-  if (!user) return null;
-  const allowance = user.vacationAllowances?.[0]?.days ?? user.vacationEntitlement ?? 20;
-  const total = Math.max(0, allowance) + Math.max(0, user.vacationCarryover ?? 0);
-  const approved = await prisma.vacationRequest.findMany({
-    where: { userId, status: "APPROVED", start: { gte: `${year}-01-01`, lte: `${year}-12-31` } },
-    select: { days: true },
-  });
-  const used = approved.reduce((s, r) => s + r.days, 0);
-  return { total, used, remaining: Math.max(0, total - used) };
 }
 
 /** Returns YYYY-MM-DD strings for every day in approved vacation in the given year. Never throws. */
@@ -99,7 +70,7 @@ async function getApprovedVacationDates(userId: string, year: number): Promise<s
 }
 
 async function getTeamCount(userId: string, role: string): Promise<number> {
-  const godRoles = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+  const godRoles = [Role.SYSTEM_ARCHITECT, Role.ADMIN];
   if (godRoles.includes(role as Role)) {
     return prisma.user.count({ where: { isActive: true, role: { not: Role.SYSTEM_ARCHITECT } } });
   }
@@ -107,7 +78,7 @@ async function getTeamCount(userId: string, role: string): Promise<number> {
 }
 
 async function getTeamMembers(userId: string, role: string) {
-  const godRoles = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+  const godRoles = [Role.SYSTEM_ARCHITECT, Role.ADMIN];
   if (godRoles.includes(role as Role)) {
     return prisma.user.findMany({
       where: { isActive: true, role: { not: Role.SYSTEM_ARCHITECT } },
@@ -125,33 +96,11 @@ async function getTeamMembers(userId: string, role: string) {
 }
 
 async function getPendingVacationCount(userId: string, role: string): Promise<number> {
-  const godRoles = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
+  const godRoles = [Role.SYSTEM_ARCHITECT, Role.ADMIN];
   if (godRoles.includes(role as Role)) {
     return prisma.vacationRequest.count({ where: { status: "PENDING" } });
   }
   return prisma.vacationRequest.count({ where: { status: "PENDING", supervisorId: userId } });
-}
-
-async function getCertificates(userId: string) {
-  try {
-    return await prisma.userCertificate.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        imageUrl: true,
-        pdfUrl: true,
-        pdfName: true,
-        createdAt: true,
-      },
-      take: 5,
-      orderBy: { createdAt: "desc" },
-    });
-  } catch {
-    // Tabela još ne postoji na live bazi — vrati prazan niz
-    return [];
-  }
 }
 
 const DB_ERROR_UI = (
@@ -190,10 +139,10 @@ export default async function DashboardPage() {
   }
   if (!dbUser) redirect("/login");
 
-  let vacationSummary: Awaited<ReturnType<typeof getVacationDaysSummary>>;
+  let vacationSnapshot: Awaited<ReturnType<typeof getUserVacationYearSnapshot>>;
+  let vacationReport: Awaited<ReturnType<typeof getVacationReportForUser>> | null;
   let teamCount: number;
   let teamMembers: Awaited<ReturnType<typeof getTeamMembers>>;
-  let certificates: Awaited<ReturnType<typeof getCertificates>>;
   let changelog: Awaited<ReturnType<typeof getDashboardChangelog>>;
   let calendarEvents: Awaited<ReturnType<typeof getCalendarEvents>>;
   let initialTodos: Awaited<ReturnType<typeof getTodos>>;
@@ -201,14 +150,19 @@ export default async function DashboardPage() {
   const now = new Date();
   const currentYearForCalendar = now.getFullYear();
   const currentMonthForCalendar = now.getMonth() + 1;
+  const canVacationPdf = hasPermission(
+    String(dbUser.role),
+    dbUser.permissions ?? [],
+    "vacation:access"
+  );
 
   try {
-    [vacationSummary, teamCount, teamMembers, certificates, changelog, calendarEvents, initialTodos] =
+    [vacationSnapshot, vacationReport, teamCount, teamMembers, changelog, calendarEvents, initialTodos] =
       await Promise.all([
-        getVacationDaysSummary(dbUser.id),
+        getUserVacationYearSnapshot(dbUser.id, currentYearForCalendar),
+        canVacationPdf ? getVacationReportForUser(dbUser.id, currentYearForCalendar) : Promise.resolve(null),
         getTeamCount(dbUser.id, String(dbUser.role)),
         getTeamMembers(dbUser.id, String(dbUser.role)),
-        getCertificates(dbUser.id),
         getDashboardChangelog(),
         getCalendarEvents(dbUser.id, currentYearForCalendar, currentMonthForCalendar),
         getTodos(dbUser.id),
@@ -236,18 +190,19 @@ export default async function DashboardPage() {
   const firstName = (
     dbUser.name || (session.user as { name?: string }).name || "Benutzer"
   ).split(" ")[0];
-  const roleLabel = String(dbUser.role || "CREW");
+  const roleLabel = String(dbUser.role || "MITARBEITER");
 
-  // Popup für Zertifikate – nur für normale Mitarbeiter (nicht für Admins)
-  const godRoles: string[] = [Role.SYSTEM_ARCHITECT, Role.SUPER_ADMIN, Role.ADMIN];
-  const certPopupEnabled = !godRoles.includes(String(dbUser.role));
+  let dashboardNews: Awaited<ReturnType<typeof getActiveDashboardNews>> = [];
+  try {
+    dashboardNews = await getActiveDashboardNews();
+  } catch {
+    /* Tabelle fehlt bis db push / instrumentation */
+  }
 
-  // Vacation donut ring calculations
-  const vacTotal = vacationSummary?.total ?? 0;
-  const vacUsed = vacationSummary?.used ?? 0;
-  const vacRemaining = vacationSummary?.remaining ?? 0;
-  const vacUsedDeg = vacTotal > 0 ? Math.round((vacUsed / vacTotal) * 360) : 0;
-  const vacUsedPct = vacTotal > 0 ? Math.round((vacUsed / vacTotal) * 100) : 0;
+  const vacationPdfPayload =
+    canVacationPdf && vacationReport
+      ? { userStat: vacationReport.userStat, requests: vacationReport.requests }
+      : null;
 
   const today = new Date().toLocaleDateString("de-AT", {
     weekday: "long",
@@ -386,55 +341,15 @@ export default async function DashboardPage() {
 
           {/* 3. JAHRESURLAUB */}
           <div className="min-h-0 flex flex-col">
-            <Link
-              href="/tools/vacations"
-              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#1a3826] to-[#0a1f14] p-5 flex flex-row justify-between items-stretch gap-4 shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 min-h-[140px] h-full"
-            >
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
-              <div className="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-[#FFC72C]/10 blur-xl pointer-events-none" />
-              <div className="relative z-10 flex flex-col justify-between h-full min-w-0 flex-1">
-                <p className="text-[#FFC72C] text-xs font-bold uppercase tracking-widest flex items-center gap-1.5 shrink-0">
-                  <CalendarDays size={12} className="text-white/80" />
-                  JAHRESURLAUB {currentYear}
-                </p>
-                <div className="py-1">
-                  <div className="flex items-end gap-1.5">
-                    <span className="text-3xl font-black tabular-nums text-white leading-none">
-                      {vacRemaining}
-                    </span>
-                    <div className="mb-0.5">
-                      <p className="text-white/80 text-sm font-bold leading-tight">Tage</p>
-                      <p className="text-white/80 text-sm font-bold leading-tight">übrig</p>
-                    </div>
-                  </div>
-                  {vacTotal > 0 && (
-                    <p className="text-white/50 text-xs font-medium mt-1">
-                      von {vacTotal} – {vacUsed} verbraucht
-                    </p>
-                  )}
-                </div>
-                <span className="flex items-center gap-1.5 text-[#FFC72C] text-sm font-bold group-hover:gap-2 transition-all shrink-0">
-                  Urlaub planen <ChevronRight size={14} />
-                </span>
-              </div>
-              <div className="relative z-10 flex items-center shrink-0">
-                {vacTotal > 0 ? (
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{
-                      background: `conic-gradient(from -90deg, #FFC72C 0deg ${vacUsedDeg}deg, rgba(255,255,255,0.12) ${vacUsedDeg}deg 360deg)`,
-                    }}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-[#0a1f14] flex flex-col items-center justify-center">
-                      <span className="text-[10px] font-black text-[#FFC72C] leading-none">{vacUsedPct}%</span>
-                      <span className="text-[7px] text-white/50 font-medium">genutzt</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0" />
-                )}
-              </div>
-            </Link>
+            <DashboardVacationCard
+              year={currentYear}
+              carryover={vacationSnapshot.carryover}
+              allowance={vacationSnapshot.allowance}
+              total={vacationSnapshot.total}
+              used={vacationSnapshot.used}
+              remaining={vacationSnapshot.remaining}
+              pdf={vacationPdfPayload}
+            />
           </div>
 
           {/* 4. Meine Aufgaben (To-Do) */}
@@ -443,111 +358,10 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* ── MEISTGENUTZTE TOOLS (modern okvir) + rechts: nur Zertifikate ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6 mb-8 md:mb-10">
-          {/* Links: Meistgenutzte Tools u modernom okviru */}
-          <div className="lg:col-span-8">
-            <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-border bg-muted/20 flex items-center gap-2">
-                <Sparkles size={16} className="text-[#FFC72C]" />
-                <h2 className="text-sm font-black text-foreground uppercase tracking-wide">
-                  Meistgenutzte Tools
-                </h2>
-              </div>
-              <div className="p-4 md:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Produktivität */}
-              <Link
-                href="/tools/productivity"
-                className="group relative flex flex-col gap-3 p-5 md:p-6 rounded-2xl bg-gradient-to-br from-[#4169E1] to-[#2d4fb8] shadow-lg shadow-[#4169E1]/25 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden min-h-[160px] text-white"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-white/20 transition-all duration-300 group-hover:opacity-90">
-                    <TrendingUp size={24} strokeWidth={2} className="text-white/90" />
-                  </div>
-                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white/20 text-white">
-                    Ops
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-black leading-tight">Produktivität</p>
-                  <p className="mt-1 text-[11px] leading-snug text-white/70 line-clamp-2">
-                    Umsatz & Stationsplanung
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-white/80 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
-                  Öffnen <ChevronRight size={12} />
-                </div>
-              </Link>
-              {/* CL / Personaleinsatzplanung */}
-              <Link
-                href="/tools/labor-planner"
-                className="group relative flex flex-col gap-3 p-5 md:p-6 rounded-2xl bg-gradient-to-br from-[#FFC72C] to-[#e6b328] shadow-lg shadow-[#FFC72C]/25 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden min-h-[160px] text-[#1a3826]"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-[#1a3826]/15 transition-all duration-300 group-hover:opacity-90">
-                    <Clock size={24} strokeWidth={2} className="text-[#1a3826]" />
-                  </div>
-                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#1a3826]/15 text-[#1a3826]">
-                    Ops
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-black leading-tight">CL</p>
-                  <p className="mt-1 text-[11px] leading-snug text-[#1a3826]/70 line-clamp-2">
-                    Kosten- & Stundeneinsatzplanung
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-[#1a3826]/80 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
-                  Öffnen <ChevronRight size={12} />
-                </div>
-              </Link>
-              {/* Firmen und Partner */}
-              <Link
-                href="/tools/partners"
-                className="group relative flex flex-col gap-3 p-5 md:p-6 rounded-2xl bg-gradient-to-br from-[#1a3826] to-[#0f2218] shadow-lg shadow-[#1a3826]/25 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden min-h-[160px] text-white"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="h-12 w-12 rounded-xl flex items-center justify-center bg-white/20 transition-all duration-300 group-hover:opacity-90">
-                    <Building2 size={24} strokeWidth={2} className="text-[#FFC72C]" />
-                  </div>
-                  <span className="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white/20 text-white">
-                    Ops
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-base font-black leading-tight">Firmen und Partner</p>
-                  <p className="mt-1 text-[11px] leading-snug text-white/70 line-clamp-2">
-                    Kontakte & Servicedienstleister
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] font-bold text-[#FFC72C] opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
-                  Öffnen <ChevronRight size={12} />
-                </div>
-              </Link>
-            </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Rechts: nur Meine Zertifikate (ista visina kao lijevi blok) */}
-          <div className="lg:col-span-4 flex">
-            <div className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden flex flex-col w-full min-h-0">
-              <div className="px-4 py-3 border-b border-border flex items-center bg-muted/20 shrink-0">
-                <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-tight text-foreground">
-                  <Award size={16} className="text-[#FFC72C]" />
-                  Meine Zertifikate
-                </h3>
-              </div>
-              <div className="p-4 flex-1 flex flex-col min-h-0">
-                <CertificatesWidget
-                  certificates={certificates}
-                  canOpenPopup={certPopupEnabled}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* ── NEWS SLIDER (CMS) ── */}
+        <section className="mb-8 md:mb-10 border-t border-border pt-5">
+          <DashboardNewsSlider items={dashboardNews} />
+        </section>
 
         {/* ── EVENTS SLIDER (kompaktni) ── */}
         <section className="border-t border-border pt-5">

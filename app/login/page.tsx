@@ -126,7 +126,7 @@ export default function LoginPage() {
                 <input
                   id="email"
                   type="email"
-                  placeholder="ime@mcdonalds.ba"
+                  autoComplete="email"
                   required
                   disabled={loading}
                   value={email}
@@ -155,7 +155,7 @@ export default function LoginPage() {
                 <input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
+                  autoComplete="current-password"
                   required
                   disabled={loading}
                   value={password}

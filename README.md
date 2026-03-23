@@ -53,3 +53,13 @@ Za **lokalno prebacivanje** između RADNA i LIVE baze:
 2. Za kratko spajanje na LIVE (npr. migracija): ručno kopirati vrijednosti iz `LIVE_DATABASE_URL` / `LIVE_DIRECT_URL` u `DATABASE_URL` / `DIRECT_URL`, odraditi posao, zatim pokrenuti `node scripts/use-radna-db.mjs` da se **vrati** na RADNA.
 
 Napomena: Vercel koristi svoje env varijable postavljene u **Project Settings → Environment Variables** (vidi `VERCEL.md` / `VERCEL_DEPLOY.md`), tako da promjene lokalnog `.env` ne utječu na produkcijsku bazu.
+
+### Dashboard-News (IAM)
+
+- Nova dozvola: **`dashboard_news:manage`** – pristup `/admin/dashboard-news` i upravljanje sliderom na početnoj.
+- **`BLOB_READ_WRITE_TOKEN`** (Vercel Blob) potreban za upload naslovne slike i priloga u adminu.
+- Postojeći korisnici s ulogom **ADMIN** i ručno ograničenim `permissions[]`: nakon dodavanja ključeva u kod, pokreni **`npx tsx prisma/backfill-iam-permissions.ts`** da se u polje spoje svi trenutni `ALL_PERMISSION_KEYS` (uključujući `dashboard_news:manage`). Seed već poziva isti backfill logiku kroz `runIamPermissionBackfill()`.
+
+### Prisma migracije, P3018 / P2022, Sitzplan
+
+Projekat koristi i **startup `instrumentation.ts`** (idempotentni SQL) i **`prisma migrate`**. Ako `migrate deploy` padne ili aplikacija javi nedostajuću kolonu npr. za Sitzplan, vidi **[docs/DATABASE.md](docs/DATABASE.md)** (oporavak P3018, `sitzplanPdfsData`, `migrate resolve`).

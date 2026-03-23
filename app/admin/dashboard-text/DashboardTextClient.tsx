@@ -130,7 +130,6 @@ export default function DashboardTextClient({ initial }: Props) {
       {initial?.updatedAt && (
         <div className="px-6 py-2.5 border-t border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">
           Letzte Aktualisierung: {new Date(initial.updatedAt).toLocaleDateString("de-AT")}
-          {initial.updatedByName ? ` · von ${initial.updatedByName}` : ""}
         </div>
       )}
     </div>

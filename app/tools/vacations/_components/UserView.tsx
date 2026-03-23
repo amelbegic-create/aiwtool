@@ -27,6 +27,8 @@ import {
 import { Role } from "@prisma/client";
 import { formatDateDDMMGGGG } from "@/lib/dateUtils";
 import { IS_VACATION_ROLLOUT_PHASE, getEarliestAllowedVacationStart } from "@/lib/vacationConfig";
+import { rangeHitsBlockedDay } from "@/lib/vacationBlockedRange";
+import VacationBlockedDateModal from "@/app/tools/vacations/_components/VacationBlockedDateModal";
 import {
   exportIndividualReportWithData,
   type UserStat,
@@ -88,6 +90,11 @@ export default function UserView({
   const [isExporting, setIsExporting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showCalModal, setShowCalModal] = useState(false);
+  const [blockedDayModalOpen, setBlockedDayModalOpen] = useState(false);
+  const [blockedDayModalDetail, setBlockedDayModalDetail] = useState<{
+    dateDe: string;
+    reason: string | null;
+  } | null>(null);
 
   const years = [2025, 2026, 2027, 2028, 2029, 2030];
 
@@ -107,6 +114,17 @@ export default function UserView({
   const formatDeFromISO = (iso: string): string => {
     if (!iso) return "";
     return formatDateDDMMGGGG(iso);
+  };
+
+  const showBlockedRangeModal = (isoStart: string, isoEnd: string) => {
+    const r = rangeHitsBlockedDay(isoStart, isoEnd, blockedDays);
+    if (!r.hit) return false;
+    setBlockedDayModalDetail({
+      dateDe: formatDateDDMMGGGG(r.blockedDates[0]),
+      reason: r.sampleReason,
+    });
+    setBlockedDayModalOpen(true);
+    return true;
   };
 
   const parseDeToISO = (value: string): string | null => {
@@ -142,6 +160,7 @@ export default function UserView({
         id: userData.id,
         name: userData.name,
         email: userData.email,
+        role: userData.role,
         restaurantNames: [],
         department: null,
         departmentColor: null,
@@ -199,6 +218,12 @@ export default function UserView({
     if (new Date(isoStart).getFullYear() !== selectedYear) {
         if(!confirm(`Hinweis: Die gewählten Daten liegen nicht im angezeigten Jahr (${selectedYear}). Trotzdem fortfahren?`)) return;
     }
+
+    if (new Date(isoEnd) < new Date(isoStart)) {
+      return alert("Das Bis-Datum muss am oder nach dem Von-Datum liegen.");
+    }
+
+    if (showBlockedRangeModal(isoStart, isoEnd)) return;
 
     setLoading(true);
     try {
@@ -378,7 +403,14 @@ export default function UserView({
                       onChange={(e) => setStartInput(e.target.value)}
                       onBlur={() => {
                         const iso = parseDeToISO(startInput);
-                        if (iso) { setStartISO(iso); setStartInput(formatDeFromISO(iso)); }
+                        if (iso) {
+                          setStartISO(iso);
+                          setStartInput(formatDeFromISO(iso));
+                          const end = endISO || parseDeToISO(endInput);
+                          if (end && new Date(end) >= new Date(iso)) {
+                            showBlockedRangeModal(iso, end);
+                          }
+                        }
                       }}
                       placeholder="TT.MM.JJJJ"
                       className="w-full border border-border px-4 py-3.5 min-h-[48px] rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors text-base touch-manipulation pr-11"
@@ -388,7 +420,15 @@ export default function UserView({
                       type="date"
                       value={startISO}
                       min={earliestStartDateISO}
-                      onChange={(e) => { setStartISO(e.target.value); setStartInput(formatDeFromISO(e.target.value)); }}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setStartISO(v);
+                        setStartInput(formatDeFromISO(v));
+                        const end = endISO || parseDeToISO(endInput);
+                        if (v && end && new Date(end) >= new Date(v)) {
+                          showBlockedRangeModal(v, end);
+                        }
+                      }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 w-8 h-8 cursor-pointer"
                     />
                   </div>
@@ -403,7 +443,14 @@ export default function UserView({
                       onChange={(e) => setEndInput(e.target.value)}
                       onBlur={() => {
                         const iso = parseDeToISO(endInput);
-                        if (iso) { setEndISO(iso); setEndInput(formatDeFromISO(iso)); }
+                        if (iso) {
+                          setEndISO(iso);
+                          setEndInput(formatDeFromISO(iso));
+                          const start = startISO || parseDeToISO(startInput);
+                          if (start && new Date(iso) >= new Date(start)) {
+                            showBlockedRangeModal(start, iso);
+                          }
+                        }
                       }}
                       placeholder="TT.MM.JJJJ"
                       className="w-full border border-border px-4 py-3.5 min-h-[48px] rounded-xl focus:border-[#1a3826] outline-none font-bold text-foreground bg-muted/50 focus:bg-card transition-colors text-base touch-manipulation pr-11"
@@ -413,7 +460,15 @@ export default function UserView({
                       type="date"
                       value={endISO}
                       min={startISO || earliestStartDateISO}
-                      onChange={(e) => { setEndISO(e.target.value); setEndInput(formatDeFromISO(e.target.value)); }}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setEndISO(v);
+                        setEndInput(formatDeFromISO(v));
+                        const start = startISO || parseDeToISO(startInput);
+                        if (start && v && new Date(v) >= new Date(start)) {
+                          showBlockedRangeModal(start, v);
+                        }
+                      }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 w-8 h-8 cursor-pointer"
                     />
                   </div>
@@ -627,6 +682,16 @@ export default function UserView({
           </div>
         </div>
       )}
+
+      <VacationBlockedDateModal
+        open={blockedDayModalOpen}
+        onClose={() => {
+          setBlockedDayModalOpen(false);
+          setBlockedDayModalDetail(null);
+        }}
+        detailDateDe={blockedDayModalDetail?.dateDe}
+        detailReason={blockedDayModalDetail?.reason}
+      />
     </div>
   );
 }

@@ -1,4 +1,23 @@
 /**
+ * Kurzformen für PDF-Köpfe / Urlaubsplan (österreichisches Deutsch).
+ * Index 0 = Jänner … 11 = Dezember (Mär, Mai, Dez statt Mar/Maj/Dec).
+ */
+export const MONTH_ABBREVS_DE_AT: readonly string[] = [
+  "Jän",
+  "Feb",
+  "Mär",
+  "Apr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Dez",
+];
+
+/**
  * European/Austrian date format: DD.MM.YYYY (e.g. 15.02.2026).
  * Used for all date displays (incl. de-AT locale).
  */

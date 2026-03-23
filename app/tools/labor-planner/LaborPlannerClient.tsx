@@ -1,11 +1,22 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { createPortal } from "react-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Save, FileDown, CalendarDays, Trash2 } from "lucide-react";
+import { Save, FileDown, CalendarDays, Trash2, Lock, Unlock, StickyNote, MessageSquare } from "lucide-react";
+import type { LaborClClientState, LaborPlanPayload } from "@/lib/laborPlannerCl";
+import { defaultClState } from "@/lib/laborPlannerCl";
+import {
+  finishClMonth,
+  requestClUnlock,
+  approveClUnlock,
+  listLaborClGrantCandidates,
+  grantClTemporaryEdit,
+  revokeClEditGrant,
+} from "@/app/actions/laborActions";
 
 // --- TIPOVI (Excel Crewlabor Bedarf) ---
 
@@ -57,12 +68,130 @@ interface SavedInputs {
 interface LaborPlanData {
   inputs: SavedInputs;
   rows: SavedRow[];
+  dayComments?: Record<string, string>;
+}
+
+function normalizeDayCommentsFromApi(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const day = parseInt(String(k), 10);
+    if (day < 1 || day > 31 || Number.isNaN(day)) continue;
+    if (typeof v === "string" && v.trim()) out[String(day)] = v.trim();
+  }
+  return out;
+}
+
+function stripEmptyDayComments(c: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(c).filter(([, v]) => typeof v === "string" && v.trim().length > 0)
+  );
 }
 
 interface Restaurant {
   id: string;
   code: string;
   name: string | null;
+}
+
+/** Tag-Zelle + fixierter Notiz-Popup (nicht von overflow-x-auto abgeschnitten), rechts neben der Spalte. */
+function LaborDayTagCell({
+  day,
+  comment,
+  canEditCl,
+  onOpenNote,
+}: {
+  day: Pick<DayData, "day" | "dayName" | "isHoliday">;
+  comment: string | undefined;
+  canEditCl: boolean;
+  onOpenNote: () => void;
+}) {
+  const tdRef = useRef<HTMLTableCellElement>(null);
+  const [tipPos, setTipPos] = useState<{ top: number; left: number } | null>(null);
+
+  const updateTip = () => {
+    if (!comment?.trim()) return;
+    const el = tdRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const margin = 28;
+    const maxW = 300;
+    const left = Math.min(r.right + margin, Math.max(8, window.innerWidth - maxW - 8));
+    setTipPos({ top: r.top + r.height / 2, left });
+  };
+
+  return (
+    <>
+      <td
+        ref={tdRef}
+        className={`group relative border border-border p-1 px-2 text-center align-middle text-xs font-bold ${day.isHoliday ? "text-red-600" : "text-gray-700"}`}
+        onMouseEnter={updateTip}
+        onMouseMove={comment?.trim() ? updateTip : undefined}
+        onMouseLeave={() => setTipPos(null)}
+      >
+        {/* Datum zentriert; Notiz-Icons absolut rechts, damit der Text mit den anderen Zeilen fluchtet */}
+        <div className="relative flex min-h-[36px] items-center justify-center px-1">
+          <span
+            className={`whitespace-nowrap select-none ${canEditCl || comment ? "cursor-pointer" : "cursor-default"}`}
+            title={
+              canEditCl
+                ? "Doppelklick: Tagesnotiz bearbeiten"
+                : comment
+                  ? "Notiz anzeigen (Doppelklick)"
+                  : undefined
+            }
+            onDoubleClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onOpenNote();
+            }}
+          >
+            {day.day}. {day.dayName}
+            {day.isHoliday ? " *" : ""}
+          </span>
+          <div
+            className="pointer-events-none absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-0.5"
+            aria-hidden
+          >
+            {comment?.trim() ? (
+              <span className="pointer-events-auto inline-flex items-center justify-center drop-shadow-sm" aria-label="Tagesnotiz">
+                <MessageSquare
+                  size={16}
+                  className="text-[#1a3826]"
+                  fill="#FFBC0D"
+                  stroke="#1a3826"
+                  strokeWidth={2}
+                  aria-hidden
+                />
+              </span>
+            ) : null}
+            {canEditCl ? (
+              <StickyNote
+                size={12}
+                className="pointer-events-auto shrink-0 text-muted-foreground/60 opacity-0 transition-opacity group-hover:opacity-100"
+                aria-hidden
+              />
+            ) : null}
+          </div>
+        </div>
+      </td>
+      {comment?.trim() && tipPos != null && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              role="tooltip"
+              className="pointer-events-none fixed z-[99990] w-[min(300px,calc(100vw-4rem))] max-w-[90vw] -translate-y-1/2 rounded-xl border-2 border-[#1a3826]/25 bg-[#FFBC0D] px-3 py-2.5 text-left text-[11px] font-bold leading-snug text-[#1a3826] shadow-[0_8px_24px_rgba(0,0,0,0.22)] whitespace-pre-wrap break-words ring-2 ring-amber-200/90 dark:ring-amber-800/50"
+              style={{ top: tipPos.top, left: tipPos.left }}
+            >
+              <span className="mb-1 block text-[9px] font-black uppercase tracking-wide text-[#1a3826]/80">
+                Notiz
+              </span>
+              {comment}
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  );
 }
 
 interface AutoTableHookData {
@@ -290,7 +419,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   const [vacationStd, setVacationStd] = useState("");
   const [sickStd, setSickStd] = useState("");
   const [extraUnprodStd, setExtraUnprodStd] = useState("");
-  const [koefficientBruttoNetto, setKoefficientBruttoNetto] = useState("1,118");
+  const [koefficientBruttoNetto, setKoefficientBruttoNetto] = useState(() => fmtNum(1.118, 4));
   const [foerderung, setFoerderung] = useState("");
   const [budgetUmsatz, setBudgetUmsatz] = useState("");
   const [budgetCL, setBudgetCL] = useState("");
@@ -302,6 +431,26 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   const [pdfPopupUrl, setPdfPopupUrl] = useState<string | null>(null);
   const [hasRestoredSession, setHasRestoredSession] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  /** Tagesnotizen (Tag 1–31 als String-Key), je Restaurant + Monat in DB (dayComments im Payload). */
+  const [dayComments, setDayComments] = useState<Record<string, string>>({});
+  const [dayNoteModalDay, setDayNoteModalDay] = useState<number | null>(null);
+  const [dayNoteDraft, setDayNoteDraft] = useState("");
+  const [dayNoteSaving, setDayNoteSaving] = useState(false);
+  const [clMeta, setClMeta] = useState<LaborClClientState>(() => defaultClState());
+  const [showFinishMonthModal, setShowFinishMonthModal] = useState(false);
+  const [showUnlockRequestModal, setShowUnlockRequestModal] = useState(false);
+  const [unlockRequestNote, setUnlockRequestNote] = useState("");
+  const [showGrantEditModal, setShowGrantEditModal] = useState(false);
+  const [grantCandidates, setGrantCandidates] = useState<
+    { id: string; name: string | null; email: string | null }[]
+  >([]);
+  const [selectedGranteeId, setSelectedGranteeId] = useState("");
+  const [loadingGrantList, setLoadingGrantList] = useState(false);
+  const canEditCl = clMeta.canEdit;
+  const canEditRef = useRef(canEditCl);
+  useEffect(() => {
+    canEditRef.current = canEditCl;
+  }, [canEditCl]);
   const currentRestaurantIdRef = React.useRef<string | null>(null);
   const tableWrapperRef = React.useRef<HTMLDivElement>(null);
   const hasUnsavedChangesRef = React.useRef(false);
@@ -432,8 +581,9 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
 
   const clearInputs = () => {
     setAvgWage(""); setVacationStd(""); setSickStd(""); setExtraUnprodStd("");
-    setKoefficientBruttoNetto("1,118"); setFoerderung("");
+    setKoefficientBruttoNetto(fmtNum(1.118, 4)); setFoerderung("");
     setBudgetUmsatz(""); setBudgetCL(""); setBudgetCLPct("");
+    setDayComments({});
   };
 
   useEffect(() => {
@@ -447,6 +597,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const handler = (e: BeforeUnloadEvent) => {
+      if (!canEditRef.current) return;
       e.preventDefault();
       e.returnValue = "";
     };
@@ -467,6 +618,31 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     }
   }, []);
 
+  // Deep-Link aus Benachrichtigung: Jahr / Monat / Restaurant aus URL
+  useEffect(() => {
+    if (!hasRestoredSession) return;
+    try {
+      const y = searchParams.get("year");
+      const m = searchParams.get("month");
+      const rid = searchParams.get("restaurantId");
+      if (y) {
+        const ny = Number(y);
+        if (!Number.isNaN(ny) && ny >= 2020 && ny <= 2100) setYear(ny);
+      }
+      if (m) {
+        const nm = Number(m);
+        if (!Number.isNaN(nm) && nm >= 1 && nm <= 12) setMonth(nm);
+      }
+      if (rid && rid !== "all") {
+        if (restaurants.length === 0 || restaurants.some((r) => r.id === rid)) {
+          setSelectedRestaurantId(rid);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [hasRestoredSession, searchParams, restaurants]);
+
   useEffect(() => {
     try {
       sessionStorage.setItem("labor-planner-year", String(year));
@@ -475,6 +651,21 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
       // ignore
     }
   }, [year, month]);
+
+  // Jahr / Monat / Restaurant in URL (Deep Links, Teilen)
+  useEffect(() => {
+    if (!hasRestoredSession) return;
+    if (!selectedRestaurantId || selectedRestaurantId === "all") return;
+    const y = searchParams.get("year");
+    const m = searchParams.get("month");
+    const rid = searchParams.get("restaurantId");
+    if (String(year) === y && String(month) === m && rid === selectedRestaurantId) return;
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("year", String(year));
+    p.set("month", String(month));
+    p.set("restaurantId", selectedRestaurantId);
+    router.replace(`?${p.toString()}`, { scroll: false });
+  }, [year, month, selectedRestaurantId, hasRestoredSession, searchParams, router]);
 
   const loadDataFromDB = useCallback(
     async (m: number, y: number, rId: string) => {
@@ -486,14 +677,23 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
 
         if (currentRestaurantIdRef.current !== rId) return;
 
-        if (json.success && json.data) {
-          const parsed: LaborPlanData = json.data;
+        if (json.success) {
+          setClMeta(
+            json.cl && typeof json.cl === "object"
+              ? { ...defaultClState(), ...(json.cl as Partial<LaborClClientState>) }
+              : defaultClState()
+          );
+          const parsed: LaborPlanData = json.data ?? { inputs: {}, rows: [] };
           if (parsed.inputs) {
             setAvgWage(parsed.inputs.avgWage || "");
             setVacationStd(parsed.inputs.vacationStd || "");
             setSickStd(parsed.inputs.sickStd || "");
             setExtraUnprodStd(parsed.inputs.extraUnprodStd || "");
-            setKoefficientBruttoNetto(parsed.inputs.koefficientBruttoNetto || "1,118");
+            setKoefficientBruttoNetto(
+              parsed.inputs.koefficientBruttoNetto != null && parseDE(parsed.inputs.koefficientBruttoNetto) > 0
+                ? fmtNum(parseDE(parsed.inputs.koefficientBruttoNetto), 4)
+                : fmtNum(1.118, 4)
+            );
             setFoerderung(parsed.inputs.foerderung || "");
             setBudgetUmsatz(parsed.inputs.budgetUmsatz || "");
             setBudgetCL(parsed.inputs.budgetCL || "");
@@ -507,10 +707,13 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
           } else {
             generateEmptyDays(m, y, [], koeff);
           }
+          setDayComments(normalizeDayCommentsFromApi((parsed as LaborPlanData).dayComments));
           setHasUnsavedChanges(false);
         } else {
+          setClMeta(defaultClState());
           clearInputs();
           generateEmptyDays(m, y, [], 1.118);
+          setDayComments({});
           setHasUnsavedChanges(false);
         }
       } catch (error) {
@@ -583,48 +786,73 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     };
   })();
 
+  const buildLaborPlanData = useCallback(
+    (commentsOverride?: Record<string, string>): LaborPlanData => {
+      const comments = commentsOverride !== undefined ? commentsOverride : dayComments;
+      return {
+        inputs: {
+          avgWage,
+          vacationStd,
+          sickStd,
+          extraUnprodStd,
+          koefficientBruttoNetto,
+          foerderung,
+          budgetUmsatz,
+          budgetCL,
+          budgetCLPct,
+        },
+        rows: daysData.map((d) => {
+          const brutto = parseDE(d.bruttoUmsatz);
+          const nettoCalc = brutto && koeffNum > 0 ? brutto / koeffNum : 0;
+          const netto =
+            nettoCalc > 0
+              ? fmtNum(nettoCalc)
+              : d.nettoUmsatz;
+
+          const produktiveVal = calcProduktiveStdForDay(d, koeffNum);
+
+          return {
+            bruttoUmsatz: d.bruttoUmsatz,
+            nettoUmsatz: netto,
+            geplanteProduktivitaetPct: d.geplanteProduktivitaetPct,
+            produktiveStd: produktiveVal ? fmtHours(produktiveVal) : "",
+            sfStd: d.sfStd,
+            hmStd: d.hmStd,
+            nzEuro: d.nzEuro,
+            extraStd: d.extraStd,
+          };
+        }),
+        dayComments: stripEmptyDayComments(comments),
+      };
+    },
+    [
+      avgWage,
+      vacationStd,
+      sickStd,
+      extraUnprodStd,
+      koefficientBruttoNetto,
+      foerderung,
+      budgetUmsatz,
+      budgetCL,
+      budgetCLPct,
+      daysData,
+      koeffNum,
+      dayComments,
+    ]
+  );
+
   const saveDataToDB = useCallback(async (silent = false) => {
     if (!selectedRestaurantId || selectedRestaurantId === "all") {
       if (!silent) toast.error("Bitte Restaurant auswählen.");
       return;
     }
+    if (!clMeta.canEdit) {
+      if (!silent) toast.error("Monat ist gesperrt. Speichern nicht möglich.");
+      return;
+    }
     if (!silent) setLoading(true);
 
-    const dataToSave: LaborPlanData = {
-      inputs: {
-        avgWage,
-        vacationStd,
-        sickStd,
-        extraUnprodStd,
-        koefficientBruttoNetto,
-        foerderung,
-        budgetUmsatz,
-        budgetCL,
-        budgetCLPct,
-      },
-      rows: daysData.map((d) => {
-        const brutto = parseDE(d.bruttoUmsatz);
-        const nettoCalc = brutto && koeffNum > 0 ? brutto / koeffNum : 0;
-        const netto =
-          nettoCalc > 0
-            ? fmtNum(nettoCalc)
-            : d.nettoUmsatz;
-
-        const produktiveVal = calcProduktiveStdForDay(d, koeffNum);
-
-        return {
-          bruttoUmsatz: d.bruttoUmsatz,
-          nettoUmsatz: netto,
-          geplanteProduktivitaetPct: d.geplanteProduktivitaetPct,
-          // Spremamo već izračunatu vrijednost po Excel formuli (J/K-M)
-          produktiveStd: produktiveVal ? fmtHours(produktiveVal) : "",
-          sfStd: d.sfStd,
-          hmStd: d.hmStd,
-          nzEuro: d.nzEuro,
-          extraStd: d.extraStd,
-        };
-      }),
-    };
+    const dataToSave = buildLaborPlanData();
 
     try {
       const res = await fetch("/api/labor-planner", {
@@ -636,16 +864,72 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
       if (res.ok && json.success) {
         setHasUnsavedChanges(false);
         if (!silent) toast.success("Gespeichert.");
+        if (json.cl && typeof json.cl === "object") {
+          setClMeta({ ...defaultClState(), ...(json.cl as Partial<LaborClClientState>) });
+        }
       } else {
-        toast.error(json?.error || "Fehler beim Speichern.");
+        if (!silent) toast.error(json?.error || "Fehler beim Speichern.");
       }
     } catch (error) {
       console.error(error);
-      toast.error("Fehler beim Speichern.");
+      if (!silent) toast.error("Fehler beim Speichern.");
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [selectedRestaurantId, year, month, avgWage, vacationStd, sickStd, extraUnprodStd, koefficientBruttoNetto, foerderung, budgetUmsatz, budgetCL, budgetCLPct, daysData, koeffNum]);
+  }, [selectedRestaurantId, year, month, clMeta.canEdit, buildLaborPlanData]);
+
+  const handleSaveDayNote = useCallback(async () => {
+    if (dayNoteModalDay == null || !selectedRestaurantId || selectedRestaurantId === "all") return;
+    if (!canEditCl) {
+      setDayNoteModalDay(null);
+      return;
+    }
+    const key = String(dayNoteModalDay);
+    const trimmed = dayNoteDraft.trim();
+    const next = { ...dayComments };
+    if (!trimmed) delete next[key];
+    else next[key] = trimmed;
+
+    setDayNoteSaving(true);
+    try {
+      const dataToSave = buildLaborPlanData(next);
+      const res = await fetch("/api/labor-planner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year,
+          month,
+          restaurant: selectedRestaurantId,
+          data: dataToSave as LaborPlanPayload,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setDayComments(next);
+        setDayNoteModalDay(null);
+        setHasUnsavedChanges(false);
+        toast.success(trimmed ? "Tagesnotiz gespeichert." : "Tagesnotiz entfernt.");
+        if (json.cl && typeof json.cl === "object") {
+          setClMeta({ ...defaultClState(), ...(json.cl as Partial<LaborClClientState>) });
+        }
+      } else {
+        toast.error(json?.error || "Speichern fehlgeschlagen.");
+      }
+    } catch {
+      toast.error("Speichern fehlgeschlagen.");
+    } finally {
+      setDayNoteSaving(false);
+    }
+  }, [
+    dayNoteModalDay,
+    dayNoteDraft,
+    dayComments,
+    selectedRestaurantId,
+    canEditCl,
+    year,
+    month,
+    buildLaborPlanData,
+  ]);
 
   useEffect(() => {
     saveDataToDBRef.current = saveDataToDB;
@@ -656,6 +940,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     const interval = setInterval(() => {
       if (
         hasUnsavedChangesRef.current &&
+        canEditRef.current &&
         currentRestaurantIdRef.current &&
         currentRestaurantIdRef.current !== "all"
       ) {
@@ -670,6 +955,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     return () => {
       if (
         hasUnsavedChangesRef.current &&
+        canEditRef.current &&
         currentRestaurantIdRef.current &&
         currentRestaurantIdRef.current !== "all"
       ) {
@@ -1171,6 +1457,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   };
 
   const handleInputChange = (idx: number, field: keyof DayData, val: string) => {
+    if (!clMeta.canEdit) return;
     const newData = [...daysData];
     const row = { ...newData[idx], [field]: val };
     if (field === "bruttoUmsatz" && koeffNum > 0) {
@@ -1183,6 +1470,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   };
 
   const handleCopyDown = (field: keyof DayData) => {
+    if (!clMeta.canEdit) return;
     if (daysData.length === 0) return;
     if (!confirm("Wert des ersten Tages in alle Tage kopieren?")) return;
     const valToCopy = daysData[0][field];
@@ -1194,6 +1482,10 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   const handleDeleteData = async () => {
     if (!selectedRestaurantId || selectedRestaurantId === "all") {
       toast.error("Bitte Restaurant auswählen.");
+      return;
+    }
+    if (clMeta.clLocked && !clMeta.canBypassClLock) {
+      toast.error("Gesperrter Monat kann nicht gelöscht werden.");
       return;
     }
     if (!confirm("Alle Daten für diesen Monat und dieses Restaurant unwiderruflich löschen?")) return;
@@ -1208,6 +1500,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         setHasUnsavedChanges(false);
         clearInputs();
         generateEmptyDays(month, year, [], koeffNum);
+        await loadDataFromDB(month, year, selectedRestaurantId);
         toast.success("Daten gelöscht.");
       } else {
         toast.error(json?.error || "Fehler beim Löschen.");
@@ -1215,6 +1508,122 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     } catch (err) {
       console.error(err);
       toast.error("Fehler beim Löschen.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinishMonthConfirm = async () => {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") return;
+    setLoading(true);
+    try {
+      const payload = buildLaborPlanData() as LaborPlanPayload;
+      const res = await finishClMonth(selectedRestaurantId, month, year, payload);
+      if (res.success) {
+        toast.success("Monat abgeschlossen und gesperrt.");
+        setShowFinishMonthModal(false);
+        await loadDataFromDB(month, year, selectedRestaurantId);
+      } else {
+        toast.error(res.error || "Fehler beim Sperren.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnlockRequestSubmit = async () => {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") return;
+    setLoading(true);
+    try {
+      const res = await requestClUnlock(selectedRestaurantId, month, year, unlockRequestNote.trim() || undefined);
+      if (res.success) {
+        toast.success("Entsperranfrage gesendet.");
+        setShowUnlockRequestModal(false);
+        setUnlockRequestNote("");
+        await loadDataFromDB(month, year, selectedRestaurantId);
+      } else {
+        toast.error(res.error || "Fehler.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApproveUnlock = async () => {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") return;
+    setLoading(true);
+    try {
+      const res = await approveClUnlock(selectedRestaurantId, month, year);
+      if (res.success) {
+        toast.success("Bearbeitung temporär freigegeben.");
+        const p = new URLSearchParams(searchParams.toString());
+        p.delete("clApprove");
+        router.replace(`?${p.toString()}`, { scroll: false });
+        await loadDataFromDB(month, year, selectedRestaurantId);
+      } else {
+        toast.error(res.error || "Fehler.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openGrantEditModal = async () => {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") return;
+    setShowGrantEditModal(true);
+    setSelectedGranteeId("");
+    setLoadingGrantList(true);
+    try {
+      const list = await listLaborClGrantCandidates(selectedRestaurantId);
+      setGrantCandidates(Array.isArray(list) ? list : []);
+      if (!list?.length) {
+        toast.info("Keine passenden Mitarbeiter (nur direkt unterstellte am Standort bzw. alle bei Admin).");
+      }
+    } catch (e) {
+      console.error(e);
+      setGrantCandidates([]);
+      toast.error("Liste konnte nicht geladen werden.");
+    } finally {
+      setLoadingGrantList(false);
+    }
+  };
+
+  const handleGrantEditConfirm = async () => {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") return;
+    if (!selectedGranteeId) {
+      toast.error("Bitte einen Mitarbeiter auswählen.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await grantClTemporaryEdit(selectedRestaurantId, month, year, selectedGranteeId);
+      if (res.success) {
+        toast.success("Bearbeitung freigegeben.");
+        setShowGrantEditModal(false);
+        setSelectedGranteeId("");
+        await loadDataFromDB(month, year, selectedRestaurantId);
+      } else {
+        toast.error(res.error || "Fehler.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRevokeClGrant = async () => {
+    if (!selectedRestaurantId || selectedRestaurantId === "all") return;
+    if (!window.confirm("Bearbeitungsfreigabe wirklich widerrufen? Der Mitarbeiter kann danach nicht mehr speichern.")) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await revokeClEditGrant(selectedRestaurantId, month, year);
+      if (res.success) {
+        toast.success("Freigabe widerrufen.");
+        await loadDataFromDB(month, year, selectedRestaurantId);
+      } else {
+        toast.error(res.error || "Fehler.");
+      }
     } finally {
       setLoading(false);
     }
@@ -1256,6 +1665,163 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       )}
 
+      {dayNoteModalDay != null && (
+        <div
+          className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="day-note-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !dayNoteSaving) {
+              setDayNoteModalDay(null);
+              setDayNoteDraft("");
+            }
+          }}
+        >
+          <div
+            className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="day-note-title" className="text-lg font-black mb-1 flex items-center gap-2">
+              <StickyNote size={20} className="text-amber-600 shrink-0" />
+              Tagesnotiz
+            </h2>
+            <p className="text-xs text-muted-foreground mb-3">
+              Tag {dayNoteModalDay}. · {MONTH_NAMES_DE[month - 1]} {year} · nur dieser Store
+            </p>
+            <p className="text-xs text-muted-foreground mb-2">
+              {canEditCl
+                ? "Besonderheiten für diesen Tag (z. B. ungewöhnliche Planung). Leer lassen und speichern = Notiz löschen."
+                : "Monat gesperrt – nur Lesen."}
+            </p>
+            <textarea
+              value={dayNoteDraft}
+              onChange={(e) => setDayNoteDraft(e.target.value)}
+              disabled={!canEditCl || dayNoteSaving}
+              rows={5}
+              className="w-full min-h-[120px] p-3 border border-border rounded-lg text-sm bg-background mb-4 resize-y disabled:opacity-70"
+              placeholder="z. B. verkürzte Öffnungszeit, Event, Personalausfall …"
+            />
+            <div className="flex gap-2 justify-end flex-wrap">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border border-border hover:bg-muted disabled:opacity-50"
+                disabled={dayNoteSaving}
+                onClick={() => {
+                  setDayNoteModalDay(null);
+                  setDayNoteDraft("");
+                }}
+              >
+                {canEditCl ? "Abbrechen" : "Schließen"}
+              </button>
+              {canEditCl ? (
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-lg bg-[#1b3a26] text-white font-bold hover:bg-[#142e1e] disabled:opacity-50 inline-flex items-center gap-2"
+                  disabled={dayNoteSaving}
+                  onClick={() => void handleSaveDayNote()}
+                >
+                  {dayNoteSaving ? "Speichern…" : "Speichern"}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFinishMonthModal && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="cl-finish-title">
+          <div className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full p-6">
+            <h2 id="cl-finish-title" className="text-lg font-black mb-2">Monat abschließen?</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Daten werden gespeichert und der Monat für die Bearbeitung gesperrt. PDF-Export bleibt möglich. Ihr Vorgesetzter wird benachrichtigt.
+            </p>
+            <div className="flex gap-2 justify-end flex-wrap">
+              <button type="button" className="px-4 py-2 rounded-lg border border-border hover:bg-muted" onClick={() => setShowFinishMonthModal(false)}>
+                Abbrechen
+              </button>
+              <button type="button" className="px-4 py-2 rounded-lg bg-[#1b3a26] text-white font-bold hover:bg-[#142e1e]" onClick={handleFinishMonthConfirm}>
+                Speichern &amp; sperren
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUnlockRequestModal && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true">
+          <div className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full p-6">
+            <h2 className="text-lg font-black mb-2">Entsperrung anfragen</h2>
+            <p className="text-sm text-muted-foreground mb-2">Optionaler Grund für den Vorgesetzten:</p>
+            <textarea
+              value={unlockRequestNote}
+              onChange={(e) => setUnlockRequestNote(e.target.value)}
+              className="w-full min-h-[88px] p-2 border border-border rounded-lg text-sm mb-4 bg-background"
+            />
+            <div className="flex gap-2 justify-end flex-wrap">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border border-border hover:bg-muted"
+                onClick={() => { setShowUnlockRequestModal(false); setUnlockRequestNote(""); }}
+              >
+                Abbrechen
+              </button>
+              <button type="button" className="px-4 py-2 rounded-lg bg-[#1b3a26] text-white font-bold hover:bg-[#142e1e]" onClick={handleUnlockRequestSubmit}>
+                Anfrage senden
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGrantEditModal && (
+        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true">
+          <div className="bg-card rounded-xl shadow-xl border border-border max-w-md w-full p-6">
+            <h2 className="text-lg font-black mb-2">Bearbeitung freigeben</h2>
+            <p className="text-sm text-muted-foreground mb-3">
+              Wählen Sie den Mitarbeiter, der diesen gesperrten Monat vorübergehend bearbeiten darf (bis zum nächsten Speichern).
+            </p>
+            {loadingGrantList ? (
+              <p className="text-sm text-muted-foreground py-4">Lade Mitarbeiter…</p>
+            ) : (
+              <select
+                value={selectedGranteeId}
+                onChange={(e) => setSelectedGranteeId(e.target.value)}
+                className="w-full p-2 border border-border rounded-lg text-sm bg-background mb-4"
+              >
+                <option value="">— Mitarbeiter wählen —</option>
+                {grantCandidates.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {(u.name || u.email || u.id).trim()}
+                    {u.email && u.name ? ` (${u.email})` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            <div className="flex gap-2 justify-end flex-wrap">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border border-border hover:bg-muted"
+                onClick={() => {
+                  setShowGrantEditModal(false);
+                  setSelectedGranteeId("");
+                }}
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={loading || loadingGrantList || !selectedGranteeId}
+                className="px-4 py-2 rounded-lg bg-[#1b3a26] text-white font-bold hover:bg-[#142e1e] disabled:opacity-50"
+                onClick={() => void handleGrantEditConfirm()}
+              >
+                Freigeben
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HEADER – unificirani layout */}
       <div className="mx-auto mb-6 md:mb-8" style={{ maxWidth: "1600px" }}>
         <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
@@ -1270,13 +1836,108 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       </div>
 
+      {hasValidRestaurant && clMeta.canApproveUnlock && (
+        <div
+          className="mx-auto mb-2 rounded-lg border border-[#FFC72C] bg-[#fffbeb] dark:bg-amber-950/30 py-1.5 px-3 flex flex-row flex-wrap items-center justify-between gap-2 print:hidden"
+          style={{ maxWidth: "1600px" }}
+        >
+          <p className="text-xs font-semibold text-[#1b3a26] dark:text-amber-100 leading-tight min-w-0 flex-1">
+            CL-Entsperranfrage: Bearbeitung bis zum nächsten Speichern freigeben.
+          </p>
+          <button
+            type="button"
+            onClick={handleApproveUnlock}
+            disabled={loading}
+            className="shrink-0 h-8 px-3 rounded-md bg-[#FFBC0D] hover:bg-[#e6b225] disabled:opacity-50 text-black font-bold text-xs"
+          >
+            Freigeben
+          </button>
+        </div>
+      )}
+
+      {hasValidRestaurant && clMeta.canRevokeClEdit && (
+        <div
+          className="mx-auto mb-2 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/25 py-1.5 px-3 flex flex-row flex-wrap items-center justify-between gap-2 print:hidden"
+          style={{ maxWidth: "1600px" }}
+        >
+          <p className="text-xs font-semibold text-red-900 dark:text-red-100 leading-tight min-w-0 flex-1">
+            Aktive Bearbeitungsfreigabe – jederzeit widerrufbar (danach nur Lesen/PDF).
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleRevokeClGrant()}
+            disabled={loading}
+            className="shrink-0 h-8 px-3 rounded-md border border-red-600 text-red-700 dark:text-red-200 font-bold text-xs hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
+          >
+            Widerrufen
+          </button>
+        </div>
+      )}
+
+      {hasValidRestaurant && clMeta.canGrantClEdit && (
+        <div
+          className="mx-auto mb-2 rounded-lg border border-emerald-500/50 dark:border-emerald-700 bg-emerald-50/80 dark:bg-emerald-950/25 py-1.5 px-3 flex flex-row flex-wrap items-center justify-between gap-2 print:hidden"
+          style={{ maxWidth: "1600px" }}
+        >
+          <p className="text-xs font-semibold text-[#14532d] dark:text-emerald-100 leading-tight min-w-0 flex-1">
+            Monat gesperrt – Bearbeitung für einen Mitarbeiter freigeben (ohne Antrag).
+          </p>
+          <button
+            type="button"
+            onClick={() => void openGrantEditModal()}
+            disabled={loading}
+            className="shrink-0 h-8 px-3 rounded-md bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs disabled:opacity-50"
+          >
+            Mitarbeiter wählen
+          </button>
+        </div>
+      )}
+
       {hasValidRestaurant && (
         <div className="mx-auto flex flex-col md:flex-row justify-end items-center mb-8 gap-3 print:hidden" style={{ maxWidth: "1600px" }}>
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            {clMeta.clLocked && (
+              <span className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-900 dark:text-amber-100 px-3 py-2 rounded-lg bg-amber-100 dark:bg-amber-950/40 border border-amber-300/60 max-w-full">
+                <Lock size={16} className="shrink-0" />
+                <span>
+                  {!canEditCl
+                    ? "Monat gesperrt (nur Lesen / PDF)"
+                    : clMeta.canBypassClLock
+                      ? "Sperren"
+                      : "Vorübergehend bearbeitbar – nach Speichern wieder gesperrt"}
+                </span>
+              </span>
+            )}
+            {clMeta.hasPendingUnlockRequest && !clMeta.canApproveUnlock && (
+              <span className="text-xs font-semibold text-muted-foreground px-2">Entsperranfrage ausstehend</span>
+            )}
+            {!clMeta.clLocked && canEditCl && (
+              <button
+                type="button"
+                onClick={() => setShowFinishMonthModal(true)}
+                className="h-10 px-4 rounded-sm bg-[#1b3a26] hover:bg-[#142e1e] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
+                title="Monat abschließen und sperren"
+              >
+                <Lock size={18} />
+                <span className="whitespace-nowrap">Monat abschließen</span>
+              </button>
+            )}
+            {clMeta.clLocked && !canEditCl && !clMeta.hasPendingUnlockRequest && (
+              <button
+                type="button"
+                onClick={() => setShowUnlockRequestModal(true)}
+                className="h-10 px-4 rounded-sm border-2 border-[#1b3a26] text-[#1b3a26] dark:text-[#FFC72C] dark:border-[#FFC72C] font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition hover:bg-muted"
+                title="Entsperrung anfragen"
+              >
+                <Unlock size={18} />
+                <span className="whitespace-nowrap">Entsperrung anfragen</span>
+              </button>
+            )}
             <button
               onClick={() => saveDataToDB(false)}
-              className="h-10 px-4 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] text-black font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
-              title="Speichern"
+              disabled={!canEditCl || loading}
+              className="h-10 px-4 rounded-sm bg-[#FFBC0D] hover:bg-[#e6b225] disabled:opacity-50 disabled:cursor-not-allowed text-black font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
+              title={!canEditCl ? "Monat gesperrt" : "Speichern"}
             >
               <Save size={18} strokeWidth={2.5} className="shrink-0" />
               <span className="whitespace-nowrap">Speichern</span>
@@ -1300,7 +1961,8 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
             <button
               type="button"
               onClick={handleDeleteData}
-              className="h-10 px-4 rounded-lg bg-[#FFC72C] text-red-600 hover:bg-[#e6b225] transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
+              disabled={loading || (clMeta.clLocked && !clMeta.canBypassClLock)}
+              className="h-10 px-4 rounded-lg bg-[#FFC72C] text-red-600 hover:bg-[#e6b225] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
               title="Daten löschen"
             >
               <Trash2 size={18} strokeWidth={2.5} className="shrink-0" />
@@ -1333,8 +1995,9 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                       <label className="text-xs font-medium text-muted-foreground uppercase block mb-1">Jahr</label>
                       <select
                         value={year}
+                        disabled={!canEditCl}
                         onChange={(e) => setYear(Number(e.target.value))}
-                        className="w-full p-2 bg-muted border border-border rounded-lg text-sm font-medium text-foreground focus:ring-2 focus:ring-ring outline-none"
+                        className="w-full p-2 bg-muted border border-border rounded-lg text-sm font-medium text-foreground focus:ring-2 focus:ring-ring outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {[2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
                           <option key={y} value={y}>{y}</option>
@@ -1351,8 +2014,10 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                     {MONTH_NAMES_DE.map((mName, i) => (
                       <button
                         key={i}
+                        type="button"
+                        disabled={!canEditCl}
                         onClick={() => setMonth(i + 1)}
-                        className={`px-2.5 py-1 text-xs font-medium rounded-full transition-all ${
+                        className={`px-2.5 py-1 text-xs font-medium rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                           month === i + 1 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                         }`}
                       >
@@ -1366,11 +2031,11 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
               <div className="bg-card border border-border rounded-xl shadow-sm p-5">
                 <h3 className="text-gray-700 font-bold text-sm uppercase mb-3">Parameter</h3>
                 <div className="space-y-2">
-                  <InputRow label="Stundensatz (€)" value={avgWage} onChange={(v) => { setAvgWage(v); setHasUnsavedChanges(true); }} decimals={2} />
-                  <InputRow label="Urlaub (h)" value={vacationStd} onChange={(v) => { setVacationStd(v); setHasUnsavedChanges(true); }} />
-                  <InputRow label="Krankheit (h)" value={sickStd} onChange={(v) => { setSickStd(v); setHasUnsavedChanges(true); }} />
-                  <InputRow label="Koeffizient Brutto/Netto" value={koefficientBruttoNetto} onChange={(v) => { setKoefficientBruttoNetto(v); setHasUnsavedChanges(true); }} decimals={2} />
-                  <InputRow label="Förderung (€)" value={foerderung} onChange={(v) => { setFoerderung(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Stundensatz (€)" value={avgWage} disabled={!canEditCl} onChange={(v) => { setAvgWage(v); setHasUnsavedChanges(true); }} decimals={2} />
+                  <InputRow label="Urlaub (h)" value={vacationStd} disabled={!canEditCl} onChange={(v) => { setVacationStd(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Krankheit (h)" value={sickStd} disabled={!canEditCl} onChange={(v) => { setSickStd(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Koeffizient Brutto/Netto" value={koefficientBruttoNetto} disabled={!canEditCl} onChange={(v) => { setKoefficientBruttoNetto(v); setHasUnsavedChanges(true); }} decimals={4} />
+                  <InputRow label="Förderung (€)" value={foerderung} disabled={!canEditCl} onChange={(v) => { setFoerderung(v); setHasUnsavedChanges(true); }} />
                   <div className="h-px bg-muted my-2" />
                   <ReadOnlyRow label="Produktive Std" value={fmtHours(totals.sumProduktiveStd)} />
                   <ReadOnlyRow label="SF Std" value={fmtHours(totals.sumSF)} />
@@ -1378,9 +2043,9 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                   <ReadOnlyRow label="Nacht (€)" value={fmtNum(totals.sumNZ)} />
                   <ReadOnlyRow label="Extra Std. (Summe)" value={fmtHours(totals.sumExtra)} />
                   <div className="h-px bg-muted my-2" />
-                  <InputRow label="Budget Umsatz" value={budgetUmsatz} onChange={(v) => { setBudgetUmsatz(v); setHasUnsavedChanges(true); }} />
-                  <InputRow label="Budget CL €" value={budgetCL} onChange={(v) => { setBudgetCL(v); setHasUnsavedChanges(true); }} />
-                  <InputRow label="Budget CL %" value={budgetCLPct} onChange={(v) => { setBudgetCLPct(v); setHasUnsavedChanges(true); }} decimals={2} />
+                  <InputRow label="Budget Umsatz" value={budgetUmsatz} disabled={!canEditCl} onChange={(v) => { setBudgetUmsatz(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Budget CL €" value={budgetCL} disabled={!canEditCl} onChange={(v) => { setBudgetCL(v); setHasUnsavedChanges(true); }} />
+                  <InputRow label="Budget CL %" value={budgetCLPct} disabled={!canEditCl} onChange={(v) => { setBudgetCLPct(v); setHasUnsavedChanges(true); }} decimals={2} />
                 </div>
               </div>
 
@@ -1401,20 +2066,55 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
             </div>
 
             <div className="xl:col-span-9">
-              <div ref={tableWrapperRef} className="border border-border rounded-lg overflow-hidden shadow-sm" onKeyDown={handleTableKeyDown}>
-                <div className="overflow-x-auto">
+              <div ref={tableWrapperRef} className="border border-border rounded-lg shadow-sm" onKeyDown={handleTableKeyDown}>
+                <div className="overflow-x-auto rounded-lg">
                   <table className="w-full text-sm border-collapse" style={{ borderColor: COLORS.border }}>
                     <thead>
                       <tr className="text-white uppercase text-xs tracking-wider" style={{ backgroundColor: COLORS.green }}>
                         <th className="p-3 border border-border text-center font-bold w-24 rounded-tl-lg">Tag</th>
-                        <th className="p-3 border border-border text-center w-28 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("bruttoUmsatz")}>Brutto Umsatz</th>
+                        <th
+                          className={`p-3 border border-border text-center w-28 ${canEditCl ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+                          onClick={canEditCl ? () => handleCopyDown("bruttoUmsatz") : undefined}
+                        >
+                          Brutto Umsatz
+                        </th>
                         <th className="p-3 border border-border text-center w-28 bg-[#142e1e]">Netto Umsatz</th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("geplanteProduktivitaetPct")}>Gepl. Prod. %</th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 bg-[#142e1e]" onClick={() => handleCopyDown("produktiveStd")}>Produktive Std.</th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 leading-tight" onClick={() => handleCopyDown("sfStd")}>SF<br /><span className="normal-case text-[10px]">(produktiv)</span></th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("hmStd")}>HM</th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50" onClick={() => handleCopyDown("nzEuro")}>NZ Euro</th>
-                        <th className="p-3 border border-border text-center w-24 cursor-pointer hover:bg-muted/50 rounded-tr-lg" onClick={() => handleCopyDown("extraStd")}>Extra Std. Unproduktiv</th>
+                        <th
+                          className={`p-3 border border-border text-center w-24 ${canEditCl ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+                          onClick={canEditCl ? () => handleCopyDown("geplanteProduktivitaetPct") : undefined}
+                        >
+                          Gepl. Prod. %
+                        </th>
+                        <th
+                          className={`p-3 border border-border text-center w-24 bg-[#142e1e] ${canEditCl ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+                          onClick={canEditCl ? () => handleCopyDown("produktiveStd") : undefined}
+                        >
+                          Produktive Std.
+                        </th>
+                        <th
+                          className={`p-3 border border-border text-center w-24 leading-tight ${canEditCl ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+                          onClick={canEditCl ? () => handleCopyDown("sfStd") : undefined}
+                        >
+                          SF<br /><span className="normal-case text-[10px]">(produktiv)</span>
+                        </th>
+                        <th
+                          className={`p-3 border border-border text-center w-24 ${canEditCl ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+                          onClick={canEditCl ? () => handleCopyDown("hmStd") : undefined}
+                        >
+                          HM
+                        </th>
+                        <th
+                          className={`p-3 border border-border text-center w-24 ${canEditCl ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+                          onClick={canEditCl ? () => handleCopyDown("nzEuro") : undefined}
+                        >
+                          NZ Euro
+                        </th>
+                        <th
+                          className={`p-3 border border-border text-center w-24 rounded-tr-lg ${canEditCl ? "cursor-pointer hover:bg-muted/50" : "cursor-default"}`}
+                          onClick={canEditCl ? () => handleCopyDown("extraStd") : undefined}
+                        >
+                          Extra Std. Unproduktiv
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1423,14 +2123,27 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                         const produktiveVal = calcProduktiveStdForDay(day, koeffNum);
                         return (
                           <tr key={idx} style={{ backgroundColor: day.isHoliday ? "#fef2f2" : day.isWeekend ? "#f3f4f6" : "#ffffff" }}>
-                            <td className={`p-1 px-3 border border-border text-xs font-bold whitespace-nowrap text-center ${day.isHoliday ? "text-red-600" : "text-gray-700"}`}>
-                              {day.day}. {day.dayName} {day.isHoliday ? "*" : ""}
-                            </td>
+                            <LaborDayTagCell
+                              day={day}
+                              comment={dayComments[String(day.day)]}
+                              canEditCl={canEditCl}
+                              onOpenNote={() => {
+                                const k = String(day.day);
+                                const t = dayComments[k];
+                                if (!canEditCl && !t) {
+                                  toast.info("Keine Notiz für diesen Tag.");
+                                  return;
+                                }
+                                setDayNoteModalDay(day.day);
+                                setDayNoteDraft(t ?? "");
+                              }}
+                            />
                             <td className="p-0.5 border border-border text-center align-middle">
                               <TableInput
                                 val={day.bruttoUmsatz}
                                 setVal={(v) => handleInputChange(idx, "bruttoUmsatz", v)}
                                 type="euro"
+                                disabled={!canEditCl}
                               />
                             </td>
                             <td className="p-1 border border-border text-center text-foreground font-mono text-xs font-bold bg-muted/50">
@@ -1441,15 +2154,16 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                                 val={day.geplanteProduktivitaetPct}
                                 setVal={(v) => handleInputChange(idx, "geplanteProduktivitaetPct", v)}
                                 type="pct"
+                                disabled={!canEditCl}
                               />
                             </td>
                             <td className="p-1 border border-border text-center text-foreground font-mono text-xs font-bold bg-muted/50">
                               {produktiveVal ? fmtHours(produktiveVal) : "—"}
                             </td>
-                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.sfStd} setVal={(v) => handleInputChange(idx, "sfStd", v)} type="hours" /></td>
-                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.hmStd} setVal={(v) => handleInputChange(idx, "hmStd", v)} type="hours" /></td>
-                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.nzEuro} setVal={(v) => handleInputChange(idx, "nzEuro", v)} type="euro" /></td>
-                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.extraStd} setVal={(v) => handleInputChange(idx, "extraStd", v)} type="hours" /></td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.sfStd} setVal={(v) => handleInputChange(idx, "sfStd", v)} type="hours" disabled={!canEditCl} /></td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.hmStd} setVal={(v) => handleInputChange(idx, "hmStd", v)} type="hours" disabled={!canEditCl} /></td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.nzEuro} setVal={(v) => handleInputChange(idx, "nzEuro", v)} type="euro" disabled={!canEditCl} /></td>
+                            <td className="p-0.5 border border-border text-center align-middle"><TableInput val={day.extraStd} setVal={(v) => handleInputChange(idx, "extraStd", v)} type="hours" disabled={!canEditCl} /></td>
                           </tr>
                         );
                       })}
@@ -1494,11 +2208,13 @@ const InputRow = ({
   value,
   onChange,
   decimals = 0,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   decimals?: number;
+  disabled?: boolean;
 }) => (
   <div className="flex justify-between items-center gap-3">
     <label className="text-xs font-bold text-gray-500 uppercase">{label}</label>
@@ -1506,12 +2222,13 @@ const InputRow = ({
       type="text"
       inputMode="decimal"
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
       onBlur={(e) => {
         const v = e.target.value.trim();
         if (v && !Number.isNaN(parseDEFlex(v))) onChange(fmtNum(parseDEFlex(v), decimals));
       }}
-      className="w-24 p-1.5 border-2 border-border rounded text-right text-sm font-semibold text-gray-800 focus:outline-none focus:border-[#1b3a26] focus:ring-2 focus:ring-[#1b3a26] focus:ring-opacity-50 caret-[#1b3a26] selection:bg-[#ffc72c]/30"
+      className={`${decimals >= 4 ? "w-[7.25rem]" : "w-24"} p-1.5 border-2 border-border rounded text-right text-sm font-semibold text-gray-800 tabular-nums focus:outline-none focus:border-[#1b3a26] focus:ring-2 focus:ring-[#1b3a26] focus:ring-opacity-50 caret-[#1b3a26] selection:bg-[#ffc72c]/30 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-muted/50`}
       style={{ caretColor: "#1b3a26" }}
     />
   </div>
@@ -1531,7 +2248,17 @@ const SummaryRow = ({ label, value, bold, color = "text-foreground" }: { label: 
   </div>
 );
 
-const TableInput = ({ val, setVal, type }: { val: string; setVal: (v: string) => void; type?: "euro" | "hours" | "pct" }) => {
+const TableInput = ({
+  val,
+  setVal,
+  type,
+  disabled,
+}: {
+  val: string;
+  setVal: (v: string) => void;
+  type?: "euro" | "hours" | "pct";
+  disabled?: boolean;
+}) => {
   const isHours = type === "hours" || type === "pct";
   const formatVal = (raw: string) => (isHours ? (parseDEFlex(raw) ? fmtHours(parseDEFlex(raw)) : "") : fmtNum(parseDEFlex(raw)));
   return (
@@ -1539,12 +2266,13 @@ const TableInput = ({ val, setVal, type }: { val: string; setVal: (v: string) =>
       type="text"
       inputMode="decimal"
       value={val}
+      disabled={disabled}
       onChange={(e) => setVal(e.target.value)}
       onBlur={(e) => {
         const v = e.target.value.trim();
         if (v !== "" && !Number.isNaN(parseDEFlex(v))) setVal(formatVal(v));
       }}
-      className="w-full min-w-0 h-9 px-1.5 text-center text-sm font-medium text-gray-900 placeholder:text-gray-400 bg-white border border-border rounded focus:outline-none focus:border-[#1b3a26] focus:ring-2 focus:ring-[#1b3a26] focus:ring-inset focus:bg-[#fffbeb] caret-[#1b3a26] selection:bg-[#ffc72c]/40"
+      className="w-full min-w-0 h-9 px-1.5 text-center text-sm font-medium text-gray-900 placeholder:text-gray-400 bg-white border border-border rounded focus:outline-none focus:border-[#1b3a26] focus:ring-2 focus:ring-[#1b3a26] focus:ring-inset focus:bg-[#fffbeb] caret-[#1b3a26] selection:bg-[#ffc72c]/40 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-muted/50"
       style={{ caretColor: "#1b3a26" }}
       placeholder="0"
     />

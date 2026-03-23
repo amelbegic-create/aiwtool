@@ -7,6 +7,7 @@ import type { Role } from "@prisma/client";
 
 // URL za NextAuth. NE postavljati NEXTAUTH_URL iz VERCEL_URL kada korisnici dolaze s custom domene (npr. www.aiw.services),
 // inače cookie se postavlja za *.vercel.app i sljedeći zahtjev na www.aiw.services nema cookie → login loop.
+// Lokalno: ako NEXTAUTH_URL ne odgovara hostu u browseru (npr. 127.0.0.1 vs localhost), NextAuth klijent može dobiti HTML umjesto JSON (CLIENT_FETCH_ERROR).
 if (typeof process !== "undefined" && process.env.NODE_ENV === "development" && !process.env.NEXTAUTH_URL) {
   process.env.NEXTAUTH_URL = "http://localhost:3000";
 }

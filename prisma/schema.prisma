@@ -12,12 +12,10 @@ datasource db {
 // --- ENUMS ---
 enum Role {
   SYSTEM_ARCHITECT
-  SUPER_ADMIN
   ADMIN
   MANAGER
-  AREA_MANAGER
-  SHIFT_LEADER
-  CREW
+  MANAGEMENT
+  MITARBEITER
 }
 
 enum PDSStatus {
@@ -57,11 +55,17 @@ enum BonusFactorMode {
   AVERAGE
 }
 
+enum DashboardNewsAttachmentKind {
+  PDF
+  IMAGE
+}
+
 // --- DEPARTMENTS (Odjeli) ---
 model Department {
   id           String   @id @default(cuid())
   name         String
   color        String   @default("#6b7280") // HEX npr. #ff0000
+  sortOrder    Int      @default(0)
   restaurantId String?
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
 
@@ -71,6 +75,7 @@ model Department {
   updatedAt    DateTime @updatedAt
 
   @@index([restaurantId])
+  @@index([sortOrder])
 }
 
 // --- VORLAGEN (Templates) ---
@@ -79,19 +84,23 @@ model TemplateCategory {
   name        String
   description String?
   iconName    String?
+  sortOrder   Int            @default(0)
   templates   TemplateItem[]
   createdAt   DateTime       @default(now())
+
+  @@index([sortOrder])
 }
 
 model TemplateItem {
-  id          String           @id @default(cuid())
-  title       String
-  description String?
-  fileUrl     String
-  fileType    String
-  categoryId  String
-  category    TemplateCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  createdAt   DateTime         @default(now())
+  id             String           @id @default(cuid())
+  title          String
+  description    String?
+  fileUrl        String
+  fileType       String
+  extractedText  String?          @db.Text // Tekst iz PDF-a za pretragu (ne skenirani PDF)
+  categoryId     String
+  category       TemplateCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
 
   @@index([categoryId])
 }
@@ -113,15 +122,16 @@ model VisitReportCategory {
 }
 
 model VisitReportItem {
-  id          String              @id @default(cuid())
-  title       String
-  description String?
-  fileUrl     String
-  fileType    String
-  categoryId  String
-  category    VisitReportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  year        Int
-  createdAt   DateTime            @default(now())
+  id            String              @id @default(cuid())
+  title         String
+  description   String?
+  fileUrl       String
+  fileType      String
+  extractedText String?             @db.Text // Tekst iz PDF-a za pretragu (samo PDF)
+  categoryId    String
+  category      VisitReportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  year          Int
+  createdAt     DateTime            @default(now())
 
   @@index([categoryId, year])
 }
@@ -144,11 +154,12 @@ model CalendarPersonalEntry {
   date      DateTime
   title     String
   color     String?  // optional hex e.g. #FFBC0D
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
-  @@unique([userId, date])
   @@index([userId])
   @@index([userId, date])
+  @@index([userId, date, sortOrder])
 }
 
 model CalendarEvent {
@@ -189,7 +200,7 @@ model User {
   name                String?
   email               String?   @unique
   password            String?
-  role                Role      @default(CREW)
+  role                Role      @default(MITARBEITER)
   departmentId        String?
   department          Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   isActive            Boolean   @default(true)
@@ -233,8 +244,26 @@ model User {
   calendarPersonalEntries CalendarPersonalEntry[]
   todos                Todo[]
 
+  laborReportsClLockedBy          LaborReport[] @relation("LaborReportLockedBy")
+  laborReportsClUnlockRequestedBy LaborReport[] @relation("LaborReportUnlockRequestedBy")
+  laborReportsClEditGrant         LaborReport[] @relation("LaborReportEditGrant")
+
+  /** Pročitane in-app notifikacije (ključ = NotificationItem.id iz notificationActions) */
+  notificationReads               NotificationRead[]
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+model NotificationRead {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifKey  String   @db.VarChar(512)
+  readAt    DateTime @default(now())
+
+  @@unique([userId, notifKey])
+  @@index([userId])
 }
 
 // Ideenbox: Vorschläge von Mitarbeitern an System Architect / AL
@@ -244,6 +273,8 @@ model Idea {
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   isRead         Boolean  @default(false)
+  /** Admin arhiva – ne prikazuje se u aktivnom pregledu ni u notifikacijama */
+  isArchived     Boolean  @default(false)
   createdAt      DateTime @default(now())
 
   // Legacy: jedan prilog (slika ili PDF)
@@ -261,6 +292,7 @@ model Idea {
 
   @@index([userId])
   @@index([isRead])
+  @@index([isArchived])
 }
 
 // Zertifikate, Kurse und Schulungen pro Mitarbeiter
@@ -344,7 +376,7 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 }
 
-// Ein Eintrag: Aktuelle Änderungen auf dem Dashboard (nur SYSTEM_ARCHITECT darf bearbeiten).
+// Ein Eintrag: Aktuelle Änderungen auf dem Dashboard (ADMIN / SUPER_ADMIN / SYSTEM_ARCHITECT dürfen bearbeiten).
 model DashboardChangelog {
   id          String    @id @default(cuid())
   content     String    @db.Text
@@ -417,7 +449,8 @@ model Restaurant {
   address             String?
   photoUrl            String?
   tagline             String?
-  sitzplanPdfUrl      String?              // Layout / Plan sjedenja (Vercel Blob)
+  sitzplanPdfUrl      String?              // Legacy: jedan PDF (Vercel Blob URL)
+  sitzplanPdfsData    Json                 @default("[]") // [{ "url", "fileName" }] do 5 PDF-ova (JSONB)
   isActive            Boolean              @default(true)
   openingHours        Json?                @default("{}")
   users               RestaurantUser[]
@@ -444,10 +477,13 @@ model RestaurantUser {
   userId       String
   restaurantId String
   isPrimary    Boolean    @default(false)
+  /** Redoslijed u Admin Urlaub tablici (DnD za SA/Admin/Architect), po restoranu */
+  vacationListOrder Int   @default(0)
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@unique([userId, restaurantId])
+  @@index([restaurantId, vacationListOrder])
 }
 
 // --- TOOLS ---
@@ -488,10 +524,27 @@ model LaborReport {
   hourlyWage   Float      @default(11.80)
   budgetSales  Float      @default(0)
   budgetCost   Float      @default(0)
+
+  /// CL: month finished — read-only until unlock grant or god-mode bypass
+  clLocked                  Boolean   @default(false)
+  clLockedAt                DateTime?
+  clLockedByUserId          String?
+  clLockedByUser            User?     @relation("LaborReportLockedBy", fields: [clLockedByUserId], references: [id], onDelete: SetNull)
+  clUnlockRequestedAt       DateTime?
+  clUnlockRequestedByUserId String?
+  clUnlockRequestedByUser   User?     @relation("LaborReportUnlockRequestedBy", fields: [clUnlockRequestedByUserId], references: [id], onDelete: SetNull)
+  /// Temporary edit right for requester after supervisor/architect approval
+  clEditGrantUserId         String?
+  clEditGrantUser           User?     @relation("LaborReportEditGrant", fields: [clEditGrantUserId], references: [id], onDelete: SetNull)
+  clEditGrantUntil          DateTime?
+  clUnlockRequestNote       String?   @db.Text
+
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
   @@unique([restaurantId, month, year])
+  @@index([clLocked])
+  @@index([clUnlockRequestedAt])
 }
 
 // Globalni praznici (Feiertage) – jedinstveno na nivou sajta, koriste Labor Planner i ostali moduli
@@ -668,6 +721,22 @@ model DashboardHighlight {
   order       Int      @default(0)  // manji = više gore
 
   @@index([addedAt])
+}
+
+/// Slider „Novosti“ na dashboardu – cover + attachment (PDF ili slika)
+model DashboardNewsItem {
+  id               String                       @id @default(cuid())
+  title            String
+  subtitle         String?
+  coverImageUrl    String
+  attachmentUrl    String
+  attachmentKind   DashboardNewsAttachmentKind
+  sortOrder        Int                          @default(0)
+  isActive         Boolean                      @default(true)
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  @@index([isActive, sortOrder])
 }
 
 // --- FIRMEN & PARTNER (Dobavljači i servisi) ---

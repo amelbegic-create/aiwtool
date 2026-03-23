@@ -2,24 +2,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/access";
 import prisma from "@/lib/prisma";
-import { Role } from "@prisma/client";
 import { getDepartments } from "@/app/actions/departmentActions";
+import { adminListPersonalCalendarEntries } from "@/app/actions/calendarActions";
 import UserForm, { UserFormInitialData } from "../_components/UserForm";
+import UserPersonalCalendarPanel from "./_components/UserPersonalCalendarPanel";
+import { stealthArchitectWhere } from "@/lib/userVisibility";
 
 export const dynamic = "force-dynamic";
-
-const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } };
 
 interface PageProps {
   params: Promise<{ userId: string }>;
 }
 
 export default async function EditUserPage({ params }: PageProps) {
-  await requirePermission("users:manage");
+  const viewer = await requirePermission("users:manage");
 
   const { userId } = await params;
 
-  const [user, restaurants, supervisors, departments] = await Promise.all([
+  const [user, restaurants, supervisors, departments, personalCalendarRows] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -33,10 +33,11 @@ export default async function EditUserPage({ params }: PageProps) {
       select: { id: true, name: true, code: true },
     }),
     prisma.user.findMany({
-      where: { isActive: true, ...STEALTH_ROLE_FILTER },
+      where: { isActive: true, ...stealthArchitectWhere(viewer.role) },
       select: { id: true, name: true, email: true, role: true },
     }),
     getDepartments(),
+    adminListPersonalCalendarEntries(userId),
   ]);
 
   if (!user) {
@@ -102,6 +103,15 @@ export default async function EditUserPage({ params }: PageProps) {
         departments={departments.map((d) => ({ id: d.id, name: d.name, color: d.color, restaurantId: d.restaurantId }))}
         eligibleSupervisors={eligibleSupervisors}
         initialData={initialData}
+      />
+      <UserPersonalCalendarPanel
+        targetUserId={user.id}
+        initialRows={personalCalendarRows.map((e) => ({
+          id: e.id,
+          date: e.date.toISOString(),
+          title: e.title,
+          color: e.color ?? null,
+        }))}
       />
     </div>
   );

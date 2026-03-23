@@ -3,9 +3,9 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getDbUserForAccess } from "@/lib/access";
-import { GOD_MODE_ROLES } from "@/lib/permissions";
+import { GLOBAL_SCOPE_ROLES } from "@/lib/iamRoles";
 
-const ADMIN_ROLES_FOR_HIGHLIGHTS = new Set<string>(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN"]);
+const ADMIN_ROLES_FOR_HIGHLIGHTS = GLOBAL_SCOPE_ROLES;
 
 export async function getDashboardHighlights(): Promise<
   { id: string; moduleKey: string; moduleLabel: string; addedAt: Date }[]
@@ -24,7 +24,7 @@ export async function getDashboardHighlights(): Promise<
 
 export async function addDashboardHighlight(moduleKey: string, moduleLabel: string) {
   const dbUser = await getDbUserForAccess();
-  if (!ADMIN_ROLES_FOR_HIGHLIGHTS.has(String(dbUser.role)) && !GOD_MODE_ROLES.has(String(dbUser.role))) {
+  if (!ADMIN_ROLES_FOR_HIGHLIGHTS.has(String(dbUser.role))) {
     return { ok: false, error: "Nemate permisiju." };
   }
   try {
@@ -45,7 +45,7 @@ export async function addDashboardHighlight(moduleKey: string, moduleLabel: stri
 
 export async function removeDashboardHighlight(moduleKey: string) {
   const dbUser = await getDbUserForAccess();
-  if (!ADMIN_ROLES_FOR_HIGHLIGHTS.has(String(dbUser.role)) && !GOD_MODE_ROLES.has(String(dbUser.role))) {
+  if (!ADMIN_ROLES_FOR_HIGHLIGHTS.has(String(dbUser.role))) {
     return { ok: false, error: "Nemate permisiju." };
   }
   try {
@@ -61,7 +61,7 @@ export async function removeDashboardHighlight(moduleKey: string) {
 
 export async function reorderDashboardHighlights(moduleKeys: string[]) {
   const dbUser = await getDbUserForAccess();
-  if (!ADMIN_ROLES_FOR_HIGHLIGHTS.has(String(dbUser.role)) && !GOD_MODE_ROLES.has(String(dbUser.role))) {
+  if (!ADMIN_ROLES_FOR_HIGHLIGHTS.has(String(dbUser.role))) {
     return { ok: false, error: "Nemate permisiju." };
   }
   try {

@@ -1,13 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   updateVacationStatus,
   getGlobalVacationStats,
   createVacationRequest,
+  saveVacationEmployeeSortOrder,
+  deleteApprovedVacationAsApprover,
+  addBlockedDay,
+  removeBlockedDay,
 } from "@/app/actions/vacationActions";
 import { toast } from "sonner";
 import {
@@ -23,14 +27,33 @@ import {
   Globe,
   CalendarPlus,
   Loader2,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS as DndCSS } from "@dnd-kit/utilities";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { formatDateDDMMGGGG } from "@/lib/dateUtils";
+import { formatDateDDMMGGGG, MONTH_ABBREVS_DE_AT } from "@/lib/dateUtils";
 import { openPdfInSameTab, pdfToBlobUrl } from "@/lib/pdfUtils";
+import { sortUserStatsForVacationTable } from "@/lib/vacationTableSort";
+import { rangeHitsBlockedDay } from "@/lib/vacationBlockedRange";
+import VacationBlockedDateModal from "@/app/tools/vacations/_components/VacationBlockedDateModal";
 
 // --- TIPOVI ---
-type TabType = "STATS" | "REQUESTS";
+type TabType = "STATS" | "REQUESTS" | "BLOCKED";
 
 export interface BlockedDay {
   id: string;
@@ -42,6 +65,10 @@ export interface UserStat {
   id: string;
   name: string | null;
   email?: string | null;
+  /** Prisma Role – za sort hijerarhije u tablici/PDF */
+  role?: string | null;
+  /** RestaurantUser.vacationListOrder za aktivni restoran */
+  vacationListOrder?: number;
   restaurantNames: string[];
   department: string | null;
   departmentColor?: string | null;
@@ -74,7 +101,7 @@ interface AdminViewProps {
   usersStats: UserStat[];
   selectedYear: number;
   reportRestaurantLabel?: string;
-  /** Prikaži dugme "Registruj Moj Godišnji" (samo za SYSTEM_ARCHITECT, SUPER_ADMIN, ADMIN) */
+  /** Prikaži dugme "Registruj Moj Godišnji" (global-scope / admin uloge u modulu) */
   canRegisterOwnVacation?: boolean;
   /** Globalni praznici za godinu (iz Admin panela) */
   globalHolidays?: { d: number; m: number }[];
@@ -84,6 +111,14 @@ interface AdminViewProps {
   initialTab?: TabType;
   /** Da li je korisnik restaurant manager (ograničen UI: nema globalnog exporta). */
   isRestaurantManager?: boolean;
+  /** Cookie aktivni restoran (za spremanje redoslijeda). */
+  activeRestaurantId?: string | null;
+  /** DnD redoslijeda: global-scope (npr. SYSTEM_ARCHITECT, ADMIN) i jedan odabran restoran. */
+  canReorderVacationEmployees?: boolean;
+  /** Deep link iz notifikacije: scroll/highlight retka zahtjeva */
+  highlightRequestId?: string | null;
+  /** ID prijavljenog korisnika – Restaurant Manager ne vidi vlastite zahtjeve u tabu ANTRÄGE */
+  vacationActorUserId?: string | null;
 }
 
 const formatDate = (dateStr: string) => formatDateDDMMGGGG(dateStr);
@@ -144,6 +179,96 @@ function statusLabel(s: string) {
   if (s === "CANCELLED") return "Storniert";
   if (s === "COMPLETED") return "Abgeschlossen";
   return s;
+}
+
+/** Desktop red statistike – s opcionalnim DnD ručkom (samo za SortableContext). */
+function SortableVacationDesktopRow({
+  user: u,
+  canReorder,
+  canLinkToAdminUserEdit,
+  onOpenPdf,
+}: {
+  user: UserStat;
+  canReorder: boolean;
+  canLinkToAdminUserEdit: boolean;
+  onOpenPdf: (u: UserStat) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: u.id,
+    disabled: !canReorder,
+  });
+  const style = {
+    transform: DndCSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.9 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent/50 transition-colors"
+    >
+      <div className="col-span-3 flex items-center gap-2 min-w-0">
+        {canReorder ? (
+          <button
+            type="button"
+            className="touch-none p-1 rounded text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing shrink-0"
+            {...attributes}
+            {...listeners}
+            aria-label="Reihenfolge ändern"
+          >
+            <GripVertical size={18} />
+          </button>
+        ) : null}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          {canLinkToAdminUserEdit ? (
+            <Link
+              href={`/admin/users/${u.id}`}
+              className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold shrink-0 hover:ring-2 hover:ring-[#1a3826] hover:ring-offset-1 transition-all"
+            >
+              {(u.name || "K").charAt(0)}
+            </Link>
+          ) : (
+            <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold">
+              {(u.name || "K").charAt(0)}
+            </div>
+          )}
+          <div>
+            {canLinkToAdminUserEdit ? (
+              <Link href={`/admin/users/${u.id}`} className="font-bold text-sm text-foreground hover:underline hover:text-[#1a3826]">
+                {u.name}
+              </Link>
+            ) : (
+              <div className="font-bold text-sm text-foreground">{u.name}</div>
+            )}
+            <div className="text-[10px] text-muted-foreground uppercase">{u.department}</div>
+          </div>
+        </div>
+      </div>
+      <div className="col-span-3 flex flex-wrap gap-1">
+        {u.restaurantNames.map((r, i) => (
+          <span key={i} className="text-[9px] bg-muted px-2 py-1 rounded border border-border">
+            {r}
+          </span>
+        ))}
+      </div>
+      <div className="col-span-4 grid grid-cols-4 text-center font-bold text-sm">
+        <span className="text-muted-foreground">{u.carriedOver ?? 0}</span>
+        <span className="text-muted-foreground">{u.total}</span>
+        <span className="text-green-600">{u.used}</span>
+        <span className="text-orange-500">{u.remaining}</span>
+      </div>
+      <div className="col-span-2 text-right">
+        <button
+          type="button"
+          onClick={() => onOpenPdf(u)}
+          className="bg-[#1a3826] hover:bg-[#142e1e] text-white px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase min-h-[44px]"
+        >
+          <FileText size={14} /> PDF
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ===============================
@@ -479,7 +604,7 @@ export function exportTimelinePDFWithData(
     headerHeight: 42,
   });
   const contentStartY = 58;
-  const months = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
+  const months = MONTH_ABBREVS_DE_AT;
   doc.setFillColor(248, 250, 252);
   doc.rect(marginLeft, contentStartY - 12, gridWidth, 12, "F");
   doc.setTextColor(51, 65, 85);
@@ -610,6 +735,10 @@ export default function AdminView({
   canLinkToAdminUserEdit = false,
   initialTab,
   isRestaurantManager = false,
+  activeRestaurantId = null,
+  canReorderVacationEmployees = false,
+  highlightRequestId = null,
+  vacationActorUserId = null,
 }: AdminViewProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -619,6 +748,24 @@ export default function AdminView({
     "ALL" | "PENDING" | "APPROVED" | "REJECTED" | "RETURNED" | "CANCEL_PENDING" | "CANCELLED"
   >("ALL");
   const [loadingGlobal, setLoadingGlobal] = useState(false);
+  const [newBlockedDate, setNewBlockedDate] = useState("");
+  const [newBlockedReason, setNewBlockedReason] = useState("");
+
+  const handleAddBlocked = async () => {
+    if (!newBlockedDate.trim()) {
+      toast.error("Datum wählen.");
+      return;
+    }
+    try {
+      await addBlockedDay(newBlockedDate, newBlockedReason.trim() || "Gesperrt");
+      toast.success("Gesperrter Tag hinzugefügt.");
+      setNewBlockedDate("");
+      setNewBlockedReason("");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Speichern.");
+    }
+  };
 
   const handleYearChange = (y: number) => {
     if (y === selectedYear) return;
@@ -643,26 +790,75 @@ export default function AdminView({
   const [myVacationEnd, setMyVacationEnd] = useState("");
   const [myVacationNote, setMyVacationNote] = useState("");
   const [myVacationSubmitting, setMyVacationSubmitting] = useState(false);
+  const [myVacationBlockedModalOpen, setMyVacationBlockedModalOpen] = useState(false);
+  const [myVacationBlockedDetail, setMyVacationBlockedDetail] = useState<{
+    dateDe: string;
+    reason: string | null;
+  } | null>(null);
 
   // Provjera ima li zahtjeva na čekanju (za crvenu notifikaciju)
   const hasPendingRequests = useMemo(() => {
-    return allRequests.some((r) => r.status === "PENDING" || r.status === "CANCEL_PENDING");
-  }, [allRequests]);
+    const list =
+      isRestaurantManager && vacationActorUserId
+        ? allRequests.filter((r) => r.user.id !== vacationActorUserId)
+        : allRequests;
+    return list.some((r) => r.status === "PENDING" || r.status === "CANCEL_PENDING");
+  }, [allRequests, isRestaurantManager, vacationActorUserId]);
 
   // --- FILTERI ---
   const filteredStats = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return usersStats.filter((u) => {
+    const filtered = usersStats.filter((u) => {
       const name = (u.name || "").toLowerCase();
       const dep = (u.department || "").toLowerCase();
       const rest = (u.restaurantNames || []).join(" ").toLowerCase();
       return !q || name.includes(q) || dep.includes(q) || rest.includes(q);
     });
+    return sortUserStatsForVacationTable(filtered);
   }, [usersStats, searchQuery]);
+
+  const usersStatsOrderSig = useMemo(
+    () => usersStats.map((u) => `${u.id}:${u.vacationListOrder ?? 0}`).join("|"),
+    [usersStats]
+  );
+  const [optimisticVacationOrder, setOptimisticVacationOrder] = useState<string[] | null>(null);
+  useEffect(() => {
+    setOptimisticVacationOrder(null);
+  }, [usersStatsOrderSig]);
+
+  const enableVacationDnD =
+    canReorderVacationEmployees === true &&
+    !!activeRestaurantId &&
+    activeRestaurantId !== "all" &&
+    !searchQuery.trim();
+
+  const statsForTable = useMemo(() => {
+    if (!enableVacationDnD || !optimisticVacationOrder?.length) return filteredStats;
+    const byId = new Map(filteredStats.map((u) => [u.id, u]));
+    const ordered: UserStat[] = [];
+    const seen = new Set<string>();
+    for (const id of optimisticVacationOrder) {
+      const u = byId.get(id);
+      if (u) {
+        ordered.push(u);
+        seen.add(id);
+      }
+    }
+    for (const u of filteredStats) {
+      if (!seen.has(u.id)) ordered.push(u);
+    }
+    return ordered;
+  }, [filteredStats, optimisticVacationOrder, enableVacationDnD]);
+
+  /** ANTRÄGE: Restaurant Manager ne vidi vlastite zahtjeve (ostaju u Mein Urlaub / self view). */
+  const allRequestsForAntraegeTab = useMemo(() => {
+    if (!isRestaurantManager || !vacationActorUserId) return allRequests;
+    return allRequests.filter((r) => r.user.id !== vacationActorUserId);
+  }, [allRequests, isRestaurantManager, vacationActorUserId]);
 
   const filteredRequests = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return allRequests.filter((req) => {
+    return allRequestsForAntraegeTab.filter((req) => {
       const name = (req.user.name || "").toLowerCase();
       const rest = (req.user.mainRestaurant || "").toLowerCase();
       const matchesSearch = !q || name.includes(q) || rest.includes(q);
@@ -686,7 +882,7 @@ export default function AdminView({
 
       return matchesSearch && matchesStatus;
     });
-  }, [allRequests, searchQuery, statusFilter]);
+  }, [allRequestsForAntraegeTab, searchQuery, statusFilter]);
 
   // --- AKCIJE ---
   const handleStatus = async (
@@ -731,6 +927,63 @@ export default function AdminView({
     }
   };
 
+  const handleDeleteApproved = async (id: string) => {
+    if (
+      !confirm(
+        "Genehmigten Urlaub wirklich löschen? Die Urlaubstage werden dem Mitarbeiter wieder gutgeschrieben."
+      )
+    ) {
+      return;
+    }
+    try {
+      await deleteApprovedVacationAsApprover(id);
+      toast.success("Antrag gelöscht. Urlaubstage wurden gutgeschrieben.");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Löschen.");
+    }
+  };
+
+  useEffect(() => {
+    if (!highlightRequestId || activeTab !== "REQUESTS") return;
+
+    const rid = highlightRequestId;
+    const timer = window.setTimeout(() => {
+      const safe =
+        typeof window !== "undefined" && typeof window.CSS?.escape === "function"
+          ? window.CSS.escape(rid)
+          : rid.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const el = document.querySelector(`[data-vacation-request-id="${safe}"]`);
+      if (el instanceof HTMLElement) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-[#ffc72c]", "ring-offset-2", "rounded-lg", "transition-shadow");
+        window.setTimeout(() => {
+          el.classList.remove(
+            "ring-2",
+            "ring-[#ffc72c]",
+            "ring-offset-2",
+            "rounded-lg",
+            "transition-shadow"
+          );
+        }, 4500);
+      }
+
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("requestId")) {
+          params.delete("requestId");
+          const qs = params.toString();
+          router.replace(qs ? `/tools/vacations?${qs}` : "/tools/vacations", { scroll: false });
+          router.refresh();
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 200);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightRequestId, activeTab, router]);
+
   // =====================================================================
   // 1. POJEDINAČNI IZVJEŠTAJ (ZA JEDNOG RADNIKA) — CLEAN + boja po odjelu
   // =====================================================================
@@ -744,11 +997,44 @@ export default function AdminView({
     return (doc as jsPDF) ?? null;
   };
 
+  const openEmployeePdf = (u: UserStat) => {
+    const doc = exportIndividualReport(u);
+    if (!doc) return;
+    const url = pdfToBlobUrl(doc);
+    setPdfPopupTitle(`Urlaubsbericht ${selectedYear} – ${u.name || ""}`);
+    setPdfPopupUrl(url);
+  };
+
+  const reorderSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleVacationDragEnd = async (event: DragEndEvent) => {
+    if (!activeRestaurantId || activeRestaurantId === "all") return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = statsForTable.findIndex((x) => x.id === active.id);
+    const newIndex = statsForTable.findIndex((x) => x.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const newIds = arrayMove(
+      statsForTable.map((x) => x.id),
+      oldIndex,
+      newIndex
+    );
+    setOptimisticVacationOrder(newIds);
+    try {
+      await saveVacationEmployeeSortOrder(activeRestaurantId, newIds);
+      toast.success("Reihenfolge gespeichert.");
+      router.refresh();
+    } catch (e) {
+      setOptimisticVacationOrder(null);
+      toast.error(e instanceof Error ? e.message : "Fehler beim Speichern.");
+    }
+  };
+
   // =====================================================================
   // 2. TABLIČNI PDF — clean, bez boja, linije samo za redove s korisnicima
   // =====================================================================
   const exportTablePDF = (overrideStats?: UserStat[]): jsPDF => {
-    const statsToUse = overrideStats || filteredStats;
+    const statsToUse = overrideStats ?? statsForTable;
 
     const doc = new jsPDF();
     drawPdfHeader(doc, {
@@ -829,7 +1115,7 @@ export default function AdminView({
     overrideRequests?: RequestWithUser[],
     filename?: string
   ): jsPDF => {
-    const statsToUse = overrideStats || filteredStats;
+    const statsToUse = overrideStats ?? statsForTable;
     const requestsToUse = overrideRequests || allRequests;
 
     const doc = new jsPDF("l", "mm", "a3");
@@ -852,7 +1138,7 @@ export default function AdminView({
     });
 
     const contentStartY = 58;
-    const months = ["Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"];
+    const months = MONTH_ABBREVS_DE_AT;
 
     // header za mjesece – ispod zelenog headera s razmakom
     doc.setFillColor(248, 250, 252);
@@ -1077,8 +1363,8 @@ export default function AdminView({
       return;
     }
     const deptSet = new Set(selectedDeptNamesForExport);
-    const filteredStats = deptExportData.usersStats.filter((u) =>
-      deptSet.has(u.department?.trim() || "N/A")
+    const filteredStats = sortUserStatsForVacationTable(
+      deptExportData.usersStats.filter((u) => deptSet.has(u.department?.trim() || "N/A"))
     );
     const filteredUserIds = new Set(filteredStats.map((u) => u.id));
     const filteredRequests = deptExportData.allRequests.filter((r) =>
@@ -1107,6 +1393,15 @@ export default function AdminView({
     }
     if (new Date(end) < new Date(start)) {
       alert("Das Bis-Datum muss nach dem Von-Datum liegen.");
+      return;
+    }
+    const blockedHit = rangeHitsBlockedDay(start, end, blockedDays);
+    if (blockedHit.hit) {
+      setMyVacationBlockedDetail({
+        dateDe: formatDateDDMMGGGG(blockedHit.blockedDates[0]),
+        reason: blockedHit.sampleReason,
+      });
+      setMyVacationBlockedModalOpen(true);
       return;
     }
     setMyVacationSubmitting(true);
@@ -1194,6 +1489,17 @@ export default function AdminView({
                 )}
               </button>
 
+              <button
+                type="button"
+                onClick={() => setActiveTab("BLOCKED")}
+                className={`min-h-[44px] px-4 py-2.5 rounded-lg text-xs font-bold transition-all touch-manipulation ${
+                  activeTab === "BLOCKED"
+                    ? "bg-[#1a3826] text-white"
+                    : "text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                GESPERRT
+              </button>
             </div>
 
             {canRegisterOwnVacation && !isRestaurantManager && (
@@ -1232,6 +1538,11 @@ export default function AdminView({
                 className="bg-transparent outline-none text-sm font-bold text-foreground w-full min-w-0 md:min-w-[26rem] placeholder:text-muted-foreground"
               />
             </div>
+            {activeTab === "STATS" && enableVacationDnD && (
+              <p className="text-[11px] text-muted-foreground w-full md:w-auto md:text-right">
+                Reihenfolge per Ziehen ändern (nur diese Ansicht). Wird für alle gespeichert.
+              </p>
+            )}
 
             {activeTab === "STATS" && (
               <div className="flex gap-2">
@@ -1379,6 +1690,16 @@ export default function AdminView({
         )}
 
         {/* Modal: Registruj Moj Godišnji (self-service za admine) */}
+        <VacationBlockedDateModal
+          open={myVacationBlockedModalOpen}
+          onClose={() => {
+            setMyVacationBlockedModalOpen(false);
+            setMyVacationBlockedDetail(null);
+          }}
+          detailDateDe={myVacationBlockedDetail?.dateDe}
+          detailReason={myVacationBlockedDetail?.reason}
+        />
+
         {myVacationModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
             <div className="bg-card rounded-xl shadow-xl max-w-md w-full p-6 border border-border">
@@ -1394,7 +1715,20 @@ export default function AdminView({
                   <input
                     type="date"
                     value={myVacationStart}
-                    onChange={(e) => setMyVacationStart(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setMyVacationStart(v);
+                      if (v && myVacationEnd && new Date(myVacationEnd) >= new Date(v)) {
+                        const r = rangeHitsBlockedDay(v, myVacationEnd, blockedDays);
+                        if (r.hit) {
+                          setMyVacationBlockedDetail({
+                            dateDe: formatDateDDMMGGGG(r.blockedDates[0]),
+                            reason: r.sampleReason,
+                          });
+                          setMyVacationBlockedModalOpen(true);
+                        }
+                      }
+                    }}
                     required
                     className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
                   />
@@ -1406,7 +1740,20 @@ export default function AdminView({
                   <input
                     type="date"
                     value={myVacationEnd}
-                    onChange={(e) => setMyVacationEnd(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setMyVacationEnd(v);
+                      if (myVacationStart && v && new Date(v) >= new Date(myVacationStart)) {
+                        const r = rangeHitsBlockedDay(myVacationStart, v, blockedDays);
+                        if (r.hit) {
+                          setMyVacationBlockedDetail({
+                            dateDe: formatDateDDMMGGGG(r.blockedDates[0]),
+                            reason: r.sampleReason,
+                          });
+                          setMyVacationBlockedModalOpen(true);
+                        }
+                      }
+                    }}
                     required
                     className="w-full min-h-[44px] px-4 py-2.5 rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826]"
                   />
@@ -1461,7 +1808,7 @@ export default function AdminView({
           <div className="bg-card rounded-xl md:rounded-2xl shadow-sm border border-border overflow-hidden">
             {/* Mobile: Card layout */}
             <div className="md:hidden divide-y divide-border">
-              {filteredStats.map((u) => (
+              {statsForTable.map((u) => (
                 <div key={u.id} className="p-4 space-y-3">
                   <div className="flex items-center gap-3">
                     {canLinkToAdminUserEdit ? (
@@ -1513,13 +1860,8 @@ export default function AdminView({
                     </div>
                   </div>
                   <button
-                    onClick={() => {
-                      const doc = exportIndividualReport(u);
-                      if (!doc) return;
-                      const url = pdfToBlobUrl(doc);
-                      setPdfPopupTitle(`Urlaubsbericht ${selectedYear} – ${u.name || ""}`);
-                      setPdfPopupUrl(url);
-                    }}
+                    type="button"
+                    onClick={() => openEmployeePdf(u)}
                     className="w-full min-h-[44px] bg-[#1a3826] hover:bg-[#142e1e] text-white rounded-xl font-bold text-xs uppercase inline-flex items-center justify-center gap-2 touch-manipulation"
                   >
                     <FileText size={14} /> PDF-Bericht
@@ -1530,7 +1872,10 @@ export default function AdminView({
             {/* Desktop: Table */}
             <div className="hidden md:block">
               <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-muted/80 border-b border-border text-[10px] font-black text-muted-foreground uppercase">
-                <div className="col-span-3">Mitarbeiter</div>
+                <div className="col-span-3 flex items-center gap-2 min-w-0">
+                  {enableVacationDnD ? <span className="w-[34px] shrink-0" aria-hidden /> : null}
+                  <span>Mitarbeiter</span>
+                </div>
                 <div className="col-span-3">Restaurants</div>
                 <div className="col-span-4 grid grid-cols-4 text-center">
                   <span>Vortrag</span>
@@ -1540,66 +1885,28 @@ export default function AdminView({
                 </div>
                 <div className="col-span-2 text-right">Bericht</div>
               </div>
-              <div className="divide-y divide-border">
-                {filteredStats.map((u) => (
-                  <div
-                    key={u.id}
-                    className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="col-span-3 flex items-center gap-3">
-                      {canLinkToAdminUserEdit ? (
-                        <Link
-                          href={`/admin/users/${u.id}`}
-                          className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold shrink-0 hover:ring-2 hover:ring-[#1a3826] hover:ring-offset-1 transition-all"
-                        >
-                          {(u.name || "K").charAt(0)}
-                        </Link>
-                      ) : (
-                        <div className="h-8 w-8 rounded-full bg-[#1a3826] text-white flex items-center justify-center text-xs font-bold">
-                          {(u.name || "K").charAt(0)}
-                        </div>
-                      )}
-                      <div>
-                        {canLinkToAdminUserEdit ? (
-                          <Link href={`/admin/users/${u.id}`} className="font-bold text-sm text-foreground hover:underline hover:text-[#1a3826]">
-                            {u.name}
-                          </Link>
-                        ) : (
-                          <div className="font-bold text-sm text-foreground">{u.name}</div>
-                        )}
-                        <div className="text-[10px] text-muted-foreground uppercase">{u.department}</div>
-                      </div>
-                    </div>
-                    <div className="col-span-3 flex flex-wrap gap-1">
-                      {u.restaurantNames.map((r, i) => (
-                        <span key={i} className="text-[9px] bg-muted px-2 py-1 rounded border border-border">
-                          {r}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="col-span-4 grid grid-cols-4 text-center font-bold text-sm">
-                      <span className="text-muted-foreground">{u.carriedOver ?? 0}</span>
-                      <span className="text-muted-foreground">{u.total}</span>
-                      <span className="text-green-600">{u.used}</span>
-                      <span className="text-orange-500">{u.remaining}</span>
-                    </div>
-                    <div className="col-span-2 text-right">
-                      <button
-                        onClick={() => {
-                          const doc = exportIndividualReport(u);
-                          if (!doc) return;
-                          const url = pdfToBlobUrl(doc);
-                          setPdfPopupTitle(`Urlaubsbericht ${selectedYear} – ${u.name || ""}`);
-                          setPdfPopupUrl(url);
-                        }}
-                        className="bg-[#1a3826] hover:bg-[#142e1e] text-white px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-2 text-[10px] font-bold uppercase min-h-[44px]"
-                      >
-                        <FileText size={14} /> PDF
-                      </button>
-                    </div>
+              <DndContext
+                sensors={reorderSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={enableVacationDnD ? handleVacationDragEnd : () => {}}
+              >
+                <SortableContext
+                  items={statsForTable.map((u) => u.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="divide-y divide-border">
+                    {statsForTable.map((u) => (
+                      <SortableVacationDesktopRow
+                        key={u.id}
+                        user={u}
+                        canReorder={enableVacationDnD}
+                        canLinkToAdminUserEdit={canLinkToAdminUserEdit}
+                        onOpenPdf={openEmployeePdf}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             </div>
           </div>
         )}
@@ -1612,6 +1919,7 @@ export default function AdminView({
               {filteredRequests.map((req) => (
                 <div
                   key={req.id}
+                  data-vacation-request-id={req.id}
                   className={`p-4 ${req.status === "CANCELLED" ? "bg-muted/50 opacity-75" : ""}`}
                 >
                   {canLinkToAdminUserEdit ? (
@@ -1693,6 +2001,15 @@ export default function AdminView({
                     {req.status === "CANCELLED" && (
                       <span className="text-xs font-bold text-muted-foreground py-2 block">PONIŠTENO</span>
                     )}
+                    {req.status === "APPROVED" && (
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteApproved(req.id)}
+                        className="min-h-[44px] w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-sm font-bold border border-red-200 touch-manipulation"
+                      >
+                        <Trash2 size={18} /> Löschen (Tage zurück)
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1714,6 +2031,7 @@ export default function AdminView({
                   {filteredRequests.map((req) => (
                     <tr
                       key={req.id}
+                      data-vacation-request-id={req.id}
                       className={`transition-colors ${
                         req.status === "CANCELLED" ? "bg-muted/50 opacity-75" : "hover:bg-accent/50"
                       }`}
@@ -1804,6 +2122,16 @@ export default function AdminView({
                           )}
                           {req.status === "CANCELLED" && (
                             <span className="text-[10px] font-bold text-muted-foreground">PONIŠTENO</span>
+                          )}
+                          {req.status === "APPROVED" && (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteApproved(req.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold border border-red-200 transition-colors"
+                              title="Genehmigten Urlaub löschen – Tage werden gutgeschrieben"
+                            >
+                              <Trash2 size={14} /> Löschen
+                            </button>
                           )}
                         </div>
                       </td>

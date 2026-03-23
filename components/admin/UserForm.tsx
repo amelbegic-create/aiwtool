@@ -50,7 +50,7 @@ export default function UserForm({ restaurants, initialData, onClose }: UserForm
     name: initialData?.name || "",
     email: initialData?.email || "",
     password: "", // Password uvijek prazan na početku
-    role: initialData?.role || "CREW",
+    role: initialData?.role || "MITARBEITER",
     department: initialData?.department || "RL",
     entitlement: initialData?.vacationEntitlement || 20,
     carryover: initialData?.vacationCarryover || 0,
@@ -158,9 +158,10 @@ export default function UserForm({ restaurants, initialData, onClose }: UserForm
                     <div>
                         <label className="text-[10px] font-bold text-slate-400 uppercase">Uloga</label>
                         <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full border-2 border-border p-3 rounded-xl font-bold text-foreground outline-none focus:border-[#1a3826]">
-                            <option value="CREW">Crew (Radnik)</option>
-                            <option value="MANAGER">Manager</option>
-                            <option value="ADMIN">Admin</option>
+                            <option value="MITARBEITER">Mitarbeiter:in</option>
+                            <option value="MANAGEMENT">Management / Büro</option>
+                            <option value="MANAGER">Restaurant Manager</option>
+                            <option value="ADMIN">Administration</option>
                             <option value="SYSTEM_ARCHITECT">System Architect</option>
                         </select>
                     </div>

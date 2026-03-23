@@ -11,6 +11,7 @@ const PROTECTED_PREFIXES = [
   "/restaurants",
   "/restaurant",
   "/rules",
+  "/team",
 ];
 
 function isProtected(pathname: string): boolean {
@@ -74,14 +75,26 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+/**
+ * Samo ove rute – nikad /api/* (NextAuth mora uvijek dobiti JSON, ne HTML iz middlewarea).
+ * Negativni lookahead u matcheru nije pouzdan s path-to-regexp u svim Next verzijama.
+ */
 export const config = {
   matcher: [
-    /*
-     * Run on all paths except:
-     * - api/auth (NextAuth)
-     * - _next/static, _next/image (Next.js internals)
-     * - common static file extensions
-     */
-    "/((?!api/auth|_next/static|_next/image|favicon\\.ico).*)",
+    "/",
+    "/login",
+    "/login/:path*",
+    "/dashboard/:path*",
+    "/tools/:path*",
+    "/admin/:path*",
+    "/profile",
+    "/profile/:path*",
+    "/select-restaurant",
+    "/select-restaurant/:path*",
+    "/restaurants/:path*",
+    "/restaurant/:path*",
+    "/rules/:path*",
+    "/team",
+    "/team/:path*",
   ],
 };

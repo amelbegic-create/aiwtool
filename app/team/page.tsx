@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
 import { getMyTeamData, getTeamTreeData } from "@/app/actions/teamActions";
 import { getDbUserForAccess, hasPermission } from "@/lib/access";
+import prisma from "@/lib/prisma";
 import TeamPageClient from "./TeamPageClient";
 
 export const dynamic = "force-dynamic";
@@ -21,8 +22,18 @@ export default async function TeamPage() {
 
   let team: Awaited<ReturnType<typeof getMyTeamData>> = [];
   let treeData: Awaited<ReturnType<typeof getTeamTreeData>> = [];
+  let departmentNamesOrdered: string[] = [];
   try {
-    [team, treeData] = await Promise.all([getMyTeamData(), getTeamTreeData()]);
+    [team, treeData, departmentNamesOrdered] = await Promise.all([
+      getMyTeamData(),
+      getTeamTreeData(),
+      prisma.department
+        .findMany({
+          select: { name: true },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        })
+        .then((rows) => rows.map((r) => r.name)),
+    ]);
   } catch (err) {
     console.error("Team page data load failed:", err);
   }
@@ -48,6 +59,7 @@ export default async function TeamPage() {
             treeData={treeData}
             currentUserId={userId}
             canLinkToAdminUserEdit={canLinkToAdminUserEdit}
+            departmentNamesOrdered={departmentNamesOrdered}
           />
         </div>
       </div>

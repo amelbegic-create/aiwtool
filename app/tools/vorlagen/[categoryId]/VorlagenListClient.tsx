@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
+import { searchTemplatesInCategory } from "@/app/actions/templateActions";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -54,16 +55,29 @@ export default function VorlagenListClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [displayed, setDisplayed] = useState<Template[]>(templates);
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return templates;
-    return templates.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        (t.description?.toLowerCase() ?? "").includes(q)
-    );
-  }, [templates, searchQuery]);
+  useEffect(() => {
+    setDisplayed(templates);
+  }, [templates]);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setDisplayed(templates);
+      return;
+    }
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      searchTemplatesInCategory(category.id, q).then((rows) => {
+        if (!cancelled) setDisplayed(rows as Template[]);
+      });
+    }, 320);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [searchQuery, category.id, templates]);
 
   const handleOpen = (template: Template) => {
     if (template.fileType.includes("pdf")) {
@@ -150,9 +164,9 @@ export default function VorlagenListClient({
             <div className="px-4 pb-4">
               <span className="text-[11px] text-muted-foreground">
                 <span className="font-semibold text-[#1a3826] dark:text-[#FFC72C]">
-                  {filtered.length}
+                  {displayed.length}
                 </span>{" "}
-                {filtered.length === 1 ? "Vorlage" : "Vorlagen"}
+                {displayed.length === 1 ? "Vorlage" : "Vorlagen"}
               </span>
             </div>
           </div>
@@ -160,7 +174,7 @@ export default function VorlagenListClient({
 
         <div className="mt-8">
           <AnimatePresence mode="wait">
-            {filtered.length === 0 ? (
+            {displayed.length === 0 ? (
               <motion.div
                 key="empty"
                 initial={{ opacity: 0, y: 10 }}
@@ -173,7 +187,9 @@ export default function VorlagenListClient({
                 </div>
                 <h2 className="text-xl font-bold text-foreground">Keine Vorlagen</h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                  In dieser Kategorie sind noch keine Dokumente verfügbar.
+                  {searchQuery.trim()
+                    ? "Keine Treffer für Ihre Suche (Titel, Beschreibung oder PDF-Inhalt)."
+                    : "In dieser Kategorie sind noch keine Dokumente verfügbar."}
                 </p>
               </motion.div>
             ) : viewMode === "cards" ? (
@@ -184,7 +200,7 @@ export default function VorlagenListClient({
                 exit={{ opacity: 0 }}
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
               >
-                {filtered.map((template, index) => {
+                {displayed.map((template, index) => {
                   const { Icon, color } = getFileIcon(template.fileType);
                   return (
                     <motion.article
@@ -231,7 +247,7 @@ export default function VorlagenListClient({
                 exit={{ opacity: 0 }}
                 className="space-y-3"
               >
-                {filtered.map((template, index) => {
+                {displayed.map((template, index) => {
                   const { Icon, color } = getFileIcon(template.fileType);
                   return (
                     <motion.article

@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import * as Icons from "lucide-react";
-import { FileText, Search, LayoutGrid, List, ChevronRight } from "lucide-react";
+import { FileText, Search, LayoutGrid, List, ChevronRight, Download, X } from "lucide-react";
+import { searchVisitReportPdfsForRestaurant } from "@/app/actions/visitReportActions";
 
 type Category = {
   id: string;
@@ -24,16 +25,32 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+type PdfSearchHit = {
+  id: string;
+  title: string;
+  description: string | null;
+  fileUrl: string;
+  fileType: string;
+  categoryId: string;
+  year: number;
+  category: { name: string; iconName: string | null };
+};
+
 export default function BesuchsberichteCategoriesClient({
   categories,
   hasRestaurant,
+  restaurantId,
 }: {
   categories: Category[];
   hasRestaurant: boolean;
+  restaurantId: string | null;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>("alle");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
+  const [docHits, setDocHits] = useState<PdfSearchHit[]>([]);
+  const [docSearchLoading, setDocSearchLoading] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
 
   const categoryTabs = useMemo(
     () => [{ id: "alle", name: "Alle" }, ...categories.map((c) => ({ id: c.id, name: c.name }))],
@@ -51,6 +68,37 @@ export default function BesuchsberichteCategoriesClient({
       return matchCat && matchSearch;
     });
   }, [categories, activeCategory, searchQuery]);
+
+  useEffect(() => {
+    if (!restaurantId || searchQuery.trim().length < 2) {
+      setDocHits([]);
+      setDocSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setDocSearchLoading(true);
+    const t = window.setTimeout(() => {
+      searchVisitReportPdfsForRestaurant(restaurantId, searchQuery.trim())
+        .then((rows) => {
+          if (!cancelled) setDocHits(rows as PdfSearchHit[]);
+        })
+        .finally(() => {
+          if (!cancelled) setDocSearchLoading(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [restaurantId, searchQuery]);
+
+  const openDocument = (d: PdfSearchHit) => {
+    if (d.fileType.toLowerCase().includes("pdf") || d.fileUrl.toLowerCase().includes(".pdf")) {
+      setPdfPreviewUrl(d.fileUrl);
+    } else {
+      window.open(d.fileUrl, "_blank", "noopener,noreferrer");
+    }
+  };
 
   if (!hasRestaurant) {
     return (
@@ -100,7 +148,7 @@ export default function BesuchsberichteCategoriesClient({
                   <Search size={20} className="text-[#1a3826]/60 dark:text-[#FFC72C]/70 shrink-0" />
                   <input
                     type="search"
-                    placeholder="Kategorien durchsuchen…"
+                    placeholder="Kategorien & PDFs dieses Standorts (Titel, PDF-Text)…"
                     className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-foreground placeholder:text-muted-foreground"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -186,9 +234,65 @@ export default function BesuchsberichteCategoriesClient({
           </div>
         </div>
 
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        {/* PDF-Treffer nur für aktuellen Standort (Server filtert nach restaurantId) */}
+        {restaurantId && searchQuery.trim().length >= 2 ? (
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#1a3826]/80 dark:text-[#FFC72C]/90 mb-2">
+              Treffer in PDF-Dokumenten (nur dieser Standort: Titel, Beschreibung, PDF-Inhalt)
+            </p>
+            {docSearchLoading ? (
+              <p className="text-sm text-muted-foreground">Suche…</p>
+            ) : docHits.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Keine PDF-Treffer für diese Suche in diesem Standort.
+              </p>
+            ) : (
+              <ul className="space-y-1 rounded-xl border border-[#1a3826]/15 dark:border-[#FFC72C]/20 bg-card/90 p-3 shadow-sm">
+                {docHits.map((d) => (
+                  <li key={d.id}>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-lg px-3 py-2.5 hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10 transition-colors border border-transparent hover:border-[#1a3826]/10 dark:hover:border-[#FFC72C]/15">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground text-sm truncate">{d.title}</p>
+                        {d.description ? (
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{d.description}</p>
+                        ) : null}
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          {d.category.name} · Jahr {d.year}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0 sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openDocument(d)}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#1a3826] text-white text-xs font-bold shadow-sm hover:bg-[#142e1e] dark:bg-[#FFC72C] dark:text-[#1a3826] dark:hover:bg-[#e6b328] transition-colors min-h-[40px] sm:min-h-0"
+                        >
+                          <FileText size={15} className="shrink-0" aria-hidden />
+                          Dokument öffnen
+                        </button>
+                        <Link
+                          href={`/tools/besuchsberichte/${d.categoryId}?year=${d.year}`}
+                          className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-[#FFC72C] text-[#1a3826] text-xs font-bold shadow-sm hover:bg-[#e6b328] transition-colors min-h-[40px] sm:min-h-0 border border-[#1a3826]/15"
+                        >
+                          Zur Kategorie
+                        </Link>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
+
+        <div
+          className={
+            filtered.length === 0 && searchQuery.trim()
+              ? "max-w-6xl mx-auto px-4 sm:px-6 py-0"
+              : "max-w-6xl mx-auto px-4 sm:px-6 py-8"
+          }
+        >
           <AnimatePresence mode="wait">
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && !searchQuery.trim() ? (
               <motion.div
                 key="empty"
                 initial={{ opacity: 0, y: 10 }}
@@ -204,7 +308,7 @@ export default function BesuchsberichteCategoriesClient({
                   Kategorie oder Suchbegriff ändern.
                 </p>
               </motion.div>
-            ) : viewMode === "cards" ? (
+            ) : filtered.length > 0 && viewMode === "cards" ? (
               <motion.div
                 key="cards"
                 initial={{ opacity: 0 }}
@@ -247,7 +351,7 @@ export default function BesuchsberichteCategoriesClient({
                   );
                 })}
               </motion.div>
-            ) : (
+            ) : filtered.length > 0 ? (
               <motion.div
                 key="list"
                 initial={{ opacity: 0 }}
@@ -290,9 +394,51 @@ export default function BesuchsberichteCategoriesClient({
                   );
                 })}
               </motion.div>
-            )}
+            ) : null}
           </AnimatePresence>
         </div>
+
+        {pdfPreviewUrl && (
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setPdfPreviewUrl(null);
+            }}
+          >
+            <div className="relative bg-card rounded-2xl shadow-2xl border border-[#1a3826]/20 w-full max-w-5xl h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826] border-b border-[#FFC72C]/20">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <FileText size={20} className="text-[#FFC72C] shrink-0" aria-hidden />
+                  <span className="text-sm md:text-base font-black text-white uppercase tracking-wider truncate">
+                    PDF anzeigen
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={pdfPreviewUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#FFC72C] text-[#1a3826] hover:bg-[#FFC72C]/90 transition shadow-sm"
+                  >
+                    <Download size={16} />
+                    Herunterladen
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setPdfPreviewUrl(null)}
+                    className="p-2 rounded-lg text-white/90 hover:text-white hover:bg-white/10 transition"
+                    aria-label="Schließen"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-900/50 min-h-0">
+                <iframe src={pdfPreviewUrl} className="w-full h-full border-0" title="PDF Vorschau" />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

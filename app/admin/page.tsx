@@ -1,5 +1,7 @@
 import { tryRequirePermission } from "@/lib/access";
-import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
+import { canEditDashboardChangelog } from "@/lib/permissions";
 import {
   Users,
   Building2,
@@ -13,42 +15,15 @@ import {
   Lightbulb,
   FolderOpen,
   Map,
-  LucideIcon,
+  UserRound,
+  Store,
+  Wallet,
+  Layers,
+  Newspaper,
 } from "lucide-react";
-import NoPermission from "@/components/NoPermission";
 import { getUnreadIdeasCount } from "@/app/actions/ideaActions";
-
-type AdminCard = {
-  title: string;
-  desc: string;
-  href: string;
-  icon: LucideIcon;
-  tag: string;
-  badge?: number;
-};
-
-const TAG_STYLES: Record<string, string> = {
-  "Users & RBAC":
-    "from-emerald-500/18 via-emerald-500/8 to-emerald-500/8 text-emerald-700 dark:text-emerald-300 border-emerald-200/60 dark:border-emerald-500/40",
-  Locations:
-    "from-sky-500/18 via-sky-500/8 to-sky-500/8 text-sky-700 dark:text-sky-300 border-sky-200/60 dark:border-sky-500/40",
-  Dashboard:
-    "from-indigo-500/18 via-indigo-500/8 to-indigo-500/8 text-indigo-700 dark:text-indigo-300 border-indigo-200/60 dark:border-indigo-500/40",
-  Bedienungsanleitungen:
-    "from-amber-500/18 via-amber-500/8 to-amber-500/8 text-amber-700 dark:text-amber-300 border-amber-200/60 dark:border-amber-500/40",
-  PDS:
-    "from-violet-500/18 via-violet-500/8 to-violet-500/8 text-violet-700 dark:text-violet-300 border-violet-200/60 dark:border-violet-500/40",
-  Partner:
-    "from-rose-500/18 via-rose-500/8 to-rose-500/8 text-rose-700 dark:text-rose-300 border-rose-200/60 dark:border-rose-500/40",
-  Feiertage:
-    "from-orange-500/18 via-orange-500/8 to-orange-500/8 text-orange-700 dark:text-orange-300 border-orange-200/60 dark:border-orange-500/40",
-  Ideenbox:
-    "from-yellow-500/20 via-yellow-500/10 to-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-200/70 dark:border-yellow-500/40",
-  Vorlagen:
-    "from-purple-500/18 via-purple-500/8 to-purple-500/8 text-purple-700 dark:text-purple-300 border-purple-200/60 dark:border-purple-500/40",
-  Besuchsberichte:
-    "from-teal-500/18 via-teal-500/8 to-teal-500/8 text-teal-700 dark:text-teal-300 border-teal-200/60 dark:border-teal-500/40",
-};
+import { AdminHomeCategories } from "@/components/admin/AdminHomeCategories";
+import type { AdminCard, AdminCategoryBlock } from "@/components/admin/adminHomeTypes";
 
 export default async function AdminHome() {
   const usersAccess = await tryRequirePermission("users:access");
@@ -60,85 +35,25 @@ export default async function AdminHome() {
   const ideenboxAccess = await tryRequirePermission("ideenbox:access");
   const vorlagenAccess = await tryRequirePermission("vorlagen:manage");
   const besuchsberichteAccess = await tryRequirePermission("besuchsberichte:manage");
+  const dashboardNewsAccess = await tryRequirePermission("dashboard_news:manage");
 
-  const hasAnyAdminAccess = usersAccess.ok || restaurantsAccess.ok || rulesAccess.ok || pdsAccess.ok || partnersAccess.ok || holidaysAccess.ok || ideenboxAccess.ok || vorlagenAccess.ok || besuchsberichteAccess.ok;
-  if (!hasAnyAdminAccess) {
-    return <NoPermission moduleName="Verwaltung" />;
-  }
+  const session = await getServerSession(authOptions);
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const sessionPerms = (session?.user as { permissions?: string[] } | undefined)?.permissions ?? [];
+  const showDashboardChangelogCard = canEditDashboardChangelog(sessionRole, sessionPerms);
 
   const ideenboxUnreadCount = ideenboxAccess.ok ? await getUnreadIdeasCount() : 0;
 
-  const cards: AdminCard[] = [
-    {
-      title: "Benutzer & Teams",
-      desc: "Benutzerliste, Anlegen, Zuweisung von Restaurants und Berechtigungen, Rollenkonfiguration.",
-      href: "/admin/users",
-      icon: Users,
-      tag: "Users & RBAC",
-    },
-    {
-      title: "Standortverwaltung",
-      desc: "Standorte anlegen, bearbeiten und Status (aktiv/inaktiv).",
-      href: "/admin/restaurants",
-      icon: Building2,
-      tag: "Locations",
-    },
-    {
-      title: "Sitzplan",
-      desc: "PDF-Layouts (Pläne) pro Restaurant hochladen und verwalten.",
-      href: "/admin/sitzplan",
-      icon: Map,
-      tag: "Locations",
-    },
+  const personalCards: AdminCard[] = [
     ...(usersAccess.ok
       ? [
           {
-            title: "Dashboard-Module",
-            desc: "Festlegen, welche Module Nutzern auf der Startseite angezeigt werden.",
-            href: "/admin/dashboard-modules",
-            icon: LayoutDashboard,
-            tag: "Dashboard",
-          },
-          {
-            title: "Aktuelle Änderungen",
-            desc: "Text für die Startseite: Was wurde umgesetzt? Nur Sie (System Architect) können bearbeiten.",
-            href: "/admin/dashboard-text",
-            icon: FileText,
-            tag: "Dashboard",
-          },
-        ]
-      : []),
-    ...(rulesAccess.ok
-      ? [
-          {
-            title: "Bedienungsanleitungen",
-            desc: "Verwaltung von Bedienungsanleitungen, Kategorien, Lese-Statistik, Bearbeiten und Löschen.",
-            href: "/admin/rules",
-            icon: BookOpen,
-            tag: "Bedienungsanleitungen",
-          },
-        ]
-      : []),
-    ...(pdsAccess.ok
-      ? [
-          {
-            title: "Beurteilungsvorlagen",
-            desc: "PDS-Vorlagen für ein, mehrere oder alle Restaurants erstellen und verwalten.",
-            href: "/admin/pds",
-            icon: ClipboardList,
-            tag: "PDS",
-          },
-        ]
-      : []),
-    ...(partnersAccess.ok
-      ? [
-          {
-            title: "Firmen und Partner",
-            desc: "Verwaltung von Partnerunternehmen und wichtigen Kontakten.",
-            href: "/admin/partners",
-            icon: Building2,
-            tag: "Partner",
-          },
+            title: "Benutzer & Teams",
+            desc: "Benutzerliste, Anlegen, Zuweisung von Restaurants und Berechtigungen, Rollenkonfiguration.",
+            href: "/admin/users",
+            icon: Users,
+            tag: "Users & RBAC",
+          } satisfies AdminCard,
         ]
       : []),
     ...(holidaysAccess.ok
@@ -149,7 +64,7 @@ export default async function AdminHome() {
             href: "/admin/holidays",
             icon: CalendarDays,
             tag: "Feiertage",
-          },
+          } satisfies AdminCard,
         ]
       : []),
     ...(ideenboxAccess.ok
@@ -161,7 +76,61 @@ export default async function AdminHome() {
             icon: Lightbulb,
             tag: "Ideenbox",
             badge: ideenboxUnreadCount,
-          },
+          } satisfies AdminCard,
+        ]
+      : []),
+    ...(pdsAccess.ok
+      ? [
+          {
+            title: "Beurteilungsvorlagen",
+            desc: "PDS-Vorlagen für ein, mehrere oder alle Restaurants erstellen und verwalten.",
+            href: "/admin/pds",
+            icon: ClipboardList,
+            tag: "PDS",
+          } satisfies AdminCard,
+        ]
+      : []),
+  ];
+
+  const restaurantCards: AdminCard[] = [
+    ...(restaurantsAccess.ok
+      ? [
+          {
+            title: "Standortverwaltung",
+            desc: "Standorte anlegen, bearbeiten und Status (aktiv/inaktiv).",
+            href: "/admin/restaurants",
+            icon: Building2,
+            tag: "Locations",
+          } satisfies AdminCard,
+          {
+            title: "Sitzplan",
+            desc: "PDF-Layouts (Pläne) pro Restaurant hochladen und verwalten.",
+            href: "/admin/sitzplan",
+            icon: Map,
+            tag: "Locations",
+          } satisfies AdminCard,
+        ]
+      : []),
+    ...(rulesAccess.ok
+      ? [
+          {
+            title: "Bedienungsanleitungen",
+            desc: "Verwaltung von Bedienungsanleitungen, Kategorien, Lese-Statistik, Bearbeiten und Löschen.",
+            href: "/admin/rules",
+            icon: BookOpen,
+            tag: "Bedienungsanleitungen",
+          } satisfies AdminCard,
+        ]
+      : []),
+    ...(partnersAccess.ok
+      ? [
+          {
+            title: "Firmen und Partner",
+            desc: "Verwaltung von Partnerunternehmen und wichtigen Kontakten.",
+            href: "/admin/partners",
+            icon: Building2,
+            tag: "Partner",
+          } satisfies AdminCard,
         ]
       : []),
     ...(vorlagenAccess.ok
@@ -172,7 +141,7 @@ export default async function AdminHome() {
             href: "/admin/vorlagen",
             icon: FolderOpen,
             tag: "Vorlagen",
-          },
+          } satisfies AdminCard,
         ]
       : []),
     ...(besuchsberichteAccess.ok
@@ -183,80 +152,104 @@ export default async function AdminHome() {
             href: "/admin/besuchsberichte",
             icon: FileCheck,
             tag: "Besuchsberichte",
-          },
+          } satisfies AdminCard,
         ]
       : []),
   ];
 
+  const otherCards: AdminCard[] = [
+    ...(usersAccess.ok
+      ? [
+          {
+            title: "Dashboard-Module",
+            desc: "Festlegen, welche Module Nutzern auf der Startseite angezeigt werden.",
+            href: "/admin/dashboard-modules",
+            icon: LayoutDashboard,
+            tag: "Dashboard",
+          } satisfies AdminCard,
+        ]
+      : []),
+    ...(showDashboardChangelogCard
+      ? [
+          {
+            title: "Aktuelle Änderungen",
+            desc: "Text für die Startseite: Was wurde umgesetzt? Bearbeitbar durch Admin, Super Admin und System Architect.",
+            href: "/admin/dashboard-text",
+            icon: FileText,
+            tag: "Dashboard",
+          } satisfies AdminCard,
+        ]
+      : []),
+    ...(dashboardNewsAccess.ok
+      ? [
+          {
+            title: "Dashboard-News",
+            desc: "News-Slider auf der Startseite: Titelbild, PDF oder Bild-Anhang, Reihenfolge und Sichtbarkeit.",
+            href: "/admin/dashboard-news",
+            icon: Newspaper,
+            tag: "Dashboard",
+          } satisfies AdminCard,
+        ]
+      : []),
+  ];
+
+  const categoryBlocks: AdminCategoryBlock[] = [
+    {
+      id: "personal",
+      title: "Personal",
+      description: "Benutzer, Feedback, Bewertungen und globale Kalenderdaten.",
+      icon: UserRound,
+      cards: personalCards,
+      alwaysShow: false,
+    },
+    {
+      id: "restaurant",
+      title: "Restaurant",
+      description: "Standorte, Pläne, Anleitungen, Partner und standortbezogene Dokumente.",
+      icon: Store,
+      cards: restaurantCards,
+      alwaysShow: false,
+    },
+    {
+      id: "finance",
+      title: "Finanzen",
+      description: "Auswertungen und Einstellungen rund um Finanzen und Controlling.",
+      icon: Wallet,
+      cards: [],
+      alwaysShow: true,
+    },
+    {
+      id: "other",
+      title: "Sonstiges",
+      description: "Dashboard, Startseite und weitere plattformweite Einstellungen.",
+      icon: Layers,
+      cards: otherCards,
+      alwaysShow: true,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8 font-sans text-foreground">
-      <div className="max-w-[1600px] mx-auto space-y-6">
-        {/* HEADER – unificirani layout */}
+    <div className="min-h-screen bg-background p-4 font-sans text-foreground md:p-6 lg:p-8">
+      <div className="mx-auto max-w-[1600px] space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-6">
           <div>
-            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
+            <h1 className="mb-2 text-4xl font-black uppercase tracking-tighter text-[#1a3826] dark:text-[#FFC72C]">
               ADMIN <span className="text-[#FFC72C]">PANEL</span>
             </h1>
-            <p className="text-muted-foreground text-sm font-medium">
+            <p className="text-sm font-medium text-muted-foreground">
               Benutzer, Standorte und Zugriffsrechte verwalten.
             </p>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-card border border-border">
-              <ShieldCheck size={14} className="text-[#1a3826] dark:text-[#FFC72C]" />
+          <div className="hidden items-center gap-2 text-[10px] font-black uppercase text-muted-foreground md:flex">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5">
+              <ShieldCheck size={14} className="text-[#1a3826] dark:text-[#FFC72C]" aria-hidden />
               Globale Berechtigungen
             </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
-          {cards.map((c) => {
-            const Icon = c.icon;
-            const badge = typeof c.badge === "number" ? c.badge : 0;
-            const style =
-              TAG_STYLES[c.tag] ??
-              "from-[#1a3826]/12 via-[#1a3826]/8 to-[#1a3826]/5 text-[#1a3826] dark:text-[#FFC72C] border-border";
-
-            return (
-              <Link
-                key={c.href}
-                href={c.href}
-                className="group relative flex flex-col items-stretch justify-between gap-4 p-5 rounded-2xl border border-border bg-card shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300"
-              >
-                {badge > 0 && (
-                  <span className="absolute top-3 right-3 min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center shadow-sm">
-                    {badge > 99 ? "99+" : badge}
-                  </span>
-                )}
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`h-12 w-12 rounded-2xl border bg-gradient-to-br flex items-center justify-center ${style}`}
-                  >
-                    <Icon size={24} strokeWidth={2} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <h2 className="text-sm font-bold text-card-foreground group-hover:text-[#1a3826] dark:group-hover:text-[#FFC72C] transition-colors truncate">
-                        {c.title}
-                      </h2>
-                      <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground bg-muted/80 border border-border px-2 py-0.5 rounded-md shrink-0">
-                        {c.tag}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground leading-snug line-clamp-2">
-                      {c.desc}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  <span>Öffnen</span>
-                  <span className="group-hover:translate-x-0.5 transition-transform">→</span>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+        <AdminHomeCategories blocks={categoryBlocks} />
       </div>
     </div>
   );

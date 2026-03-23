@@ -74,7 +74,6 @@ export default function DashboardChangelogCard({ initial }: Props) {
           {initial?.updatedAt && (
             <p className="mt-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Letzte Aktualisierung: {formatDate(initial.updatedAt)}
-              {" · SYSTEM ARCHITECT"}
             </p>
           )}
         </div>
@@ -104,12 +103,11 @@ export default function DashboardChangelogCard({ initial }: Props) {
               </button>
             </div>
             <div className="p-6 overflow-y-auto flex-1 text-[15px] font-medium text-foreground leading-relaxed tracking-tight [&_strong]:font-bold [&_b]:font-bold [&_em]:italic [&_i]:italic [&_h1]:text-lg [&_h1]:font-bold [&_h2]:text-base [&_h2]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5">
-              {safeHtml ? <div dangerouslySetInnerHTML={{ __html: safeHtml }} /> : (text || "Keine Änderungen eingetragen.")}
+              {safeHtml ? <div dangerouslySetInnerHTML={{ __html: safeHtml }} /> : (raw || "Keine Änderungen eingetragen.")}
             </div>
             {initial?.updatedAt && (
               <div className="px-6 py-3 border-t border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">
                 Letzte Aktualisierung: {formatDate(initial.updatedAt)}
-                {" · SYSTEM ARCHITECT"}
               </div>
             )}
           </div>

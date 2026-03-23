@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from "react";
+import { Inter } from "next/font/google";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -27,6 +28,9 @@ import {
   GripVertical,
   Edit2,
 } from "lucide-react";
+
+/** Same font as layout body — native <select> ignores theme `font-sans` on some OS/browsers. */
+const prodToolInter = Inter({ subsets: ["latin"], display: "swap" });
 
 // --- TIPOVI ---
 interface Restaurant {
@@ -95,6 +99,14 @@ const fmtNum = (n: number, decimals = 0) =>
 
 const fmtInt = (n: number) => fmtNum(Math.round(n || 0));
 
+/** Brutto/Netto-Koeffizient: immer 4 Nachkommastellen (de-AT Anzeige). */
+const NET_COEFF_DECIMALS = 4;
+const formatNetCoeffDisplay = (v: unknown): string => {
+  const n = typeof v === "number" && Number.isFinite(v) ? v : parseNum(String(v ?? ""));
+  if (!Number.isFinite(n) || n <= 0) return fmtNum(1.17, NET_COEFF_DECIMALS);
+  return fmtNum(n, NET_COEFF_DECIMALS);
+};
+
 const COLORS = {
   green: "#1b3a26",
   yellow: "#ffc72c",
@@ -153,7 +165,7 @@ function ProductivityToolContent({
   const [selectedDate, setSelectedDate] = useState("");
 
   const [rows, setRows] = useState<Record<number, HourData>>({});
-  const [netCoeff, setNetCoeff] = useState("1,17");
+  const [netCoeff, setNetCoeff] = useState(() => fmtNum(1.17, NET_COEFF_DECIMALS));
   const [hoursFrom, setHoursFrom] = useState(6);
   const [hoursTo, setHoursTo] = useState(1);
   const [customDayNames, setCustomDayNames] = useState<Record<string, string>>({});
@@ -296,7 +308,7 @@ function ProductivityToolContent({
       if (json.success && json.data) {
         const d = json.data;
         setRows(d.rows || {});
-        if (d.netCoeff != null) setNetCoeff(String(d.netCoeff).replace(".", ","));
+        if (d.netCoeff != null) setNetCoeff(formatNetCoeffDisplay(d.netCoeff));
         if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
         if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
         if (d.customDayNames) setCustomDayNames(d.customDayNames);
@@ -339,7 +351,7 @@ function ProductivityToolContent({
         if (json.success && json.data) {
           const d = json.data;
           setRows(d.rows || {});
-          if (d.netCoeff != null) setNetCoeff(String(d.netCoeff).replace(".", ","));
+          if (d.netCoeff != null) setNetCoeff(formatNetCoeffDisplay(d.netCoeff));
           if (d.hoursFrom !== undefined) setHoursFrom(d.hoursFrom);
           if (d.hoursTo !== undefined) setHoursTo(d.hoursTo);
           if (d.customDayNames) setCustomDayNames(d.customDayNames || {});
@@ -494,7 +506,7 @@ function ProductivityToolContent({
   const getPayload = useCallback(
     () => ({
       rows,
-      netCoeff: netCoeff.replace(",", "."),
+      netCoeff: String(parseNum(netCoeff) || 1.17),
       hoursFrom,
       hoursTo,
       customDayNames,
@@ -643,7 +655,7 @@ function ProductivityToolContent({
         if (json.success && json.data) {
           const d = json.data;
           setRows(d.rows || {});
-          if (d.netCoeff != null) setNetCoeff(String(d.netCoeff).replace(".", ","));
+          if (d.netCoeff != null) setNetCoeff(formatNetCoeffDisplay(d.netCoeff));
           const cfgH = dayHoursConfig[templateKey];
           setHoursFrom(cfgH?.from ?? (d.hoursFrom ?? 6));
           setHoursTo(cfgH?.to ?? (d.hoursTo ?? 1));
@@ -681,9 +693,10 @@ function ProductivityToolContent({
         if (json.success && json.data) {
           const d = json.data;
           const cfgH2 = dayHoursConfig[templateKey];
+          const coeffVal = Number(d.netCoeff ?? 1.17);
           const payload = {
             rows: d.rows || {},
-            netCoeff: String(d.netCoeff ?? "1.17").replace(".", ",").replace(",", "."),
+            netCoeff: String(Number.isFinite(coeffVal) && coeffVal > 0 ? coeffVal : 1.17),
             hoursFrom: cfgH2?.from ?? (d.hoursFrom ?? 6),
             hoursTo: cfgH2?.to ?? (d.hoursTo ?? 1),
             customDayNames: d.customDayNames || {},
@@ -699,12 +712,12 @@ function ProductivityToolContent({
               date: selectedDate,
               data: {
                 ...payload,
-                netCoeff: String(d.netCoeff ?? "1.17").replace(",", "."),
+                netCoeff: String(Number.isFinite(coeffVal) && coeffVal > 0 ? coeffVal : 1.17),
               },
             }),
           });
           setRows(payload.rows);
-          setNetCoeff(String(d.netCoeff ?? "1.17").replace(".", ","));
+          setNetCoeff(formatNetCoeffDisplay(d.netCoeff ?? 1.17));
           setHoursFrom(payload.hoursFrom);
           setHoursTo(payload.hoursTo);
           setCustomDayNames(payload.customDayNames);
@@ -1092,7 +1105,7 @@ function ProductivityToolContent({
 
   const handleReset = () => {
     setRows({});
-    setNetCoeff("1,17");
+    setNetCoeff(fmtNum(1.17, NET_COEFF_DECIMALS));
     setCustomDayNames({});
     toast.success("Zurücksetzen durchgeführt.");
   };
@@ -1137,7 +1150,7 @@ function ProductivityToolContent({
               </p>
             </div>
             <div className="flex flex-nowrap items-center gap-3 pt-2 border-t border-border min-h-[3.5rem]">
-              <div className="flex items-center gap-2 shrink-0">
+              <div className={`flex items-center gap-2 shrink-0 ${prodToolInter.className}`}>
                 <div className="relative" ref={calendarDropdownRef}>
                   <button
                     type="button"
@@ -1240,9 +1253,9 @@ function ProductivityToolContent({
                 <select
                   id="prod-template-select"
                   aria-label="Template übernehmen"
-                  className={`h-8 pl-2 pr-7 rounded-lg border font-bold text-xs focus:ring-2 focus:ring-[#1b3a26]/30 outline-none cursor-pointer shrink-0 ${
+                  className={`${prodToolInter.className} h-8 min-w-[9.5rem] pl-2.5 pr-8 rounded-lg border text-xs antialiased focus:ring-2 focus:ring-[#1b3a26]/30 outline-none cursor-pointer shrink-0 tracking-tight ${
                     appliedTemplateKey
-                      ? "bg-[#2563EB] border-[#2563EB] text-white"
+                      ? "bg-[#2563EB] border-[#2563EB] text-white font-bold"
                       : "bg-[#1b3a26]/5 border-[#1b3a26]/25 text-foreground font-medium"
                   }`}
                   value={appliedTemplateKey}
@@ -1364,54 +1377,68 @@ function ProductivityToolContent({
             <DndContext sensors={sensors} onDragEnd={handleColumnDragEnd}>
             <table className="w-full text-[11px] border-collapse [&>tbody>tr:last-child]:border-b-0" style={{ borderColor: "#d1d5db" }}>
               <colgroup>
-                <col style={{ width: "5rem" }} />
-                <col style={{ width: "6rem" }} />
-                <col style={{ width: "6rem" }} />
+                <col style={{ width: "4.5rem" }} />
+                <col style={{ width: "4.25rem" }} />
+                <col style={{ width: "4.25rem" }} />
                 {displayStationColumns.map((s) => (
                   <col key={`col-${s.key}`} style={{ minWidth: "4.5rem" }} />
                 ))}
-                <col style={{ minWidth: "4rem" }} />
+                <col style={{ minWidth: "3.25rem", width: "3.5rem" }} />
+                <col style={{ minWidth: "3.75rem", width: "4rem" }} />
               </colgroup>
               <thead className="text-white sticky top-0 z-40 border-b" style={{ backgroundColor: COLORS.green }}>
                 <tr className="font-semibold uppercase tracking-wide text-xs">
-                  <th className="py-2 px-1.5 w-20 text-center border-r border-white/20 sticky left-0 z-50" style={{ backgroundColor: COLORS.green }}>
+                  <th className="py-2 px-1 w-[4.5rem] min-w-[4.5rem] text-center border-r border-white/20 sticky left-0 z-50" style={{ backgroundColor: COLORS.green }}>
                     Uhrzeit
                   </th>
-                  <th className="py-2 px-1.5 w-24 text-center border-r border-white/20 sticky left-20 z-50 font-bold" style={{ backgroundColor: COLORS.yellow, color: COLORS.green }}>
+                  <th
+                    className="py-2 px-1 w-[4.25rem] min-w-[4.25rem] text-center border-r border-white/20 sticky left-[4.5rem] z-50 font-bold"
+                    style={{ backgroundColor: COLORS.yellow, color: COLORS.green }}
+                  >
                     Brutto (€)
                   </th>
-                  <th className="py-2 px-1.5 w-24 text-center border-r border-white/20 sticky left-[11rem] z-50 font-bold" style={{ backgroundColor: COLORS.yellow, color: COLORS.green }}>
+                  <th
+                    className="py-2 px-1 w-[4.25rem] min-w-[4.25rem] text-center border-r border-white/20 sticky left-[8.75rem] z-50 font-bold"
+                    style={{ backgroundColor: COLORS.yellow, color: COLORS.green }}
+                  >
                     Netto (€)
                   </th>
                   {displayStationColumns.map((s) => (
                     <DraggableColumnHeader key={s.key} s={s} isPause={s.key === "pause"} />
                   ))}
-                  <th className="py-2 px-1 min-w-[4rem] w-20 text-center border-r border-white/20 font-semibold text-[10px] uppercase text-white" style={{ backgroundColor: COLORS.green }}>
+                  <th className="py-2 px-0.5 min-w-[3.25rem] w-[3.5rem] text-center border-r border-white/20 font-semibold text-[10px] uppercase text-white" style={{ backgroundColor: COLORS.green }}>
                     Σ Std.
+                  </th>
+                  <th
+                    className="py-2 px-0.5 min-w-[3.75rem] w-[4rem] text-center font-bold text-[10px] uppercase border-r border-white/20"
+                    style={{ backgroundColor: COLORS.yellow, color: COLORS.green }}
+                  >
+                    Prod. (€)
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {totals.rowStats.map((stat, idx) => {
                   const row = rows[stat.h] || {};
+                  const rowProd = stat.staffTotal > 0 ? Math.round(stat.neto / stat.staffTotal) : 0;
                   return (
                     <tr
                       key={stat.h}
                       className={idx % 2 === 0 ? "bg-card" : "bg-muted/20 hover:bg-muted/30"}
                     >
-                      <td className="py-1 px-1.5 text-muted-foreground text-center sticky left-0 z-10 border-r border-border bg-inherit font-medium">
+                      <td className="py-1 px-1 text-muted-foreground text-center sticky left-0 z-10 border-r border-border bg-inherit font-medium w-[4.5rem]">
                         {formatHourRange(stat.h)}
                       </td>
-                      <td className="p-0 border-r border-border bg-amber-50/50 sticky left-20 z-10">
+                      <td className="p-0 border-r border-border bg-amber-50/50 sticky left-[4.5rem] z-10 w-[4.25rem]">
                         <input
                           type="text"
                           value={row.rev || ""}
                           onChange={(e) => handleInputChange(stat.h, "rev", e.target.value)}
-                          className="w-full h-7 px-1 bg-transparent text-center font-medium text-foreground focus:bg-white focus:ring-1 focus:ring-[#1b3a26] outline-none border-0 tabular-nums"
+                          className="w-full h-7 px-0.5 bg-transparent text-center font-medium text-foreground focus:bg-white focus:ring-1 focus:ring-[#1b3a26] outline-none border-0 tabular-nums"
                           placeholder="0"
                         />
                       </td>
-                      <td className="py-1 px-1.5 text-center font-medium text-foreground bg-amber-50/50 border-r border-border sticky left-[11rem] z-10 tabular-nums">
+                      <td className="py-1 px-0.5 text-center font-medium text-foreground bg-amber-50/50 border-r border-border sticky left-[8.75rem] z-10 tabular-nums w-[4.25rem]">
                         {fmtInt(stat.neto)}
                       </td>
                       {displayStationColumns.map((s) => (
@@ -1425,8 +1452,14 @@ function ProductivityToolContent({
                           />
                         </td>
                       ))}
-                      <td className="py-1 px-1.5 text-center font-medium text-foreground border-r border-border tabular-nums bg-muted/30">
+                      <td className="py-1 px-0.5 text-center font-medium text-foreground border-r border-border tabular-nums bg-muted/30 min-w-[3.25rem]">
                         {fmtInt(stat.staffTotal)}
+                      </td>
+                      <td
+                        className="py-1 px-0.5 text-center font-bold tabular-nums border-r border-border min-w-[3.75rem]"
+                        style={{ backgroundColor: COLORS.yellow, color: COLORS.green }}
+                      >
+                        {rowProd > 0 ? fmtInt(rowProd) : "–"}
                       </td>
                     </tr>
                   );
@@ -1434,13 +1467,13 @@ function ProductivityToolContent({
               </tbody>
               <tfoot className="sticky bottom-0 z-40 border-t-0" style={{ backgroundColor: COLORS.green }}>
                 <tr className="text-xs font-bold text-white">
-                  <td className="py-1 px-1.5 sticky left-0 z-50 text-center" style={{ backgroundColor: COLORS.green }}>
+                  <td className="py-1 px-1 sticky left-0 z-50 text-center w-[4.5rem]" style={{ backgroundColor: COLORS.green }}>
                     Gesamt
                   </td>
-                  <td className="py-1 px-1.5 text-center sticky left-20 z-50 tabular-nums">
+                  <td className="py-1 px-0.5 text-center sticky left-[4.5rem] z-50 tabular-nums w-[4.25rem]">
                     {fmtInt(totals.sumBruto)} €
                   </td>
-                  <td className="py-1 px-1.5 text-center sticky left-[11rem] z-50 tabular-nums">
+                  <td className="py-1 px-0.5 text-center sticky left-[8.75rem] z-50 tabular-nums w-[4.25rem]">
                     {fmtInt(totals.sumNeto)} €
                   </td>
                   {displayStationColumns.map((s) => {
@@ -1451,8 +1484,14 @@ function ProductivityToolContent({
                       </td>
                     );
                   })}
-                  <td className="py-1 px-1 text-center tabular-nums border-r border-white/20 font-bold">
+                  <td className="py-1 px-0.5 text-center tabular-nums border-r border-white/20 font-bold min-w-[3.25rem]">
                     {fmtInt(totals.sumStaff)}
+                  </td>
+                  <td
+                    className="py-1 px-0.5 text-center tabular-nums font-bold min-w-[3.75rem] border-r border-white/20"
+                    style={{ backgroundColor: COLORS.yellow, color: COLORS.green, fontSize: "0.7rem" }}
+                  >
+                    {fmtInt(totals.avgProd)}
                   </td>
                 </tr>
               </tfoot>
@@ -1483,9 +1522,18 @@ function ProductivityToolContent({
               {/* 1. Koeffizient inline */}
               <div className="flex items-center gap-3 px-5 py-3">
                 <span className="text-sm font-semibold text-[#1a3826] whitespace-nowrap w-36">Koeffizient (Köff.)</span>
-                <input type="text" value={netCoeff} onChange={(e) => setNetCoeff(e.target.value)}
-                  className="w-20 h-8 px-2 border border-border rounded-lg text-center font-semibold bg-white text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none" />
-                <span className="text-xs text-muted-foreground">Brutto/Netto-Umrechnung</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={netCoeff}
+                  onChange={(e) => setNetCoeff(e.target.value)}
+                  onBlur={() => {
+                    const n = parseNum(netCoeff);
+                    if (n > 0) setNetCoeff(fmtNum(n, NET_COEFF_DECIMALS));
+                  }}
+                  className="w-[7.25rem] h-8 px-2 border border-border rounded-lg text-center font-semibold bg-white text-sm tabular-nums focus:ring-2 focus:ring-[#1b3a26]/30 outline-none"
+                />
+                <span className="text-xs text-muted-foreground">Brutto/Netto-Umrechnung (4 Dezimalstellen)</span>
               </div>
 
               {/* 2. Öffnungszeiten + Sondertag-Namen */}
@@ -1605,30 +1653,19 @@ function ProductivityToolContent({
               {/* 4. Vorlagen */}
               <div className="px-5 py-3">
                 <h3 className="text-sm font-bold text-[#1a3826] mb-3">Vorlagen</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-semibold text-foreground mb-1">Vorlage anwenden</p>
-                    <p className="text-[11px] text-muted-foreground mb-2">Daten auf das aktuelle Kalenderdatum übernehmen.</p>
-                    <select aria-label="Vorlage anwenden" className="w-full h-8 pl-2 pr-7 border border-border rounded-lg font-medium bg-white text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none" defaultValue=""
-                      onChange={(e) => { const v = e.target.value; if (v) { handleApplyTemplateAndSave(v); e.target.value = ""; } }}>
-                      <option value="">Vorlage wählen...</option>
+                <div>
+                  <p className="text-xs font-semibold text-foreground mb-1">Vorlage bearbeiten</p>
+                  <p className="text-[11px] text-muted-foreground mb-2">Vorlage in der Tabelle öffnen und anpassen.</p>
+                  <div className="flex gap-2 max-w-xl">
+                    <select value={templateSelectInModal} onChange={(e) => setTemplateSelectInModal(e.target.value)}
+                      className="flex-1 h-8 pl-2 pr-7 border border-border rounded-lg font-medium bg-white text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none">
                       {TEMPLATE_KEYS.map((key) => (<option key={key} value={key}>{getDayLabel(key)}</option>))}
                     </select>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-foreground mb-1">Vorlage bearbeiten</p>
-                    <p className="text-[11px] text-muted-foreground mb-2">Vorlage in der Tabelle öffnen und anpassen.</p>
-                    <div className="flex gap-2">
-                      <select value={templateSelectInModal} onChange={(e) => setTemplateSelectInModal(e.target.value)}
-                        className="flex-1 h-8 pl-2 pr-7 border border-border rounded-lg font-medium bg-white text-sm focus:ring-2 focus:ring-[#1b3a26]/30 outline-none">
-                        {TEMPLATE_KEYS.map((key) => (<option key={key} value={key}>{getDayLabel(key)}</option>))}
-                      </select>
-                      <button type="button"
-                        onClick={() => { setTemplateEditKey(templateSelectInModal); handleCloseSettings(); setTemplateEditMode(true); loadTemplateForEdit(templateSelectInModal); }}
-                        className="h-8 px-3 rounded-lg bg-[#1b3a26] text-white hover:bg-[#1b3a26]/90 font-semibold text-xs flex items-center gap-1.5 shrink-0">
-                        <Edit2 size={14} /> Öffnen
-                      </button>
-                    </div>
+                    <button type="button"
+                      onClick={() => { setTemplateEditKey(templateSelectInModal); handleCloseSettings(); setTemplateEditMode(true); loadTemplateForEdit(templateSelectInModal); }}
+                      className="h-8 px-3 rounded-lg bg-[#1b3a26] text-white hover:bg-[#1b3a26]/90 font-semibold text-xs flex items-center gap-1.5 shrink-0">
+                      <Edit2 size={14} /> Öffnen
+                    </button>
                   </div>
                 </div>
               </div>

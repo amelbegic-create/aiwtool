@@ -1,9 +1,63 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, Search, FolderPlus, Upload, FileText, X, Save, Users, Briefcase, DollarSign, FileSpreadsheet, Folder, ClipboardList, Award, Building2, Package, BookOpen, FileCheck, GraduationCap, Heart, Settings, Shield, Star, Truck, Utensils, Wrench, Calendar, Mail, Phone } from "lucide-react";
-import { deleteCategory, createCategory, updateCategory, createTemplate, deleteTemplate } from "@/app/actions/templateActions";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  FolderPlus,
+  Upload,
+  FileText,
+  X,
+  Save,
+  Users,
+  Briefcase,
+  DollarSign,
+  FileSpreadsheet,
+  Folder,
+  ClipboardList,
+  Award,
+  Building2,
+  Package,
+  BookOpen,
+  FileCheck,
+  GraduationCap,
+  Heart,
+  Settings,
+  Shield,
+  Star,
+  Truck,
+  Utensils,
+  Wrench,
+  Calendar,
+  Mail,
+  Phone,
+  ArrowLeft,
+  GripVertical,
+  FolderOpen,
+} from "lucide-react";
+import {
+  deleteCategory,
+  createCategory,
+  updateCategory,
+  createTemplate,
+  deleteTemplate,
+  searchTemplatesAdmin,
+  searchTemplatesInCategory,
+  updateTemplateCategoryOrder,
+} from "@/app/actions/templateActions";
+import { deriveTitleFromFileName } from "@/lib/extractPdfText";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -38,6 +92,7 @@ type Category = {
   name: string;
   description: string | null;
   iconName: string | null;
+  sortOrder?: number;
   _count?: { templates: number };
 };
 
@@ -52,6 +107,79 @@ type Template = {
   createdAt: Date | string;
 };
 
+function DraggableFolderRow({
+  cat,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  cat: Category;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: cat.id });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: cat.id });
+  const ref = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      setDropRef(node);
+    },
+    [setNodeRef, setDropRef]
+  );
+  return (
+    <div
+      ref={ref}
+      className={`flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/20 ${
+        isDragging ? "opacity-60 bg-muted/40" : ""
+      } ${isOver ? "ring-1 ring-inset ring-[#1a3826]/30 dark:ring-[#FFC72C]/30" : ""}`}
+    >
+      <span
+        className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 text-muted-foreground hover:text-foreground shrink-0"
+        {...listeners}
+        {...attributes}
+        title="Reihenfolge ändern"
+      >
+        <GripVertical size={16} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-foreground truncate">{cat.name}</p>
+        {cat.description && (
+          <p className="text-xs text-muted-foreground truncate mt-0.5">{cat.description}</p>
+        )}
+        <p className="text-xs text-muted-foreground mt-1">
+          {cat._count?.templates ?? 0} Vorlage(n)
+        </p>
+      </div>
+      <div className="flex gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-medium hover:opacity-90"
+        >
+          <FolderOpen size={14} /> Öffnen
+        </button>
+        <button
+          type="button"
+          onClick={onEdit}
+          className="p-2 rounded-lg border border-border hover:bg-muted"
+          title="Bearbeiten"
+        >
+          <Pencil size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40"
+          title="Löschen"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminVorlagenClient({
   initialCategories,
   initialTemplates,
@@ -60,7 +188,11 @@ export default function AdminVorlagenClient({
   initialTemplates: Template[];
 }) {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [rootSearchQuery, setRootSearchQuery] = useState("");
+  const [globalHits, setGlobalHits] = useState<Template[]>([]);
+  const [folderSearchQuery, setFolderSearchQuery] = useState("");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -76,16 +208,92 @@ export default function AdminVorlagenClient({
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return initialTemplates;
-    return initialTemplates.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        (t.description?.toLowerCase() ?? "").includes(q) ||
-        (t.category?.name?.toLowerCase() ?? "").includes(q)
-    );
-  }, [initialTemplates, searchQuery]);
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
+
+  const selectedCategory = useMemo(
+    () => (selectedCategoryId ? categories.find((c) => c.id === selectedCategoryId) ?? null : null),
+    [categories, selectedCategoryId]
+  );
+
+  const templatesInFolder = useMemo(() => {
+    if (!selectedCategoryId) return [];
+    return initialTemplates.filter((t) => t.categoryId === selectedCategoryId);
+  }, [initialTemplates, selectedCategoryId]);
+
+  const [folderDisplayed, setFolderDisplayed] = useState<Template[]>([]);
+
+  useEffect(() => {
+    if (!selectedCategoryId) {
+      setFolderDisplayed([]);
+      return;
+    }
+    setFolderDisplayed(templatesInFolder);
+  }, [selectedCategoryId, templatesInFolder]);
+
+  useEffect(() => {
+    if (!selectedCategoryId) return;
+    const q = folderSearchQuery.trim();
+    if (!q) {
+      setFolderDisplayed(templatesInFolder);
+      return;
+    }
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      searchTemplatesInCategory(selectedCategoryId, q).then((rows) => {
+        if (!cancelled) setFolderDisplayed(rows as Template[]);
+      });
+    }, 320);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [folderSearchQuery, selectedCategoryId, templatesInFolder]);
+
+  useEffect(() => {
+    if (selectedCategoryId) return;
+    const q = rootSearchQuery.trim();
+    if (!q) {
+      setGlobalHits([]);
+      return;
+    }
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      searchTemplatesAdmin(q).then((rows) => {
+        if (!cancelled) setGlobalHits(rows as Template[]);
+      });
+    }, 320);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [rootSearchQuery, selectedCategoryId]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleFolderDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = categories.findIndex((c) => c.id === active.id);
+      const newIndex = categories.findIndex((c) => c.id === over.id);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const reordered = [...categories];
+      const [removed] = reordered.splice(oldIndex, 1);
+      reordered.splice(newIndex, 0, removed);
+      const orderedIds = reordered.map((c) => c.id);
+      try {
+        await updateTemplateCategoryOrder(orderedIds);
+        setCategories(reordered);
+        toast.success("Reihenfolge gespeichert.");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Fehler.");
+      }
+    },
+    [categories, router]
+  );
 
   const openCategoryModal = (cat?: Category) => {
     if (cat) {
@@ -122,14 +330,14 @@ export default function AdminVorlagenClient({
           description: categoryDescription,
           iconName: categoryIcon,
         });
-        toast.success("Kategorie aktualisiert.");
+        toast.success("Ordner aktualisiert.");
       } else {
         await createCategory({
           name: categoryName,
           description: categoryDescription,
           iconName: categoryIcon,
         });
-        toast.success("Kategorie erstellt.");
+        toast.success("Ordner erstellt.");
       }
       closeCategoryModal();
       router.refresh();
@@ -139,21 +347,22 @@ export default function AdminVorlagenClient({
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm("Kategorie löschen? Alle Vorlagen in dieser Kategorie werden ebenfalls gelöscht."))
-      return;
+    if (!confirm("Ordner löschen? Alle Vorlagen in diesem Ordner müssen zuerst entfernt werden.")) return;
     try {
       await deleteCategory(id);
-      toast.success("Kategorie gelöscht.");
+      toast.success("Ordner gelöscht.");
+      if (selectedCategoryId === id) setSelectedCategoryId(null);
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Fehler.");
     }
   };
 
-  const openTemplateModal = () => {
+  const openTemplateModal = (preselectCategoryId?: string) => {
     setTemplateTitle("");
     setTemplateDescription("");
-    setTemplateCategoryId(initialCategories[0]?.id || "");
+    const fallback = categories[0]?.id || "";
+    setTemplateCategoryId(preselectCategoryId ?? fallback);
     setTemplateFile(null);
     setShowTemplateModal(true);
   };
@@ -167,12 +376,8 @@ export default function AdminVorlagenClient({
   };
 
   const handleUploadTemplate = async () => {
-    if (!templateTitle.trim()) {
-      toast.error("Titel ist erforderlich.");
-      return;
-    }
     if (!templateCategoryId) {
-      toast.error("Kategorie ist erforderlich.");
+      toast.error("Ordner ist erforderlich.");
       return;
     }
     if (!templateFile) {
@@ -183,7 +388,7 @@ export default function AdminVorlagenClient({
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append("title", templateTitle);
+      fd.append("title", templateTitle.trim());
       fd.append("description", templateDescription);
       fd.append("categoryId", templateCategoryId);
       fd.append("file", templateFile);
@@ -211,113 +416,176 @@ export default function AdminVorlagenClient({
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-10 font-sans text-foreground">
-      <div className="max-w-[1600px] mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border pb-6">
+    <div className="min-h-screen bg-background p-4 md:p-8 font-sans text-foreground">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
           <div>
-            <h1 className="text-4xl font-black text-[#1a3826] uppercase tracking-tighter">
-              VORLAGEN <span className="text-[#FFC72C]">VERWALTUNG</span>
+            <h1 className="text-2xl font-black text-[#1a3826] dark:text-[#FFC72C] tracking-tight uppercase">
+              Vorlagen <span className="text-[#FFC72C] dark:text-[#e6c04a]">Verwaltung</span>
             </h1>
-            <p className="text-muted-foreground text-sm font-semibold mt-1">
-              Kategorien und Dokumente für Mitarbeiter verwalten
+            <p className="text-muted-foreground text-sm mt-0.5">
+              Ordner anlegen, öffnen und Vorlagen pro Ordner verwalten – übersichtlich auch bei vielen Dateien.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <Link
               href="/admin"
-              className="text-sm font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+              className="text-sm font-semibold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
             >
               ← Zurück zur Verwaltung
             </Link>
             <button
               type="button"
-              onClick={() => openCategoryModal()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-sm font-bold"
+              onClick={() => openTemplateModal(selectedCategoryId ?? undefined)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-semibold hover:opacity-90"
             >
-              <FolderPlus size={18} /> Neue Kategorie
-            </button>
-            <button
-              type="button"
-              onClick={openTemplateModal}
-              className="inline-flex items-center gap-2 px-5 py-3 bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] hover:bg-[#142e1e] dark:hover:bg-[#e0af25] text-white rounded-xl text-sm font-black shadow-md"
-            >
-              <Upload size={18} /> Vorlage hochladen
+              <Upload size={16} /> Vorlage hochladen
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <h2 className="text-xl font-black text-[#1a3826] uppercase">Kategorien</h2>
-            <div className="bg-card rounded-2xl border border-border overflow-hidden">
-              {initialCategories.length === 0 ? (
-                <div className="p-10 text-center text-muted-foreground text-sm">
-                  Keine Kategorien. Erstellen Sie eine neue Kategorie.
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {initialCategories.map((cat) => (
-                    <div
-                      key={cat.id}
-                      className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <p className="font-bold text-foreground">{cat.name}</p>
-                        {cat.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{cat.description}</p>
-                        )}
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          {cat._count?.templates || 0} Vorlage(n)
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => openCategoryModal(cat)}
-                          className="p-2 rounded-xl border border-border hover:bg-muted"
-                          title="Bearbeiten"
+        {selectedCategoryId == null ? (
+          <>
+            <section className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-foreground flex items-center gap-2 uppercase tracking-wide">
+                  <Folder size={18} /> Ordner
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => openCategoryModal()}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-semibold hover:opacity-90"
+                >
+                  <FolderPlus size={16} /> Neuer Ordner
+                </button>
+              </div>
+              <div className="px-4 py-2 border-b border-border flex items-center gap-2 bg-muted/10">
+                <Search size={16} className="text-muted-foreground shrink-0" />
+                <input
+                  type="text"
+                  value={rootSearchQuery}
+                  onChange={(e) => setRootSearchQuery(e.target.value)}
+                  placeholder="Alle Vorlagen durchsuchen (Titel, PDF-Text, Ordnername…)…"
+                  className="bg-transparent outline-none text-sm font-medium text-foreground w-full py-2"
+                />
+              </div>
+              {rootSearchQuery.trim() ? (
+                <>
+                  <p className="px-4 py-2 text-xs text-muted-foreground border-b border-border bg-muted/5">
+                    Suchtreffer in allen Ordnern (max. 200)
+                  </p>
+                  <div className="divide-y divide-border max-h-[min(36vh,380px)] overflow-y-auto border-b border-border">
+                    {globalHits.length === 0 ? (
+                      <div className="p-6 text-center text-muted-foreground text-sm">Keine Treffer.</div>
+                    ) : (
+                      globalHits.map((t) => (
+                        <div
+                          key={t.id}
+                          className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/20"
                         >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCategory(cat.id)}
-                          className="p-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                          title="Löschen"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-foreground truncate">{t.title}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {t.category?.name ?? "—"} · {t.fileType}
+                            </p>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <a
+                              href={t.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-2 rounded-lg border border-border hover:bg-muted text-[#1a3826] dark:text-[#FFC72C]"
+                              title="Öffnen"
+                            >
+                              <FileText size={14} />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTemplate(t.id)}
+                              className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                              title="Löschen"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              ) : null}
+              <div className="divide-y divide-border">
+                {categories.length === 0 ? (
+                  <div className="p-6 text-center text-muted-foreground text-sm">
+                    Noch keine Ordner. &quot;Neuer Ordner&quot; klicken.
+                  </div>
+                ) : (
+                  <DndContext sensors={sensors} onDragEnd={handleFolderDragEnd}>
+                    {categories.map((cat) => (
+                      <DraggableFolderRow
+                        key={cat.id}
+                        cat={cat}
+                        onOpen={() => {
+                          setFolderSearchQuery("");
+                          setSelectedCategoryId(cat.id);
+                        }}
+                        onEdit={() => openCategoryModal(cat)}
+                        onDelete={() => handleDeleteCategory(cat.id)}
+                      />
+                    ))}
+                  </DndContext>
+                )}
+              </div>
+            </section>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCategoryId(null);
+                  setFolderSearchQuery("");
+                }}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+              >
+                <ArrowLeft size={16} /> Zurück zu Ordnern
+              </button>
             </div>
-          </div>
 
-          <div className="space-y-4">
-            <h2 className="text-xl font-black text-[#1a3826] uppercase">Vorlagen</h2>
-            <div className="bg-card rounded-2xl border border-border flex items-center gap-3 p-3">
-              <Search size={18} className="text-muted-foreground shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Vorlagen suchen…"
-                className="bg-transparent outline-none text-sm font-medium text-foreground w-full"
-              />
-            </div>
-            <div className="bg-card rounded-2xl border border-border overflow-hidden">
-              {filtered.length === 0 ? (
-                <div className="p-10 text-center text-muted-foreground text-sm">
-                  Keine Vorlagen gefunden.
-                </div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {filtered.map((t) => (
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-bold text-foreground truncate uppercase max-w-[60%]">
+                  {selectedCategory?.name ?? "Ordner"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => openTemplateModal(selectedCategoryId)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-semibold hover:opacity-90 shrink-0"
+                >
+                  <Plus size={16} /> Vorlage hinzufügen
+                </button>
+              </div>
+              <div className="px-4 py-2 border-b border-border flex items-center gap-2 bg-muted/10">
+                <Search size={16} className="text-muted-foreground shrink-0" />
+                <input
+                  type="text"
+                  value={folderSearchQuery}
+                  onChange={(e) => setFolderSearchQuery(e.target.value)}
+                  placeholder="In diesem Ordner suchen…"
+                  className="bg-transparent outline-none text-sm font-medium text-foreground w-full py-2"
+                />
+              </div>
+              <div className="divide-y divide-border max-h-[min(70vh,800px)] overflow-y-auto">
+                {folderDisplayed.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-sm">
+                    Keine Vorlagen in diesem Ordner.
+                  </div>
+                ) : (
+                  folderDisplayed.map((t) => (
                     <div
                       key={t.id}
-                      className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/30 transition-colors"
+                      className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-muted/20 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -327,16 +595,14 @@ export default function AdminVorlagenClient({
                         {t.description && (
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{t.description}</p>
                         )}
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          {t.category?.name || "—"} · {t.fileType}
-                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-1">{t.fileType}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 shrink-0">
                         <a
                           href={t.fileUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="p-2 rounded-xl border border-border hover:bg-muted text-[#1a3826] dark:text-[#FFC72C]"
+                          className="p-2 rounded-lg border border-border hover:bg-muted text-[#1a3826] dark:text-[#FFC72C]"
                           title="Öffnen"
                         >
                           <FileText size={16} />
@@ -344,19 +610,19 @@ export default function AdminVorlagenClient({
                         <button
                           type="button"
                           onClick={() => handleDeleteTemplate(t.id)}
-                          className="p-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
                           title="Löschen"
                         >
                           <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {showCategoryModal && (
@@ -364,7 +630,7 @@ export default function AdminVorlagenClient({
           <div className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-md overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-[#1a3826]">
               <h2 className="text-base font-black text-white uppercase">
-                {editingCategory ? "Kategorie bearbeiten" : "Neue Kategorie"}
+                {editingCategory ? "Ordner bearbeiten" : "Neuer Ordner"}
               </h2>
               <button
                 type="button"
@@ -382,7 +648,7 @@ export default function AdminVorlagenClient({
                   value={categoryName}
                   onChange={(e) => setCategoryName(e.target.value)}
                   className="w-full h-10 px-3 border border-border rounded-lg text-sm font-medium bg-background focus:ring-2 focus:ring-[#1a3826]/30 outline-none"
-                  placeholder="z.B. Personal, Finanz"
+                  placeholder="z.B. Personal, Finanzen"
                 />
               </div>
               <div>
@@ -391,7 +657,7 @@ export default function AdminVorlagenClient({
                   value={categoryDescription}
                   onChange={(e) => setCategoryDescription(e.target.value)}
                   className="w-full h-20 px-3 py-2 border border-border rounded-lg text-sm font-medium bg-background focus:ring-2 focus:ring-[#1a3826]/30 outline-none resize-none"
-                  placeholder="Kurze Beschreibung..."
+                  placeholder="Kurze Beschreibung…"
                 />
               </div>
               <div>
@@ -412,7 +678,10 @@ export default function AdminVorlagenClient({
                         }`}
                         title={opt.name}
                       >
-                        <Icon size={22} className={isSelected ? "text-[#1a3826] dark:text-[#FFC72C]" : "text-muted-foreground"} />
+                        <Icon
+                          size={22}
+                          className={isSelected ? "text-[#1a3826] dark:text-[#FFC72C]" : "text-muted-foreground"}
+                        />
                       </button>
                     );
                   })}
@@ -452,14 +721,14 @@ export default function AdminVorlagenClient({
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-bold text-foreground mb-1">Kategorie *</label>
+                <label className="block text-xs font-bold text-foreground mb-1">Ordner *</label>
                 <select
                   value={templateCategoryId}
                   onChange={(e) => setTemplateCategoryId(e.target.value)}
                   className="w-full h-10 px-3 border border-border rounded-lg text-sm font-medium bg-background focus:ring-2 focus:ring-[#1a3826]/30 outline-none"
                 >
-                  <option value="">Kategorie wählen...</option>
-                  {initialCategories.map((cat) => (
+                  <option value="">Ordner wählen…</option>
+                  {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
                     </option>
@@ -467,13 +736,15 @@ export default function AdminVorlagenClient({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-foreground mb-1">Titel *</label>
+                <label className="block text-xs font-bold text-foreground mb-1">
+                  Titel (optional – sonst Dateiname)
+                </label>
                 <input
                   type="text"
                   value={templateTitle}
                   onChange={(e) => setTemplateTitle(e.target.value)}
                   className="w-full h-10 px-3 border border-border rounded-lg text-sm font-medium bg-background focus:ring-2 focus:ring-[#1a3826]/30 outline-none"
-                  placeholder="z.B. Arbeitsvertrag Vorlage"
+                  placeholder="Leer lassen = Dateiname ohne Endung"
                 />
               </div>
               <div>
@@ -482,7 +753,7 @@ export default function AdminVorlagenClient({
                   value={templateDescription}
                   onChange={(e) => setTemplateDescription(e.target.value)}
                   className="w-full h-20 px-3 py-2 border border-border rounded-lg text-sm font-medium bg-background focus:ring-2 focus:ring-[#1a3826]/30 outline-none resize-none"
-                  placeholder="Kurze Beschreibung..."
+                  placeholder="Kurze Beschreibung…"
                 />
               </div>
               <div>
@@ -491,7 +762,13 @@ export default function AdminVorlagenClient({
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
-                  onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setTemplateFile(f);
+                    if (f) {
+                      setTemplateTitle((prev) => (prev.trim() ? prev : deriveTitleFromFileName(f.name)));
+                    }
+                  }}
                   className="w-full text-sm text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#1a3826] file:text-white hover:file:bg-[#142e1e] file:cursor-pointer"
                 />
                 {templateFile && (
@@ -508,7 +785,7 @@ export default function AdminVorlagenClient({
                 disabled={uploading}
                 className="px-5 py-2.5 bg-[#FFC72C] hover:bg-[#e6b328] text-[#1a3826] rounded-lg text-sm font-black shadow-sm flex items-center gap-2 disabled:opacity-50"
               >
-                <Upload size={16} /> {uploading ? "Hochladen..." : "Hochladen"}
+                <Upload size={16} /> {uploading ? "Hochladen…" : "Hochladen"}
               </button>
             </div>
           </div>

@@ -9,10 +9,15 @@ export default async function SitzplanPage() {
   if (!session?.user?.email) redirect("/login");
 
   const data = await getSitzplanForUser();
+  const pdfs = data?.sitzplanPdfs ?? [];
+
+  if (pdfs.length > 1) {
+    redirect("/tools/sitzplan/waehlen");
+  }
 
   return (
     <SitzplanClient
-      sitzplanPdfUrl={data?.sitzplanPdfUrl ?? null}
+      sitzplanPdfUrl={pdfs[0]?.url ?? null}
       restaurantName={data?.restaurantName ?? "Restaurant"}
     />
   );

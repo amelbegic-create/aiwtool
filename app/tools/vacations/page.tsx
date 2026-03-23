@@ -6,13 +6,22 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import UserView from "./_components/UserView";
 import AdminView from "./_components/AdminView";
-import { cookies } from "next/headers";
 import { tryRequirePermission, getDbUserForAccess, hasPermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getUserTotalForYear, getVacationAdminData } from "@/app/actions/vacationActions";
 import { getHolidaysForYear } from "@/app/actions/holidayActions";
+import { getResolvedActiveRestaurantIdForSession } from "@/app/actions/activeRestaurantSync";
+import VacationUrlRestaurantSync from "./_components/VacationUrlRestaurantSync";
 
-export default async function VacationPage(props: { searchParams: Promise<{ year?: string; tab?: string }> }) {
+export default async function VacationPage(props: {
+  searchParams: Promise<{
+    year?: string;
+    tab?: string;
+    view?: string;
+    restaurantId?: string;
+    requestId?: string;
+  }>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/login");
 
@@ -23,8 +32,7 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
 
   const sessionUserId = accessResult.user.id;
 
-  const cookieStore = await cookies();
-  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
+  const resolvedRestaurantId = await getResolvedActiveRestaurantIdForSession();
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUserId },
@@ -54,23 +62,61 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
   const viewParam = (searchParams.view || "").toLowerCase();
   const forceSelfView = viewParam === "self";
 
+  const paramRestaurantId =
+    typeof searchParams.restaurantId === "string" && searchParams.restaurantId.trim()
+      ? searchParams.restaurantId.trim()
+      : undefined;
+  const highlightRequestId =
+    typeof searchParams.requestId === "string" && searchParams.requestId.trim()
+      ? searchParams.requestId.trim()
+      : null;
+
   const startOfYear = `${selectedYear}-01-01`;
   const endOfYear = `${selectedYear}-12-31`;
 
-  const isGodMode = user.role === Role.SYSTEM_ARCHITECT || user.role === Role.SUPER_ADMIN;
+  const isGodMode = user.role === Role.SYSTEM_ARCHITECT;
   const isAdmin = user.role === Role.ADMIN;
   const isRestaurantManager = user.role === Role.MANAGER;
   const isManagerView = isGodMode || isAdmin || isRestaurantManager;
 
+  /** Kao layout: cookie samo ako je dozvoljen; ne čitati sirovi cookie (stari admin ID). */
+  let effectiveActiveRestaurantId: string | undefined = resolvedRestaurantId;
+  /** Deep link: cookie se postavlja u klijentskoj komponenti (Server Action), ne u RSC. */
+  let urlRestaurantForCookieSync: string | null = null;
+
+  if (isManagerView && !forceSelfView && paramRestaurantId) {
+    let validated: string | undefined;
+    if (paramRestaurantId === "all") {
+      if (isGodMode || isAdmin) validated = "all";
+    } else if (isGodMode || isAdmin) {
+      const exists = await prisma.restaurant.findFirst({
+        where: { id: paramRestaurantId, isActive: true },
+        select: { id: true },
+      });
+      if (exists) validated = paramRestaurantId;
+    } else if (isRestaurantManager) {
+      if (user.restaurants.some((r) => r.restaurantId === paramRestaurantId)) {
+        validated = paramRestaurantId;
+      }
+    }
+    if (validated !== undefined) {
+      if (validated === "all") {
+        effectiveActiveRestaurantId = "all";
+      } else {
+        effectiveActiveRestaurantId = validated;
+        urlRestaurantForCookieSync = validated;
+      }
+    }
+  }
+
   if (isManagerView && !forceSelfView) {
     const [adminData, globalHolidays] = await Promise.all([
-      getVacationAdminData(selectedYear, activeRestaurantId, sessionUserId),
+      getVacationAdminData(selectedYear, effectiveActiveRestaurantId, sessionUserId),
       getHolidaysForYear(selectedYear),
     ]);
     const { usersStats, allRequests, blockedDays, reportRestaurantLabel } = adminData;
     const canRegisterOwnVacation =
       user.role === Role.SYSTEM_ARCHITECT ||
-      user.role === Role.SUPER_ADMIN ||
       user.role === Role.ADMIN ||
       user.role === Role.MANAGER;
 
@@ -81,26 +127,40 @@ export default async function VacationPage(props: { searchParams: Promise<{ year
       "users:manage"
     );
 
+    const canReorderVacationEmployees =
+      (user.role === Role.SYSTEM_ARCHITECT || user.role === Role.ADMIN) &&
+      !!effectiveActiveRestaurantId &&
+      effectiveActiveRestaurantId !== "all";
+
     return (
-      <AdminView
-        allRequests={allRequests}
-        blockedDays={blockedDays}
-        usersStats={usersStats}
-        selectedYear={selectedYear}
-        reportRestaurantLabel={reportRestaurantLabel}
-        canRegisterOwnVacation={canRegisterOwnVacation}
-        globalHolidays={globalHolidays}
-        canLinkToAdminUserEdit={canLinkToAdminUserEdit}
-        initialTab={initialTab}
-        isRestaurantManager={isRestaurantManager}
-      />
+      <>
+        {urlRestaurantForCookieSync ? (
+          <VacationUrlRestaurantSync restaurantId={urlRestaurantForCookieSync} />
+        ) : null}
+        <AdminView
+          allRequests={allRequests}
+          blockedDays={blockedDays}
+          usersStats={usersStats}
+          selectedYear={selectedYear}
+          reportRestaurantLabel={reportRestaurantLabel}
+          canRegisterOwnVacation={canRegisterOwnVacation}
+          globalHolidays={globalHolidays}
+          canLinkToAdminUserEdit={canLinkToAdminUserEdit}
+          initialTab={initialTab}
+          isRestaurantManager={isRestaurantManager}
+          activeRestaurantId={effectiveActiveRestaurantId ?? null}
+          canReorderVacationEmployees={canReorderVacationEmployees}
+          highlightRequestId={highlightRequestId}
+          vacationActorUserId={sessionUserId}
+        />
+      </>
     );
   }
 
   const blockedDaysPromise = prisma.blockedDay.findMany({
     where:
-      activeRestaurantId && activeRestaurantId !== "all"
-        ? { restaurantId: activeRestaurantId }
+      resolvedRestaurantId && resolvedRestaurantId !== "all"
+        ? { restaurantId: resolvedRestaurantId }
         : undefined,
     orderBy: { date: "asc" },
   });

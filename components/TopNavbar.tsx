@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, FileText } from "lucide-react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, FileText, Lightbulb, Lock, Unlock } from "lucide-react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
 import RestaurantSwitcher from "./RestaurantSwitcher";
 import { dict } from "@/translations";
 import { toast } from "sonner";
+import { isGlobalScopeRole } from "@/lib/permissions";
+import { markNotificationsAsRead } from "@/app/actions/notificationActions";
 
 interface UserWithRole {
   name?: string | null;
@@ -79,6 +81,30 @@ function kindMeta(kind?: string, status?: string) {
       labelColor: "text-orange-600 dark:text-orange-400",
     };
   }
+  if (kind === "admin_idea_new") {
+    return {
+      icon: <Lightbulb size={14} className="text-white" />,
+      bg: "bg-amber-500",
+      label: "Ideenbox",
+      labelColor: "text-amber-700 dark:text-amber-400",
+    };
+  }
+  if (kind === "cl_month_locked") {
+    return {
+      icon: <Lock size={14} className="text-white" />,
+      bg: "bg-[#1b3a26]",
+      label: "CL gesperrt",
+      labelColor: "text-[#1b3a26] dark:text-[#FFC72C]",
+    };
+  }
+  if (kind === "cl_unlock_requested") {
+    return {
+      icon: <Unlock size={14} className="text-white" />,
+      bg: "bg-violet-600",
+      label: "CL Entsperre",
+      labelColor: "text-violet-700 dark:text-violet-400",
+    };
+  }
   const s = status ?? kind ?? "";
   if (s.includes("approved") || s === "APPROVED") {
     return {
@@ -119,32 +145,17 @@ export default function TopNavbar({
   notifications = [],
 }: TopNavbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [notifPending, startNotifTransition] = useTransition();
   const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [showAllModal, setShowAllModal] = useState(false);
-  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const notifIdsKey = useMemo(
-    () => [...notifications].map((n) => n.id).sort().join(","),
-    [notifications]
-  );
-
-  // Inicijaliziraj readIds iz localStorage i drži ih u syncu s trenutnim notifikacijama (badge = lista)
-  useEffect(() => {
-    try {
-      const ids = notifIdsKey ? notifIdsKey.split(",") : [];
-      const stored = localStorage.getItem("notif_read_ids");
-      const raw = stored ? (JSON.parse(stored) as string[]) : [];
-      const currentIds = Array.isArray(raw) ? raw : [];
-      const validIds = currentIds.filter((id) => ids.includes(id));
-      setReadIds(new Set(validIds));
-      if (validIds.length !== currentIds.length) {
-        localStorage.setItem("notif_read_ids", JSON.stringify(validIds));
-      }
-    } catch { /* ignore */ }
-  }, [notifIdsKey]);
+  /** Server šalje samo nepročitane; stanje „gelesen“ je u bazi. */
+  const unreadNotifications = notifications;
+  const unreadCount = unreadNotifications.length;
 
   // Prikaži "Gespeichert" toast nakon automatskog snimanja pri izlasku iz modula
   useEffect(() => {
@@ -156,27 +167,20 @@ export default function TopNavbar({
     } catch { /* ignore */ }
   }, [pathname]);
 
-  const markRead = (id: string) => {
-    setReadIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      try { localStorage.setItem("notif_read_ids", JSON.stringify([...next])); } catch { /* ignore */ }
-      return next;
+  const persistRead = (ids: string[]) => {
+    if (ids.length === 0) return;
+    startNotifTransition(() => {
+      void (async () => {
+        await markNotificationsAsRead(ids);
+        router.refresh();
+      })();
     });
   };
 
-  const markAllRead = () => {
-    const allIds = notifications.map((n) => n.id);
-    setReadIds((prev) => {
-      const next = new Set([...prev, ...allIds]);
-      try { localStorage.setItem("notif_read_ids", JSON.stringify([...next])); } catch { /* ignore */ }
-      return next;
-    });
-  };
+  const markRead = (id: string) => persistRead([id]);
 
-  // Nepročitane notifikacije – koriste se za badge i listu
-  const unreadNotifications = notifications.filter((n) => !readIds.has(n.id));
-  const unreadCount = unreadNotifications.length;
+  const markAllRead = () => persistRead(notifications.map((n) => n.id));
+
   // U listi prikazujemo samo nepročitane (max 5)
   const visibleNotifications = unreadNotifications.slice(0, 5);
   const hiddenCount = unreadNotifications.length - visibleNotifications.length;
@@ -201,32 +205,11 @@ export default function TopNavbar({
 
   const isPerRestaurantOnly = pathname.startsWith("/tools/labor-planner");
 
-  // Dozvole za admina
-  const canSeeAllRestaurants = 
-    role === 'SYSTEM_ARCHITECT' || 
-    role === 'SUPER_ADMIN' || 
-    role === 'ADMIN' || 
-    role === 'MANAGER';
+  const canSeeAllRestaurants = isGlobalScopeRole(role) || role === "MANAGER";
 
-  const hasAdminPrivileges =
-    role === 'SYSTEM_ARCHITECT' || role === 'SUPER_ADMIN' || role === 'ADMIN';
-
-  // Admin ikonica treba biti vidljiva i korisnicima koji imaju admin-permisije po modulima,
-  // čak i ako im je rola npr. CREW.
-  const hasAnyAdminPermission =
-    hasAdminPrivileges ||
-    permissions.some((p) =>
-      [
-        "users:access",
-        "restaurants:access",
-        "rules:access",
-        "pds:access",
-        "partners:manage",
-        "holidays:manage",
-        "ideenbox:access",
-        "vorlagen:manage",
-      ].includes(p)
-    );
+  /** Ulaz u /admin: eksplicitno admin_panel:access ili SYSTEM_ARCHITECT (bypass u hasPermission). */
+  const showAdminNav =
+    role === "SYSTEM_ARCHITECT" || permissions.includes("admin_panel:access");
 
   // Sakrij navbar na login stranici
   if (pathname === "/login" || pathname === "/select-restaurant") return null;
@@ -385,8 +368,9 @@ export default function TopNavbar({
                     {unreadCount > 0 && (
                       <button
                         type="button"
+                        disabled={notifPending}
                         onClick={markAllRead}
-                        className="text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+                        className="text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline disabled:opacity-40"
                       >
                         Alle gelesen
                       </button>
@@ -404,7 +388,12 @@ export default function TopNavbar({
                   ) : (
                     visibleNotifications.map((n) => {
                       const meta = kindMeta(n.kind, n.vacationStatus);
-                      const isAdminKind = n.kind === "admin_vacation_pending" || n.kind === "admin_vacation_storno";
+                      const isAdminKind =
+                        n.kind === "admin_vacation_pending" ||
+                        n.kind === "admin_vacation_storno" ||
+                        n.kind === "admin_idea_new" ||
+                        n.kind === "cl_month_locked" ||
+                        n.kind === "cl_unlock_requested";
                       return (
                         <div key={n.id} className="flex items-start gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors group relative">
                           <Link
@@ -431,7 +420,7 @@ export default function TopNavbar({
                             <div className="flex-1 min-w-0">
                               {isAdminKind ? (
                                 <>
-                                  <p className="text-sm leading-snug text-foreground">
+                                  <p className="text-sm leading-snug text-foreground break-words">
                                     <span className="font-black">{n.actorName}</span>{" "}
                                     <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
                                   </p>
@@ -454,8 +443,9 @@ export default function TopNavbar({
                           <button
                             type="button"
                             title="Als gelesen markieren"
+                            disabled={notifPending}
                             onClick={() => markRead(n.id)}
-                            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1 p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1 p-1 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-40"
                           >
                             <X size={13} />
                           </button>
@@ -480,8 +470,7 @@ export default function TopNavbar({
               </div>
             )}
           </div>
-          {/* Admin panel – za ADMIN/SUPER_ADMIN/SYSTEM_ARCHITECT ili korisnike s admin-permisijama */}
-          {hasAnyAdminPermission && (
+          {showAdminNav && (
             <Link
               href="/admin"
               onClick={closeMenu}
@@ -611,6 +600,16 @@ export default function TopNavbar({
               </nav>
 
               <div className="pt-4 border-t border-white/10 space-y-2">
+                {showAdminNav && (
+                  <Link
+                    href="/admin"
+                    onClick={closeMenu}
+                    className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
+                  >
+                    <Settings size={18} />
+                    <span className="text-sm font-bold">Admin Panel</span>
+                  </Link>
+                )}
                 <Link
                   href="/profile"
                   onClick={closeMenu}
@@ -645,8 +644,9 @@ export default function TopNavbar({
               {unreadCount > 0 && (
                 <button
                   type="button"
+                  disabled={notifPending}
                   onClick={markAllRead}
-                  className="text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
+                  className="text-[11px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:underline disabled:opacity-40"
                 >
                   Alle gelesen
                 </button>
@@ -671,12 +671,16 @@ export default function TopNavbar({
             ) : (
             unreadNotifications.map((n) => {
                 const meta = kindMeta(n.kind, n.vacationStatus);
-                const isAdminKind = n.kind === "admin_vacation_pending" || n.kind === "admin_vacation_storno";
-                const isRead = readIds.has(n.id);
+                const isAdminKind =
+                  n.kind === "admin_vacation_pending" ||
+                  n.kind === "admin_vacation_storno" ||
+                  n.kind === "admin_idea_new" ||
+                  n.kind === "cl_month_locked" ||
+                  n.kind === "cl_unlock_requested";
                 return (
                   <div
                     key={n.id}
-                    className={`flex items-start gap-3 px-4 py-3.5 group transition-colors ${isRead ? "opacity-50 bg-muted/10" : "hover:bg-muted/40"}`}
+                    className="flex items-start gap-3 px-4 py-3.5 group transition-colors hover:bg-muted/40"
                   >
                     <Link
                       href={n.href}
@@ -700,7 +704,7 @@ export default function TopNavbar({
                       <div className="flex-1 min-w-0">
                         {isAdminKind ? (
                           <>
-                            <p className="text-sm leading-snug text-foreground">
+                            <p className="text-sm leading-snug text-foreground break-words">
                               <span className="font-black">{n.actorName}</span>{" "}
                               <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
                             </p>
@@ -719,16 +723,15 @@ export default function TopNavbar({
                         <p className="text-[10px] text-muted-foreground/60 mt-1 font-semibold">{timeAgo(n.createdAt)}</p>
                       </div>
                     </Link>
-                    {!isRead && (
-                      <button
-                        type="button"
-                        title="Als gelesen markieren"
-                        onClick={() => markRead(n.id)}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1 p-1 rounded-full hover:bg-muted text-muted-foreground"
-                      >
-                        <X size={13} />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      title="Als gelesen markieren"
+                      disabled={notifPending}
+                      onClick={() => markRead(n.id)}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1 p-1 rounded-full hover:bg-muted text-muted-foreground disabled:opacity-40"
+                    >
+                      <X size={13} />
+                    </button>
                   </div>
                 );
               })

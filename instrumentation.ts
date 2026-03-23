@@ -18,8 +18,6 @@ export async function register() {
     };
 
     // ── 1. Enum values ────────────────────────────────────────────────────────
-    await run(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'SHIFT_LEADER'`);
-    await run(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'AREA_MANAGER'`);
     await run(`ALTER TYPE "PDSStatus" ADD VALUE IF NOT EXISTS 'IN_PROGRESS'`);
     await run(`ALTER TYPE "PDSStatus" ADD VALUE IF NOT EXISTS 'APPROVED'`);
 
@@ -67,6 +65,48 @@ export async function register() {
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Restaurant_areaManagerId_fkey') THEN
           ALTER TABLE "Restaurant" ADD CONSTRAINT "Restaurant_areaManagerId_fkey"
             FOREIGN KEY ("areaManagerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // ── 4b. Sitzplan (više PDF-ova) — usklađeno sa prisma/schema Restaurant.sitzplanPdfsData
+    await run(
+      `ALTER TABLE "Restaurant" ADD COLUMN IF NOT EXISTS "sitzplanPdfsData" JSONB NOT NULL DEFAULT '[]'::jsonb`
+    );
+    await run(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'Restaurant' AND column_name = 'sitzplanPdfUrls'
+        ) THEN
+          EXECUTE $sql$
+            UPDATE "Restaurant" r
+            SET "sitzplanPdfsData" = (
+              SELECT COALESCE(
+                jsonb_agg(
+                  jsonb_build_object(
+                    'url', u.url,
+                    'fileName', COALESCE(
+                      CASE
+                        WHEN r."sitzplanPdfNames" IS NOT NULL
+                          AND array_length(r."sitzplanPdfNames", 1) IS NOT NULL
+                          AND u.idx <= array_length(r."sitzplanPdfNames", 1)
+                        THEN r."sitzplanPdfNames"[u.idx]
+                        ELSE ''
+                      END,
+                      ''
+                    )
+                  ) ORDER BY u.idx
+                ),
+                '[]'::jsonb
+              )
+              FROM unnest(r."sitzplanPdfUrls") WITH ORDINALITY AS u(url, idx)
+            )
+            WHERE cardinality(r."sitzplanPdfUrls") > 0
+          $sql$;
+          ALTER TABLE "Restaurant" DROP COLUMN IF EXISTS "sitzplanPdfUrls";
+          ALTER TABLE "Restaurant" DROP COLUMN IF EXISTS "sitzplanPdfNames";
         END IF;
       END $$
     `);
@@ -171,6 +211,35 @@ export async function register() {
     await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "pdfUrl" TEXT`);
     await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "pdfName" TEXT`);
     await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "pdfSize" INTEGER`);
+    await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "isArchived" BOOLEAN NOT NULL DEFAULT false`);
+    await run(`CREATE INDEX IF NOT EXISTS "Idea_isArchived_idx" ON "Idea"("isArchived")`);
+
+    // ── 10b. Dashboard news slider ──────────────────────────────────────────
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DashboardNewsAttachmentKind') THEN
+          CREATE TYPE "DashboardNewsAttachmentKind" AS ENUM ('PDF', 'IMAGE');
+        END IF;
+      END $$
+    `);
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardNewsItem" (
+        "id"               TEXT NOT NULL,
+        "title"            TEXT NOT NULL,
+        "subtitle"         TEXT,
+        "coverImageUrl"    TEXT NOT NULL,
+        "attachmentUrl"    TEXT NOT NULL,
+        "attachmentKind"   "DashboardNewsAttachmentKind" NOT NULL,
+        "sortOrder"        INTEGER NOT NULL DEFAULT 0,
+        "isActive"         BOOLEAN NOT NULL DEFAULT true,
+        "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardNewsItem_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(
+      `CREATE INDEX IF NOT EXISTS "DashboardNewsItem_isActive_sortOrder_idx" ON "DashboardNewsItem"("isActive", "sortOrder")`
+    );
 
     // ── 11. Holiday table ─────────────────────────────────────────────────────
     await run(`
@@ -218,6 +287,9 @@ export async function register() {
         END IF;
       END $$
     `);
+
+    // ── 14. Vorlagen (TemplateItem) – tekst iz PDF-a za pretragu ─────────────
+    await run(`ALTER TABLE "TemplateItem" ADD COLUMN IF NOT EXISTS "extractedText" TEXT`);
 
     console.log("[db-init] Schema sync complete.");
   }

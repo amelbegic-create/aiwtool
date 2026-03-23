@@ -7,6 +7,7 @@ import { put, del } from "@vercel/blob";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { cookies } from "next/headers";
+import { mergeSitzplanPdfs, SITZPLAN_MAX_FILES, type SitzplanPdfEntry } from "@/lib/sitzplanUrls";
 
 async function resolveRestaurantIdForSessionUser(sessionUserId: string) {
   const cookieStore = await cookies();
@@ -28,7 +29,28 @@ async function resolveRestaurantIdForSessionUser(sessionUserId: string) {
   return null;
 }
 
-/** Admin: Upload Sitzplan PDF za restoran */
+/** Eksplicitan select (bez spreada) – izbjegava PrismaClientValidationError. */
+const sitzplanRestaurantSelect = {
+  sitzplanPdfUrl: true,
+  sitzplanPdfsData: true,
+} as const;
+
+function revalidateSitzplanPaths() {
+  revalidatePath("/admin/sitzplan");
+  revalidatePath("/tools/restaurants");
+  revalidatePath("/tools/sitzplan");
+  revalidatePath("/tools/sitzplan/waehlen");
+}
+
+function persistEntries(entries: SitzplanPdfEntry[]): Prisma.RestaurantUpdateInput {
+  const json = entries.map((e) => ({ url: e.url, fileName: e.fileName })) as Prisma.InputJsonValue;
+  return {
+    sitzplanPdfUrl: null,
+    sitzplanPdfsData: json,
+  };
+}
+
+/** Admin: weiteres Sitzplan-PDF hochladen (max. 5). */
 export async function uploadSitzplan(restaurantId: string, formData: FormData) {
   await requirePermission("restaurants:access");
 
@@ -37,17 +59,13 @@ export async function uploadSitzplan(restaurantId: string, formData: FormData) {
 
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { id: true, sitzplanPdfUrl: true },
+    select: { id: true, ...sitzplanRestaurantSelect },
   });
   if (!restaurant) throw new Error("Restaurant nicht gefunden.");
 
-  // Obriši stari fajl ako postoji
-  if (restaurant.sitzplanPdfUrl) {
-    try {
-      await del(restaurant.sitzplanPdfUrl);
-    } catch (err) {
-      console.error("Fehler beim Löschen der alten Datei:", err);
-    }
+  const current = mergeSitzplanPdfs(restaurant);
+  if (current.length >= SITZPLAN_MAX_FILES) {
+    throw new Error(`Maximal ${SITZPLAN_MAX_FILES} Sitzplan-PDFs erlaubt.`);
   }
 
   const blob = await put(`sitzplan/${restaurantId}-${Date.now()}-${file.name}`, file, {
@@ -55,29 +73,32 @@ export async function uploadSitzplan(restaurantId: string, formData: FormData) {
     addRandomSuffix: true,
   });
 
+  const next: SitzplanPdfEntry[] = [...current, { url: blob.url, fileName: file.name }];
+
   await prisma.restaurant.update({
     where: { id: restaurantId },
-    data: { sitzplanPdfUrl: blob.url },
+    data: persistEntries(next),
   });
 
-  revalidatePath("/admin/sitzplan");
-  revalidatePath("/tools/restaurants");
+  revalidateSitzplanPaths();
+  revalidatePath(`/admin/sitzplan/${restaurantId}`);
   return { url: blob.url };
 }
 
-/** Admin: Obriši Sitzplan PDF */
+/** Admin: alle Sitzplan-PDFs löschen */
 export async function deleteSitzplan(restaurantId: string) {
   await requirePermission("restaurants:access");
 
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { sitzplanPdfUrl: true },
+    select: sitzplanRestaurantSelect,
   });
   if (!restaurant) throw new Error("Restaurant nicht gefunden.");
 
-  if (restaurant.sitzplanPdfUrl) {
+  const items = mergeSitzplanPdfs(restaurant);
+  for (const e of items) {
     try {
-      await del(restaurant.sitzplanPdfUrl);
+      await del(e.url);
     } catch (err) {
       console.error("Fehler beim Löschen von Vercel Blob:", err);
     }
@@ -85,14 +106,50 @@ export async function deleteSitzplan(restaurantId: string) {
 
   await prisma.restaurant.update({
     where: { id: restaurantId },
-    data: { sitzplanPdfUrl: null },
+    data: {
+      sitzplanPdfUrl: null,
+      sitzplanPdfsData: [],
+    },
   });
 
-  revalidatePath("/admin/sitzplan");
-  revalidatePath("/tools/restaurants");
+  revalidateSitzplanPaths();
+  revalidatePath(`/admin/sitzplan/${restaurantId}`);
 }
 
-/** Korisnik: Dohvati sitzplanPdfUrl za restoran u kojem je prijavljen */
+/** Admin: ein einzelnes PDF nach Index entfernen (merged Liste) */
+export async function deleteSitzplanAt(restaurantId: string, index: number) {
+  await requirePermission("restaurants:access");
+
+  if (index < 0 || !Number.isInteger(index)) throw new Error("Ungültiger Index.");
+
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: sitzplanRestaurantSelect,
+  });
+  if (!restaurant) throw new Error("Restaurant nicht gefunden.");
+
+  const items = mergeSitzplanPdfs(restaurant);
+  if (index >= items.length) throw new Error("Datei nicht gefunden.");
+
+  const removed = items[index];
+  const next = items.filter((_, i) => i !== index);
+
+  try {
+    await del(removed.url);
+  } catch (err) {
+    console.error("Fehler beim Löschen von Vercel Blob:", err);
+  }
+
+  await prisma.restaurant.update({
+    where: { id: restaurantId },
+    data: persistEntries(next),
+  });
+
+  revalidateSitzplanPaths();
+  revalidatePath(`/admin/sitzplan/${restaurantId}`);
+}
+
+/** Korisnik: merged Sitzplan-Einträge za aktivni restoran */
 export async function getSitzplanForUser() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return null;
@@ -108,10 +165,18 @@ export async function getSitzplanForUser() {
 
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
-    select: { name: true, sitzplanPdfUrl: true },
+    select: {
+      name: true,
+      sitzplanPdfUrl: true,
+      sitzplanPdfsData: true,
+    },
   });
 
-  return restaurant
-    ? { restaurantName: restaurant.name ?? restaurantId, sitzplanPdfUrl: restaurant.sitzplanPdfUrl }
-    : null;
+  if (!restaurant) return null;
+
+  const sitzplanPdfs = mergeSitzplanPdfs(restaurant);
+  return {
+    restaurantName: restaurant.name ?? restaurantId,
+    sitzplanPdfs,
+  };
 }

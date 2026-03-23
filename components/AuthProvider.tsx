@@ -10,6 +10,7 @@ type Props = {
 export default function AuthProvider({ children }: Props) {
   return (
     <SessionProvider
+      basePath="/api/auth"
       refetchInterval={5 * 60}
       refetchOnWindowFocus={false}
     >

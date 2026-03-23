@@ -1,10 +1,10 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getVacationAdminData } from "@/app/actions/vacationActions";
+import { getResolvedActiveRestaurantIdForSession } from "@/app/actions/activeRestaurantSync";
 import { getHolidaysForYear } from "@/app/actions/holidayActions";
 import VacationTableView from "../_VacationTableView";
 
@@ -22,8 +22,7 @@ export default async function VacationPlanPage(props: {
   const sessionUserId = (session.user as { id?: string })?.id;
   if (!sessionUserId) redirect("/login");
 
-  const cookieStore = await cookies();
-  const activeRestaurantId = cookieStore.get("activeRestaurantId")?.value;
+  const activeRestaurantId = await getResolvedActiveRestaurantIdForSession();
 
   const searchParams = await props.searchParams;
   const currentYear = new Date().getFullYear();

@@ -56,5 +56,5 @@ export const TOOL_PERMISSION: Record<string, string> = {
   'partners': 'partners:access',
   'vorlagen': 'vorlagen:access',
   'besuchsberichte': 'besuchsberichte:access',
-  'admin-panel': 'users:access',
+  'admin-panel': 'admin_panel:access',
 };

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { tryRequirePermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getGlobalVacationStats } from "@/app/actions/vacationActions";
+import { sortUserStatsForVacationTable } from "@/lib/vacationTableSort";
 import VacationTableView from "../_VacationTableView";
 import type { RequestWithUser } from "../../_components/AdminView";
 
@@ -33,9 +34,11 @@ export default async function VacationDepartmentsPage(props: {
   const { usersStats, allRequests } = await getGlobalVacationStats(year);
 
   const deptSet = new Set(selectedDepts.map((d) => (d || "N/A")));
-  const filteredStats = selectedDepts.length
-    ? usersStats.filter((u) => deptSet.has(u.department?.trim() || "N/A"))
-    : usersStats;
+  const filteredStats = sortUserStatsForVacationTable(
+    selectedDepts.length
+      ? usersStats.filter((u) => deptSet.has(u.department?.trim() || "N/A"))
+      : usersStats
+  );
   const filteredUserIds = new Set(filteredStats.map((u) => u.id));
   const filteredRequests = allRequests.filter((r) =>
     filteredUserIds.has(r.user.id)

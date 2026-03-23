@@ -3,17 +3,16 @@ import prisma from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
-import { Role } from "@prisma/client";
+import { hasPermission } from "@/lib/permissionCheck";
 
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
-    const role = session?.user?.role;
+    const sessionUser = session?.user as { role?: string; permissions?: string[] } | undefined;
+    const r = String(sessionUser?.role ?? "");
+    const perms = Array.isArray(sessionUser?.permissions) ? sessionUser.permissions : [];
 
-    const isAdmin =
-      role === Role.SYSTEM_ARCHITECT || role === Role.SUPER_ADMIN || role === Role.ADMIN;
-
-    if (!isAdmin) {
+    if (!hasPermission(r, perms, "users:manage")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

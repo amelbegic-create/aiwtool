@@ -17,7 +17,7 @@ type CertItem = {
 
 interface Props {
   certificates: CertItem[];
-  canOpenPopup: boolean; // true für CREW, SHIFT_LEADER, MANAGER – false für ADMIN+
+  canOpenPopup: boolean; // true für Mitarbeiter/Manager – false für globale Admin-Rollen
 }
 
 function fmtDate(d: Date | string) {

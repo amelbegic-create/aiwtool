@@ -4,6 +4,15 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/access";
 
+const DEPARTMENT_ORDER_BY = [{ sortOrder: "asc" as const }, { name: "asc" as const }];
+
+function revalidateDepartmentRelatedPaths() {
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/users/create");
+  revalidatePath("/admin/users/departments");
+  revalidatePath("/team");
+}
+
 /** Dohvati sve odjele (globalne + po restoranu). */
 export async function getDepartments(restaurantId?: string | null) {
   await requirePermission("users:manage");
@@ -14,8 +23,8 @@ export async function getDepartments(restaurantId?: string | null) {
 
   const list = await prisma.department.findMany({
     where,
-    orderBy: { name: "asc" },
-    select: { id: true, name: true, color: true, restaurantId: true },
+    orderBy: DEPARTMENT_ORDER_BY,
+    select: { id: true, name: true, color: true, restaurantId: true, sortOrder: true },
   });
   return list;
 }
@@ -36,17 +45,22 @@ export async function createDepartment(input: CreateDepartmentInput) {
   const color = (input.color || "#6b7280").trim();
   if (!/^#[0-9A-Fa-f]{6}$/.test(color)) throw new Error("Boja mora biti HEX (npr. #ff0000).");
 
+  const maxRow = await prisma.department.aggregate({
+    _max: { sortOrder: true },
+  });
+  const nextOrder = (maxRow._max.sortOrder ?? -1) + 1;
+
   const created = await prisma.department.create({
     data: {
       name,
       color,
       restaurantId: input.restaurantId || null,
+      sortOrder: nextOrder,
     },
-    select: { id: true, name: true, color: true },
+    select: { id: true, name: true, color: true, sortOrder: true },
   });
 
-  revalidatePath("/admin/users");
-  revalidatePath("/admin/users/create");
+  revalidateDepartmentRelatedPaths();
   return { success: true as const, data: created };
 }
 
@@ -76,9 +90,38 @@ export async function updateDepartment(input: UpdateDepartmentInput) {
     },
   });
 
-  revalidatePath("/admin/users");
-  revalidatePath("/admin/users/create");
+  revalidateDepartmentRelatedPaths();
   return { success: true as const };
+}
+
+/** Spremi redoslijed odjela (puni niz ID-eva u željenom redoslijedu). */
+export async function reorderDepartments(orderedIds: string[]) {
+  await requirePermission("users:manage");
+
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+    return { success: false as const, error: "Keine Abteilungen zum Sortieren." };
+  }
+
+  const unique = [...new Set(orderedIds.filter(Boolean))];
+  if (unique.length !== orderedIds.length) {
+    return { success: false as const, error: "Ungültige Sortierliste." };
+  }
+
+  try {
+    await prisma.$transaction(
+      unique.map((id, index) =>
+        prisma.department.update({
+          where: { id },
+          data: { sortOrder: index },
+        })
+      )
+    );
+    revalidateDepartmentRelatedPaths();
+    return { success: true as const };
+  } catch (err) {
+    console.error("reorderDepartments error", err);
+    return { success: false as const, error: "Reihenfolge konnte nicht gespeichert werden." };
+  }
 }
 
 /** Obriši odjel. Korisnici koji su bili na ovom odjelu ostaju bez departmentId. */
@@ -96,9 +139,7 @@ export async function deleteDepartment(id: string) {
       where: { id },
     });
 
-    revalidatePath("/admin/users");
-    revalidatePath("/admin/users/create");
-    revalidatePath("/admin/users/departments");
+    revalidateDepartmentRelatedPaths();
     return { success: true as const };
   } catch (err) {
     console.error("deleteDepartment error", err);

@@ -6,7 +6,7 @@ import NoPermission from "@/components/NoPermission";
 import RulesUserView from "./_components/RulesUserView";
 import prisma from "@/lib/prisma";
 
-const EDIT_ROLES = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER"];
+const EDIT_ROLES = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT"];
 
 export default async function RulesPage() {
   const session = await getServerSession(authOptions);

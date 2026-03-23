@@ -4,6 +4,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
+import { stealthArchitectWhere } from "@/lib/userVisibility";
 import type { BonusState } from "@/lib/bonusLogic";
 import { sanitize, defaultState, uid } from "@/lib/bonusLogic";
 
@@ -73,8 +76,19 @@ export async function saveBonusSheet(rawState: any, name?: string) {
 export async function syncEmployeesWithUsers(rawState: any): Promise<BonusState> {
   const state = sanitize(rawState);
 
+  const session = await getServerSession(authOptions);
+  let viewerRole: string | undefined;
+  if (session?.user?.email) {
+    viewerRole =
+      (session.user as { role?: string }).role ??
+      (await prisma.user.findUnique({
+        where: { email: session.user.email },
+        select: { role: true },
+      }))?.role;
+  }
+
   const users = await prisma.user.findMany({
-    where: { isActive: true, role: { not: "SYSTEM_ARCHITECT" } },
+    where: { isActive: true, ...stealthArchitectWhere(viewerRole) },
     include: { department: true },
     orderBy: { name: "asc" },
   });

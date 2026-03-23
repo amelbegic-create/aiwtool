@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -34,11 +34,14 @@ export default function TeamPageClient({
   treeData,
   currentUserId,
   canLinkToAdminUserEdit = false,
+  departmentNamesOrdered = [],
 }: {
   initialTeam: TeamMemberRow[];
   treeData: TeamMemberRowWithSupervisor[];
   currentUserId: string;
   canLinkToAdminUserEdit?: boolean;
+  /** Redoslijed imena odjela iz admina (Department.sortOrder). */
+  departmentNamesOrdered?: string[];
 }) {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   const [detail, setDetail] = useState<TeamMemberDetail | null>(null);
@@ -152,11 +155,23 @@ export default function TeamPageClient({
     );
   };
 
-  const departmentOptions = Array.from(
-    new Set(initialTeam.map((m) => (m.department && m.department.trim() !== "" ? m.department : "")))
-  )
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b));
+  const namesInTeam = useMemo(() => {
+    const s = new Set<string>();
+    for (const m of initialTeam) {
+      const n = (m.department || "").trim();
+      if (n) s.add(n);
+    }
+    return s;
+  }, [initialTeam]);
+
+  const departmentOptions = useMemo(() => {
+    const fromDb = new Set(departmentNamesOrdered);
+    const ordered = departmentNamesOrdered.filter((n) => namesInTeam.has(n));
+    const orphans = Array.from(namesInTeam)
+      .filter((n) => !fromDb.has(n))
+      .sort((a, b) => a.localeCompare(b));
+    return [...ordered, ...orphans];
+  }, [departmentNamesOrdered, namesInTeam]);
 
   const filteredTeam =
     selectedDepts.size === 0

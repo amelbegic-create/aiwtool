@@ -72,7 +72,6 @@ export default function DashboardChangelogButton({ changelog }: Props) {
         {changelog?.updatedAt && (
           <div className="px-6 py-3 border-t border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">
             Letzte Aktualisierung: {formatDate(changelog.updatedAt)}
-            {changelog.updatedByName ? ` · ${changelog.updatedByName}` : " · SYSTEM ARCHITECT"}
           </div>
         )}
       </div>

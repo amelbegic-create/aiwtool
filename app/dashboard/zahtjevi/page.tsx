@@ -56,7 +56,8 @@ export default async function ZahtjeviPage() {
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-3">
               <div className="text-xs font-black uppercase tracking-widest text-slate-500">
-                Benachrichtigungen ({notifications.length})
+                Benachrichtigungen ({notifications.length}) ·{" "}
+                {notifications.filter((x) => !x.isRead).length} ungelesen
               </div>
             </div>
             <ul className="divide-y divide-slate-100">
@@ -73,10 +74,19 @@ export default async function ZahtjeviPage() {
                   <li key={n.id}>
                     <Link
                       href={n.href}
-                      className="flex items-center justify-between gap-4 px-4 py-3 hover:bg-slate-50 transition-colors"
+                      className={`flex items-center justify-between gap-4 px-4 py-3 transition-colors ${
+                        n.isRead ? "bg-slate-50/80 opacity-70 hover:bg-slate-100" : "hover:bg-slate-50"
+                      }`}
                     >
                       <div className="min-w-0">
-                        <div className="text-sm font-bold text-slate-900 truncate">{n.title}</div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-bold text-slate-900 truncate">{n.title}</span>
+                          {n.isRead && (
+                            <span className="shrink-0 text-[10px] font-black uppercase text-slate-400">
+                              Gelesen
+                            </span>
+                          )}
+                        </div>
                         <div className="mt-0.5 text-xs text-slate-600 truncate">{n.description}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">

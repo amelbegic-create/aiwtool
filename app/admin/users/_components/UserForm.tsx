@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,29 +9,26 @@ import { createUser, updateUser } from "@/app/actions/adminActions";
 import { toast } from "sonner";
 import { getRolePermissionPreset } from "@/app/actions/rolePresetActions";
 import { createDepartment, updateDepartment, deleteDepartment } from "@/app/actions/departmentActions";
-import { GOD_MODE_ROLES } from "@/lib/permissions";
-import { PERMISSIONS } from "@/lib/permissions";
+import { PERMISSIONS, isGodModeRole, type PermissionGroup } from "@/lib/permissions";
 import { Role } from "@prisma/client";
 import { User, Shield, Settings, ChevronDown, ChevronRight, Loader2, Plus, Trash2, CalendarDays, Pencil, X } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   SYSTEM_ARCHITECT: "System Architect",
-  SUPER_ADMIN: "Bereichsleitung",
-  ADMIN: "Management",
+  ADMIN: "Administration",
   MANAGER: "Restaurant Manager",
-  SHIFT_LEADER: "Schichtleiter:in",
-  CREW: "Crew",
+  MANAGEMENT: "Management / Büro",
+  MITARBEITER: "Mitarbeiter:in",
 };
 
-const ROLE_ORDER: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"];
+const ROLE_ORDER: Role[] = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT", "MITARBEITER"];
 
 const ROLE_RANK: Record<string, number> = {
   SYSTEM_ARCHITECT: 1,
-  SUPER_ADMIN: 2,
-  ADMIN: 3,
-  MANAGER: 4,
-  SHIFT_LEADER: 5,
-  CREW: 6,
+  ADMIN: 2,
+  MANAGER: 3,
+  MANAGEMENT: 4,
+  MITARBEITER: 5,
 };
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
@@ -43,7 +39,7 @@ const createSchema = (isEdit: boolean) =>
     lastName: z.string().min(1, "Nachname ist erforderlich"),
     email: z.string().email("Ungültige E-Mail-Adresse"),
     password: isEdit ? z.string().optional() : z.string().min(6, "Passwort mindestens 6 Zeichen"),
-    role: z.enum(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"]),
+    role: z.enum(["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT", "MITARBEITER"]),
     departmentId: z.string().optional().nullable(),
     supervisorId: z.string().optional().nullable(),
     restaurantIds: z.array(z.string()).optional(),
@@ -94,7 +90,6 @@ export default function UserForm({
   eligibleSupervisors = [],
   initialData,
 }: UserFormProps) {
-  const router = useRouter();
   const isEdit = !!initialData;
 
   const [permissionKeys, setPermissionKeys] = useState<string[]>(initialData?.permissions ?? []);
@@ -132,6 +127,21 @@ export default function UserForm({
     );
   };
 
+  const toggleModulePermissions = (group: PermissionGroup, checked: boolean) => {
+    const keysInGroup = group.items.map((i) => i.key);
+    setPermissionKeys((prev) => {
+      const s = new Set(prev);
+      for (const k of keysInGroup) {
+        if (checked) s.add(k);
+        else s.delete(k);
+      }
+      return Array.from(s);
+    });
+  };
+
+  const moduleAllSelected = (group: PermissionGroup) =>
+    group.items.length > 0 && group.items.every((i) => permissionKeys.includes(i.key));
+
   const form = useForm<FormValues>({
     resolver: zodResolver(createSchema(isEdit)),
     defaultValues: {
@@ -139,7 +149,7 @@ export default function UserForm({
       lastName: initialData?.lastName ?? "",
       email: initialData?.email ?? "",
       password: "",
-      role: initialData?.role ?? "CREW",
+      role: initialData?.role ?? "MITARBEITER",
       departmentId: initialData?.departmentId ?? null,
       supervisorId: initialData?.supervisorId ?? null,
       restaurantIds: initialData?.restaurantIds ?? [],
@@ -147,7 +157,7 @@ export default function UserForm({
     },
   });
 
-  const role = form.watch("role") || "CREW";
+  const role = form.watch("role") || "MITARBEITER";
   const requiresRestaurant = roleRequiresRestaurant(role);
 
   const restaurantLabel = (r: { name: string | null; code: string }) =>
@@ -179,7 +189,7 @@ export default function UserForm({
     if (isEdit && initialData?.permissions) {
       setPermissionKeys(initialData.permissions);
     } else {
-      getRolePermissionPreset(form.getValues("role") || "CREW").then((res) => {
+      getRolePermissionPreset(form.getValues("role") || "MITARBEITER").then((res) => {
         if (res.success) setPermissionKeys(res.data.keys);
       });
     }
@@ -321,10 +331,9 @@ export default function UserForm({
         });
       }
       toast.success("Gespeichert.");
-      // Odgodi navigaciju da izbjegnemo removeChild grešku pri unmountu (toast + refresh + push u istom ticku)
       setTimeout(() => {
-        router.push("/admin/users");
-      }, 150);
+        window.location.href = "/admin/users";
+      }, 900);
     } catch (e) {
       const message =
         e instanceof Error ? e.message : typeof e === "string" ? e : "Fehler beim Speichern des Benutzers";
@@ -589,10 +598,10 @@ export default function UserForm({
                 <Loader2 size={18} className="animate-spin" />
                 Berechtigungen werden geladen…
               </div>
-            ) : GOD_MODE_ROLES.has(role) ? (
+            ) : isGodModeRole(role as Role) ? (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4">
                 <span className="text-sm font-semibold text-emerald-800">
-                  Diese Rolle hat automatisch alle Berechtigungen.
+                  Diese Rolle umgeht die Berechtigungsliste (System Architect).
                 </span>
               </div>
             ) : !showAdvanced ? (
@@ -625,17 +634,31 @@ export default function UserForm({
                       key={group.id}
                       className="rounded-lg border border-gray-200 overflow-hidden"
                     >
-                      <button
-                        type="button"
-                        onClick={() => togglePermGroup(group.id)}
-                        className="w-full flex items-center justify-between px-4 py-3 text-left font-semibold text-slate-800 hover:bg-gray-50 transition-colors"
-                      >
-                        <span>{group.title}</span>
-                        <ChevronRight
-                          size={18}
-                          className={`text-slate-500 transition-transform ${isOpen ? "rotate-90" : ""}`}
-                        />
-                      </button>
+                      <div className="flex items-stretch border-b border-gray-100">
+                        <label className="flex items-center gap-2 px-3 py-3 border-r border-gray-100 bg-white shrink-0 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={moduleAllSelected(group)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              toggleModulePermissions(group, e.target.checked);
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 text-[#1a3826] focus:ring-[#1a3826]"
+                            title="Alle Rechte dieses Moduls"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => togglePermGroup(group.id)}
+                          className="flex-1 flex items-center justify-between px-4 py-3 text-left font-semibold text-slate-800 hover:bg-gray-50 transition-colors"
+                        >
+                          <span>{group.title}</span>
+                          <ChevronRight
+                            size={18}
+                            className={`text-slate-500 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                          />
+                        </button>
+                      </div>
                       {isOpen && (
                         <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-3 space-y-2">
                           {group.subtitle && (

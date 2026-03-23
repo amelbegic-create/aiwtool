@@ -15,15 +15,25 @@ import {
   getDay,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, X, Smartphone } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Smartphone, Pencil, Trash2 } from "lucide-react";
+import {
+  MAX_PERSONAL_ENTRIES_PER_DAY,
+  dateStringToUtcNoon,
+  isManagedCalendarEventId,
+  type CalendarEventItem,
+  type CalendarEventType,
+  type CalendarEventCategoryItem,
+} from "@/lib/calendarShared";
 import {
   getCalendarEvents,
   getCalendarDataForExport,
-  upsertPersonalEntry,
+  getCalendarCategories,
+  createPersonalEntry,
+  updatePersonalEntry,
+  deletePersonalEntryById,
   deletePersonalEntry,
   deleteCalendarEvent,
-  type CalendarEventItem,
-  type CalendarEventType,
+  updateCalendarEvent,
 } from "@/app/actions/calendarActions";
 import { createEvents } from "ics";
 
@@ -41,12 +51,6 @@ const TYPE_LABELS: Record<CalendarEventType, string> = {
   vacation: "Urlaub",
 };
 
-// Pretvori string "yyyy-MM-dd" u Date fiksiran na 12:00 UTC da izbjegnemo pomak -1/+1 dan zbog vremenskih zona.
-function dateStringToUtcNoon(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map((v) => parseInt(v, 10));
-  return new Date(Date.UTC(year, (month || 1) - 1, day || 1, 12, 0, 0));
-}
-
 function getEventColor(ev: CalendarEventItem): string {
   if (ev.categoryColor && /^#[0-9A-Fa-f]{6}$/.test(ev.categoryColor)) return ev.categoryColor;
   if (ev.color && /^#[0-9A-Fa-f]{6}$/.test(ev.color)) return ev.color;
@@ -63,6 +67,59 @@ function parseEventDate(e: CalendarEventItem): Date {
   return typeof e.date === "string" ? parseISO(e.date) : e.date;
 }
 
+function isLegacyPersonalEventId(id: string): boolean {
+  return /^pe-\d{4}-\d{2}-\d{2}$/.test(id);
+}
+
+function mergeEventSpansForEvents(events: CalendarEventItem[]) {
+  const byId = new Map<string, { base: CalendarEventItem; start: Date; end: Date }>();
+  for (const ev of events) {
+    const d = parseEventDate(ev);
+    const endD =
+      ev.endDate && typeof ev.endDate !== "string"
+        ? ev.endDate
+        : ev.endDate && typeof ev.endDate === "string"
+          ? parseISO(ev.endDate)
+          : d;
+    const ex = byId.get(ev.id);
+    if (!ex) {
+      byId.set(ev.id, { base: ev, start: d, end: endD });
+    } else {
+      if (d < ex.start) ex.start = d;
+      if (endD > ex.end) ex.end = endD;
+    }
+  }
+  return byId;
+}
+
+function resolveMainEventSpan(ev: CalendarEventItem, allEvents: CalendarEventItem[]): { start: Date; end: Date } {
+  if (!isManagedCalendarEventId(ev.id)) {
+    const s = parseEventDate(ev);
+    const end = ev.endDate
+      ? typeof ev.endDate === "string"
+        ? parseISO(ev.endDate)
+        : ev.endDate
+      : s;
+    return { start: s, end };
+  }
+  const byId = mergeEventSpansForEvents(allEvents);
+  const item = byId.get(ev.id);
+  if (item) return { start: item.start, end: item.end };
+  const s = parseEventDate(ev);
+  const end = ev.endDate
+    ? typeof ev.endDate === "string"
+      ? parseISO(ev.endDate)
+      : ev.endDate
+    : s;
+  return { start: s, end };
+}
+
+function canEditMainCalendarEvent(ev: CalendarEventItem, canWrite: boolean): boolean {
+  if (!canWrite || !isManagedCalendarEventId(ev.id)) return false;
+  if (ev.isPersonalEntry || ev.isFromVacationRequest) return false;
+  return true;
+}
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -77,11 +134,20 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
   const [loading, setLoading] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventItem | null>(null);
   const [selectedDayForPopup, setSelectedDayForPopup] = useState<Date | null>(null);
-  const [personalModalOpen, setPersonalModalOpen] = useState(false);
-  const [personalDate, setPersonalDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  /** null = panel zu; sonst Tag für persönliche Einträge (bis 5) */
+  const [personalEditorDate, setPersonalEditorDate] = useState<Date | null>(null);
+  const [personalEditingEntryId, setPersonalEditingEntryId] = useState<string | null>(null);
   const [personalTitle, setPersonalTitle] = useState("");
   const [personalColor, setPersonalColor] = useState("#FFBC0D");
   const [personalSaving, setPersonalSaving] = useState(false);
+  const [categories, setCategories] = useState<CalendarEventCategoryItem[]>([]);
+  const [mainEventEditorOpen, setMainEventEditorOpen] = useState(false);
+  const [mainEventEditId, setMainEventEditId] = useState<string | null>(null);
+  const [mainEventEditTitle, setMainEventEditTitle] = useState("");
+  const [mainEventEditDate, setMainEventEditDate] = useState("");
+  const [mainEventEditEndDate, setMainEventEditEndDate] = useState("");
+  const [mainEventEditCategoryId, setMainEventEditCategoryId] = useState("");
+  const [mainEventEditSaving, setMainEventEditSaving] = useState(false);
 
   const PERSONAL_PRESET_COLORS = [
     "#FFBC0D",
@@ -117,6 +183,17 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
     loadEvents();
   }, [loadEvents]);
 
+  useEffect(() => {
+    if (open) getCalendarCategories().then(setCategories);
+  }, [open]);
+
+  /** Pri otvaranju (npr. s kartice) prikaži mjesec koji korisnik gleda na widgetu. */
+  useEffect(() => {
+    if (open) {
+      setCurrentDate(initialDate);
+    }
+  }, [open, initialDate]);
+
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEventItem[]>();
     for (const e of events) {
@@ -127,6 +204,21 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
     }
     return map;
   }, [events]);
+
+  const personalListForEditor = useMemo(() => {
+    if (!personalEditorDate) return [];
+    const key = format(personalEditorDate, "yyyy-MM-dd");
+    return events.filter(
+      (e) => e.isPersonalEntry && format(parseEventDate(e), "yyyy-MM-dd") === key
+    );
+  }, [events, personalEditorDate]);
+
+  const closePersonalEditor = () => {
+    setPersonalEditorDate(null);
+    setPersonalEditingEntryId(null);
+    setPersonalTitle("");
+    setPersonalColor("#FFBC0D");
+  };
 
   const goPrev = () => setCurrentDate((d) => subMonths(d, 1));
   const goNext = () => setCurrentDate((d) => addMonths(d, 1));
@@ -204,18 +296,31 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
   };
 
   const handleSavePersonalEntry = async () => {
+    if (!personalEditorDate) return;
     setPersonalSaving(true);
     try {
-      const d = dateStringToUtcNoon(personalDate);
-      await upsertPersonalEntry(
-        userId,
-        d,
-        personalTitle.trim() || "Osobno",
-        personalColor && /^#[0-9A-Fa-f]{6}$/.test(personalColor) ? personalColor : undefined
-      );
-      setPersonalModalOpen(false);
+      const colorHex =
+        personalColor && /^#[0-9A-Fa-f]{6}$/.test(personalColor) ? personalColor : undefined;
+      if (personalEditingEntryId) {
+        await updatePersonalEntry(personalEditingEntryId, userId, {
+          title: personalTitle.trim() || "Persönlich",
+          color: colorHex ?? null,
+          date: personalEditorDate,
+        });
+      } else {
+        await createPersonalEntry(
+          userId,
+          personalEditorDate,
+          personalTitle.trim() || "Persönlich",
+          colorHex
+        );
+      }
+      setPersonalEditingEntryId(null);
       setPersonalTitle("");
-      loadEvents();
+      setPersonalColor("#FFBC0D");
+      await loadEvents();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Fehler beim Speichern.");
     } finally {
       setPersonalSaving(false);
     }
@@ -224,11 +329,14 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
   const headerTitle = format(monthStart, "MMMM yyyy", { locale: de });
 
   const handleDeleteEvent = async (ev: CalendarEventItem) => {
-    // vacation iz VacationRequest i virtualni eventi se ne brišu ovdje
     if (ev.id.startsWith("vac-")) return;
     if (ev.id.startsWith("pe-")) {
-      const d = parseEventDate(ev);
-      await deletePersonalEntry(userId, d);
+      const rest = ev.id.slice(3);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rest)) {
+        await deletePersonalEntry(userId, parseEventDate(ev));
+      } else {
+        await deletePersonalEntryById(rest, userId);
+      }
     } else if (canWrite) {
       await deleteCalendarEvent(ev.id, userId);
     } else {
@@ -236,6 +344,53 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
     }
     setSelectedEvent(null);
     await loadEvents();
+  };
+
+  const openMainEventEdit = (ev: CalendarEventItem) => {
+    if (!canEditMainCalendarEvent(ev, canWrite)) return;
+    const { start, end } = resolveMainEventSpan(ev, events);
+    setMainEventEditId(ev.id);
+    setMainEventEditTitle(ev.title || "");
+    setMainEventEditDate(format(start, "yyyy-MM-dd"));
+    setMainEventEditEndDate(
+      format(start, "yyyy-MM-dd") === format(end, "yyyy-MM-dd") ? "" : format(end, "yyyy-MM-dd")
+    );
+    const defaultCat = categories[0]?.id ?? "";
+    setMainEventEditCategoryId(ev.categoryId || defaultCat);
+    setMainEventEditorOpen(true);
+  };
+
+  const closeMainEventEditor = () => {
+    setMainEventEditorOpen(false);
+    setMainEventEditId(null);
+    setMainEventEditTitle("");
+    setMainEventEditDate("");
+    setMainEventEditEndDate("");
+    setMainEventEditCategoryId("");
+  };
+
+  const handleSaveMainEventEdit = async () => {
+    if (!mainEventEditId || !mainEventEditTitle.trim() || !mainEventEditCategoryId) return;
+    setMainEventEditSaving(true);
+    try {
+      const start = dateStringToUtcNoon(mainEventEditDate);
+      const end =
+        mainEventEditEndDate && mainEventEditEndDate >= mainEventEditDate
+          ? dateStringToUtcNoon(mainEventEditEndDate)
+          : null;
+      await updateCalendarEvent(mainEventEditId, userId, {
+        title: mainEventEditTitle.trim(),
+        date: start,
+        categoryId: mainEventEditCategoryId,
+        endDate: end,
+      });
+      closeMainEventEditor();
+      await loadEvents();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Fehler beim Speichern.");
+    } finally {
+      setMainEventEditSaving(false);
+    }
   };
 
   if (!open) return null;
@@ -338,14 +493,47 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
               <p className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-wider">
                 {getEventLabel(selectedEvent)}
               </p>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedEvent(null)}
-                  className="flex-1 py-2 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
+                  className="flex-1 min-w-[6rem] py-2 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
                 >
                   Schließen
                 </button>
+                {selectedEvent.isPersonalEntry &&
+                  !isLegacyPersonalEventId(selectedEvent.id) &&
+                  selectedEvent.id.startsWith("pe-") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPersonalEditorDate(parseEventDate(selectedEvent));
+                        setPersonalEditingEntryId(selectedEvent.id.slice(3));
+                        setPersonalTitle(selectedEvent.title || "");
+                        setPersonalColor(
+                          selectedEvent.color && /^#[0-9A-Fa-f]{6}$/.test(selectedEvent.color)
+                            ? selectedEvent.color
+                            : "#FFBC0D"
+                        );
+                        setSelectedEvent(null);
+                      }}
+                      className="py-2 px-3 rounded-xl border font-bold text-sm"
+                    >
+                      Bearbeiten
+                    </button>
+                  )}
+                {canEditMainCalendarEvent(selectedEvent, canWrite) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openMainEventEdit(selectedEvent);
+                      setSelectedEvent(null);
+                    }}
+                    className="py-2 px-3 rounded-xl border font-bold text-sm"
+                  >
+                    Bearbeiten
+                  </button>
+                )}
                 {((canWrite && !selectedEvent.id.startsWith("vac-")) || selectedEvent.id.startsWith("pe-")) && (
                   <button
                     type="button"
@@ -355,6 +543,100 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
                     Löschen
                   </button>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+        {mainEventEditorOpen && (
+          <div
+            className="absolute inset-0 z-[30] flex items-center justify-center bg-black/40 p-4 rounded-3xl"
+            onClick={closeMainEventEditor}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Termin bearbeiten"
+          >
+            <div
+              className="rounded-2xl bg-white dark:bg-[#1a3826] border border-[#1a3826]/20 dark:border-[#FFC72C]/30 shadow-xl max-w-md w-full p-5 max-h-[85vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <h3 className="text-lg font-black text-[#1a3826] dark:text-[#FFC72C]">Termin bearbeiten</h3>
+                <button
+                  type="button"
+                  onClick={closeMainEventEditor}
+                  className="p-1.5 rounded-lg border shrink-0"
+                  aria-label="Schließen"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={mainEventEditTitle}
+                  onChange={(e) => setMainEventEditTitle(e.target.value)}
+                  placeholder="Titel"
+                  className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#1a3826]/40"
+                />
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground block mb-1">Startdatum</label>
+                  <input
+                    type="date"
+                    value={mainEventEditDate}
+                    onChange={(e) => setMainEventEditDate(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#1a3826]/40"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground block mb-1">Enddatum (optional)</label>
+                  <input
+                    type="date"
+                    value={mainEventEditEndDate}
+                    onChange={(e) => setMainEventEditEndDate(e.target.value)}
+                    min={mainEventEditDate}
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#1a3826]/40"
+                  />
+                </div>
+                {categories.length === 0 ? (
+                  <p className="text-sm text-amber-600">Bitte zuerst Kategorien unter „Vollständigen Kalender“ anlegen.</p>
+                ) : (
+                  <div>
+                    <label className="text-xs font-bold text-muted-foreground block mb-1">Kategorie</label>
+                    <select
+                      value={mainEventEditCategoryId}
+                      onChange={(e) => setMainEventEditCategoryId(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#1a3826]/40"
+                    >
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={closeMainEventEditor}
+                  className="flex-1 min-w-[6rem] py-2 rounded-xl border font-bold text-sm"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    mainEventEditSaving ||
+                    !mainEventEditTitle.trim() ||
+                    !mainEventEditCategoryId ||
+                    categories.length === 0
+                  }
+                  onClick={handleSaveMainEventEdit}
+                  className="flex-1 min-w-[6rem] py-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-bold disabled:opacity-50"
+                >
+                  {mainEventEditSaving ? "…" : "Speichern"}
+                </button>
               </div>
             </div>
           </div>
@@ -477,7 +759,12 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
         <div className="p-4 border-t border-gray-200 dark:border-[#FFC72C]/20 flex flex-wrap items-center justify-end gap-2">
           <button
             type="button"
-            onClick={() => setPersonalModalOpen(true)}
+            onClick={() => {
+              setPersonalEditorDate(new Date());
+              setPersonalEditingEntryId(null);
+              setPersonalTitle("");
+              setPersonalColor("#FFBC0D");
+            }}
             className="inline-flex items-center gap-2 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 bg-white dark:bg-[#1a3826]/20 text-[#1a3826] dark:text-[#FFC72C] px-4 py-2.5 font-bold text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10"
           >
             Datum für mich markieren
@@ -499,38 +786,95 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
           )}
         </div>
 
-        {personalModalOpen && (
+        {personalEditorDate && (
           <div
             className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 p-4 rounded-3xl"
-            onClick={() => setPersonalModalOpen(false)}
+            onClick={closePersonalEditor}
             role="dialog"
             aria-modal="true"
-            aria-label="Osobni Eintrag"
+            aria-label="Persönliche Einträge"
           >
             <div
-              className="rounded-2xl bg-white dark:bg-[#1a3826] border border-[#1a3826]/20 dark:border-[#FFC72C]/30 shadow-xl max-w-sm w-full p-5"
+              className="rounded-2xl bg-white dark:bg-[#1a3826] border border-[#1a3826]/20 dark:border-[#FFC72C]/30 shadow-xl max-w-md w-full p-5 max-h-[85vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-black text-[#1a3826] dark:text-[#FFC72C] mb-3">
-                Datum für mich markieren
-              </h3>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h3 className="text-lg font-black text-[#1a3826] dark:text-[#FFC72C]">
+                  Persönlich – {format(personalEditorDate, "d. MMMM yyyy", { locale: de })}
+                </h3>
+                <button type="button" onClick={closePersonalEditor} className="p-1 rounded-lg border shrink-0" aria-label="Schließen">
+                  <X size={18} />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">Bis zu {MAX_PERSONAL_ENTRIES_PER_DAY} Einträge pro Tag.</p>
+              <label className="text-xs font-bold block mb-1">Datum</label>
               <input
                 type="date"
-                value={personalDate}
-                onChange={(e) => setPersonalDate(e.target.value)}
-                className="w-full bg-transparent border border-gray-300 dark:border-[#FFC72C]/30 rounded-lg px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-[#1a3826]/20 dark:focus:ring-[#FFC72C]/20 outline-none"
+                value={format(personalEditorDate, "yyyy-MM-dd")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v) setPersonalEditorDate(parseISO(v));
+                }}
+                className="w-full border rounded-lg px-3 py-2 text-sm mb-4"
               />
+              {personalListForEditor.length > 0 && (
+                <ul className="space-y-2 mb-4 border-b pb-4">
+                  {personalListForEditor.map((ev) => {
+                    const legacy = isLegacyPersonalEventId(ev.id);
+                    const dbId = legacy ? null : ev.id.slice(3);
+                    return (
+                      <li key={ev.id} className="flex items-center gap-2 rounded-lg border p-2 text-sm">
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{
+                            backgroundColor:
+                              ev.color && /^#[0-9A-Fa-f]{6}$/.test(ev.color) ? ev.color : "#FFBC0D",
+                          }}
+                        />
+                        <span className="flex-1 truncate">{ev.title}</span>
+                        {!legacy && dbId && (
+                          <>
+                            <button
+                              type="button"
+                              className="p-1"
+                              onClick={() => {
+                                setPersonalEditingEntryId(dbId);
+                                setPersonalTitle(ev.title || "");
+                                setPersonalColor(
+                                  ev.color && /^#[0-9A-Fa-f]{6}$/.test(ev.color) ? ev.color : "#FFBC0D"
+                                );
+                              }}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1 text-red-600"
+                              onClick={async () => {
+                                if (!confirm("Löschen?")) return;
+                                await deletePersonalEntryById(dbId, userId);
+                                await loadEvents();
+                              }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <h4 className="text-sm font-bold mb-2">{personalEditingEntryId ? "Bearbeiten" : "Neu"}</h4>
               <input
                 type="text"
                 value={personalTitle}
                 onChange={(e) => setPersonalTitle(e.target.value)}
-                placeholder="Titel (nur für Sie sichtbar)"
-                className="w-full bg-transparent border border-gray-300 dark:border-[#FFC72C]/30 rounded-lg px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-[#1a3826]/20 dark:focus:ring-[#FFC72C]/20 outline-none"
+                placeholder="Titel"
+                className="w-full border rounded-lg px-3 py-2 text-sm mb-3"
               />
               <div className="mb-4">
-                <label className="text-xs text-muted-foreground block mb-1.5">
-                  Farbe (optional)
-                </label>
+                <label className="text-xs text-muted-foreground block mb-1.5">Farbe</label>
                 <div className="flex flex-wrap gap-2 items-center">
                   {PERSONAL_PRESET_COLORS.map((hex) => (
                     <button
@@ -543,7 +887,6 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
                           : "border-transparent hover:scale-105"
                       }`}
                       style={{ backgroundColor: hex }}
-                      title={hex}
                     />
                   ))}
                   <input
@@ -554,25 +897,33 @@ export default function CalendarFullViewModal({ open, onClose, userId, initialDa
                   />
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={handleSavePersonalEntry}
-                  disabled={personalSaving}
-                  className="flex-1 py-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-bold hover:opacity-90 disabled:opacity-50"
+                  disabled={
+                    personalSaving ||
+                    (!personalEditingEntryId && personalListForEditor.length >= MAX_PERSONAL_ENTRIES_PER_DAY)
+                  }
+                  className="flex-1 min-w-[8rem] py-2 rounded-xl bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-bold disabled:opacity-50"
                 >
                   {personalSaving ? "…" : "Speichern"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPersonalModalOpen(false);
-                    setPersonalTitle("");
-                    setPersonalColor("#FFBC0D");
-                  }}
-                  className="py-2 px-4 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/30 font-bold text-sm"
-                >
-                  Abbrechen
+                {personalEditingEntryId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPersonalEditingEntryId(null);
+                      setPersonalTitle("");
+                      setPersonalColor("#FFBC0D");
+                    }}
+                    className="py-2 px-3 rounded-xl border text-sm font-bold"
+                  >
+                    Neu
+                  </button>
+                )}
+                <button type="button" onClick={closePersonalEditor} className="py-2 px-3 rounded-xl border text-sm font-bold">
+                  Fertig
                 </button>
               </div>
             </div>

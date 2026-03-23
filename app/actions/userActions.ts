@@ -4,17 +4,29 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
-import { Role } from "@prisma/client";
-
-/** Stealth: SYSTEM_ARCHITECT se ne prikazuje u listama/tabelama/pretragama. NE koristiti za login (auth koristi prisma direktno). */
-const STEALTH_ROLE_FILTER = { role: { not: Role.SYSTEM_ARCHITECT } as const };
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
+import { stealthArchitectWhere } from "@/lib/userVisibility";
 
 // 1. DOHVATI KORISNIKE ZA RESTORAN
 export async function getUsersByRestaurant(restaurantId: string) {
   try {
+    const session = await getServerSession(authOptions);
+    let viewerRole: string | undefined;
+    if (session?.user?.email) {
+      viewerRole =
+        (session.user as { role?: string }).role ??
+        (
+          await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { role: true },
+          })
+        )?.role;
+    }
+
     const users = await prisma.user.findMany({
       where: {
-        ...STEALTH_ROLE_FILTER,
+        ...stealthArchitectWhere(viewerRole),
         restaurants: {
           some: { restaurantId: restaurantId }
         }

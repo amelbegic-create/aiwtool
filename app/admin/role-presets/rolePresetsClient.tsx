@@ -2,19 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Role } from "@prisma/client";
-import { PERMISSIONS, GOD_MODE_ROLES } from "@/lib/permissions";
+import { PERMISSIONS, isGodModeRole } from "@/lib/permissions";
 import { Check, Eraser, Layers, Search, ShieldCheck } from "lucide-react";
 import { getRolePermissionPreset, saveRolePermissionPreset } from "../../actions/rolePresetActions";
 import { toast } from "sonner";
 
-const roles: Role[] = ["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN", "MANAGER", "SHIFT_LEADER", "CREW"];
+const roles: Role[] = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER", "MANAGEMENT", "MITARBEITER"];
 
-function isGodMode(role: Role) {
-  return GOD_MODE_ROLES.has(String(role));
+function isPresetBypassRole(role: Role) {
+  return isGodModeRole(role);
 }
 
 export default function RolePresetsClient() {
-  const [activeRole, setActiveRole] = useState<Role>("CREW");
+  const [activeRole, setActiveRole] = useState<Role>("MITARBEITER");
   const [activeModuleId, setActiveModuleId] = useState<string>(PERMISSIONS[0]?.id || "rules");
   const [moduleQuery, setModuleQuery] = useState("");
   const [permQuery, setPermQuery] = useState("");
@@ -96,8 +96,7 @@ export default function RolePresetsClient() {
       }
     };
 
-    if (isGodMode(activeRole)) {
-      // God-mode: prikazujemo samo info, nema potrebe za fetch
+    if (isPresetBypassRole(activeRole)) {
       setKeys([]);
       setIsLoading(false);
       return;
@@ -152,7 +151,7 @@ export default function RolePresetsClient() {
               </select>
             </div>
 
-            {!isGodMode(activeRole) ? (
+            {!isPresetBypassRole(activeRole) ? (
               <button
                 onClick={save}
                 disabled={isSaving || isLoading}
@@ -164,16 +163,16 @@ export default function RolePresetsClient() {
               </button>
             ) : (
               <div className="px-4 py-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs font-bold inline-flex items-center gap-2">
-                <ShieldCheck size={16} /> God-Mode-Rolle (alle Berechtigungen)
+                <ShieldCheck size={16} /> System Architect (Bypass – keine Vorlage)
               </div>
             )}
           </div>
         </div>
 
-        {isGodMode(activeRole) ? (
+        {isPresetBypassRole(activeRole) ? (
           <div className="bg-white border border-border rounded-3xl p-6">
             <div className="p-6 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm font-bold">
-              Für die Rolle <span className="font-black">{activeRole}</span> wird keine Vorlage gesetzt – das System vergibt automatisch alle Berechtigungen.
+              Für <span className="font-black">{activeRole}</span> gilt serverseitiger Vollzugriff (Bypass). Eine gespeicherte Vorlage wird nicht verwendet.
             </div>
           </div>
         ) : (

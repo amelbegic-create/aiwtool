@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Role } from "@prisma/client";
+import type { Role } from "@prisma/client";
+import { GLOBAL_SCOPE_ROLES, PERMISSION_BYPASS_ROLES } from "@/lib/iamRoles";
 
 export type PermissionKey = string;
 
@@ -14,14 +15,47 @@ export type PermissionGroup = {
 };
 
 /**
- * ✅ VAŽNO:
- * - GOD MODE role imaju sve permisije automatski (bypass).
- * - Ostale role (MANAGER/CREW) moraju imati eksplicitno dodijeljene permisije.
- * - Po zahtjevu: SYSTEM_ARCHITECT, SUPER_ADMIN i ADMIN vide sve korisnike u svim restoranima.
+ * GLOBAL_SCOPE_ROLES (ex-GOD_MODE): vidljivost svih restorana / admin-scope u modulima.
+ * PERMISSION_BYPASS_ROLES: samo SYSTEM_ARCHITECT – zaobilazi provjeru permissions[] u hasPermission (access.ts).
  */
-export const GOD_MODE_ROLES = new Set(["SYSTEM_ARCHITECT", "SUPER_ADMIN", "ADMIN"]);
+export const GOD_MODE_ROLES = GLOBAL_SCOPE_ROLES;
+
+export { PERMISSION_BYPASS_ROLES, GLOBAL_SCOPE_ROLES };
+
+/** @deprecated koristi PERMISSION_BYPASS_ROLES gdje treba samo arhitekt */
+export function canEditDashboardChangelog(
+  role: string | undefined | null,
+  permissions?: string[] | null | undefined
+): boolean {
+  if (PERMISSION_BYPASS_ROLES.has(String(role ?? ""))) return true;
+  return Array.isArray(permissions) && permissions.includes("dashboard_changelog:edit");
+}
 
 export const PERMISSIONS: PermissionGroup[] = [
+  {
+    id: "admin_panel",
+    title: "Admin Panel",
+    subtitle: "Zentraler Zugang zur Verwaltung; Untermodule separat",
+    items: [{ key: "admin_panel:access", label: "Admin Panel öffnen (Navigation + /admin)" }],
+  },
+  {
+    id: "dashboard_meta",
+    title: "Dashboard & Startseite",
+    subtitle: "Globale Texte auf der Startseite",
+    items: [
+      { key: "dashboard_changelog:edit", label: "„Aktuelle Änderungen“ auf der Startseite bearbeiten" },
+      {
+        key: "dashboard_news:manage",
+        label: "Dashboard-News-Slider: Meldungen anlegen, bearbeiten und hochladen",
+      },
+    ],
+  },
+  {
+    id: "todo",
+    title: "To-Do",
+    subtitle: "Persönliche Aufgaben",
+    items: [{ key: "todo:access", label: "To-Do-Modul nutzen" }],
+  },
   {
     id: "rules",
     title: "Richtlinien",
@@ -60,9 +94,7 @@ export const PERMISSIONS: PermissionGroup[] = [
     id: "calendar",
     title: "Kalender",
     subtitle: "Termine, Urlaub und Schichten – wer darf Einträge erstellen",
-    items: [
-      { key: "calendar:write", label: "Događaje u kalendar upisivati" },
-    ],
+    items: [{ key: "calendar:write", label: "Događaje u kalendar upisivati" }],
   },
   {
     id: "labor",
@@ -132,13 +164,17 @@ export const PERMISSIONS: PermissionGroup[] = [
   },
   {
     id: "admin",
-    title: "Verwaltung",
-    subtitle: "Benutzer, Restaurants, Berechtigungen und System",
+    title: "Verwaltung (Benutzer & Standorte)",
+    subtitle: "Benutzer, Restaurants, Berechtigungen",
     items: [
       { key: "users:access", label: "Zugriff auf Benutzerliste" },
       { key: "users:manage", label: "Benutzer verwalten" },
       { key: "restaurants:access", label: "Zugriff auf Standortliste" },
-      { key: "restaurants:manage", label: "Standorte verwalten" },
+      { key: "restaurants:manage", label: "Standorte verwalten (Legacy-Sammelrecht)" },
+      { key: "restaurants:create", label: "Standorte anlegen" },
+      { key: "restaurants:edit", label: "Standorte bearbeiten" },
+      { key: "restaurants:toggle", label: "Standort aktiv/inaktiv" },
+      { key: "restaurants:delete", label: "Standorte löschen" },
       { key: "users:permissions", label: "Rollen-Vorlagen (Berechtigungen)" },
     ],
   },
@@ -155,12 +191,10 @@ export const PERMISSIONS: PermissionGroup[] = [
 
 export const ALL_PERMISSION_KEYS: PermissionKey[] = PERMISSIONS.flatMap((g) => g.items.map((i) => i.key));
 
-export function hasPermission(user: any, key: PermissionKey) {
-  if (!user) return false;
-  if (GOD_MODE_ROLES.has(String(user.role))) return true;
-  return Array.isArray(user.permissions) && user.permissions.includes(key);
+export function isGodModeRole(role: Role) {
+  return PERMISSION_BYPASS_ROLES.has(String(role));
 }
 
-export function isGodModeRole(role: Role) {
-  return GOD_MODE_ROLES.has(String(role));
+export function isGlobalScopeRole(role: string | Role | null | undefined) {
+  return GLOBAL_SCOPE_ROLES.has(String(role ?? ""));
 }

@@ -4,14 +4,15 @@ import { Role } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/access";
-import { ALL_PERMISSION_KEYS, GOD_MODE_ROLES } from "@/lib/permissions";
+import { ALL_PERMISSION_KEYS } from "@/lib/permissions";
+import { PERMISSION_BYPASS_ROLES } from "@/lib/iamRoles";
 
 export type ActionResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
-function isGodMode(role: Role) {
-  return GOD_MODE_ROLES.has(String(role));
+function isSystemArchitectRole(role: Role) {
+  return PERMISSION_BYPASS_ROLES.has(String(role));
 }
 
 function sanitizePermissionKeys(keys: string[]) {
@@ -38,8 +39,7 @@ export async function getRolePermissionPreset(role: Role): Promise<ActionResult<
     // ko vidi korisnike može učitati preset (u praksi: /admin/users)
     await requirePermission("users:access");
 
-    if (isGodMode(role)) {
-      // God-mode role imaju sve automatski; preset nema smisla.
+    if (isSystemArchitectRole(role)) {
       return { success: true, data: { role, keys: ALL_PERMISSION_KEYS } };
     }
 
@@ -65,8 +65,11 @@ export async function saveRolePermissionPreset(role: Role, keys: string[]): Prom
   try {
     await requirePermission("users:permissions");
 
-    if (isGodMode(role)) {
-      return { success: false, error: "SYSTEM_ARCHITECT/SUPER_ADMIN/ADMIN imaju sve automatski. Preset se ne podešava za ove role." };
+    if (isSystemArchitectRole(role)) {
+      return {
+        success: false,
+        error: "SYSTEM_ARCHITECT hat immer alle Rechte; kein Preset nötig.",
+      };
     }
 
     const sanitized = sanitizePermissionKeys(keys);

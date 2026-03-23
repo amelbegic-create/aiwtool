@@ -1,9 +1,9 @@
-﻿
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use server';
 
 import prisma from '@/lib/prisma';
-import { PDSStatus, Prisma } from '@prisma/client';
+import { PDSStatus, Prisma, Role } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
@@ -12,8 +12,8 @@ import { cookies } from 'next/headers';
 
 const db = prisma as any;
 
-/** Samo SYSTEM_ARCHITECT, SUPER_ADMIN i ADMIN smiju generisati (kreirati) PDS. Manageri samo popunjavaju. */
-const PDS_CREATE_ROLES = new Set(['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN']);
+/** Samo SYSTEM_ARCHITECT i ADMIN smiju generisati (kreirati) PDS. Manageri samo popunjavaju. */
+const PDS_CREATE_ROLES = new Set(["SYSTEM_ARCHITECT", "ADMIN"]);
 
 async function requirePdsCreateRole() {
   const session = await getServerSession(authOptions);
@@ -323,7 +323,7 @@ export async function createBulkPDS(year: number, managerId: string) {
     const goals: PDSGoal[] = (tpl.goals ?? []) as unknown as PDSGoal[];
     const scale: PDSScaleLevel[] = (tpl.scale ?? []) as unknown as PDSScaleLevel[];
 
-    const EXCLUDED_PDS_ROLES = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'] as const;
+    const EXCLUDED_PDS_ROLES = ["SYSTEM_ARCHITECT", "ADMIN"] as const;
 
     const restaurantUsers = await prisma.restaurantUser.findMany({
       where: {
@@ -336,7 +336,7 @@ export async function createBulkPDS(year: number, managerId: string) {
       include: { user: true }
     });
 
-    // Obri┼íi postoje─çe PDS zapise za SYSTEM_ARCHITECT, ADMIN, SUPER_ADMIN u ovoj godini i restoranu
+    // Obriši postojeće PDS zapise za SYSTEM_ARCHITECT, ADMIN u ovoj godini i restoranu
     await db.pDS.deleteMany({
       where: {
         year,
@@ -577,17 +577,17 @@ export async function getGlobalPDSForExport(year: number): Promise<PDSExportRow[
 export async function getFullPDSListForGlobalExport(year: number) {
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { id?: string })?.id;
-  const where: { year: number; restaurantId?: { in: string[] }; user?: { role?: { notIn: string[] } } } = { year };
+  const where: Prisma.PDSWhereInput = { year };
   if (userId) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true, restaurants: { select: { restaurantId: true } } },
     });
-    if (user?.role === 'MANAGER' && user.restaurants?.length) {
+    if (user?.role === "MANAGER" && user.restaurants?.length) {
       where.restaurantId = { in: user.restaurants.map((r) => r.restaurantId) };
     }
   }
-  const EXCLUDED_PDS_ROLES = ['SYSTEM_ARCHITECT', 'SUPER_ADMIN', 'ADMIN'];
+  const EXCLUDED_PDS_ROLES: Role[] = [Role.SYSTEM_ARCHITECT, Role.ADMIN];
   if (!where.restaurantId) {
     where.user = { role: { notIn: EXCLUDED_PDS_ROLES } };
   }

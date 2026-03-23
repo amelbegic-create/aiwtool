@@ -112,6 +112,11 @@
   --sidebar-ring: #737373;
 }
 
+/* Native <select> often ignores body font (OS UI font on Windows/Chrome); keep typography consistent. */
+select {
+  font-family: inherit;
+}
+
 /* ─────────────────────────────────────
    DESIGN TOKENS — SaaS Dashboard
    ───────────────────────────────────── */
@@ -273,3 +278,12 @@ input, select, textarea {
   font-weight: 700 !important;
   border-radius: 8px !important;
 }
+
+/* Admin Panel: Kategorie-Zeile, Chevron bei geöffnetem <details> */
+details.admin-category-details > summary .admin-category-chevron {
+  transition: transform 0.2s ease;
+}
+details.admin-category-details[open] > summary .admin-category-chevron {
+  transform: rotate(180deg);
+}
+

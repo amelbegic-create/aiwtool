@@ -24,6 +24,18 @@ async function userHasRestaurantAccess(restaurantId: string) {
   return !!rel;
 }
 
+async function getSessionAuth(): Promise<{ userId: string; role: string } | null> {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email;
+  if (!email) return null;
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, role: true },
+  });
+  if (!user) return null;
+  return { userId: user.id, role: String(user.role) };
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -43,19 +55,26 @@ export async function POST(req: Request) {
       );
     }
 
+    const auth = await getSessionAuth();
+    if (!auth) {
+      return NextResponse.json({ success: false, error: "Nicht angemeldet." }, { status: 401 });
+    }
+
     const result = await saveLaborData(
       String(restaurant),
       Number(month),
       Number(year),
-      data ?? { inputs: {}, rows: [] }
+      data ?? { inputs: {}, rows: [] },
+      auth
     );
     if (!result.success) {
       return NextResponse.json(
         { success: false, error: result.error },
-        { status: 500 }
+        { status: result.error?.includes("gesperrt") ? 403 : 500 }
       );
     }
-    return NextResponse.json({ success: true });
+    const fresh = await getLaborData(String(restaurant), Number(month), Number(year), auth);
+    return NextResponse.json({ success: true, cl: fresh?.cl });
   } catch (error) {
     console.error("Labor POST:", error);
     return NextResponse.json(
@@ -87,9 +106,23 @@ export async function GET(req: Request) {
       );
     }
 
-    const report = await getLaborData(restaurant, month, year);
-    const data = report?.data ?? null;
-    return NextResponse.json({ success: true, data });
+    const auth = await getSessionAuth();
+    if (!auth) {
+      return NextResponse.json({ success: false, error: "Nicht angemeldet." }, { status: 401 });
+    }
+
+    const result = await getLaborData(restaurant, month, year, auth);
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: "Fehler beim Laden." },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({
+      success: true,
+      data: result.data,
+      cl: result.cl,
+    });
   } catch (error) {
     console.error("Labor GET:", error);
     return NextResponse.json(
@@ -121,11 +154,16 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const result = await deleteLaborData(restaurant, month, year);
+    const auth = await getSessionAuth();
+    if (!auth) {
+      return NextResponse.json({ success: false, error: "Nicht angemeldet." }, { status: 401 });
+    }
+
+    const result = await deleteLaborData(restaurant, month, year, auth);
     if (!result.success) {
       return NextResponse.json(
         { success: false, error: result.error },
-        { status: 500 }
+        { status: result.error?.includes("Gesperrt") ? 403 : 500 }
       );
     }
     return NextResponse.json({ success: true });

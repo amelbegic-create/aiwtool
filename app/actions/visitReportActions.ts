@@ -7,6 +7,18 @@ import { cookies } from "next/headers";
 import { getDbUserForAccess, requirePermission } from "@/lib/access";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
 import { Role } from "@prisma/client";
+import { extractPdfPlainText } from "@/lib/extractPdfText";
+
+const visitReportSearchSelect = {
+  id: true,
+  title: true,
+  description: true,
+  fileUrl: true,
+  fileType: true,
+  categoryId: true,
+  year: true,
+  category: { select: { name: true, iconName: true } },
+} as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RESTAURANT RESOLUTION & ALLOWED LIST
@@ -275,6 +287,45 @@ export async function getCategoryById(categoryId: string, restaurantId: string) 
   });
 }
 
+/**
+ * Tools: pretraga samo PDF dokumenata unutar jednog restorana (naslov, opis, tekst iz PDF-a).
+ * Uvijek filtrira po category.restaurantId – nema curenja u druge standorte.
+ */
+export async function searchVisitReportPdfsForRestaurant(restaurantId: string, query: string) {
+  const dbUser = await getDbUserForAccess();
+  const allowed = await getAllowedRestaurantIdsForUser(dbUser.id);
+  if (!allowed.includes(restaurantId)) {
+    return [];
+  }
+
+  const q = query.trim();
+  if (q.length < 2) return [];
+
+  return prisma.visitReportItem.findMany({
+    where: {
+      category: { restaurantId },
+      AND: [
+        {
+          OR: [
+            { fileType: { contains: "pdf", mode: "insensitive" } },
+            { fileType: { equals: "application/pdf" } },
+          ],
+        },
+        {
+          OR: [
+            { title: { contains: q, mode: "insensitive" } },
+            { description: { contains: q, mode: "insensitive" } },
+            { extractedText: { contains: q, mode: "insensitive" } },
+          ],
+        },
+      ],
+    },
+    select: visitReportSearchSelect,
+    orderBy: [{ year: "desc" }, { createdAt: "desc" }],
+    take: 50,
+  });
+}
+
 /** Admin: all items for a restaurant (with category). */
 export async function getAllItemsForRestaurant(restaurantId: string) {
   await requirePermission("besuchsberichte:manage");
@@ -310,7 +361,15 @@ export async function createItem(formData: FormData) {
   });
   if (!category) throw new Error("Kategorie nicht gefunden oder kein Zugriff.");
 
-  const blob = await put(`besuchsberichte/${Date.now()}-${file.name}`, file, {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const isPdf =
+    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  let extractedText: string | null = null;
+  if (isPdf) {
+    extractedText = await extractPdfPlainText(buffer);
+  }
+
+  const blob = await put(`besuchsberichte/${Date.now()}-${file.name}`, buffer, {
     access: "public",
     addRandomSuffix: true,
   });
@@ -321,6 +380,7 @@ export async function createItem(formData: FormData) {
       description: description?.trim() || null,
       fileUrl: blob.url,
       fileType: file.type || "application/octet-stream",
+      extractedText,
       categoryId,
       year,
     },
@@ -389,7 +449,15 @@ export async function replaceItemFile(itemId: string, restaurantId: string, form
     console.error("Fehler beim Löschen der alten Datei von Vercel Blob:", err);
   }
 
-  const blob = await put(`besuchsberichte/${Date.now()}-${file.name}`, file, {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const isPdf =
+    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+  let extractedText: string | null = null;
+  if (isPdf) {
+    extractedText = await extractPdfPlainText(buffer);
+  }
+
+  const blob = await put(`besuchsberichte/${Date.now()}-${file.name}`, buffer, {
     access: "public",
     addRandomSuffix: true,
   });
@@ -399,6 +467,7 @@ export async function replaceItemFile(itemId: string, restaurantId: string, form
     data: {
       fileUrl: blob.url,
       fileType: file.type || "application/octet-stream",
+      extractedText: isPdf ? extractedText : null,
     },
   });
 

@@ -53,7 +53,7 @@ export default function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] outline-none transition-all"
-            placeholder="ime@mcdonalds.com"
+            autoComplete="email"
             required
           />
         </div>
@@ -65,7 +65,7 @@ export default function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1a3826] focus:border-[#1a3826] outline-none transition-all"
-            placeholder="••••••••"
+            autoComplete="current-password"
             required
           />
         </div>
