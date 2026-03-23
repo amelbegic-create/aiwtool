@@ -11,13 +11,24 @@ import { syncActiveRestaurantCookieWithSession } from "@/app/actions/activeResta
 export default function ActiveRestaurantCookieSync() {
   const router = useRouter();
   const ran = useRef(false);
+  const REFRESH_GUARD_KEY = "activeRestaurantSyncRefreshDone";
 
   useEffect(() => {
     if (ran.current) return;
     ran.current = true;
+    if (typeof window !== "undefined" && sessionStorage.getItem(REFRESH_GUARD_KEY) === "1") {
+      return;
+    }
     void (async () => {
       const { changed } = await syncActiveRestaurantCookieWithSession();
-      if (changed) router.refresh();
+      if (changed) {
+        try {
+          sessionStorage.setItem(REFRESH_GUARD_KEY, "1");
+        } catch {
+          // ignore storage failures
+        }
+        router.refresh();
+      }
     })();
   }, [router]);
 

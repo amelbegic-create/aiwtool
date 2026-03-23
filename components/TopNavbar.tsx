@@ -147,6 +147,7 @@ export default function TopNavbar({
   const pathname = usePathname();
   const router = useRouter();
   const [notifPending, startNotifTransition] = useTransition();
+  const [locallyReadIds, setLocallyReadIds] = useState<Set<string>>(new Set());
   const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -154,7 +155,7 @@ export default function TopNavbar({
   const notifRef = useRef<HTMLDivElement>(null);
 
   /** Server šalje samo nepročitane; stanje „gelesen“ je u bazi. */
-  const unreadNotifications = notifications;
+  const unreadNotifications = notifications.filter((n) => !locallyReadIds.has(n.id));
   const unreadCount = unreadNotifications.length;
 
   // Prikaži "Gespeichert" toast nakon automatskog snimanja pri izlasku iz modula
@@ -169,10 +170,18 @@ export default function TopNavbar({
 
   const persistRead = (ids: string[]) => {
     if (ids.length === 0) return;
+    setLocallyReadIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
     startNotifTransition(() => {
       void (async () => {
-        await markNotificationsAsRead(ids);
-        router.refresh();
+        try {
+          await markNotificationsAsRead(ids);
+        } catch {
+          // optimistic UI ostaje; server će uskladiti stanje na sljedećem navigationu
+        }
       })();
     });
   };
