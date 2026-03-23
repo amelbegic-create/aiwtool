@@ -7,7 +7,9 @@ interface NoPermissionProps {
 }
 
 export default function NoPermission({ moduleName, inDevelopment }: NoPermissionProps) {
-  const showInDevelopment = inDevelopment ?? !moduleName;
+  /** Samo eksplicitno inDevelopment=true – inače „u izradi“ ne smije zamijeniti poruku o nedostatku dozvole. */
+  const showInDevelopment = inDevelopment === true;
+  const label = moduleName?.trim() || "Ovaj modul";
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-6 bg-background">
@@ -26,7 +28,7 @@ export default function NoPermission({ moduleName, inDevelopment }: NoPermission
               {showInDevelopment ? (
                 <>Dieses Modul befindet sich derzeit in der Entwicklung. Bitte versuchen Sie es später erneut oder wenden Sie sich an den Administrator.</>
               ) : (
-                <>Sie haben derzeit keine Berechtigung für das Modul <span className="font-bold text-foreground">{moduleName}</span>. Wenn Sie der Meinung sind, dass dies ein Fehler ist, wenden Sie sich bitte an den Administrator.</>
+                <>Sie haben derzeit keine Berechtigung für das Modul <span className="font-bold text-foreground">{label}</span>. Wenn Sie der Meinung sind, dass dies ein Fehler ist, wenden Sie sich bitte an den Administrator.</>
               )}
             </p>
             <div className="mt-6 flex flex-wrap gap-3">

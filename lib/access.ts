@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { hasPermission as hasPermissionCore } from "@/lib/permissionCheck";
 import { redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 
 export class PermissionDeniedError extends Error {
   constructor(message = "Nemate permisije za ovu akciju.") {
@@ -53,7 +54,8 @@ export async function tryRequirePermission(required: string): Promise<{ ok: true
   try {
     const dbUser = await requirePermission(required);
     return { ok: true, user: dbUser };
-  } catch {
+  } catch (e) {
+    if (isRedirectError(e)) throw e;
     return { ok: false };
   }
 }

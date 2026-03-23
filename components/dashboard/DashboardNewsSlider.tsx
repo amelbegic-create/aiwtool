@@ -3,7 +3,6 @@
 import { useRef, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, ArrowRight, FileText, Download, X } from "lucide-react";
-import Image from "next/image";
 import type { DashboardNewsPublic } from "@/app/actions/dashboardNewsActions";
 import { DashboardNewsAttachmentKind } from "@prisma/client";
 
@@ -183,14 +182,12 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items 
                   title={openItem.title}
                 />
               ) : (
-                <div className="relative h-full w-full">
-                  <Image
+                <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- GIF animation + blob/remote URLs */}
+                  <img
                     src={openItem.attachmentUrl}
                     alt={openItem.title}
-                    fill
-                    className="object-contain"
-                    sizes="(max-width: 896px) 100vw, 896px"
-                    unoptimized
+                    className="max-h-full max-w-full object-contain"
                   />
                 </div>
               )}

@@ -114,13 +114,13 @@ export default function DashboardNewsForm({
 
       <div>
         <label htmlFor="cover" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-          Titelbild (JPG/PNG) {mode === "create" ? "*" : ""}
+          Titelbild (JPG, PNG, GIF, WebP …) {mode === "create" ? "*" : ""}
         </label>
         <input
           id="cover"
           name="cover"
           type="file"
-          accept="image/*"
+          accept="image/*,image/gif,.gif"
           required={mode === "create"}
           className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#1a3826] file:px-3 file:py-2 file:text-xs file:font-black file:text-[#FFC72C]"
         />
@@ -137,13 +137,13 @@ export default function DashboardNewsForm({
 
       <div>
         <label htmlFor="attachment" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-          Anhang (PDF oder Bild) {mode === "create" ? "*" : ""}
+          Anhang (PDF, Bild oder GIF) {mode === "create" ? "*" : ""}
         </label>
         <input
           id="attachment"
           name="attachment"
           type="file"
-          accept="application/pdf,image/*"
+          accept="application/pdf,image/*,image/gif,.gif"
           required={mode === "create"}
           className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#1a3826] file:px-3 file:py-2 file:text-xs file:font-black file:text-[#FFC72C]"
         />

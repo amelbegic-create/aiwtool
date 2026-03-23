@@ -8,6 +8,14 @@ import { DashboardNewsAttachmentKind } from "@prisma/client";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
+/** MIME ili ekstenzija (npr. .gif kad browser pošalje prazan type). */
+function isImageFile(file: File): boolean {
+  const type = (file.type || "").toLowerCase();
+  if (type.startsWith("image/")) return true;
+  const name = (file.name || "").toLowerCase();
+  return /\.(gif|jpe?g|png|webp|bmp|svg|avif|heic|heif)$/i.test(name);
+}
+
 export type DashboardNewsPublic = {
   id: string;
   title: string;
@@ -20,7 +28,7 @@ export type DashboardNewsPublic = {
 function assertImageFile(file: File, label: string) {
   if (!file || file.size === 0) throw new Error(`${label}: Datei fehlt.`);
   if (file.size > MAX_BYTES) throw new Error(`${label}: Max. 10 MB.`);
-  if (!file.type.startsWith("image/")) throw new Error(`${label}: Nur Bilddateien erlaubt.`);
+  if (!isImageFile(file)) throw new Error(`${label}: Nur Bilddateien erlaubt (inkl. GIF).`);
 }
 
 function assertAttachmentFile(file: File) {
@@ -29,9 +37,9 @@ function assertAttachmentFile(file: File) {
   const type = file.type || "";
   const name = (file.name || "").toLowerCase();
   const isPdf = type === "application/pdf" || name.endsWith(".pdf");
-  const isImage = type.startsWith("image/");
+  const isImage = isImageFile(file);
   if (!isPdf && !isImage) {
-    throw new Error("Anhang: Nur PDF oder Bild erlaubt.");
+    throw new Error("Anhang: Nur PDF oder Bild erlaubt (inkl. GIF).");
   }
   return isPdf ? DashboardNewsAttachmentKind.PDF : DashboardNewsAttachmentKind.IMAGE;
 }
