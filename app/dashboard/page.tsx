@@ -21,6 +21,7 @@ import DashboardTodoCard from "@/components/dashboard/DashboardTodoCard";
 import DashboardVacationCard from "@/components/dashboard/DashboardVacationCard";
 import { getUserVacationYearSnapshot, getVacationReportForUser } from "@/app/actions/vacationActions";
 import { getActiveDashboardNews } from "@/app/actions/dashboardNewsActions";
+import { getActiveDashboardEvents } from "@/app/actions/dashboardEventActions";
 
 export const dynamic = "force-dynamic";
 
@@ -123,7 +124,11 @@ const DB_ERROR_UI = (
   </div>
 );
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/login");
 
@@ -198,6 +203,15 @@ export default async function DashboardPage() {
   } catch {
     /* Tabelle fehlt bis db push / instrumentation */
   }
+  let dashboardEvents: Awaited<ReturnType<typeof getActiveDashboardEvents>> = [];
+  try {
+    dashboardEvents = await getActiveDashboardEvents();
+  } catch {
+    /* Tabelle fehlt bis db push / instrumentation */
+  }
+
+  const openNewsId = typeof searchParams?.openNews === "string" ? searchParams.openNews : null;
+  const openEventId = typeof searchParams?.openEvent === "string" ? searchParams.openEvent : null;
 
   const vacationPdfPayload =
     canVacationPdf && vacationReport
@@ -360,12 +374,12 @@ export default async function DashboardPage() {
 
         {/* ── NEWS SLIDER (CMS) ── */}
         <section className="mb-8 md:mb-10 border-t border-border pt-5">
-          <DashboardNewsSlider items={dashboardNews} />
+          <DashboardNewsSlider items={dashboardNews} initialOpenId={openNewsId} />
         </section>
 
         {/* ── EVENTS SLIDER (kompaktni) ── */}
         <section className="border-t border-border pt-5">
-          <EventSlider />
+          <EventSlider items={dashboardEvents} initialOpenId={openEventId} />
         </section>
       </main>
     </div>

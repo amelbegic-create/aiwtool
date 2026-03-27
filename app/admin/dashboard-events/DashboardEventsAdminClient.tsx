@@ -2,32 +2,27 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Images, BarChart3 } from "lucide-react";
 import {
-  deleteDashboardNewsItem,
-  setDashboardNewsActive,
-  getDashboardNewsStats,
-  getDashboardNewsStatsSummary,
-} from "@/app/actions/dashboardNewsActions";
+  deleteDashboardEventItem,
+  setDashboardEventActive,
+  getDashboardEventStats,
+  getDashboardEventStatsSummary,
+} from "@/app/actions/dashboardEventActions";
 import DashboardStatsModal from "@/app/admin/_components/DashboardStatsModal";
 
-export type DashboardNewsAdminRow = {
+export type DashboardEventAdminRow = {
   id: string;
   title: string;
   subtitle: string | null;
   sortOrder: number;
   isActive: boolean;
-  attachmentKind: string;
   coverImageUrl: string;
+  imageCount: number;
 };
 
-export default function DashboardNewsAdminClient({
-  items,
-}: {
-  items: DashboardNewsAdminRow[];
-}) {
+export default function DashboardEventsAdminClient({ items }: { items: DashboardEventAdminRow[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [statsOpen, setStatsOpen] = useState(false);
@@ -36,15 +31,15 @@ export default function DashboardNewsAdminClient({
 
   function toggle(id: string, current: boolean) {
     startTransition(async () => {
-      await setDashboardNewsActive(id, !current);
+      await setDashboardEventActive(id, !current);
       router.refresh();
     });
   }
 
   function del(id: string) {
-    if (!confirm("Diese Meldung wirklich löschen?")) return;
+    if (!confirm("Dieses Event wirklich löschen?")) return;
     startTransition(async () => {
-      const r = await deleteDashboardNewsItem(id);
+      const r = await deleteDashboardEventItem(id);
       if (!r.ok) alert(r.error ?? "Löschen fehlgeschlagen.");
       router.refresh();
     });
@@ -54,7 +49,7 @@ export default function DashboardNewsAdminClient({
     let cancelled = false;
     Promise.all(
       items.map(async (r) => {
-        const summary = await getDashboardNewsStatsSummary(r.id);
+        const summary = await getDashboardEventStatsSummary(r.id);
         return { id: r.id, ...summary };
       })
     ).then((results) => {
@@ -76,25 +71,21 @@ export default function DashboardNewsAdminClient({
   };
 
   if (items.length === 0) {
-    return (
-      <p className="rounded-xl border border-border bg-card p-6 text-sm font-medium text-muted-foreground">
-        Noch keine Meldungen. Legen Sie eine neue an.
-      </p>
-    );
+    return <p className="rounded-xl border border-border bg-card p-6 text-sm font-medium text-muted-foreground">Noch keine Events. Legen Sie ein neues an.</p>;
   }
 
   return (
     <>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full min-w-[860px] text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
         <thead className="border-b border-border bg-muted/40 text-xs font-black uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th className="px-4 py-3">Vorschau</th>
+            <th className="px-4 py-3">Cover</th>
             <th className="px-4 py-3">Titel</th>
+            <th className="px-4 py-3">Bilder</th>
             <th className="px-4 py-3">Reihenfolge</th>
-            <th className="px-4 py-3">Typ</th>
             <th className="px-4 py-3">Aktiv</th>
-              <th className="px-4 py-3">Lesestatus</th>
+            <th className="px-4 py-3">Lesestatus</th>
             <th className="px-4 py-3 text-right">Aktionen</th>
           </tr>
         </thead>
@@ -103,36 +94,24 @@ export default function DashboardNewsAdminClient({
             <tr key={row.id} className="align-middle">
               <td className="px-4 py-2">
                 <div className="relative h-14 w-24 overflow-hidden rounded-md border border-border bg-muted">
-                  <Image
-                    src={row.coverImageUrl}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="96px"
-                    unoptimized
-                  />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={row.coverImageUrl} alt="" className="h-full w-full object-cover" />
                 </div>
               </td>
               <td className="px-4 py-2 font-semibold text-foreground">
                 <div>{row.title}</div>
-                {row.subtitle ? (
-                  <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                    {row.subtitle}
-                  </div>
-                ) : null}
+                {row.subtitle ? <div className="mt-0.5 text-xs font-normal text-muted-foreground">{row.subtitle}</div> : null}
+              </td>
+              <td className="px-4 py-2 text-muted-foreground">
+                <span className="inline-flex items-center gap-1"><Images size={14} /> {row.imageCount}</span>
               </td>
               <td className="px-4 py-2 tabular-nums text-muted-foreground">{row.sortOrder}</td>
-              <td className="px-4 py-2 text-muted-foreground">{row.attachmentKind}</td>
               <td className="px-4 py-2">
                 <button
                   type="button"
                   disabled={pending}
                   onClick={() => toggle(row.id, row.isActive)}
-                  className={`rounded-lg border px-3 py-1 text-xs font-bold uppercase tracking-wide transition-colors ${
-                    row.isActive
-                      ? "border-[#1a3826] bg-[#1a3826] text-[#FFC72C]"
-                      : "border-border bg-muted text-muted-foreground"
-                  }`}
+                  className={`rounded-lg border px-3 py-1 text-xs font-bold uppercase tracking-wide transition-colors ${row.isActive ? "border-[#1a3826] bg-[#1a3826] text-[#FFC72C]" : "border-border bg-muted text-muted-foreground"}`}
                 >
                   {row.isActive ? "Ja" : "Nein"}
                 </button>
@@ -165,20 +144,10 @@ export default function DashboardNewsAdminClient({
               </td>
               <td className="px-4 py-2 text-right">
                 <div className="flex justify-end gap-2">
-                  <Link
-                    href={`/admin/dashboard-news/${row.id}/edit`}
-                    className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-[#1a3826] hover:bg-muted dark:text-[#FFC72C]"
-                    title="Bearbeiten"
-                  >
+                  <Link href={`/admin/dashboard-events/${row.id}/edit`} className="inline-flex items-center justify-center rounded-lg border border-border p-2 text-[#1a3826] hover:bg-muted dark:text-[#FFC72C]" title="Bearbeiten">
                     <Pencil size={18} aria-hidden />
                   </Link>
-                  <button
-                    type="button"
-                    disabled={pending}
-                    onClick={() => del(row.id)}
-                    className="inline-flex items-center justify-center rounded-lg border border-destructive/40 p-2 text-destructive hover:bg-destructive/10"
-                    title="Löschen"
-                  >
+                  <button type="button" disabled={pending} onClick={() => del(row.id)} className="inline-flex items-center justify-center rounded-lg border border-destructive/40 p-2 text-destructive hover:bg-destructive/10" title="Löschen">
                     <Trash2 size={18} aria-hidden />
                   </button>
                 </div>
@@ -186,19 +155,20 @@ export default function DashboardNewsAdminClient({
             </tr>
           ))}
         </tbody>
-        </table>
-      </div>
+      </table>
+    </div>
 
-      <DashboardStatsModal
-        open={statsOpen}
-        title={statsItem?.title ?? ""}
-        subtitle="Dashboard-News"
-        load={async () => {
-          if (!statsItem?.id) return { read: [], unread: [] };
-          return getDashboardNewsStats(statsItem.id);
-        }}
-        onClose={() => setStatsOpen(false)}
-      />
+    <DashboardStatsModal
+      open={statsOpen}
+      title={statsItem?.title ?? ""}
+      subtitle="Dashboard-Events"
+      load={async () => {
+        if (!statsItem?.id) return { read: [], unread: [] };
+        return getDashboardEventStats(statsItem.id);
+      }}
+      onClose={() => setStatsOpen(false)}
+    />
     </>
   );
 }
+

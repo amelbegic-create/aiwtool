@@ -1,26 +1,14 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
-import { GOD_MODE_ROLES } from "@/lib/permissions";
+import { userHasRestaurantAccessByEmail } from "@/lib/restaurantAccess";
 
 async function userHasRestaurantAccess(restaurantId: string) {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
   if (!email) return false;
-
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, role: true },
-  });
-  if (!user) return false;
-  if (GOD_MODE_ROLES.has(String(user.role))) return true;
-
-  const rel = await prisma.restaurantUser.findFirst({
-    where: { userId: user.id, restaurantId },
-    select: { id: true },
-  });
-  return !!rel;
+  return userHasRestaurantAccessByEmail(email, restaurantId);
 }
 
 export async function GET(req: Request) {
@@ -95,7 +83,7 @@ export async function POST(req: Request) {
         },
       },
       update: {
-        data: data, 
+        data: data,
       },
       create: {
         restaurantId,
@@ -109,3 +97,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Save error" }, { status: 500 });
   }
 }
+

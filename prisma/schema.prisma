@@ -58,6 +58,7 @@ enum BonusFactorMode {
 enum DashboardNewsAttachmentKind {
   PDF
   IMAGE
+  VIDEO
 }
 
 // --- DEPARTMENTS (Odjeli) ---
@@ -250,6 +251,10 @@ model User {
 
   /** Pročitane in-app notifikacije (ključ = NotificationItem.id iz notificationActions) */
   notificationReads               NotificationRead[]
+
+  // Activity tracking for dashboard popup views
+  dashboardNewsViews            DashboardNewsView[]
+  dashboardEventViews           DashboardEventView[]
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -736,7 +741,62 @@ model DashboardNewsItem {
   createdAt        DateTime                     @default(now())
   updatedAt        DateTime                     @updatedAt
 
+  views            DashboardNewsView[]
+
   @@index([isActive, sortOrder])
+}
+
+/// Slider „Events & Highlights“ na dashboardu (cover + galerija slika)
+model DashboardEventItem {
+  id            String                @id @default(cuid())
+  title         String
+  subtitle      String?
+  coverImageUrl String
+  videoUrl      String?
+  sortOrder     Int                   @default(0)
+  isActive      Boolean               @default(true)
+  images        DashboardEventImage[]
+  views         DashboardEventView[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+model DashboardEventImage {
+  id        String             @id @default(cuid())
+  eventId   String
+  event     DashboardEventItem @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  sortOrder Int                @default(0)
+  createdAt DateTime           @default(now())
+
+  @@index([eventId, sortOrder])
+}
+
+// --- Activity tracking (who opened the popup) ---
+model DashboardNewsView {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newsItemId String
+  newsItem    DashboardNewsItem @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+  viewedAt    DateTime        @default(now())
+
+  @@unique([userId, newsItemId])
+  @@index([newsItemId])
+}
+
+model DashboardEventView {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventItemId String
+  eventItem    DashboardEventItem @relation(fields: [eventItemId], references: [id], onDelete: Cascade)
+  viewedAt    DateTime        @default(now())
+
+  @@unique([userId, eventItemId])
+  @@index([eventItemId])
 }
 
 // --- FIRMEN & PARTNER (Dobavljači i servisi) ---

@@ -1,27 +1,15 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getLaborData, saveLaborData, deleteLaborData } from "@/app/actions/laborActions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { prisma } from "@/lib/prisma";
-import { GOD_MODE_ROLES } from "@/lib/permissions";
+import { userHasRestaurantAccessByEmail } from "@/lib/restaurantAccess";
 
 async function userHasRestaurantAccess(restaurantId: string) {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email;
   if (!email) return false;
-
-  const user = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, role: true },
-  });
-  if (!user) return false;
-  if (GOD_MODE_ROLES.has(String(user.role))) return true;
-
-  const rel = await prisma.restaurantUser.findFirst({
-    where: { userId: user.id, restaurantId },
-    select: { id: true },
-  });
-  return !!rel;
+  return userHasRestaurantAccessByEmail(email, restaurantId);
 }
 
 async function getSessionAuth(): Promise<{ userId: string; role: string } | null> {
@@ -175,3 +163,4 @@ export async function DELETE(req: Request) {
     );
   }
 }
+

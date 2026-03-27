@@ -5,6 +5,12 @@
  */
 import { GOD_MODE_ROLES } from "@/lib/permissions";
 
+/**
+ * Privremeni feature-flag: CL lock UI/flow je isključen.
+ * Kad nađeš bolje rješenje, samo prebaci na true i vrati UI.
+ */
+export const CL_LOCK_ENABLED = false;
+
 export interface LaborDayInput {
   bruttoUmsatz?: string;
   nettoUmsatz?: string;

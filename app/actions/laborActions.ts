@@ -10,6 +10,7 @@ import {
   type LaborClClientState,
   type LaborDataApiResult,
   canBypassClLock,
+  CL_LOCK_ENABLED,
   defaultClState,
 } from "@/lib/laborPlannerCl";
 import { stealthArchitectWhere } from "@/lib/userVisibility";
@@ -74,6 +75,7 @@ async function buildLaborClClientState(
   viewerId: string,
   viewerRole: string
 ): Promise<LaborClClientState> {
+  if (!CL_LOCK_ENABLED) return defaultClState();
   await expireClGrantIfNeeded(report);
   const fresh = await prisma.laborReport.findUnique({
     where: { id: report.id },
@@ -200,6 +202,7 @@ async function assertCanSaveLabor(
   userId: string,
   role: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!CL_LOCK_ENABLED) return { ok: true };
   if (canBypassClLock(role)) return { ok: true };
   if (!report || !report.clLocked) return { ok: true };
   if (grantIsActive(report) && report.clEditGrantUserId === userId) return { ok: true };

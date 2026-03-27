@@ -20,6 +20,7 @@ export async function register() {
     // ── 1. Enum values ────────────────────────────────────────────────────────
     await run(`ALTER TYPE "PDSStatus" ADD VALUE IF NOT EXISTS 'IN_PROGRESS'`);
     await run(`ALTER TYPE "PDSStatus" ADD VALUE IF NOT EXISTS 'APPROVED'`);
+    await run(`ALTER TYPE "DashboardNewsAttachmentKind" ADD VALUE IF NOT EXISTS 'VIDEO'`);
 
     // ── 2. Department table ───────────────────────────────────────────────────
     await run(`
@@ -218,7 +219,7 @@ export async function register() {
     await run(`
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DashboardNewsAttachmentKind') THEN
-          CREATE TYPE "DashboardNewsAttachmentKind" AS ENUM ('PDF', 'IMAGE');
+          CREATE TYPE "DashboardNewsAttachmentKind" AS ENUM ('PDF', 'IMAGE', 'VIDEO');
         END IF;
       END $$
     `);
@@ -240,6 +241,123 @@ export async function register() {
     await run(
       `CREATE INDEX IF NOT EXISTS "DashboardNewsItem_isActive_sortOrder_idx" ON "DashboardNewsItem"("isActive", "sortOrder")`
     );
+
+    // ── 10b.1 Dashboard news view tracking ────────────────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardNewsView" (
+        "id"          TEXT NOT NULL,
+        "userId"      TEXT NOT NULL,
+        "newsItemId" TEXT NOT NULL,
+        "viewedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardNewsView_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS "DashboardNewsView_newsItemId_idx" ON "DashboardNewsView"("newsItemId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardNewsView_userId_fkey') THEN
+          ALTER TABLE "DashboardNewsView" ADD CONSTRAINT "DashboardNewsView_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardNewsView_newsItemId_fkey') THEN
+          ALTER TABLE "DashboardNewsView" ADD CONSTRAINT "DashboardNewsView_newsItemId_fkey"
+            FOREIGN KEY ("newsItemId") REFERENCES "DashboardNewsItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'DashboardNewsView_userId_newsItemId_key'
+        ) THEN
+          ALTER TABLE "DashboardNewsView" ADD CONSTRAINT "DashboardNewsView_userId_newsItemId_key"
+            UNIQUE ("userId", "newsItemId");
+        END IF;
+      END $$
+    `);
+
+    // ── 10c. Dashboard events slider (cover + gallery) ───────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardEventItem" (
+        "id"               TEXT NOT NULL,
+        "title"            TEXT NOT NULL,
+        "subtitle"         TEXT,
+        "coverImageUrl"    TEXT NOT NULL,
+        "videoUrl"         TEXT,
+        "sortOrder"        INTEGER NOT NULL DEFAULT 0,
+        "isActive"         BOOLEAN NOT NULL DEFAULT true,
+        "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardEventItem_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`ALTER TABLE "DashboardEventItem" ADD COLUMN IF NOT EXISTS "videoUrl" TEXT`);
+    await run(
+      `CREATE INDEX IF NOT EXISTS "DashboardEventItem_isActive_sortOrder_idx" ON "DashboardEventItem"("isActive", "sortOrder")`
+    );
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardEventImage" (
+        "id"               TEXT NOT NULL,
+        "eventId"          TEXT NOT NULL,
+        "imageUrl"         TEXT NOT NULL,
+        "sortOrder"        INTEGER NOT NULL DEFAULT 0,
+        "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardEventImage_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS "DashboardEventImage_eventId_sortOrder_idx" ON "DashboardEventImage"("eventId", "sortOrder")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventImage_eventId_fkey') THEN
+          ALTER TABLE "DashboardEventImage" ADD CONSTRAINT "DashboardEventImage_eventId_fkey"
+            FOREIGN KEY ("eventId") REFERENCES "DashboardEventItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // ── 10c.1 Dashboard event view tracking ───────────────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardEventView" (
+        "id"          TEXT NOT NULL,
+        "userId"      TEXT NOT NULL,
+        "eventItemId" TEXT NOT NULL,
+        "viewedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardEventView_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS "DashboardEventView_eventItemId_idx" ON "DashboardEventView"("eventItemId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventView_userId_fkey') THEN
+          ALTER TABLE "DashboardEventView" ADD CONSTRAINT "DashboardEventView_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventView_eventItemId_fkey') THEN
+          ALTER TABLE "DashboardEventView" ADD CONSTRAINT "DashboardEventView_eventItemId_fkey"
+            FOREIGN KEY ("eventItemId") REFERENCES "DashboardEventItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'DashboardEventView_userId_eventItemId_key'
+        ) THEN
+          ALTER TABLE "DashboardEventView" ADD CONSTRAINT "DashboardEventView_userId_eventItemId_key"
+            UNIQUE ("userId", "eventItemId");
+        END IF;
+      END $$
+    `);
 
     // ── 11. Holiday table ─────────────────────────────────────────────────────
     await run(`

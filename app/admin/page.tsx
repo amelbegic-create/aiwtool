@@ -36,6 +36,7 @@ export default async function AdminHome() {
   const vorlagenAccess = await tryRequirePermission("vorlagen:manage");
   const besuchsberichteAccess = await tryRequirePermission("besuchsberichte:manage");
   const dashboardNewsAccess = await tryRequirePermission("dashboard_news:manage");
+  const dashboardEventsAccess = await tryRequirePermission("dashboard_events:manage");
 
   const session = await getServerSession(authOptions);
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
@@ -187,6 +188,17 @@ export default async function AdminHome() {
             desc: "News-Slider auf der Startseite: Titelbild, PDF oder Bild-Anhang, Reihenfolge und Sichtbarkeit.",
             href: "/admin/dashboard-news",
             icon: Newspaper,
+            tag: "Dashboard",
+          } satisfies AdminCard,
+        ]
+      : []),
+    ...(dashboardEventsAccess.ok
+      ? [
+          {
+            title: "Dashboard-Events",
+            desc: "Events & Highlights: Cover, Galerie (max. 10 Bilder), Reihenfolge und Sichtbarkeit.",
+            href: "/admin/dashboard-events",
+            icon: CalendarDays,
             tag: "Dashboard",
           } satisfies AdminCard,
         ]

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, FileText, Image as ImageIcon, Video, UploadCloud } from "lucide-react";
 import {
   createDashboardNewsItem,
   updateDashboardNewsItem,
@@ -31,6 +32,27 @@ export default function DashboardNewsForm({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [attachmentPreviewUrl, setAttachmentPreviewUrl] = useState<string | null>(null);
+  const [attachmentPreviewKind, setAttachmentPreviewKind] = useState<"pdf" | "image" | "video" | null>(null);
+
+  const currentCoverUrl = coverPreviewUrl ?? initial?.coverImageUrl ?? null;
+  const currentAttachmentUrl = attachmentPreviewUrl ?? initial?.attachmentUrl ?? null;
+  const currentAttachmentKind = useMemo(() => {
+    if (attachmentPreviewKind === "pdf") return DashboardNewsAttachmentKind.PDF;
+    if (attachmentPreviewKind === "video") return DashboardNewsAttachmentKind.VIDEO;
+    if (attachmentPreviewKind === "image") return DashboardNewsAttachmentKind.IMAGE;
+    return initial?.attachmentKind ?? null;
+  }, [attachmentPreviewKind, initial?.attachmentKind]);
+
+  function safeRevokeObjectUrl(url: string | null) {
+    if (!url) return;
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55,134 +77,205 @@ export default function DashboardNewsForm({
     <form
       onSubmit={onSubmit}
       encType="multipart/form-data"
-      className="mx-auto max-w-xl space-y-5 rounded-xl border border-border bg-card p-6 shadow-sm"
+      className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden"
     >
-      <div>
-        <label htmlFor="title" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-          Titel *
-        </label>
-        <input
-          id="title"
-          name="title"
-          required
-          defaultValue={initial?.title ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="subtitle" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-          Untertitel
-        </label>
-        <input
-          id="subtitle"
-          name="subtitle"
-          defaultValue={initial?.subtitle ?? ""}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium"
-        />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="sortOrder" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-            Reihenfolge
-          </label>
-          <input
-            id="sortOrder"
-            name="sortOrder"
-            type="number"
-            min={0}
-            defaultValue={initial?.sortOrder ?? 0}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium tabular-nums"
-          />
-        </div>
-        <div>
-          <label htmlFor="isActive" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-            Status
-          </label>
-          <select
-            id="isActive"
-            name="isActive"
-            defaultValue={initial?.isActive === false ? "false" : "true"}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium"
-          >
-            <option value="true">Aktiv (auf Startseite)</option>
-            <option value="false">Inaktiv</option>
-          </select>
-        </div>
-      </div>
-
-      <div>
-        <label htmlFor="cover" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-          Titelbild (JPG, PNG, GIF, WebP …) {mode === "create" ? "*" : ""}
-        </label>
-        <input
-          id="cover"
-          name="cover"
-          type="file"
-          accept="image/*,image/gif,.gif"
-          required={mode === "create"}
-          className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#1a3826] file:px-3 file:py-2 file:text-xs file:font-black file:text-[#FFC72C]"
-        />
-        {mode === "edit" && initial?.coverImageUrl ? (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Aktuell:{" "}
-            <a href={initial.coverImageUrl} className="font-semibold text-[#1a3826] underline dark:text-[#FFC72C]" target="_blank" rel="noreferrer">
-              Vorschau
-            </a>{" "}
-            – leer lassen, um beizubehalten.
+      {/* Filter bar-style header */}
+      <div className="px-5 py-4 border-b border-border bg-muted/40 flex flex-col md:flex-row md:items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Dashboard · News
           </p>
-        ) : null}
-      </div>
-
-      <div>
-        <label htmlFor="attachment" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
-          Anhang (PDF, Bild oder GIF) {mode === "create" ? "*" : ""}
-        </label>
-        <input
-          id="attachment"
-          name="attachment"
-          type="file"
-          accept="application/pdf,image/*,image/gif,.gif"
-          required={mode === "create"}
-          className="w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#1a3826] file:px-3 file:py-2 file:text-xs file:font-black file:text-[#FFC72C]"
-        />
-        {mode === "edit" && initial?.attachmentUrl ? (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Aktuell ({initial.attachmentKind}):{" "}
-            <a
-              href={initial.attachmentUrl}
-              className="font-semibold text-[#1a3826] underline dark:text-[#FFC72C]"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Öffnen
-            </a>{" "}
-            – leer lassen, um beizubehalten.
+          <p className="text-sm font-black text-foreground">
+            {mode === "create" ? "Neue Meldung erstellen" : "Meldung bearbeiten"}
           </p>
-        ) : null}
-      </div>
-
-      {error ? (
-        <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
-          {error}
-        </p>
-      ) : null}
-
-      <div className="flex flex-wrap gap-3 pt-2">
+        </div>
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-[#1a3826] px-5 py-2.5 text-sm font-black uppercase tracking-wide text-[#FFC72C] disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1a3826] px-5 py-2.5 text-sm font-black text-white shadow-lg hover:opacity-90 disabled:opacity-60"
         >
-          {pending ? "Speichern…" : "Speichern"}
+          <UploadCloud size={18} /> {pending ? "Speichern…" : "Speichern"}
         </button>
-        <Link
-          href="/admin/dashboard-news"
-          className="inline-flex items-center rounded-lg border border-border px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted"
-        >
-          Abbrechen
-        </Link>
+      </div>
+
+      <div className="p-5 md:p-6 space-y-6">
+        {/* Core fields */}
+        <div className="grid gap-4">
+          <div>
+            <label htmlFor="title" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
+              Titel *
+            </label>
+            <input
+              id="title"
+              name="title"
+              required
+              defaultValue={initial?.title ?? ""}
+              className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium"
+            />
+          </div>
+          <div>
+            <label htmlFor="subtitle" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
+              Untertitel
+            </label>
+            <input
+              id="subtitle"
+              name="subtitle"
+              defaultValue={initial?.subtitle ?? ""}
+              className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="sortOrder" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
+                Reihenfolge
+              </label>
+              <input
+                id="sortOrder"
+                name="sortOrder"
+                type="number"
+                min={0}
+                defaultValue={initial?.sortOrder ?? 0}
+                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium tabular-nums"
+              />
+            </div>
+            <div>
+              <label htmlFor="isActive" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
+                Status
+              </label>
+              <select
+                id="isActive"
+                name="isActive"
+                defaultValue={initial?.isActive === false ? "false" : "true"}
+                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-semibold"
+              >
+                <option value="true">Aktiv (sichtbar)</option>
+                <option value="false">Inaktiv</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Media */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
+              <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Titelbild</p>
+              <p className="text-xs font-bold text-muted-foreground">
+                {mode === "create" ? "Pflichtfeld" : "optional"}
+              </p>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-border bg-muted">
+                {currentCoverUrl ? (
+                  <Image src={currentCoverUrl} alt="" fill className="object-cover" sizes="640px" unoptimized />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                    <ImageIcon size={20} />
+                    <span className="ml-2 text-sm font-semibold">Kein Bild</span>
+                  </div>
+                )}
+              </div>
+              <input
+                id="cover"
+                name="cover"
+                type="file"
+                accept="image/*,image/gif,.gif"
+                required={mode === "create"}
+                onChange={(e) => {
+                  const f = e.currentTarget.files?.[0];
+                  if (!f) return;
+                  safeRevokeObjectUrl(coverPreviewUrl);
+                  setCoverPreviewUrl(URL.createObjectURL(f));
+                }}
+                className="w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-[#1a3826] file:px-4 file:py-2.5 file:text-xs file:font-black file:text-[#FFC72C]"
+              />
+              <p className="text-xs text-muted-foreground">
+                JPG/PNG/WebP/GIF. Empfohlen: \(16:9\).
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
+              <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Anhang</p>
+              <p className="text-xs font-bold text-muted-foreground">
+                {mode === "create" ? "Pflichtfeld" : "optional"}
+              </p>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-border bg-muted flex items-center justify-center">
+                {currentAttachmentUrl && currentAttachmentKind === DashboardNewsAttachmentKind.IMAGE ? (
+                  <Image src={currentAttachmentUrl} alt="" fill className="object-cover" sizes="640px" unoptimized />
+                ) : currentAttachmentUrl && currentAttachmentKind === DashboardNewsAttachmentKind.VIDEO ? (
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <Video size={18} /> Video ausgewählt
+                  </div>
+                ) : currentAttachmentUrl && currentAttachmentKind === DashboardNewsAttachmentKind.PDF ? (
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <FileText size={18} /> PDF ausgewählt
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                    <FileText size={18} /> Kein Anhang
+                  </div>
+                )}
+              </div>
+              <input
+                id="attachment"
+                name="attachment"
+                type="file"
+                accept="application/pdf,image/*,image/gif,.gif,video/*"
+                required={mode === "create"}
+                onChange={(e) => {
+                  const f = e.currentTarget.files?.[0];
+                  if (!f) return;
+                  const t = (f.type || "").toLowerCase();
+                  const name = (f.name || "").toLowerCase();
+                  if (t === "application/pdf" || name.endsWith(".pdf")) setAttachmentPreviewKind("pdf");
+                  else if (t.startsWith("video/")) setAttachmentPreviewKind("video");
+                  else setAttachmentPreviewKind("image");
+                  safeRevokeObjectUrl(attachmentPreviewUrl);
+                  setAttachmentPreviewUrl(URL.createObjectURL(f));
+                }}
+                className="w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-[#1a3826] file:px-4 file:py-2.5 file:text-xs file:font-black file:text-[#FFC72C]"
+              />
+              <p className="text-xs text-muted-foreground">
+                PDF/Bild/GIF (bis 10 MB) oder Video (bis 200 MB).
+                {mode === "edit" && initial?.attachmentUrl ? (
+                  <>
+                    {" "}Aktuell:{" "}
+                    <a href={initial.attachmentUrl} target="_blank" rel="noreferrer" className="font-bold underline text-[#1a3826] dark:text-[#FFC72C]">
+                      öffnen
+                    </a>
+                    .
+                  </>
+                ) : null}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {error ? (
+          <p className="rounded-xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <Link
+            href="/admin/dashboard-news"
+            className="inline-flex items-center rounded-xl border border-border px-5 py-2.5 text-sm font-bold text-muted-foreground hover:bg-muted"
+          >
+            Abbrechen
+          </Link>
+          <button
+            type="submit"
+            disabled={pending}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1a3826] px-6 py-3 text-sm font-black text-white shadow-lg hover:opacity-90 disabled:opacity-60"
+          >
+            <UploadCloud size={18} /> {pending ? "Speichern…" : "Speichern"}
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -198,21 +291,26 @@ export function DashboardNewsFormShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-background p-4 font-sans text-foreground md:p-6 lg:p-8">
-      <div className="mx-auto max-w-3xl space-y-6">
-        <div>
-          <Link
-            href="/admin/dashboard-news"
-            className="mb-3 inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C]"
-          >
-            <ArrowLeft size={16} aria-hidden /> Zurück zur Liste
-          </Link>
-          <h1 className="text-2xl font-black uppercase tracking-tight text-[#1a3826] dark:text-[#FFC72C] md:text-3xl">
-            {title}
-          </h1>
-          <p className="mt-1 text-sm font-medium text-muted-foreground">{description}</p>
-        </div>
-        {children}
+    <div className="min-h-screen bg-background font-sans text-foreground">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-6 md:py-10 space-y-6 md:space-y-8">
+        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-border pb-5">
+          <div>
+            <Link
+              href="/admin/dashboard-news"
+              className="mb-2 inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C]"
+            >
+              <ArrowLeft size={16} aria-hidden /> Zurück zur Liste
+            </Link>
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase text-[#1a3826]">
+              {title.split(" ")[0]} <span className="text-[#FFC72C]">{title.split(" ").slice(1).join(" ")}</span>
+            </h1>
+            <p className="mt-2 text-sm font-medium text-muted-foreground max-w-2xl">{description}</p>
+          </div>
+        </header>
+
+        <section className="max-w-3xl">
+          {children}
+        </section>
       </div>
     </div>
   );

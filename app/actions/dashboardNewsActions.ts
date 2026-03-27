@@ -1,12 +1,13 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { requirePermission } from "@/lib/access";
+import { getDbUserForAccess, requirePermission } from "@/lib/access";
 import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { DashboardNewsAttachmentKind } from "@prisma/client";
 
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_PDF_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 
 /** MIME ili ekstenzija (npr. .gif kad browser pošalje prazan type). */
 function isImageFile(file: File): boolean {
@@ -16,6 +17,13 @@ function isImageFile(file: File): boolean {
   return /\.(gif|jpe?g|png|webp|bmp|svg|avif|heic|heif)$/i.test(name);
 }
 
+function isVideoFile(file: File): boolean {
+  const type = (file.type || "").toLowerCase();
+  if (type.startsWith("video/")) return true;
+  const name = (file.name || "").toLowerCase();
+  return /\.(mp4|webm|ogg|mov|m4v|avi|wmv|mpeg|mpg)$/i.test(name);
+}
+
 export type DashboardNewsPublic = {
   id: string;
   title: string;
@@ -23,25 +31,39 @@ export type DashboardNewsPublic = {
   coverImageUrl: string;
   attachmentUrl: string;
   attachmentKind: DashboardNewsAttachmentKind;
+  /** ISO string — za „NEU“ značku prvih 3 dana nakon objave. */
+  createdAt: string;
 };
 
 function assertImageFile(file: File, label: string) {
   if (!file || file.size === 0) throw new Error(`${label}: Datei fehlt.`);
-  if (file.size > MAX_BYTES) throw new Error(`${label}: Max. 10 MB.`);
+  if (file.size > MAX_IMAGE_PDF_BYTES) throw new Error(`${label}: Max. 10 MB.`);
   if (!isImageFile(file)) throw new Error(`${label}: Nur Bilddateien erlaubt (inkl. GIF).`);
 }
 
 function assertAttachmentFile(file: File) {
   if (!file || file.size === 0) throw new Error("Anhang: Datei fehlt.");
-  if (file.size > MAX_BYTES) throw new Error("Anhang: Max. 10 MB.");
-  const type = file.type || "";
+  const type = (file.type || "").toLowerCase();
   const name = (file.name || "").toLowerCase();
+
   const isPdf = type === "application/pdf" || name.endsWith(".pdf");
   const isImage = isImageFile(file);
-  if (!isPdf && !isImage) {
-    throw new Error("Anhang: Nur PDF oder Bild erlaubt (inkl. GIF).");
+  const isVideo = isVideoFile(file);
+
+  if (isVideo) {
+    if (file.size > MAX_VIDEO_BYTES) throw new Error("Anhang (Video): Max. 200 MB.");
+    return DashboardNewsAttachmentKind.VIDEO;
   }
-  return isPdf ? DashboardNewsAttachmentKind.PDF : DashboardNewsAttachmentKind.IMAGE;
+  if (isPdf) {
+    if (file.size > MAX_IMAGE_PDF_BYTES) throw new Error("Anhang (PDF): Max. 10 MB.");
+    return DashboardNewsAttachmentKind.PDF;
+  }
+  if (isImage) {
+    if (file.size > MAX_IMAGE_PDF_BYTES) throw new Error("Anhang (Bild): Max. 10 MB.");
+    return DashboardNewsAttachmentKind.IMAGE;
+  }
+
+  throw new Error("Anhang: Nur PDF, Bild (inkl. GIF) oder Video erlaubt.");
 }
 
 async function uploadCover(file: File, prefix: string): Promise<string> {
@@ -60,8 +82,13 @@ async function uploadAttachment(file: File, prefix: string): Promise<{ url: stri
   const kind = assertAttachmentFile(file);
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) throw new Error("BLOB_READ_WRITE_TOKEN fehlt.");
-  const originalName = file.name || (kind === DashboardNewsAttachmentKind.PDF ? "doc.pdf" : "image.jpg");
-  const ext = (originalName.split(".").pop() || (kind === DashboardNewsAttachmentKind.PDF ? "pdf" : "jpg")).toLowerCase();
+  const originalName =
+    file.name ||
+    (kind === DashboardNewsAttachmentKind.PDF ? "doc.pdf" : kind === DashboardNewsAttachmentKind.VIDEO ? "video.mp4" : "image.jpg");
+  const ext = (
+    originalName.split(".").pop() ||
+    (kind === DashboardNewsAttachmentKind.PDF ? "pdf" : kind === DashboardNewsAttachmentKind.VIDEO ? "mp4" : "jpg")
+  ).toLowerCase();
   const safeBase = originalName.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "");
   const path = `dashboard-news/attachments/${prefix}-${Date.now()}-${safeBase}.${ext}`;
   const blob = await put(path, file, { access: "public", token, addRandomSuffix: true });
@@ -80,9 +107,10 @@ export async function getActiveDashboardNews(): Promise<DashboardNewsPublic[]> {
       coverImageUrl: true,
       attachmentUrl: true,
       attachmentKind: true,
+      createdAt: true,
     },
   });
-  return rows;
+  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
 }
 
 export async function listDashboardNewsForAdmin() {
@@ -216,4 +244,106 @@ export async function setDashboardNewsActive(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
   }
+}
+
+export async function recordDashboardNewsView(newsItemId: string) {
+  const dbUser = await getDbUserForAccess();
+  await prisma.dashboardNewsView.createMany({
+    data: [{ userId: dbUser.id, newsItemId }],
+    skipDuplicates: true,
+  });
+  return { ok: true as const };
+}
+
+export async function listDashboardNewsActivityForAdmin() {
+  await requirePermission("dashboard_news:manage");
+
+  const [users, items] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, image: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.dashboardNewsItem.findMany({
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      select: { id: true, title: true, coverImageUrl: true, isActive: true },
+    }),
+  ]);
+
+  const itemIds = items.map((i) => i.id);
+  const viewRows = itemIds.length
+    ? await prisma.dashboardNewsView.findMany({
+        where: { newsItemId: { in: itemIds } },
+        select: { newsItemId: true, userId: true, viewedAt: true },
+      })
+    : [];
+
+  const viewedByItem = new Map<string, Set<string>>();
+  for (const v of viewRows) {
+    const set = viewedByItem.get(v.newsItemId) ?? new Set<string>();
+    set.add(v.userId);
+    viewedByItem.set(v.newsItemId, set);
+  }
+
+  const userById = new Map(users.map((u) => [u.id, u]));
+
+  return items.map((item) => {
+    const viewedSet = viewedByItem.get(item.id) ?? new Set<string>();
+    const viewedUsers = [...viewedSet]
+      .map((uid) => userById.get(uid))
+      .filter((u): u is (typeof users)[number] => Boolean(u));
+    const notViewedUsers = users.filter((u) => !viewedSet.has(u.id));
+
+    return {
+      itemId: item.id,
+      title: item.title,
+      coverImageUrl: item.coverImageUrl,
+      isActive: item.isActive,
+      viewedCount: viewedUsers.length,
+      notViewedCount: notViewedUsers.length,
+      viewedUsers,
+      notViewedUsers,
+    };
+  });
+}
+
+export async function getDashboardNewsStatsSummary(newsItemId: string) {
+  await requirePermission("dashboard_news:manage");
+  const [totalCount, readCount] = await Promise.all([
+    prisma.user.count({ where: { isActive: true } }),
+    prisma.dashboardNewsView.count({ where: { newsItemId } }),
+  ]);
+  return { readCount, totalCount };
+}
+
+export type DashboardItemStatsResult = {
+  read: Array<{ id: string; name: string | null; email: string | null; readAt: string | null }>;
+  unread: Array<{ id: string; name: string | null; email: string | null }>;
+};
+
+export async function getDashboardNewsStats(newsItemId: string): Promise<DashboardItemStatsResult> {
+  await requirePermission("dashboard_news:manage");
+  const [users, reads] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.dashboardNewsView.findMany({
+      where: { newsItemId },
+      select: { userId: true, viewedAt: true },
+    }),
+  ]);
+
+  const readByUser = new Map<string, Date>();
+  for (const r of reads) readByUser.set(r.userId, r.viewedAt);
+
+  const read: DashboardItemStatsResult["read"] = [];
+  const unread: DashboardItemStatsResult["unread"] = [];
+  for (const u of users) {
+    const at = readByUser.get(u.id) ?? null;
+    if (at) read.push({ ...u, readAt: at.toISOString() });
+    else unread.push(u);
+  }
+  return { read, unread };
 }

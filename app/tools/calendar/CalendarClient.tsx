@@ -27,6 +27,7 @@ import {
   type CalendarEventType,
   type CalendarEventCategoryItem,
 } from "@/lib/calendarShared";
+import { getCalendarYearBounds } from "@/lib/calendarYearBounds";
 import {
   getCalendarEventsForDateRange,
   addCalendarEvent,
@@ -344,7 +345,7 @@ export default function CalendarClient({
 }) {
   const router = useRouter();
   const now = new Date();
-  const yearBounds = { min: now.getFullYear() - 1, max: now.getFullYear() + 1 };
+  const yearBounds = getCalendarYearBounds(now);
 
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth);

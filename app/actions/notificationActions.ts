@@ -8,6 +8,7 @@ import { GOD_MODE_ROLES } from "@/lib/permissions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { revalidatePath } from "next/cache";
+import { CL_LOCK_ENABLED } from "@/lib/laborPlannerCl";
 
 const NOTIF_KEY_MAX = 512;
 
@@ -25,7 +26,9 @@ export type NotificationKind =
   | "cl_unlock_requested"
   | "worker_vacation_approved"
   | "worker_vacation_rejected"
-  | "worker_vacation_returned";
+  | "worker_vacation_returned"
+  | "dashboard_news_new"
+  | "dashboard_events_new";
 
 export interface NotificationItem {
   id: string;
@@ -253,6 +256,7 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
   }
 
   // CL (Personaleinsatz): Monat gesperrt — Vorgesetzter des Sperrenden + God-Mode
+  if (CL_LOCK_ENABLED) {
   const sinceCl = new Date();
   sinceCl.setDate(sinceCl.getDate() - 14);
   const viewerIsGod = GOD_MODE_ROLES.has(String(user.role));
@@ -329,6 +333,7 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
       restaurantName: r.restaurant?.name ?? null,
     });
   }
+  }
 
   // Ideenbox: nepročitane ideje za korisnike s ideenbox:access (npr. AL / System Architect)
   if (hasPermission(String(user.role), user.permissions || [], "ideenbox:access")) {
@@ -367,6 +372,46 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
         actorInitials: initials(submitterName),
       });
     }
+  }
+
+  // Dashboard (News/Events) — poštedi sve korisnike: svatko dobije notifikaciju
+  // za nove stavke koje su dodane u zadnjih 30 dana, dok ih ne označi kao pročitane.
+  const sinceDash = new Date();
+  sinceDash.setDate(sinceDash.getDate() - 30);
+  const dashNews = await prisma.dashboardNewsItem.findMany({
+    where: { isActive: true, createdAt: { gte: sinceDash } },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: { id: true, title: true, createdAt: true },
+  });
+  for (const n of dashNews) {
+    items.push({
+      id: `dash-news:${n.id}`,
+      kind: "dashboard_news_new",
+      title: "Neue Meldung",
+      description: n.title,
+      href: `/dashboard?openNews=${encodeURIComponent(n.id)}`,
+      createdAt: n.createdAt.toISOString(),
+      actorInitials: "N",
+    });
+  }
+
+  const dashEvents = await prisma.dashboardEventItem.findMany({
+    where: { isActive: true, createdAt: { gte: sinceDash } },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: { id: true, title: true, createdAt: true },
+  });
+  for (const ev of dashEvents) {
+    items.push({
+      id: `dash-event:${ev.id}`,
+      kind: "dashboard_events_new",
+      title: "Neues Event",
+      description: ev.title,
+      href: `/dashboard?openEvent=${encodeURIComponent(ev.id)}`,
+      createdAt: ev.createdAt.toISOString(),
+      actorInitials: "E",
+    });
   }
 
   items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));

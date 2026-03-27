@@ -6,9 +6,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Save, FileDown, CalendarDays, Trash2, Lock, Unlock, StickyNote, MessageSquare } from "lucide-react";
+import { Save, FileDown, CalendarDays, Trash2, StickyNote, MessageSquare } from "lucide-react";
 import type { LaborClClientState, LaborPlanPayload } from "@/lib/laborPlannerCl";
-import { defaultClState } from "@/lib/laborPlannerCl";
+import { CL_LOCK_ENABLED, defaultClState } from "@/lib/laborPlannerCl";
 import {
   finishClMonth,
   requestClUnlock,
@@ -17,6 +17,8 @@ import {
   grantClTemporaryEdit,
   revokeClEditGrant,
 } from "@/app/actions/laborActions";
+
+const SHOW_CL_LOCK_UI = CL_LOCK_ENABLED === true;
 
 // --- TIPOVI (Excel Crewlabor Bedarf) ---
 
@@ -1855,7 +1857,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       )}
 
-      {hasValidRestaurant && clMeta.canRevokeClEdit && (
+      {SHOW_CL_LOCK_UI && hasValidRestaurant && clMeta.canRevokeClEdit && (
         <div
           className="mx-auto mb-2 rounded-lg border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/25 py-1.5 px-3 flex flex-row flex-wrap items-center justify-between gap-2 print:hidden"
           style={{ maxWidth: "1600px" }}
@@ -1874,7 +1876,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         </div>
       )}
 
-      {hasValidRestaurant && clMeta.canGrantClEdit && (
+      {SHOW_CL_LOCK_UI && hasValidRestaurant && clMeta.canGrantClEdit && (
         <div
           className="mx-auto mb-2 rounded-lg border border-emerald-500/50 dark:border-emerald-700 bg-emerald-50/80 dark:bg-emerald-950/25 py-1.5 px-3 flex flex-row flex-wrap items-center justify-between gap-2 print:hidden"
           style={{ maxWidth: "1600px" }}
@@ -1896,9 +1898,8 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
       {hasValidRestaurant && (
         <div className="mx-auto flex flex-col md:flex-row justify-end items-center mb-8 gap-3 print:hidden" style={{ maxWidth: "1600px" }}>
           <div className="flex flex-wrap gap-2 items-center justify-end">
-            {clMeta.clLocked && (
+            {SHOW_CL_LOCK_UI && clMeta.clLocked ? (
               <span className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-900 dark:text-amber-100 px-3 py-2 rounded-lg bg-amber-100 dark:bg-amber-950/40 border border-amber-300/60 max-w-full">
-                <Lock size={16} className="shrink-0" />
                 <span>
                   {!canEditCl
                     ? "Monat gesperrt (nur Lesen / PDF)"
@@ -1907,29 +1908,27 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                       : "Vorübergehend bearbeitbar – nach Speichern wieder gesperrt"}
                 </span>
               </span>
-            )}
-            {clMeta.hasPendingUnlockRequest && !clMeta.canApproveUnlock && (
+            ) : null}
+            {SHOW_CL_LOCK_UI && clMeta.hasPendingUnlockRequest && !clMeta.canApproveUnlock && (
               <span className="text-xs font-semibold text-muted-foreground px-2">Entsperranfrage ausstehend</span>
             )}
-            {!clMeta.clLocked && canEditCl && (
+            {SHOW_CL_LOCK_UI && !clMeta.clLocked && canEditCl && (
               <button
                 type="button"
                 onClick={() => setShowFinishMonthModal(true)}
                 className="h-10 px-4 rounded-sm bg-[#1b3a26] hover:bg-[#142e1e] text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
                 title="Monat abschließen und sperren"
               >
-                <Lock size={18} />
                 <span className="whitespace-nowrap">Monat abschließen</span>
               </button>
             )}
-            {clMeta.clLocked && !canEditCl && !clMeta.hasPendingUnlockRequest && (
+            {SHOW_CL_LOCK_UI && clMeta.clLocked && !canEditCl && !clMeta.hasPendingUnlockRequest && (
               <button
                 type="button"
                 onClick={() => setShowUnlockRequestModal(true)}
                 className="h-10 px-4 rounded-sm border-2 border-[#1b3a26] text-[#1b3a26] dark:text-[#FFC72C] dark:border-[#FFC72C] font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition hover:bg-muted"
                 title="Entsperrung anfragen"
               >
-                <Unlock size={18} />
                 <span className="whitespace-nowrap">Entsperrung anfragen</span>
               </button>
             )}
@@ -1961,7 +1960,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
             <button
               type="button"
               onClick={handleDeleteData}
-              disabled={loading || (clMeta.clLocked && !clMeta.canBypassClLock)}
+              disabled={loading || (SHOW_CL_LOCK_UI && clMeta.clLocked && !clMeta.canBypassClLock)}
               className="h-10 px-4 rounded-lg bg-[#FFC72C] text-red-600 hover:bg-[#e6b225] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 shadow-sm font-bold text-sm"
               title="Daten löschen"
             >

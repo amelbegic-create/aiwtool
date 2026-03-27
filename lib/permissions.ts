@@ -48,6 +48,10 @@ export const PERMISSIONS: PermissionGroup[] = [
         key: "dashboard_news:manage",
         label: "Dashboard-News-Slider: Meldungen anlegen, bearbeiten und hochladen",
       },
+      {
+        key: "dashboard_events:manage",
+        label: "Dashboard-Events-Slider: Events und Bildergalerie verwalten",
+      },
     ],
   },
   {

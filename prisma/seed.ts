@@ -132,6 +132,79 @@ async function main() {
       ],
     });
   }
+
+  // --- Dashboard-Events: Demo-Einträge für den unteren Slider (nur wenn leer)
+  const dashboardEventsCount = await prisma.dashboardEventItem.count();
+  if (dashboardEventsCount === 0) {
+    const demoEvents = [
+      {
+        title: 'Teambuilding',
+        subtitle: 'März 2026',
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=960&q=80',
+        sortOrder: 0,
+        images: [
+          'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1400&q=80',
+        ],
+      },
+      {
+        title: 'Restaurant Umbau',
+        subtitle: '2025',
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=960&q=80',
+        sortOrder: 1,
+        images: [
+          'https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1461988625982-7e46a099bf4f?auto=format&fit=crop&w=1400&q=80',
+        ],
+      },
+      {
+        title: 'Crew Challenge',
+        subtitle: 'Winter Cup',
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=960&q=80',
+        sortOrder: 2,
+        images: [
+          'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1514516870926-205989dbf2ec?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1400&q=80',
+        ],
+      },
+      {
+        title: 'McCafé Relaunch',
+        subtitle: 'Neugestaltung',
+        coverImageUrl:
+          'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=960&q=80',
+        sortOrder: 3,
+        images: [
+          'https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1485808191679-5f86510681a2?auto=format&fit=crop&w=1400&q=80',
+          'https://images.unsplash.com/photo-1497636577773-f1231844b336?auto=format&fit=crop&w=1400&q=80',
+        ],
+      },
+    ];
+
+    for (const event of demoEvents) {
+      await prisma.dashboardEventItem.create({
+        data: {
+          title: event.title,
+          subtitle: event.subtitle,
+          coverImageUrl: event.coverImageUrl,
+          sortOrder: event.sortOrder,
+          isActive: true,
+          images: {
+            create: event.images.slice(0, 10).map((imageUrl, idx) => ({
+              imageUrl,
+              sortOrder: idx,
+            })),
+          },
+        },
+      });
+    }
+  }
 }
 
 main()

@@ -1,6 +1,7 @@
 import { tryRequirePermission, hasPermission } from "@/lib/access";
 import NoPermission from "@/components/NoPermission";
 import { getCalendarEventsForDateRange } from "@/app/actions/calendarActions";
+import { getCalendarYearBounds } from "@/lib/calendarYearBounds";
 import CalendarClient from "./CalendarClient";
 
 export default async function CalendarPage({
@@ -23,10 +24,11 @@ export default async function CalendarPage({
   const sp = await searchParams;
   const now = new Date();
   const currentY = now.getFullYear();
+  const { min: yearMin, max: yearMax } = getCalendarYearBounds(now);
   const rawY = sp.year != null && sp.year !== "" ? parseInt(sp.year, 10) : NaN;
   const rawM = sp.month != null && sp.month !== "" ? parseInt(sp.month, 10) : NaN;
   const year = Number.isFinite(rawY)
-    ? Math.min(Math.max(rawY, currentY - 1), currentY + 1)
+    ? Math.min(Math.max(rawY, yearMin), yearMax)
     : currentY;
   const month = Number.isFinite(rawM) ? Math.min(Math.max(rawM, 1), 12) : now.getMonth() + 1;
 

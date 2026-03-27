@@ -1,30 +1,41 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, ArrowRight, FileText, Download, X } from "lucide-react";
 import type { DashboardNewsPublic } from "@/app/actions/dashboardNewsActions";
+import { recordDashboardNewsView } from "@/app/actions/dashboardNewsActions";
 import { DashboardNewsAttachmentKind } from "@prisma/client";
 
-const AUTO_SCROLL_INTERVAL_MS = 5000;
 const SCROLL_AMOUNT = 396;
+const NEW_BADGE_MS = 3 * 24 * 60 * 60 * 1000;
+
+function isNewsNew(createdAtIso: string): boolean {
+  const t = Date.parse(createdAtIso);
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t < NEW_BADGE_MS;
+}
 
 type Props = {
   title?: string;
   items: DashboardNewsPublic[];
+  initialOpenId?: string | null;
 };
 
-export default function DashboardNewsSlider({ title = "News & Meldungen", items }: Props) {
+export default function DashboardNewsSlider({ title = "News & Meldungen", items, initialOpenId }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+  const recordedRef = useRef<Set<string>>(new Set());
 
   const openItem = items.find((i) => i.id === openId) ?? null;
+  const listItems = items;
 
   const updateScrollState = () => {
     const el = scrollRef.current;
     if (!el) return;
+    if (openId) return; // Keep the scroll state stable while the modal is open.
     setCanScrollLeft(el.scrollLeft > 8);
     setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
   };
@@ -36,28 +47,40 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items 
     setTimeout(updateScrollState, 350);
   };
 
+  // News slider ostaje ručni (miš/touch + strelice), bez auto-scroll intervala.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || items.length === 0) return;
-    const id = setInterval(() => {
-      const { scrollLeft, scrollWidth, clientWidth } = el;
-      const maxScroll = scrollWidth - clientWidth - 8;
-      if (maxScroll <= 0) return;
-      if (scrollLeft >= maxScroll) {
-        el.scrollTo({ left: 0, behavior: "smooth" });
-      } else {
-        el.scrollBy({ left: SCROLL_AMOUNT, behavior: "smooth" });
-      }
-      setTimeout(updateScrollState, 350);
-    }, AUTO_SCROLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    const id = window.setTimeout(() => updateScrollState(), 0);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length]);
+
+  // Ako dođeš preko notifikacije, otvori odgovarajući popup.
+  useEffect(() => {
+    if (!initialOpenId) return;
+    if (openId) return;
+    const exists = items.some((x) => x.id === initialOpenId);
+    if (!exists) return;
+    setOpenId(initialOpenId);
+  }, [initialOpenId, items, openId]);
+
+  // Aktivnost: zabilježi da je korisnik otvorio popup.
+  useEffect(() => {
+    if (!openId) return;
+    if (recordedRef.current.has(openId)) return;
+    recordedRef.current.add(openId);
+    void recordDashboardNewsView(openId);
+  }, [openId]);
 
   if (items.length === 0) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-black text-foreground uppercase tracking-tight">{title}</h3>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-lg font-black text-foreground uppercase tracking-tight">{title}</h3>
+            <span className="text-xs font-black uppercase tracking-wide text-[#FFC72C]">
+              ({items.length})
+            </span>
+          </div>
         </div>
         <div className="rounded-2xl border border-dashed border-border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
           Keine News-Meldungen.
@@ -99,7 +122,7 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items 
           className="slider-track flex gap-3 overflow-x-auto pb-2 pr-3 md:pr-6 scroll-smooth"
           style={{ scrollSnapType: "x mandatory" }}
         >
-          {items.map((item, i) => (
+          {listItems.map((item, i) => (
             <motion.div
               key={item.id}
               initial={{ opacity: 0, y: 16 }}
@@ -113,6 +136,14 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items 
                 onClick={() => setOpenId(item.id)}
                 className="group relative h-[180px] md:h-[190px] w-full rounded-3xl overflow-hidden cursor-pointer bg-gradient-to-br from-slate-900 to-slate-800 hover:-translate-y-1 transition-all duration-300 shadow-lg hover:shadow-xl ring-1 ring-black/5 text-left"
               >
+                {isNewsNew(item.createdAt) && (
+                  <span
+                    className="absolute left-3 top-3 z-10 rounded-full bg-[#1a3826] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#FFC72C] shadow-md ring-1 ring-[#FFC72C]/40"
+                    aria-label="Neu"
+                  >
+                    Neu
+                  </span>
+                )}
                 {item.coverImageUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -154,6 +185,11 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items 
                 <span className="text-sm font-black uppercase tracking-wider text-[#FFC72C]">
                   Dokument anzeigen
                 </span>
+                {isNewsNew(openItem.createdAt) && (
+                  <span className="rounded-full bg-[#FFC72C]/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#FFC72C] ring-1 ring-[#FFC72C]/40">
+                    Neu
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <a
@@ -176,11 +212,15 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items 
             </div>
             <div className="min-h-0 flex-1 overflow-hidden bg-muted">
               {openItem.attachmentKind === DashboardNewsAttachmentKind.PDF ? (
-                <iframe
-                  src={openItem.attachmentUrl}
-                  className="h-full w-full border-0"
-                  title={openItem.title}
-                />
+                <iframe src={openItem.attachmentUrl} className="h-full w-full border-0" title={openItem.title} />
+              ) : openItem.attachmentKind === DashboardNewsAttachmentKind.VIDEO ? (
+                <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
+                  <video
+                    src={openItem.attachmentUrl}
+                    controls
+                    className="max-h-full max-w-full"
+                  />
+                </div>
               ) : (
                 <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element -- GIF animation + blob/remote URLs */}
