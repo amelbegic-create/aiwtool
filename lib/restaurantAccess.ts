@@ -1,4 +1,4 @@
-﻿import prisma from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { GOD_MODE_ROLES } from "@/lib/permissions";
 
 /** ADMIN / SYSTEM_ARCHITECT: svi aktivni restorani; inače samo veze iz `RestaurantUser`. */
@@ -50,4 +50,3 @@ export async function assertUserCanAccessRestaurant(
   });
   return !!rel;
 }
-
