@@ -281,6 +281,29 @@ export async function register() {
       END $$
     `);
 
+    // ── 10b.2 News galerija (dodatne slike u modalu) ─────────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardNewsGalleryImage" (
+        "id"        TEXT NOT NULL,
+        "newsId"    TEXT NOT NULL,
+        "imageUrl"  TEXT NOT NULL,
+        "sortOrder" INTEGER NOT NULL DEFAULT 0,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardNewsGalleryImage_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(
+      `CREATE INDEX IF NOT EXISTS "DashboardNewsGalleryImage_newsId_sortOrder_idx" ON "DashboardNewsGalleryImage"("newsId", "sortOrder")`
+    );
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardNewsGalleryImage_newsId_fkey') THEN
+          ALTER TABLE "DashboardNewsGalleryImage" ADD CONSTRAINT "DashboardNewsGalleryImage_newsId_fkey"
+            FOREIGN KEY ("newsId") REFERENCES "DashboardNewsItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
     // ── 10c. Dashboard events slider (cover + gallery) ───────────────────────
     await run(`
       CREATE TABLE IF NOT EXISTS "DashboardEventItem" (
@@ -358,6 +381,80 @@ export async function register() {
         END IF;
       END $$
     `);
+
+    // ── 10c.2 Dashboard event likes & comments (social) ───────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardEventLike" (
+        "id"          TEXT NOT NULL,
+        "userId"      TEXT NOT NULL,
+        "eventItemId" TEXT NOT NULL,
+        "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardEventLike_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS "DashboardEventLike_eventItemId_idx" ON "DashboardEventLike"("eventItemId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventLike_userId_fkey') THEN
+          ALTER TABLE "DashboardEventLike" ADD CONSTRAINT "DashboardEventLike_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventLike_eventItemId_fkey') THEN
+          ALTER TABLE "DashboardEventLike" ADD CONSTRAINT "DashboardEventLike_eventItemId_fkey"
+            FOREIGN KEY ("eventItemId") REFERENCES "DashboardEventItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventLike_userId_eventItemId_key'
+        ) THEN
+          ALTER TABLE "DashboardEventLike" ADD CONSTRAINT "DashboardEventLike_userId_eventItemId_key"
+            UNIQUE ("userId", "eventItemId");
+        END IF;
+      END $$
+    `);
+
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardEventComment" (
+        "id"          TEXT NOT NULL,
+        "userId"      TEXT NOT NULL,
+        "eventItemId" TEXT NOT NULL,
+        "body"        VARCHAR(2000) NOT NULL,
+        "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardEventComment_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(
+      `CREATE INDEX IF NOT EXISTS "DashboardEventComment_eventItemId_createdAt_idx" ON "DashboardEventComment"("eventItemId", "createdAt")`
+    );
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventComment_userId_fkey') THEN
+          ALTER TABLE "DashboardEventComment" ADD CONSTRAINT "DashboardEventComment_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventComment_eventItemId_fkey') THEN
+          ALTER TABLE "DashboardEventComment" ADD CONSTRAINT "DashboardEventComment_eventItemId_fkey"
+            FOREIGN KEY ("eventItemId") REFERENCES "DashboardEventItem"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // ── 10d. Besuchsberichte: Reihenfolge der Dokumente pro Kategorie ──────────
+    await run(`ALTER TABLE "VisitReportItem" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0`);
+    await run(
+      `CREATE INDEX IF NOT EXISTS "VisitReportItem_categoryId_sortOrder_idx" ON "VisitReportItem"("categoryId", "sortOrder")`
+    );
 
     // ── 11. Holiday table ─────────────────────────────────────────────────────
     await run(`

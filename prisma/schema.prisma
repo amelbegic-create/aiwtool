@@ -132,9 +132,11 @@ model VisitReportItem {
   categoryId    String
   category      VisitReportCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   year          Int
+  sortOrder     Int                 @default(0)
   createdAt     DateTime            @default(now())
 
   @@index([categoryId, year])
+  @@index([categoryId, sortOrder])
 }
 
 // --- AIW KALENDER (custom events) ---
@@ -239,7 +241,8 @@ model User {
 
   dashboardChangelogUpdates DashboardChangelog[]
 
-  ideas                Idea[]
+  ideaSubmissions      Idea[] @relation("IdeaSubmission")
+  ideaAdminReplies     Idea[] @relation("IdeaAdminReply")
   certificates         UserCertificate[]
   calendarEvents       CalendarEvent[]
   calendarPersonalEntries CalendarPersonalEntry[]
@@ -255,6 +258,8 @@ model User {
   // Activity tracking for dashboard popup views
   dashboardNewsViews            DashboardNewsView[]
   dashboardEventViews           DashboardEventView[]
+  dashboardEventLikes           DashboardEventLike[]
+  dashboardEventComments        DashboardEventComment[]
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -271,16 +276,30 @@ model NotificationRead {
   @@index([userId])
 }
 
+enum IdeaStatus {
+  SENT
+  IN_PROGRESS
+  DONE
+}
+
 // Ideenbox: Vorschläge von Mitarbeitern an System Architect / AL
 model Idea {
-  id             String   @id @default(cuid())
-  text           String   @db.Text
+  id             String     @id @default(cuid())
+  text           String     @db.Text
   userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isRead         Boolean  @default(false)
+  user           User       @relation("IdeaSubmission", fields: [userId], references: [id], onDelete: Cascade)
+  isRead         Boolean    @default(false)
   /** Admin arhiva – ne prikazuje se u aktivnom pregledu ni u notifikacijama */
-  isArchived     Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  isArchived     Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+
+  /** Bearbeitungsstatus für den Einreicher sichtbar */
+  status         IdeaStatus @default(SENT)
+  /** Antwort des Teams / Admins */
+  adminReply     String?    @db.Text
+  repliedAt      DateTime?
+  repliedById    String?
+  repliedBy      User?      @relation("IdeaAdminReply", fields: [repliedById], references: [id], onDelete: SetNull)
 
   // Legacy: jedan prilog (slika ili PDF)
   attachmentUrl  String?
@@ -298,6 +317,7 @@ model Idea {
   @@index([userId])
   @@index([isRead])
   @@index([isArchived])
+  @@index([status])
 }
 
 // Zertifikate, Kurse und Schulungen pro Mitarbeiter
@@ -742,8 +762,21 @@ model DashboardNewsItem {
   updatedAt        DateTime                     @updatedAt
 
   views            DashboardNewsView[]
+  galleryImages    DashboardNewsGalleryImage[]
 
   @@index([isActive, sortOrder])
+}
+
+/// Dodatne slike u News modalu (do 50), pored covera i attachmenta.
+model DashboardNewsGalleryImage {
+  id        String            @id @default(cuid())
+  newsId    String
+  newsItem  DashboardNewsItem @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  sortOrder Int               @default(0)
+  createdAt DateTime          @default(now())
+
+  @@index([newsId, sortOrder])
 }
 
 /// Slider „Events & Highlights“ na dashboardu (cover + galerija slika)
@@ -757,10 +790,36 @@ model DashboardEventItem {
   isActive      Boolean               @default(true)
   images        DashboardEventImage[]
   views         DashboardEventView[]
+  likes         DashboardEventLike[]
+  comments      DashboardEventComment[]
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
   @@index([isActive, sortOrder])
+}
+
+model DashboardEventLike {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventItemId String
+  eventItem   DashboardEventItem @relation(fields: [eventItemId], references: [id], onDelete: Cascade)
+  createdAt   DateTime           @default(now())
+
+  @@unique([userId, eventItemId])
+  @@index([eventItemId])
+}
+
+model DashboardEventComment {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventItemId String
+  eventItem   DashboardEventItem @relation(fields: [eventItemId], references: [id], onDelete: Cascade)
+  body        String             @db.VarChar(2000)
+  createdAt   DateTime           @default(now())
+
+  @@index([eventItemId, createdAt])
 }
 
 model DashboardEventImage {

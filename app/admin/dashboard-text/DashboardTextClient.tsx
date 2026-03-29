@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Check, Bold, Italic, List, ListOrdered, Heading1, Heading2 } from "lucide-react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -73,6 +74,7 @@ function Toolbar({ editor }: { editor: Editor | null }) {
 }
 
 export default function DashboardTextClient({ initial }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<"saved" | "error" | null>(null);
 
@@ -82,7 +84,8 @@ export default function DashboardTextClient({ initial }: Props) {
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: "min-h-[calc(100vh-280px)] px-6 py-5 focus:outline-none text-[15px] leading-relaxed",
+        class:
+          "min-h-[min(420px,calc(100dvh-20rem))] px-6 py-5 focus:outline-none text-[15px] leading-relaxed text-foreground [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6",
       },
     },
   });
@@ -95,7 +98,8 @@ export default function DashboardTextClient({ initial }: Props) {
       if (res.ok) {
         setMessage("saved");
         setTimeout(() => setMessage(null), 3000);
-        toast.success("Gespeichert.");
+        toast.success("Gespeichert. Startseite wird aktualisiert.");
+        router.refresh();
       } else {
         setMessage("error");
         setTimeout(() => setMessage(null), 5000);
@@ -105,7 +109,7 @@ export default function DashboardTextClient({ initial }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] min-h-[400px] rounded-2xl border border-border bg-card shadow-lg overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-card shadow-lg overflow-hidden min-h-[320px]">
       <Toolbar editor={editor} />
       <div className="flex-1 overflow-auto border-t border-border">
         <EditorContent editor={editor} />

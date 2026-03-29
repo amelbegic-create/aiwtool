@@ -48,12 +48,10 @@ export async function updateDashboardChangelog(content: string): Promise<{ ok: b
   const userId = (session?.user as { id?: string })?.id;
   if (!userId) return { ok: false, error: "Nicht angemeldet." };
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { role: true },
-  });
-  if (!canEditDashboardChangelog(user?.role)) {
-    return { ok: false, error: "Nur Administratoren dürfen die Änderungen bearbeiten." };
+  const sessionRole = (session?.user as { role?: string })?.role;
+  const sessionPerms = (session?.user as { permissions?: string[] })?.permissions ?? [];
+  if (!canEditDashboardChangelog(sessionRole, sessionPerms)) {
+    return { ok: false, error: "Keine Berechtigung für diese Seite." };
   }
 
   try {
@@ -72,6 +70,7 @@ export async function updateDashboardChangelog(content: string): Promise<{ ok: b
     }
     revalidatePath("/dashboard");
     revalidatePath("/admin/dashboard-text");
+    revalidatePath("/", "layout");
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Fehler beim Speichern." };

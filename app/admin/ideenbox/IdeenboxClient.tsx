@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { IdeaStatus } from "@prisma/client";
 import {
   Lightbulb,
   Check,
@@ -15,7 +17,7 @@ import {
   Inbox,
   Loader2,
 } from "lucide-react";
-import { markIdeaAsRead, archiveIdea, unarchiveIdea } from "@/app/actions/ideaActions";
+import { markIdeaAsRead, archiveIdea, unarchiveIdea, replyToIdea } from "@/app/actions/ideaActions";
 import type { IdeaWithUser } from "@/app/actions/ideaActions";
 
 function formatDateShort(d: Date): string {
@@ -42,6 +44,92 @@ function initials(name: string | null | undefined, email: string | null | undefi
 }
 
 const TEXT_PREVIEW = 220;
+
+const STATUS_LABEL_DE: Record<IdeaStatus, string> = {
+  SENT: "Eingereicht",
+  IN_PROGRESS: "In Bearbeitung",
+  DONE: "Erledigt",
+};
+
+function statusPillClass(s: IdeaStatus): string {
+  if (s === "DONE") return "bg-emerald-600/20 text-emerald-800 dark:text-emerald-200";
+  if (s === "IN_PROGRESS") return "bg-amber-500/20 text-amber-900 dark:text-amber-100";
+  return "bg-slate-500/15 text-slate-700 dark:text-slate-200";
+}
+
+function AdminIdeaReplyForm({
+  ideaId,
+  initialStatus,
+  initialReply,
+}: {
+  ideaId: string;
+  initialStatus: IdeaStatus;
+  initialReply: string;
+}) {
+  const router = useRouter();
+  const [status, setStatus] = useState(initialStatus);
+  const [reply, setReply] = useState(initialReply);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setStatus(initialStatus);
+    setReply(initialReply);
+  }, [ideaId, initialStatus, initialReply]);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        startTransition(async () => {
+          const r = await replyToIdea(ideaId, { status, adminReply: reply });
+          if (r.ok) {
+            toast.success("Gespeichert.");
+            router.refresh();
+          } else toast.error(r.error ?? "Fehler.");
+        });
+      }}
+      className="mt-3 rounded-xl border border-[#1a3826]/25 bg-[#1a3826]/5 dark:bg-[#FFC72C]/5 p-3 space-y-2"
+    >
+      <p className="text-[10px] font-black uppercase tracking-wide text-[#1a3826] dark:text-[#FFC72C]">
+        Antwort &amp; Status
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <label htmlFor={`st-${ideaId}`} className="text-[11px] font-semibold text-muted-foreground">
+          Status
+        </label>
+        <select
+          id={`st-${ideaId}`}
+          value={status}
+          onChange={(e) => setStatus(e.target.value as IdeaStatus)}
+          disabled={pending}
+          className="text-xs font-bold rounded-lg border border-border bg-background px-2 py-1.5 min-w-[10rem]"
+        >
+          {(Object.keys(STATUS_LABEL_DE) as IdeaStatus[]).map((k) => (
+            <option key={k} value={k}>
+              {STATUS_LABEL_DE[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <textarea
+        value={reply}
+        onChange={(e) => setReply(e.target.value)}
+        rows={3}
+        placeholder="Antwort an die Person (erscheint in „Meine Ideen“ und als Benachrichtigung)…"
+        disabled={pending}
+        className="w-full text-xs rounded-lg border border-border bg-background px-2 py-1.5"
+      />
+      <button
+        type="submit"
+        disabled={pending}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-[#1a3826] px-3 py-1.5 text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-50 dark:bg-[#FFC72C] dark:text-[#1a3826]"
+      >
+        {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+        Speichern
+      </button>
+    </form>
+  );
+}
 
 type Props = {
   initialIdeas: IdeaWithUser[];
@@ -180,6 +268,12 @@ export default function IdeenboxClient({ initialIdeas, mode }: Props) {
                         <time className="tabular-nums" dateTime={idea.createdAt.toISOString()}>
                           {formatDateShort(idea.createdAt)}
                         </time>
+                        <span className="text-muted-foreground/70">·</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${statusPillClass(idea.status)}`}
+                        >
+                          {STATUS_LABEL_DE[idea.status]}
+                        </span>
                         {!idea.isRead && !isArchiveView && (
                           <>
                             <span className="text-muted-foreground/70">·</span>
@@ -246,6 +340,19 @@ export default function IdeenboxClient({ initialIdeas, mode }: Props) {
                             </a>
                           )}
                         </div>
+                      )}
+                      {isArchiveView && idea.adminReply?.trim() && (
+                        <div className="mt-3 rounded-xl border border-border/80 bg-muted/40 px-3 py-2 text-xs whitespace-pre-wrap text-foreground/90">
+                          <span className="font-bold text-[10px] uppercase text-muted-foreground">Antwort: </span>
+                          {idea.adminReply}
+                        </div>
+                      )}
+                      {!isArchiveView && (
+                        <AdminIdeaReplyForm
+                          ideaId={idea.id}
+                          initialStatus={idea.status}
+                          initialReply={idea.adminReply ?? ""}
+                        />
                       )}
                     </div>
 

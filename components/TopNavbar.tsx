@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, CalendarRange, FileText, Lightbulb, Lock, Unlock } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, CalendarRange, FileText, Lightbulb, Lock, Unlock, MessageCircle } from "lucide-react";
 import { useState, useEffect, useRef, useTransition } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
@@ -87,6 +87,14 @@ function kindMeta(kind?: string, status?: string) {
       bg: "bg-amber-500",
       label: "Ideenbox",
       labelColor: "text-amber-700 dark:text-amber-400",
+    };
+  }
+  if (kind === "user_idea_reply") {
+    return {
+      icon: <MessageCircle size={14} className="text-white" />,
+      bg: "bg-teal-600",
+      label: "Rückmeldung",
+      labelColor: "text-teal-700 dark:text-teal-400",
     };
   }
   if (kind === "dashboard_news_new") {
@@ -420,6 +428,7 @@ export default function TopNavbar({
                         n.kind === "cl_unlock_requested";
                       const isDashboardNotif =
                         n.kind === "dashboard_news_new" || n.kind === "dashboard_events_new";
+                      const isIdeaReplyNotif = n.kind === "user_idea_reply";
                       return (
                         <div key={n.id} className="flex items-start gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors group relative">
                           <Link
@@ -453,12 +462,15 @@ export default function TopNavbar({
                                   {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
                                   {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
                                 </>
-                              ) : isDashboardNotif ? (
+                              ) : isDashboardNotif || isIdeaReplyNotif ? (
                                 <>
                                   <p className="text-sm leading-snug text-foreground break-words">
                                     <span className="font-black">{n.title}</span>{" "}
                                     <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
                                   </p>
+                                  {isIdeaReplyNotif && n.actorName && (
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">von {n.actorName}</p>
+                                  )}
                                 </>
                               ) : (
                                 <>
@@ -712,6 +724,7 @@ export default function TopNavbar({
                   n.kind === "cl_unlock_requested";
                 const isDashboardNotif =
                   n.kind === "dashboard_news_new" || n.kind === "dashboard_events_new";
+                const isIdeaReplyNotif = n.kind === "user_idea_reply";
                 return (
                   <div
                     key={n.id}
@@ -746,12 +759,15 @@ export default function TopNavbar({
                             {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
                             {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
                           </>
-                        ) : isDashboardNotif ? (
+                        ) : isDashboardNotif || isIdeaReplyNotif ? (
                           <>
                             <p className="text-sm leading-snug text-foreground break-words">
                               <span className="font-black">{n.title}</span>{" "}
                               <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
                             </p>
+                            {isIdeaReplyNotif && n.actorName && (
+                              <p className="text-[11px] text-muted-foreground mt-0.5">von {n.actorName}</p>
+                            )}
                           </>
                         ) : (
                           <>

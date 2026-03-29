@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import { updateProfile, changePassword } from "@/app/actions/profileActions";
+import { getMyIdeas, type MyIdeaRow } from "@/app/actions/ideaActions";
+import MeineIdeenClient from "@/components/dashboard/MeineIdeenClient";
 import {
   User,
   Mail,
@@ -13,6 +15,9 @@ import {
   Save,
   ShieldCheck,
   Loader2,
+  Lightbulb,
+  ChevronRight,
+  X,
 } from "lucide-react";
 
 function SubmitButton({ children, disabled }: { children: React.ReactNode; disabled?: boolean }) {
@@ -44,10 +49,14 @@ function PasswordSubmitButton() {
 }
 
 export default function ProfilePage() {
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const [avatarUrlOverride, setAvatarUrlOverride] = useState<string | null>(null);
   const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [ideasModalOpen, setIdeasModalOpen] = useState(false);
+  const [ideas, setIdeas] = useState<MyIdeaRow[]>([]);
+  const [ideasLoading, setIdeasLoading] = useState(false);
+  const [ideasError, setIdeasError] = useState<string | null>(null);
 
   const user = session?.user as { id?: string; name?: string; email?: string; image?: string; role?: string; department?: string } | undefined;
   const displayImage = avatarUrlOverride ?? user?.image;
@@ -82,6 +91,31 @@ export default function ProfilePage() {
       setPasswordMessage({ type: "error", text: result.error });
     }
   };
+
+  useEffect(() => {
+    if (!ideasModalOpen || sessionStatus === "loading" || !session?.user?.email) return;
+    let cancelled = false;
+    setIdeasLoading(true);
+    setIdeasError(null);
+    getMyIdeas()
+      .then((rows) => {
+        if (!cancelled) {
+          setIdeas(rows);
+          setIdeasError(null);
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setIdeasError(e instanceof Error ? e.message : "Fehler beim Laden der Ideen.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIdeasLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ideasModalOpen, session?.user?.email, sessionStatus]);
 
   const roleLabel =
     user?.role === "SYSTEM_ARCHITECT"
@@ -135,6 +169,20 @@ export default function ProfilePage() {
                   {roleLabel}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setIdeasModalOpen(true)}
+                className="mt-4 w-full flex items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-[#1a3826]/25"
+              >
+                <div className="p-2.5 rounded-xl bg-[#1a3826]/10 dark:bg-[#FFC72C]/20 text-[#1a3826] dark:text-[#FFC72C] shrink-0">
+                  <Lightbulb size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm text-card-foreground">Meine Ideen</p>
+                  <p className="text-xs text-muted-foreground truncate">Archiv &amp; Rückmeldungen öffnen</p>
+                </div>
+                <ChevronRight className="shrink-0 text-muted-foreground" size={18} aria-hidden />
+              </button>
             </div>
           </div>
 
@@ -280,6 +328,50 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {ideasModalOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-ideas-modal-title"
+          onClick={() => setIdeasModalOpen(false)}
+        >
+          <div
+            className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[min(85vh,800px)] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-muted/40 shrink-0">
+              <h2 id="profile-ideas-modal-title" className="font-black text-base sm:text-lg flex items-center gap-2 text-foreground min-w-0">
+                <Lightbulb className="text-[#FFC72C] shrink-0" size={22} />
+                <span className="truncate">Meine Ideen</span>
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIdeasModalOpen(false)}
+                className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground shrink-0"
+                aria-label="Schließen"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 min-h-0">
+              {ideasError && (
+                <div className="rounded-xl px-4 py-3 text-sm bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200 mb-4">
+                  {ideasError}
+                </div>
+              )}
+              {ideasLoading && !ideasError && (
+                <div className="flex items-center justify-center gap-2 py-12 text-muted-foreground text-sm">
+                  <Loader2 size={18} className="animate-spin" />
+                  Laden…
+                </div>
+              )}
+              {!ideasLoading && !ideasError && <MeineIdeenClient initialIdeas={ideas} />}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

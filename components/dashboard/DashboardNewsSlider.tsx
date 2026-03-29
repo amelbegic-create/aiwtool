@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, ArrowRight, FileText, Download, X } from "lucide-react";
 import type { DashboardNewsPublic } from "@/app/actions/dashboardNewsActions";
@@ -23,11 +24,15 @@ type Props = {
 };
 
 export default function DashboardNewsSlider({ title = "News & Meldungen", items, initialOpenId }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
-  const recordedRef = useRef<Set<string>>(new Set());
+  /** Sprječava ponovno otvaranje iz URL-a nakon što korisnik zatvori popup (notifikacija). */
+  const dismissedFromUrlRef = useRef(false);
 
   const openItem = items.find((i) => i.id === openId) ?? null;
   const listItems = items;
@@ -54,20 +59,34 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length]);
 
-  // Ako dođeš preko notifikacije, otvori odgovarajući popup.
+  useEffect(() => {
+    dismissedFromUrlRef.current = false;
+  }, [initialOpenId]);
+
+  // Ako dođeš preko notifikacije, otvori odgovarajući popup (jednom po initialOpenId dok korisnik ne zatvori).
   useEffect(() => {
     if (!initialOpenId) return;
+    if (dismissedFromUrlRef.current) return;
     if (openId) return;
     const exists = items.some((x) => x.id === initialOpenId);
     if (!exists) return;
     setOpenId(initialOpenId);
   }, [initialOpenId, items, openId]);
 
-  // Aktivnost: zabilježi da je korisnik otvorio popup.
+  const closeModal = () => {
+    dismissedFromUrlRef.current = true;
+    setOpenId(null);
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.has("openNews")) {
+      params.delete("openNews");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+  };
+
+  // Aktivnost: svaki put kad se otvori — zadnji pregled (datum + sat u Admin-Lesestatistik).
   useEffect(() => {
     if (!openId) return;
-    if (recordedRef.current.has(openId)) return;
-    recordedRef.current.add(openId);
     void recordDashboardNewsView(openId);
   }, [openId]);
 
@@ -175,7 +194,7 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items,
         <div
           className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setOpenId(null);
+            if (e.target === e.currentTarget) closeModal();
           }}
         >
           <div className="relative flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border shadow-2xl bg-card">
@@ -202,7 +221,7 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items,
                 </a>
                 <button
                   type="button"
-                  onClick={() => setOpenId(null)}
+                  onClick={closeModal}
                   className="rounded-lg p-1.5 text-[#FFC72C] transition hover:bg-white/10"
                   aria-label="Schließen"
                 >
@@ -210,27 +229,50 @@ export default function DashboardNewsSlider({ title = "News & Meldungen", items,
                 </button>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden bg-muted">
-              {openItem.attachmentKind === DashboardNewsAttachmentKind.PDF ? (
-                <iframe src={openItem.attachmentUrl} className="h-full w-full border-0" title={openItem.title} />
-              ) : openItem.attachmentKind === DashboardNewsAttachmentKind.VIDEO ? (
-                <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
-                  <video
-                    src={openItem.attachmentUrl}
-                    controls
-                    className="max-h-full max-w-full"
-                  />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted">
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {openItem.attachmentKind === DashboardNewsAttachmentKind.PDF ? (
+                  <iframe src={openItem.attachmentUrl} className="h-full w-full border-0" title={openItem.title} />
+                ) : openItem.attachmentKind === DashboardNewsAttachmentKind.VIDEO ? (
+                  <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
+                    <video
+                      src={openItem.attachmentUrl}
+                      controls
+                      className="max-h-full max-w-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- GIF animation + blob/remote URLs */}
+                    <img
+                      src={openItem.attachmentUrl}
+                      alt={openItem.title}
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+              {openItem.galleryUrls.length > 0 ? (
+                <div className="shrink-0 border-t border-border bg-card/95 px-4 py-3">
+                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-muted-foreground">
+                    Weitere Bilder
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-gutter:stable]">
+                    {openItem.galleryUrls.map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="relative block h-20 w-28 shrink-0 overflow-hidden rounded-lg border border-border bg-muted ring-offset-background transition hover:ring-2 hover:ring-[#1a3826]/40"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="flex h-full w-full items-center justify-center overflow-auto p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- GIF animation + blob/remote URLs */}
-                  <img
-                    src={openItem.attachmentUrl}
-                    alt={openItem.title}
-                    className="max-h-full max-w-full object-contain"
-                  />
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
         </div>

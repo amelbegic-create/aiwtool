@@ -106,16 +106,16 @@ export default function DeineIdeeButton() {
         onClick={() => setOpen(false)}
         role="dialog"
         aria-modal="true"
-        aria-label="Deine Idee"
+        aria-label="Deine Idee / Wünsche / Feedback"
       >
         <div
           className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-6 border-b border-border flex items-center justify-between">
-            <h2 className="text-xl font-black text-foreground flex items-center gap-2">
-              <Lightbulb className="text-yellow-500" size={24} />
-              Deine Idee
+            <h2 className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2 leading-tight">
+              <Lightbulb className="text-yellow-500 shrink-0" size={24} />
+              <span>Deine Idee / Wünsche / Feedback</span>
             </h2>
             <button
               type="button"
@@ -210,8 +210,8 @@ export default function DeineIdeeButton() {
         type="button"
         onClick={() => setOpen(true)}
         className="flex items-center justify-center h-11 w-11 md:h-14 md:w-14 rounded-xl bg-white hover:bg-white/95 border-2 border-white/80 text-[#FFC72C] transition-all shadow-md"
-        title="Deine Idee / Moja ideja"
-        aria-label="Deine Idee"
+        title="Deine Idee / Wünsche / Feedback"
+        aria-label="Deine Idee / Wünsche / Feedback"
       >
         <Lightbulb size={25} strokeWidth={2} className="md:w-7 md:h-7" />
       </button>

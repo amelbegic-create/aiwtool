@@ -25,6 +25,7 @@ export default async function EditDashboardNewsPage({ params }: Props) {
     coverImageUrl: row.coverImageUrl,
     attachmentUrl: row.attachmentUrl,
     attachmentKind: row.attachmentKind,
+    galleryUrls: row.galleryImages.map((g) => g.imageUrl),
   };
 
   return (

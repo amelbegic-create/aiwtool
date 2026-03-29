@@ -17,6 +17,7 @@ const visitReportSearchSelect = {
   fileType: true,
   categoryId: true,
   year: true,
+  sortOrder: true,
   category: { select: { name: true, iconName: true } },
 } as const;
 
@@ -255,10 +256,10 @@ export async function deleteCategory(id: string, restaurantId: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DOKUMENTE (Items, mit Jahr)
+// DOKUMENTE (Items, mit Jahr; Anzeige-Reihenfolge: sortOrder)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function getItems(categoryId: string, year: number, restaurantId: string) {
+export async function getItems(categoryId: string, restaurantId: string) {
   const dbUser = await getDbUserForAccess();
   const allowed = await getAllowedRestaurantIdsForUser(dbUser.id);
   if (!allowed.includes(restaurantId)) {
@@ -270,11 +271,53 @@ export async function getItems(categoryId: string, year: number, restaurantId: s
   });
   if (!category) return [];
 
-  return prisma.visitReportItem.findMany({
-    where: { categoryId, year },
+  const rows = await prisma.visitReportItem.findMany({
+    where: { categoryId },
     orderBy: { createdAt: "desc" },
     include: { category: { select: { name: true, iconName: true } } },
   });
+  // Reihenfolge: sortOrder (Admin-DnD), sonst createdAt — ohne sortOrder in orderBy (ältere Prisma/DB)
+  return [...rows].sort((a, b) => {
+    const da = a.sortOrder ?? 0;
+    const db = b.sortOrder ?? 0;
+    if (da !== db) return da - db;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+}
+
+export async function updateVisitReportItemOrder(
+  restaurantId: string,
+  categoryId: string,
+  itemIds: string[]
+) {
+  await ensureCanManageRestaurant(restaurantId);
+
+  const category = await prisma.visitReportCategory.findFirst({
+    where: { id: categoryId, restaurantId },
+  });
+  if (!category) throw new Error("Kategorie nicht gefunden.");
+
+  const existing = await prisma.visitReportItem.findMany({
+    where: { categoryId },
+    select: { id: true },
+  });
+  const valid = new Set(existing.map((e) => e.id));
+  if (itemIds.length !== valid.size || itemIds.some((id) => !valid.has(id))) {
+    throw new Error("Ungültige Reihenfolge: alle Dokumente der Kategorie müssen enthalten sein.");
+  }
+
+  await prisma.$transaction(
+    itemIds.map((id, index) =>
+      prisma.visitReportItem.update({
+        where: { id },
+        data: { sortOrder: index },
+      })
+    )
+  );
+
+  revalidatePath("/admin/besuchsberichte");
+  revalidatePath("/tools/besuchsberichte");
+  revalidatePath(`/tools/besuchsberichte/${categoryId}`);
 }
 
 export async function getCategoryById(categoryId: string, restaurantId: string) {
@@ -321,7 +364,7 @@ export async function searchVisitReportPdfsForRestaurant(restaurantId: string, q
       ],
     },
     select: visitReportSearchSelect,
-    orderBy: [{ year: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ sortOrder: "asc" }, { year: "desc" }, { createdAt: "desc" }],
     take: 50,
   });
 }
@@ -374,6 +417,12 @@ export async function createItem(formData: FormData) {
     addRandomSuffix: true,
   });
 
+  const maxOrder = await prisma.visitReportItem.aggregate({
+    where: { categoryId },
+    _max: { sortOrder: true },
+  });
+  const sortOrder = (maxOrder._max.sortOrder ?? -1) + 1;
+
   const item = await prisma.visitReportItem.create({
     data: {
       title: title.trim(),
@@ -383,6 +432,7 @@ export async function createItem(formData: FormData) {
       extractedText,
       categoryId,
       year,
+      sortOrder,
     },
   });
 

@@ -10,8 +10,16 @@ import {
   useSensors,
   useDraggable,
   useDroppable,
+  closestCenter,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Pencil,
   Trash2,
@@ -65,8 +73,77 @@ type Item = {
   fileType: string;
   categoryId: string;
   year: number;
+  sortOrder?: number;
   category?: { name: string; iconName: string | null };
 };
+
+function SortableDocumentRow({
+  item,
+  onReplace,
+  onDelete,
+}: {
+  item: Item;
+  onReplace: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.65 : 1,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/20"
+    >
+      <span
+        className="cursor-grab active:cursor-grabbing touch-none p-1 -ml-1 text-muted-foreground hover:text-foreground shrink-0"
+        {...listeners}
+        {...attributes}
+        title="Reihenfolge ändern"
+      >
+        <GripVertical size={16} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-medium text-foreground truncate">{item.title}</p>
+          <span className="text-xs font-semibold text-muted-foreground">{item.year}</span>
+        </div>
+      </div>
+      <div className="flex gap-1 shrink-0">
+        <a
+          href={item.fileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="p-2 rounded-lg border border-border hover:bg-muted"
+          title="Öffnen"
+        >
+          <FileText size={14} />
+        </a>
+        <button
+          type="button"
+          onClick={onReplace}
+          className="p-2 rounded-lg border border-border hover:bg-muted"
+          title="Datei ersetzen"
+        >
+          <RefreshCw size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40"
+          title="Löschen"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function DraggableFolderRow({
   cat,
@@ -148,7 +225,6 @@ export default function AdminBesuchsberichteClient({
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
-  const [selectedYear, setSelectedYear] = useState(YEAR_OPTIONS.includes(new Date().getFullYear()) ? new Date().getFullYear() : YEAR_OPTIONS[0]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -188,12 +264,11 @@ export default function AdminBesuchsberichteClient({
       return;
     }
     let cancelled = false;
-    const y = YEAR_OPTIONS.includes(selectedYear) ? selectedYear : YEAR_OPTIONS[0];
-    getItems(selectedCategoryId, y, initialRestaurantId).then((list) => {
+    getItems(selectedCategoryId, initialRestaurantId).then((list) => {
       if (!cancelled) setItems(list);
     });
     return () => { cancelled = true; };
-  }, [initialRestaurantId, selectedCategoryId, selectedYear]);
+  }, [initialRestaurantId, selectedCategoryId]);
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -356,10 +431,33 @@ export default function AdminBesuchsberichteClient({
     [categories, initialRestaurantId, router]
   );
 
+  const handleItemDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id || !initialRestaurantId || !selectedCategoryId) return;
+      const oldIndex = items.findIndex((i) => i.id === active.id);
+      const newIndex = items.findIndex((i) => i.id === over.id);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const previous = [...items];
+      const reordered = arrayMove(items, oldIndex, newIndex);
+      setItems(reordered);
+      try {
+        await updateVisitReportItemOrder(initialRestaurantId, selectedCategoryId, reordered.map((i) => i.id));
+        toast.success("Reihenfolge gespeichert.");
+        router.refresh();
+      } catch (e) {
+        setItems(previous);
+        toast.error(e instanceof Error ? e.message : "Reihenfolge konnte nicht gespeichert werden.");
+      }
+    },
+    [items, initialRestaurantId, selectedCategoryId, router]
+  );
+
   const openItemModal = () => {
     setItemTitle("");
     setItemDescription("");
-    setItemYear(YEAR_OPTIONS.includes(selectedYear) ? selectedYear : YEAR_OPTIONS[0]);
+    const cy = new Date().getFullYear();
+    setItemYear(YEAR_OPTIONS.includes(cy) ? cy : YEAR_OPTIONS[0]);
     setItemFile(null);
     setShowItemModal(true);
   };
@@ -396,8 +494,7 @@ export default function AdminBesuchsberichteClient({
       toast.success("Datei ersetzt.");
       closeReplaceFileModal();
       router.refresh();
-      const y = YEAR_OPTIONS.includes(selectedYear) ? selectedYear : YEAR_OPTIONS[0];
-      const list = await getItems(selectedCategoryId!, y, initialRestaurantId);
+      const list = await getItems(selectedCategoryId!, initialRestaurantId);
       setItems(list);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Fehler beim Ersetzen.");
@@ -429,8 +526,7 @@ export default function AdminBesuchsberichteClient({
       toast.success("Dokument hochgeladen.");
       closeItemModal();
       router.refresh();
-      const y = YEAR_OPTIONS.includes(selectedYear) ? selectedYear : YEAR_OPTIONS[0];
-      const list = await getItems(selectedCategoryId, y, initialRestaurantId);
+      const list = await getItems(selectedCategoryId, initialRestaurantId);
       setItems(list);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Fehler beim Hochladen.");
@@ -446,8 +542,7 @@ export default function AdminBesuchsberichteClient({
       await deleteItem(id, initialRestaurantId);
       toast.success("Dokument gelöscht.");
       router.refresh();
-      const y = YEAR_OPTIONS.includes(selectedYear) ? selectedYear : YEAR_OPTIONS[0];
-      const list = await getItems(selectedCategoryId!, y, initialRestaurantId);
+      const list = await getItems(selectedCategoryId!, initialRestaurantId);
       setItems(list);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Fehler.");
@@ -545,25 +640,13 @@ export default function AdminBesuchsberichteClient({
                 <h2 className="text-sm font-bold text-foreground truncate uppercase">
                   {selectedCategory?.name ?? "Ordner"}
                 </h2>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-semibold text-muted-foreground">Jahr</label>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
-                    className="h-9 px-2 border border-border rounded-lg text-sm bg-background"
-                  >
-                    {YEAR_OPTIONS.map((y) => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={openItemModal}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-semibold hover:opacity-90"
-                  >
-                    <Upload size={16} /> Hochladen
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={openItemModal}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#1a3826] dark:bg-[#FFC72C] dark:text-[#1a3826] text-white text-sm font-semibold hover:opacity-90"
+                >
+                  <Upload size={16} /> Hochladen
+                </button>
               </div>
               <div className="p-3 border-b border-border">
                 <div className="flex items-center gap-2">
@@ -577,52 +660,69 @@ export default function AdminBesuchsberichteClient({
                   />
                 </div>
               </div>
-              <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
+              <div className="max-h-[420px] overflow-y-auto rounded-b-xl border border-t-0 border-border">
                 {filteredItems.length === 0 ? (
                   <div className="p-6 text-center text-muted-foreground text-sm">
-                    Keine Dokumente für {selectedYear}. &quot;Hochladen&quot; klicken.
+                    Keine Dokumente. &quot;Hochladen&quot; klicken.
                   </div>
-                ) : (
-                  filteredItems.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/20"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-foreground truncate">{t.title}</p>
-                          <span className="text-xs font-semibold text-muted-foreground">{t.year}</span>
+                ) : searchQuery.trim() ? (
+                  <div className="divide-y divide-border">
+                    {filteredItems.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/20"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-foreground truncate">{t.title}</p>
+                            <span className="text-xs font-semibold text-muted-foreground">{t.year}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <a
+                            href={t.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 rounded-lg border border-border hover:bg-muted"
+                            title="Öffnen"
+                          >
+                            <FileText size={14} />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => openReplaceFileModal(t)}
+                            className="p-2 rounded-lg border border-border hover:bg-muted"
+                            title="Datei ersetzen"
+                          >
+                            <RefreshCw size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteItem(t.id)}
+                            className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40"
+                            title="Löschen"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        <a
-                          href={t.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2 rounded-lg border border-border hover:bg-muted"
-                          title="Öffnen"
-                        >
-                          <FileText size={14} />
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => openReplaceFileModal(t)}
-                          className="p-2 rounded-lg border border-border hover:bg-muted"
-                          title="Datei ersetzen"
-                        >
-                          <RefreshCw size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteItem(t.id)}
-                          className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950/40"
-                          title="Löschen"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                    ))}
+                  </div>
+                ) : (
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleItemDragEnd}>
+                    <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                      <div className="divide-y divide-border">
+                        {items.map((t) => (
+                          <SortableDocumentRow
+                            key={t.id}
+                            item={t}
+                            onReplace={() => openReplaceFileModal(t)}
+                            onDelete={() => handleDeleteItem(t.id)}
+                          />
+                        ))}
                       </div>
-                    </div>
-                  ))
+                    </SortableContext>
+                  </DndContext>
                 )}
               </div>
             </div>

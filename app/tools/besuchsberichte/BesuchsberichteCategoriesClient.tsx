@@ -109,7 +109,7 @@ export default function BesuchsberichteCategoriesClient({
               BESUCHSBERICHTE
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Besuchsberichte inkl. Dokumente nach Jahr.
+              Besuchsberichte inkl. Dokumente pro Kategorie.
             </p>
           </div>
           <div className="mt-8 rounded-2xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/40 via-card to-[#1a3826]/5 dark:from-[#1a3826]/10 dark:via-card dark:to-[#1a3826]/5 shadow-lg p-10 md:p-16 text-center">
@@ -135,7 +135,7 @@ export default function BesuchsberichteCategoriesClient({
               BESUCHSBERICHTE
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
-              Besuchsberichte inkl. Dokumente nach Jahr.
+              Besuchsberichte inkl. Dokumente pro Kategorie.
             </p>
           </div>
         </div>
@@ -270,7 +270,7 @@ export default function BesuchsberichteCategoriesClient({
                           Dokument öffnen
                         </button>
                         <Link
-                          href={`/tools/besuchsberichte/${d.categoryId}?year=${d.year}`}
+                          href={`/tools/besuchsberichte/${d.categoryId}`}
                           className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-[#FFC72C] text-[#1a3826] text-xs font-bold shadow-sm hover:bg-[#e6b328] transition-colors min-h-[40px] sm:min-h-0 border border-[#1a3826]/15"
                         >
                           Zur Kategorie

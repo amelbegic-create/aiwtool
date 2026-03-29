@@ -4,13 +4,7 @@ import { resolveRestaurantIdForUser, getCategoryById, getItems } from "@/app/act
 import { notFound } from "next/navigation";
 import BesuchsberichteListClient from "./BesuchsberichteListClient";
 
-export default async function BesuchsberichteCategoryPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ categoryId: string }>;
-  searchParams: Promise<{ year?: string }>;
-}) {
+export default async function BesuchsberichteCategoryPage({ params }: { params: Promise<{ categoryId: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return (
@@ -30,18 +24,6 @@ export default async function BesuchsberichteCategoryPage({
   }
 
   const { categoryId } = await params;
-  const { year: yearParam } = await searchParams;
-  const YEAR_MIN = 2021;
-  const YEAR_MAX = 2030;
-  const currentYear = new Date().getFullYear();
-  const year = yearParam ? parseInt(yearParam, 10) : currentYear;
-  const clampedYear = Number.isFinite(year) ? Math.min(YEAR_MAX, Math.max(YEAR_MIN, year)) : currentYear;
-  const safeYear =
-    clampedYear >= YEAR_MIN && clampedYear <= YEAR_MAX
-      ? clampedYear
-      : currentYear >= YEAR_MIN && currentYear <= YEAR_MAX
-        ? currentYear
-        : YEAR_MIN;
 
   const restaurantId = await resolveRestaurantIdForUser(userId);
   if (!restaurantId) {
@@ -55,16 +37,11 @@ export default async function BesuchsberichteCategoryPage({
   const category = await getCategoryById(categoryId, restaurantId);
   if (!category) notFound();
 
-  const items = await getItems(categoryId, safeYear, restaurantId);
+  const items = await getItems(categoryId, restaurantId);
 
   return (
     <div className="min-h-screen bg-background">
-      <BesuchsberichteListClient
-        category={category}
-        initialItems={items}
-        initialYear={safeYear}
-        restaurantId={restaurantId}
-      />
+      <BesuchsberichteListClient category={category} initialItems={items} />
     </div>
   );
 }

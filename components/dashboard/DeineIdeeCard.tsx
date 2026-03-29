@@ -133,8 +133,8 @@ export default function DeineIdeeCard() {
             </div>
           </div>
           <div>
-            <p className="text-lg md:text-xl font-black text-[#1a3826] dark:text-amber-100 uppercase tracking-tight">
-              Deine Idee
+            <p className="text-base md:text-lg font-black text-[#1a3826] dark:text-amber-100 uppercase tracking-tight leading-tight">
+              Deine Idee / Wünsche / Feedback
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
               Hast du eine Idee zur Verbesserung? Lass es uns wissen!
@@ -151,9 +151,9 @@ export default function DeineIdeeCard() {
           <div className="min-h-full w-full flex items-center justify-center p-4">
             <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
               <div className="p-6 border-b border-border flex items-center justify-between">
-                <h2 className="text-xl font-black text-foreground flex items-center gap-2">
-                  <Lightbulb className="text-yellow-500" size={24} />
-                  Deine Idee
+                <h2 className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2 leading-tight">
+                  <Lightbulb className="text-yellow-500 shrink-0" size={24} />
+                  <span>Deine Idee / Wünsche / Feedback</span>
                 </h2>
                 <button
                   type="button"

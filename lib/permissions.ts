@@ -160,7 +160,7 @@ export const PERMISSIONS: PermissionGroup[] = [
   {
     id: "besuchsberichte",
     title: "Besuchsberichte",
-    subtitle: "Besuchsberichte pro Standort, nach Jahren",
+      subtitle: "Besuchsberichte pro Standort, Reihenfolge der Dokumente",
     items: [
       { key: "besuchsberichte:access", label: "Zugriff auf Besuchsberichte" },
       { key: "besuchsberichte:manage", label: "Kategorien und Dokumente verwalten (pro Standort)" },

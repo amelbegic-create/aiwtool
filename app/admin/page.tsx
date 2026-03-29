@@ -7,7 +7,6 @@ import {
   Building2,
   ShieldCheck,
   BookOpen,
-  LayoutDashboard,
   ClipboardList,
   FileText,
   FileCheck,
@@ -159,17 +158,6 @@ export default async function AdminHome() {
   ];
 
   const otherCards: AdminCard[] = [
-    ...(usersAccess.ok
-      ? [
-          {
-            title: "Dashboard-Module",
-            desc: "Festlegen, welche Module Nutzern auf der Startseite angezeigt werden.",
-            href: "/admin/dashboard-modules",
-            icon: LayoutDashboard,
-            tag: "Dashboard",
-          } satisfies AdminCard,
-        ]
-      : []),
     ...(showDashboardChangelogCard
       ? [
           {

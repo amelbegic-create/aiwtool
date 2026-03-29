@@ -77,6 +77,10 @@ const DAYS = [
   { key: "special_1", label: "Besonderer Tag 1" },
   { key: "special_2", label: "Besonderer Tag 2" },
   { key: "special_3", label: "Besonderer Tag 3" },
+  { key: "special_4", label: "Besonderer Tag 4" },
+  { key: "special_5", label: "Besonderer Tag 5" },
+  { key: "special_6", label: "Besonderer Tag 6" },
+  { key: "special_7", label: "Besonderer Tag 7" },
 ];
 
 const parseNum = (val: string | undefined): number => {
@@ -98,6 +102,13 @@ const fmtNum = (n: number, decimals = 0) =>
   }).format(n ?? 0);
 
 const fmtInt = (n: number) => fmtNum(Math.round(n || 0));
+
+/** Stunden-Spalten (Stationen, Pause, Σ Std.): Dezimalstellen z. B. 0,5 — nicht auf Ganzzahl runden. */
+const fmtStdHoursDisplay = (n: number) =>
+  new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(n) ? n : 0);
 
 /** Brutto/Netto-Koeffizient: immer 4 Nachkommastellen (de-AT Anzeige). */
 const NET_COEFF_DECIMALS = 4;
@@ -191,19 +202,6 @@ function ProductivityToolContent({
   const calendarDropdownRef = useRef<HTMLDivElement>(null);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
-  const handleTableKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key !== "Enter") return;
-    const target = e.target as HTMLElement;
-    if (target.tagName !== "INPUT") return;
-    e.preventDefault();
-    const inputs = tableWrapperRef.current?.querySelectorAll<HTMLInputElement>("input");
-    if (!inputs?.length) return;
-    const list = Array.from(inputs);
-    const idx = list.indexOf(target as HTMLInputElement);
-    const nextIdx = idx < 0 ? 0 : (idx + 1) % list.length;
-    list[nextIdx]?.focus();
-  }, []);
-
   useEffect(() => {
     if (!showCalendarDropdown) return;
     const close = (e: MouseEvent) => {
@@ -284,6 +282,24 @@ function ProductivityToolContent({
 
   /** Sve odabrane kolone (ukl. Pause, SF Prod.) prikazuju se u gridu; na kraju je kolona „Σ Std.” */
   const displayStationColumns = useMemo(() => orderedColumns, [orderedColumns]);
+
+  const handleTableKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      const target = e.target as HTMLElement;
+      if (target.tagName !== "INPUT") return;
+      e.preventDefault();
+      const inputs = tableWrapperRef.current?.querySelectorAll<HTMLInputElement>("input");
+      if (!inputs?.length) return;
+      const list = Array.from(inputs);
+      const idx = list.indexOf(target as HTMLInputElement);
+      if (idx < 0) return;
+      const stride = 1 + displayStationColumns.length;
+      const nextIdx = idx + stride;
+      if (nextIdx < list.length) list[nextIdx]?.focus();
+    },
+    [displayStationColumns.length]
+  );
 
   const activeHours = useMemo(() => {
     const arr: number[] = [];
@@ -619,7 +635,23 @@ function ProductivityToolContent({
   );
 
   const TEMPLATE_KEYS = useMemo(
-    () => ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "special_1", "special_2", "special_3"] as const,
+    () =>
+      [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+        "special_1",
+        "special_2",
+        "special_3",
+        "special_4",
+        "special_5",
+        "special_6",
+        "special_7",
+      ] as const,
     []
   );
 
@@ -636,6 +668,10 @@ function ProductivityToolContent({
       { key: "special_1", defaultLabel: "Sondertag 1" },
       { key: "special_2", defaultLabel: "Sondertag 2" },
       { key: "special_3", defaultLabel: "Sondertag 3" },
+      { key: "special_4", defaultLabel: "Sondertag 4" },
+      { key: "special_5", defaultLabel: "Sondertag 5" },
+      { key: "special_6", defaultLabel: "Sondertag 6" },
+      { key: "special_7", defaultLabel: "Sondertag 7" },
     ],
     []
   );
@@ -798,17 +834,17 @@ function ProductivityToolContent({
         fmtInt(neto),
         ...cols.map((col) => {
           const val = parseNum(row[col.key]);
-          return val === 0 ? "-" : fmtInt(val);
+          return val === 0 ? "-" : fmtStdHoursDisplay(val);
         }),
-        fmtInt(s.staffTotal),
+        fmtStdHoursDisplay(s.staffTotal),
       ];
     });
     const footer = [
       "Gesamt",
       fmtInt(dayTotals.sumBruto),
       fmtInt(dayTotals.sumNeto),
-      ...cols.map((col) => (daySumByStation[col.key] !== 0 ? fmtInt(daySumByStation[col.key]) : "-")),
-      fmtInt(dayTotals.sumStaff),
+      ...cols.map((col) => (daySumByStation[col.key] !== 0 ? fmtStdHoursDisplay(daySumByStation[col.key]) : "-")),
+      fmtStdHoursDisplay(dayTotals.sumStaff),
     ];
     const colCount = head.length;
     const timeW = 18;
@@ -906,7 +942,7 @@ function ProductivityToolContent({
 
     drawKpiCard(cardsX,                          cardsY, cardW,     cardH, "BRUTTO",        `${fmtInt(dayTotals.sumBruto)} €`,  255, 255, 255);
     drawKpiCard(cardsX + cardW + cardGap,         cardsY, cardW,     cardH, "NETTO",         `${fmtInt(dayTotals.sumNeto)} €`,   255, 255, 255);
-    drawKpiCard(cardsX + 2*(cardW + cardGap),     cardsY, cardW,     cardH, "Σ MA",          `${fmtInt(dayTotals.sumStaff)}`,    255, 255, 255);
+    drawKpiCard(cardsX + 2*(cardW + cardGap),     cardsY, cardW,     cardH, "Σ MA",          `${fmtStdHoursDisplay(dayTotals.sumStaff)}`,    255, 255, 255);
     drawKpiCard(cardsX + 3*(cardW + cardGap),     cardsY, prodCardW, cardH, "PRODUKTIVITÄT", `${fmtInt(dayTotals.avgProd)} €`,   255, 199, 44, true);
 
     doc.setTextColor(0, 0, 0);
@@ -923,9 +959,9 @@ function ProductivityToolContent({
         fmtInt(s.neto),
         ...columns.map((col) => {
           const val = parseNum(row[col.key]);
-          return val === 0 ? "-" : fmtInt(val);
+          return val === 0 ? "-" : fmtStdHoursDisplay(val);
         }),
-        fmtInt(s.staffTotal),
+        fmtStdHoursDisplay(s.staffTotal),
         prod > 0 ? fmtInt(prod) : "-",
       ];
     });
@@ -933,8 +969,8 @@ function ProductivityToolContent({
       "Gesamt",
       fmtInt(dayTotals.sumBruto),
       fmtInt(dayTotals.sumNeto),
-      ...columns.map((col) => (dayTotals.sumByStation[col.key] !== 0 ? fmtInt(dayTotals.sumByStation[col.key]) : "-")),
-      fmtInt(dayTotals.sumStaff),
+      ...columns.map((col) => (dayTotals.sumByStation[col.key] !== 0 ? fmtStdHoursDisplay(dayTotals.sumByStation[col.key]) : "-")),
+      fmtStdHoursDisplay(dayTotals.sumStaff),
       fmtInt(dayTotals.avgProd),
     ];
 
@@ -1289,7 +1325,7 @@ function ProductivityToolContent({
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1b3a26] text-white min-h-0">
                   <span className="text-[10px] font-semibold uppercase tracking-wide opacity-90 whitespace-nowrap">Σ MA</span>
-                  <span className="tabular-nums font-bold text-sm whitespace-nowrap">{fmtInt(totals.sumStaff)}</span>
+                  <span className="tabular-nums font-bold text-sm whitespace-nowrap">{fmtStdHoursDisplay(totals.sumStaff)}</span>
                 </div>
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg shadow-sm min-h-0" style={{ backgroundColor: COLORS.yellow }}>
                   <span className="text-[10px] font-semibold text-[#1a3826] uppercase tracking-wide whitespace-nowrap">Prod.</span>
@@ -1453,7 +1489,7 @@ function ProductivityToolContent({
                         </td>
                       ))}
                       <td className="py-1 px-0.5 text-center font-medium text-foreground border-r border-border tabular-nums bg-muted/30 min-w-[3.25rem]">
-                        {fmtInt(stat.staffTotal)}
+                        {fmtStdHoursDisplay(stat.staffTotal)}
                       </td>
                       <td
                         className="py-1 px-0.5 text-center font-bold tabular-nums border-r border-border min-w-[3.75rem]"
@@ -1480,12 +1516,12 @@ function ProductivityToolContent({
                     const sum = totals.sumByStation[s.key] ?? 0;
                     return (
                       <td key={s.key} className="py-1 px-1 text-center tabular-nums border-r border-white/20">
-                        {sum !== 0 ? fmtInt(sum) : "–"}
+                        {sum !== 0 ? fmtStdHoursDisplay(sum) : "–"}
                       </td>
                     );
                   })}
                   <td className="py-1 px-0.5 text-center tabular-nums border-r border-white/20 font-bold min-w-[3.25rem]">
-                    {fmtInt(totals.sumStaff)}
+                    {fmtStdHoursDisplay(totals.sumStaff)}
                   </td>
                   <td
                     className="py-1 px-0.5 text-center tabular-nums font-bold min-w-[3.75rem] border-r border-white/20"
@@ -1541,7 +1577,7 @@ function ProductivityToolContent({
                 <h3 className="text-sm font-bold text-[#1a3826] mb-3 flex items-center gap-1.5">
                   <Clock size={15} /> Öffnungszeiten &amp; Sondertag-Namen
                 </h3>
-                {/* Lijevo: ponedjeljak–nedjelja; desno: Sondertage 1–3 */}
+                {/* Lijevo: ponedjeljak–nedjelja; desno: Sondertage 1–7 */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5">
                   {/* Dani u sedmici */}
                   <div>

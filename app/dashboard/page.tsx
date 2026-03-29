@@ -127,7 +127,7 @@ const DB_ERROR_UI = (
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/login");
@@ -210,8 +210,9 @@ export default async function DashboardPage({
     /* Tabelle fehlt bis db push / instrumentation */
   }
 
-  const openNewsId = typeof searchParams?.openNews === "string" ? searchParams.openNews : null;
-  const openEventId = typeof searchParams?.openEvent === "string" ? searchParams.openEvent : null;
+  const sp = await searchParams;
+  const openNewsId = typeof sp?.openNews === "string" ? sp.openNews : null;
+  const openEventId = typeof sp?.openEvent === "string" ? sp.openEvent : null;
 
   const vacationPdfPayload =
     canVacationPdf && vacationReport
@@ -262,9 +263,17 @@ export default async function DashboardPage({
               </span>
             </div>
           </div>
-          <div className="shrink-0 flex items-center gap-2">
-            <DeineIdeeButton />
-            <DashboardChangelogButton changelog={changelog} />
+          <div className="shrink-0 flex flex-col items-end sm:flex-row sm:items-center gap-2">
+            <Link
+              href="/dashboard/meine-ideen"
+              className="text-[11px] font-bold text-[#FFC72C]/90 hover:text-[#FFC72C] underline-offset-2 hover:underline order-2 sm:order-1"
+            >
+              Meine Ideen
+            </Link>
+            <div className="flex items-center gap-2 order-1 sm:order-2">
+              <DeineIdeeButton />
+              <DashboardChangelogButton changelog={changelog} />
+            </div>
           </div>
         </div>
       </header>

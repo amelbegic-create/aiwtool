@@ -1,6 +1,7 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { IdeaStatus } from "@prisma/client";
 import { getDbUserForAccess, requirePermission, tryRequirePermission } from "@/lib/access";
 import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
@@ -9,6 +10,9 @@ export type IdeaWithUser = {
   id: string;
   text: string;
   userId: string;
+  status: IdeaStatus;
+  adminReply: string | null;
+  repliedAt: Date | null;
   isRead: boolean;
   createdAt: Date;
   // Legacy single attachment
@@ -22,12 +26,34 @@ export type IdeaWithUser = {
   pdfUrl: string | null;
   pdfName: string | null;
   pdfSize: number | null;
+  isArchived: boolean;
   user: {
     id: string;
     name: string | null;
     email: string | null;
     restaurants: { restaurant: { id: string; name: string | null; code: string } }[];
   };
+  repliedBy: {
+    id: string;
+    name: string | null;
+    image: string | null;
+    email: string | null;
+  } | null;
+};
+
+export type MyIdeaRow = {
+  id: string;
+  text: string;
+  createdAt: Date;
+  status: IdeaStatus;
+  adminReply: string | null;
+  repliedAt: Date | null;
+  isArchived: boolean;
+  imageUrls: string[];
+  imageNames: string[];
+  pdfUrl: string | null;
+  pdfName: string | null;
+  repliedBy: { name: string | null } | null;
 };
 
 export async function submitIdea(formData: FormData): Promise<{ ok: boolean; error?: string }> {
@@ -108,11 +134,11 @@ export async function submitIdea(formData: FormData): Promise<{ ok: boolean; err
       pdfUrl = blob.url;
     }
 
-    // Legacy polja ostavljamo prazna za nove ideje
     await prisma.idea.create({
       data: {
         text: trimmed,
         userId: user.id,
+        status: IdeaStatus.SENT,
         imageUrls,
         imageNames,
         pdfUrl,
@@ -137,6 +163,9 @@ function ideaListInclude() {
         restaurants: { include: { restaurant: { select: { id: true, name: true, code: true } } } },
       },
     },
+    repliedBy: {
+      select: { id: true, name: true, image: true, email: true },
+    },
   };
 }
 
@@ -148,7 +177,7 @@ export async function getIdeas(): Promise<IdeaWithUser[]> {
     orderBy: { createdAt: "desc" },
     include: ideaListInclude(),
   });
-  return rows as IdeaWithUser[];
+  return rows as unknown as IdeaWithUser[];
 }
 
 /** Arhivirane ideje. */
@@ -159,7 +188,83 @@ export async function getArchivedIdeas(): Promise<IdeaWithUser[]> {
     orderBy: { createdAt: "desc" },
     include: ideaListInclude(),
   });
-  return rows as IdeaWithUser[];
+  return rows as unknown as IdeaWithUser[];
+}
+
+/** Eingereichte Ideen des aktuellen Nutzers (Archiv-Ansicht). */
+export async function getMyIdeas(): Promise<MyIdeaRow[]> {
+  const user = await getDbUserForAccess();
+  const rows = await prisma.idea.findMany({
+    where: { userId: user.id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      text: true,
+      createdAt: true,
+      status: true,
+      adminReply: true,
+      repliedAt: true,
+      isArchived: true,
+      imageUrls: true,
+      imageNames: true,
+      pdfUrl: true,
+      pdfName: true,
+      repliedBy: { select: { name: true } },
+    },
+  });
+  return rows;
+}
+
+export async function replyToIdea(
+  id: string,
+  data: { status: IdeaStatus; adminReply: string }
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requirePermission("ideenbox:access");
+    const admin = await getDbUserForAccess();
+    const replyTrim = data.adminReply.trim();
+    const prev = await prisma.idea.findUnique({
+      where: { id },
+      select: { userId: true, adminReply: true },
+    });
+    if (!prev) return { ok: false, error: "Nicht gefunden." };
+
+    const prevReply = (prev.adminReply ?? "").trim();
+    const replyChanged = replyTrim !== prevReply;
+
+    await prisma.idea.update({
+      where: { id },
+      data: {
+        status: data.status,
+        isRead: true,
+        ...(replyTrim
+          ? {
+              adminReply: replyTrim,
+              repliedById: admin.id,
+              ...(replyChanged ? { repliedAt: new Date() } : {}),
+            }
+          : {
+              adminReply: null,
+              repliedAt: null,
+              repliedById: null,
+            }),
+      },
+    });
+
+    if (replyTrim && replyChanged) {
+      await prisma.notificationRead.deleteMany({
+        where: { userId: prev.userId, notifKey: `idea-reply:${id}` },
+      });
+    }
+
+    revalidatePath("/admin/ideenbox");
+    revalidatePath("/admin");
+    revalidatePath("/dashboard/meine-ideen");
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
+  }
 }
 
 export async function markIdeaAsRead(id: string): Promise<{ ok: boolean; error?: string }> {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, CheckCircle2, Circle, Loader2, Users } from "lucide-react";
-import { formatDateDDMMGGGG } from "@/lib/dateUtils";
+import { formatDateTimeDeAt } from "@/lib/dateUtils";
 
 export type DashboardItemStatsResult = {
   read: Array<{ id: string; name: string | null; email: string | null; readAt: string | null }>;
@@ -108,10 +108,13 @@ export default function DashboardStatsModal({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-emerald-700 mb-3">
+                  <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-emerald-700 mb-1">
                     <CheckCircle2 size={16} />
                     Gelesen ({data.read.length})
                   </h3>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    Zeitpunkt des <span className="font-semibold">letzten Öffnens</span> (Datum und Uhrzeit).
+                  </p>
                   <ul className="space-y-2 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/50 p-3">
                     {data.read.length === 0 ? (
                       <li className="text-sm text-slate-500 italic">Noch niemand hat geöffnet.</li>
@@ -125,8 +128,8 @@ export default function DashboardStatsModal({
                             {u.name || u.email || u.id}
                           </span>
                           {u.readAt ? (
-                            <span className="text-xs text-slate-500 shrink-0">
-                              {formatDateDDMMGGGG(u.readAt)}
+                            <span className="text-xs text-slate-500 shrink-0 tabular-nums">
+                              {formatDateTimeDeAt(u.readAt)}
                             </span>
                           ) : null}
                         </li>

@@ -22,6 +22,7 @@ export type NotificationKind =
   | "admin_vacation_pending"
   | "admin_vacation_storno"
   | "admin_idea_new"
+  | "user_idea_reply"
   | "cl_month_locked"
   | "cl_unlock_requested"
   | "worker_vacation_approved"
@@ -372,6 +373,38 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
         actorInitials: initials(submitterName),
       });
     }
+  }
+
+  // Antwort auf eingereichte Idee (für den Einreicher)
+  const ideasWithReply = await prisma.idea.findMany({
+    where: {
+      userId,
+      isArchived: false,
+      adminReply: { not: null },
+    },
+    orderBy: { repliedAt: "desc" },
+    take: 25,
+    include: {
+      repliedBy: { select: { name: true, image: true } },
+    },
+  });
+  for (const idea of ideasWithReply) {
+    const body = (idea.adminReply ?? "").trim();
+    if (!body) continue;
+    const snippet = body.replace(/\s+/g, " ");
+    const preview = snippet.length > 120 ? `${snippet.slice(0, 120)}…` : snippet;
+    const fromName = idea.repliedBy?.name ?? "Team";
+    items.push({
+      id: `idea-reply:${idea.id}`,
+      kind: "user_idea_reply",
+      title: "Antwort auf deine Idee",
+      description: preview,
+      href: "/dashboard/meine-ideen",
+      createdAt: (idea.repliedAt ?? idea.createdAt).toISOString(),
+      actorName: fromName,
+      actorImage: idea.repliedBy?.image ?? null,
+      actorInitials: initials(fromName),
+    });
   }
 
   // Dashboard (News/Events) — poštedi sve korisnike: svatko dobije notifikaciju

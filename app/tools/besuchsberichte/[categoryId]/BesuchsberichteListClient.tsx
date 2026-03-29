@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -17,7 +16,6 @@ import {
   List,
   ChevronRight,
 } from "lucide-react";
-import { getItems } from "@/app/actions/visitReportActions";
 
 type Category = {
   id: string;
@@ -46,57 +44,26 @@ function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-const YEAR_MIN = 2021;
-const YEAR_MAX = 2030;
-const YEAR_OPTIONS = Array.from({ length: YEAR_MAX - YEAR_MIN + 1 }, (_, i) => YEAR_MIN + i);
-
 export default function BesuchsberichteListClient({
   category,
   initialItems,
-  initialYear,
-  restaurantId,
 }: {
   category: Category;
   initialItems: Item[];
-  initialYear: number;
-  restaurantId: string;
 }) {
-  const router = useRouter();
-  const defaultYear = YEAR_OPTIONS.includes(initialYear) ? initialYear : YEAR_OPTIONS[0];
-  const [year, setYear] = useState(defaultYear);
-  const [items, setItems] = useState(initialItems);
   const [searchQuery, setSearchQuery] = useState("");
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
-  const [loadingYear, setLoadingYear] = useState(false);
-
-  useEffect(() => {
-    setYear(YEAR_OPTIONS.includes(initialYear) ? initialYear : YEAR_OPTIONS[0]);
-    setItems(initialItems);
-  }, [initialYear, initialItems]);
-
-  const handleYearChange = async (newYear: number) => {
-    if (newYear === year) return;
-    setLoadingYear(true);
-    setYear(newYear);
-    try {
-      const nextItems = await getItems(category.id, newYear, restaurantId);
-      setItems(nextItems);
-      router.replace(`/tools/besuchsberichte/${category.id}?year=${newYear}`, { scroll: false });
-    } finally {
-      setLoadingYear(false);
-    }
-  };
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    if (!q) return initialItems;
+    return initialItems.filter(
       (t) =>
         t.title.toLowerCase().includes(q) ||
         (t.description?.toLowerCase() ?? "").includes(q)
     );
-  }, [items, searchQuery]);
+  }, [initialItems, searchQuery]);
 
   const handleOpen = (item: Item) => {
     if (item.fileType.includes("pdf")) {
@@ -123,21 +90,6 @@ export default function BesuchsberichteListClient({
             {category.description && (
               <p className="text-muted-foreground text-sm font-medium">{category.description}</p>
             )}
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Jahr</label>
-            <select
-              value={year}
-              onChange={(e) => handleYearChange(parseInt(e.target.value, 10))}
-              disabled={loadingYear}
-              className="h-10 px-4 rounded-xl border border-[#1a3826]/20 dark:border-[#FFC72C]/25 bg-background text-sm font-bold text-foreground focus:ring-2 focus:ring-[#1a3826]/20 dark:focus:ring-[#FFC72C]/20 outline-none disabled:opacity-60"
-            >
-              {YEAR_OPTIONS.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
 
@@ -198,7 +150,7 @@ export default function BesuchsberichteListClient({
                 <span className="font-semibold text-[#1a3826] dark:text-[#FFC72C]">
                   {filtered.length}
                 </span>{" "}
-                {filtered.length === 1 ? "Dokument" : "Dokumente"} ({year})
+                {filtered.length === 1 ? "Dokument" : "Dokumente"}
               </span>
             </div>
           </div>
@@ -206,16 +158,7 @@ export default function BesuchsberichteListClient({
 
         <div className="mt-8">
           <AnimatePresence mode="wait">
-            {loadingYear ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="rounded-2xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-card p-10 text-center text-muted-foreground"
-              >
-                Lade Dokumente für {year}…
-              </motion.div>
-            ) : filtered.length === 0 ? (
+            {filtered.length === 0 ? (
               <motion.div
                 key="empty"
                 initial={{ opacity: 0, y: 10 }}
@@ -228,7 +171,7 @@ export default function BesuchsberichteListClient({
                 </div>
                 <h2 className="text-xl font-bold text-foreground">Keine Dokumente</h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                  Für das Jahr {year} sind in dieser Kategorie noch keine Dokumente verfügbar.
+                  In dieser Kategorie sind noch keine Dokumente verfügbar.
                 </p>
               </motion.div>
             ) : viewMode === "cards" ? (

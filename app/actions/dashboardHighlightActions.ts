@@ -39,7 +39,7 @@ export async function addDashboardHighlight(moduleKey: string, moduleLabel: stri
   }
   revalidatePath("/dashboard");
   revalidatePath("/admin");
-  revalidatePath("/admin/dashboard-modules");
+  revalidatePath("/admin");
   return { ok: true };
 }
 
@@ -55,7 +55,7 @@ export async function removeDashboardHighlight(moduleKey: string) {
   }
   revalidatePath("/dashboard");
   revalidatePath("/admin");
-  revalidatePath("/admin/dashboard-modules");
+  revalidatePath("/admin");
   return { ok: true };
 }
 
@@ -74,6 +74,6 @@ export async function reorderDashboardHighlights(moduleKeys: string[]) {
     return { ok: false, error: "Greška pri promjeni redoslijeda." };
   }
   revalidatePath("/dashboard");
-  revalidatePath("/admin/dashboard-modules");
+  revalidatePath("/admin");
   return { ok: true };
 }

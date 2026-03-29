@@ -459,17 +459,26 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const saveDataToDBRef = React.useRef<any>(null);
 
+  /** Jedan red tabele = 6 polja: Brutto, Gepl.%, SF, HM, NZ, Extra (bez Netto/Prod.-readonly). */
+  const TABLE_INPUT_COLS = 6;
+
   const handleTableKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Enter") return;
     const target = e.target as HTMLElement;
     if (target.tagName !== "INPUT") return;
     e.preventDefault();
-    const inputs = tableWrapperRef.current?.querySelectorAll<HTMLInputElement>('input');
+    const inputs = tableWrapperRef.current?.querySelectorAll<HTMLInputElement>("input");
     if (!inputs?.length) return;
     const list = Array.from(inputs);
     const idx = list.indexOf(target as HTMLInputElement);
-    const nextIdx = idx < 0 ? 0 : (idx + 1) % list.length;
-    list[nextIdx]?.focus();
+    if (idx < 0) return;
+    const col = idx % TABLE_INPUT_COLS;
+    const row = Math.floor(idx / TABLE_INPUT_COLS);
+    const rowsCount = Math.ceil(list.length / TABLE_INPUT_COLS);
+    const nextRow = row + 1;
+    if (nextRow < rowsCount) {
+      list[nextRow * TABLE_INPUT_COLS + col]?.focus();
+    }
   };
 
   useEffect(() => {
@@ -1057,27 +1066,19 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.2);
-    doc.roundedRect(margin, 28, leftColW, 20, 1.5, 1.5, "FD");
+    doc.roundedRect(margin, 28, leftColW, 14, 1.5, 1.5, "FD");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(27, 58, 38);
     doc.text("Einstellungen", margin + 3, 33.5);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 100, 100);
-    doc.text("Jahr", margin + 3, 39.5);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.5);
-    doc.setTextColor(0, 0, 0);
-    doc.text(String(year), margin + leftColW - 3, 39.5, { align: "right" });
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(27, 58, 38);
-    doc.text(MONTH_NAMES_DE[month - 1], margin + 3, 45.5);
+    doc.text(MONTH_NAMES_DE[month - 1], margin + 3, 40.5);
 
-    let y = 50;
+    let y = 44;
     y = drawCard(y, "Parameter", [
-      ["Stundensatz (€)", avgWage],
+      ["Durchschnitt Std./Lohn", avgWage],
       ["Urlaub (h)", vacationStd],
       ["Krankheit (h)", sickStd],
       ["Koeffizient Brutto/Netto", koefficientBruttoNetto],
@@ -1329,27 +1330,19 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
         doc.setFillColor(255, 255, 255);
         doc.setDrawColor(220, 220, 220);
         doc.setLineWidth(0.2);
-        doc.roundedRect(margin, 28, leftColW, 20, 1.5, 1.5, "FD");
+        doc.roundedRect(margin, 28, leftColW, 14, 1.5, 1.5, "FD");
         doc.setFont("helvetica", "bold");
         doc.setFontSize(7.5);
         doc.setTextColor(27, 58, 38);
         doc.text("Einstellungen", margin + 3, 33.5);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(6.5);
-        doc.setTextColor(100, 100, 100);
-        doc.text("Jahr", margin + 3, 39.5);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.5);
-        doc.setTextColor(0, 0, 0);
-        doc.text(String(year), margin + leftColW - 3, 39.5, { align: "right" });
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
         doc.setTextColor(27, 58, 38);
-        doc.text(MONTH_NAMES_DE[m - 1], margin + 3, 45.5);
+        doc.text(MONTH_NAMES_DE[m - 1], margin + 3, 40.5);
 
-        let y = 50;
+        let y = 44;
         y = drawCard(y, "Parameter", [
-          ["Stundensatz (€)", currentInputs.avgWage ?? ""],
+          ["Durchschnitt Std./Lohn", currentInputs.avgWage ?? ""],
           ["Urlaub (h)", currentInputs.vacationStd ?? ""],
           ["Krankheit (h)", currentInputs.sickStd ?? ""],
           ["Koeffizient Brutto/Netto", currentInputs.koefficientBruttoNetto ?? ""],
@@ -1834,6 +1827,29 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                 {selectedRest ? (selectedRest.name || selectedRest.code) : "PLANUNG"}
               </span>
             </h1>
+            {hasValidRestaurant ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-1">
+                <span className="text-xl sm:text-2xl font-bold text-[#1a3826] dark:text-[#FFC72C] tabular-nums">
+                  {MONTH_NAMES_DE[month - 1]}
+                </span>
+                <label htmlFor="cl-labor-year" className="sr-only">
+                  Jahr
+                </label>
+                <select
+                  id="cl-labor-year"
+                  value={year}
+                  disabled={!canEditCl}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                  className="rounded-lg border border-border bg-muted px-2.5 py-1.5 text-sm font-semibold text-foreground focus:ring-2 focus:ring-ring outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {[2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -1989,27 +2005,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
               <div className="bg-card border border-border rounded-xl shadow-sm p-5 no-print">
                 <h3 className="text-foreground font-semibold text-sm border-b border-border pb-3 mb-4 uppercase">Einstellungen</h3>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-[auto_1fr] gap-3 items-end">
-                    <div className="min-w-0">
-                      <label className="text-xs font-medium text-muted-foreground uppercase block mb-1">Jahr</label>
-                      <select
-                        value={year}
-                        disabled={!canEditCl}
-                        onChange={(e) => setYear(Number(e.target.value))}
-                        className="w-full p-2 bg-muted border border-border rounded-lg text-sm font-medium text-foreground focus:ring-2 focus:ring-ring outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {[2025, 2026, 2027, 2028, 2029, 2030].map((y) => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="min-w-0 text-right">
-                      <span className="text-base font-semibold text-foreground truncate block" title={MONTH_NAMES_DE[month - 1]}>
-                        {MONTH_NAMES_DE[month - 1]}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 pt-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {MONTH_NAMES_DE.map((mName, i) => (
                       <button
                         key={i}
@@ -2030,7 +2026,7 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
               <div className="bg-card border border-border rounded-xl shadow-sm p-5">
                 <h3 className="text-gray-700 font-bold text-sm uppercase mb-3">Parameter</h3>
                 <div className="space-y-2">
-                  <InputRow label="Stundensatz (€)" value={avgWage} disabled={!canEditCl} onChange={(v) => { setAvgWage(v); setHasUnsavedChanges(true); }} decimals={2} />
+                  <InputRow label="Durchschnitt Std./Lohn" value={avgWage} disabled={!canEditCl} onChange={(v) => { setAvgWage(v); setHasUnsavedChanges(true); }} decimals={2} />
                   <InputRow label="Urlaub (h)" value={vacationStd} disabled={!canEditCl} onChange={(v) => { setVacationStd(v); setHasUnsavedChanges(true); }} />
                   <InputRow label="Krankheit (h)" value={sickStd} disabled={!canEditCl} onChange={(v) => { setSickStd(v); setHasUnsavedChanges(true); }} />
                   <InputRow label="Koeffizient Brutto/Netto" value={koefficientBruttoNetto} disabled={!canEditCl} onChange={(v) => { setKoefficientBruttoNetto(v); setHasUnsavedChanges(true); }} decimals={4} />
@@ -2057,7 +2053,25 @@ function LaborPlannerContent({ defaultRestaurantId }: { defaultRestaurantId?: st
                     {fmtNum(totals.clEuro)} €
                   </span>
                 </div>
-                <SummaryRow label="CL %" value={`${fmtNum(totals.clPct, 2)} %`} bold color="text-[#1b3a26]" />
+                {(() => {
+                  const budgetPctNum = parseDE(budgetCLPct);
+                  const clPctGood =
+                    budgetPctNum > 0 && budgetPctNum > totals.clPct;
+                  const clPctColor =
+                    budgetPctNum > 0
+                      ? clPctGood
+                        ? "text-green-700"
+                        : "text-red-600"
+                      : "text-[#1b3a26]";
+                  return (
+                    <div className="flex justify-between items-center gap-2 min-h-[1.5rem]">
+                      <span className="text-sm font-black opacity-80 uppercase shrink-0 text-[#1b3a26]">CL %</span>
+                      <span className={`font-black text-lg whitespace-nowrap tabular-nums text-right ${clPctColor}`}>
+                        {fmtNum(totals.clPct, 2)} %
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="h-px bg-[#1b3a26]/20 my-1" />
                 <SummaryRow label="Prod. (Bericht)" value={totals.istProd > 0 ? `${fmtNum(totals.istProd)} €` : "—"} color="text-[#1b3a26]" />
                 <SummaryRow label="Prod. (REAL)" value={totals.realProd > 0 ? `${fmtNum(totals.realProd)} €` : "—"} color="text-[#1b3a26]" />

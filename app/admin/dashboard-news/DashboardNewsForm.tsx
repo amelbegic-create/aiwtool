@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useReducer, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, FileText, Image as ImageIcon, Video, UploadCloud } from "lucide-react";
+import { ArrowLeft, FileText, Image as ImageIcon, RefreshCw, Video, UploadCloud } from "lucide-react";
 import {
   createDashboardNewsItem,
   updateDashboardNewsItem,
 } from "@/app/actions/dashboardNewsActions";
 import { DashboardNewsAttachmentKind } from "@prisma/client";
+import { GalleryFileThumb } from "@/components/admin/GalleryFileThumb";
+import { resizeImageFileIfNeeded } from "@/lib/clientImageResize";
 
 export type DashboardNewsFormInitial = {
   id: string;
@@ -20,7 +22,53 @@ export type DashboardNewsFormInitial = {
   coverImageUrl: string;
   attachmentUrl: string;
   attachmentKind: DashboardNewsAttachmentKind;
+  galleryUrls: string[];
 };
+
+type GalleryState = {
+  kept: Set<string>;
+  newFiles: File[];
+};
+
+type GalleryAction =
+  | { type: "toggleKeep"; url: string; checked: boolean }
+  | { type: "addFiles"; files: File[]; max: number }
+  | { type: "removeNew"; index: number }
+  | { type: "replace"; url: string; file: File; max: number };
+
+function galleryReducer(state: GalleryState, action: GalleryAction): GalleryState {
+  switch (action.type) {
+    case "toggleKeep": {
+      const kept = new Set(state.kept);
+      if (action.checked) kept.add(action.url);
+      else kept.delete(action.url);
+      return { ...state, kept };
+    }
+    case "addFiles": {
+      let newFiles = [...state.newFiles, ...action.files];
+      const cap = Math.max(0, action.max - state.kept.size);
+      if (newFiles.length > cap) newFiles = newFiles.slice(0, cap);
+      return { ...state, newFiles };
+    }
+    case "removeNew": {
+      return {
+        ...state,
+        newFiles: state.newFiles.filter((_, i) => i !== action.index),
+      };
+    }
+    case "replace": {
+      if (!state.kept.has(action.url)) return state;
+      const kept = new Set(state.kept);
+      kept.delete(action.url);
+      let newFiles = [...state.newFiles, action.file];
+      const cap = Math.max(0, action.max - kept.size);
+      if (newFiles.length > cap) newFiles = newFiles.slice(0, cap);
+      return { kept, newFiles };
+    }
+    default:
+      return state;
+  }
+}
 
 export default function DashboardNewsForm({
   mode,
@@ -35,6 +83,21 @@ export default function DashboardNewsForm({
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
   const [attachmentPreviewUrl, setAttachmentPreviewUrl] = useState<string | null>(null);
   const [attachmentPreviewKind, setAttachmentPreviewKind] = useState<"pdf" | "image" | "video" | null>(null);
+  const [shrinkGallery, setShrinkGallery] = useState(true);
+  const [gallery, dispatch] = useReducer(
+    galleryReducer,
+    initial?.galleryUrls ?? [],
+    (urls: string[]): GalleryState => ({
+      kept: new Set(urls.filter(Boolean)),
+      newFiles: [],
+    })
+  );
+
+  const maxGallery = 50;
+  const existingCount = initial?.galleryUrls?.length ?? 0;
+  const keepCount = gallery.kept.size;
+  const newCount = gallery.newFiles.length;
+  const finalCount = keepCount + newCount;
 
   const currentCoverUrl = coverPreviewUrl ?? initial?.coverImageUrl ?? null;
   const currentAttachmentUrl = attachmentPreviewUrl ?? initial?.attachmentUrl ?? null;
@@ -54,16 +117,30 @@ export default function DashboardNewsForm({
     }
   }
 
+  async function onGalleryPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = Array.from(e.currentTarget.files ?? []);
+    e.currentTarget.value = "";
+    if (raw.length === 0) return;
+    const files = shrinkGallery
+      ? await Promise.all(raw.map((f) => resizeImageFileIfNeeded(f)))
+      : raw;
+    dispatch({ type: "addFiles", files, max: maxGallery });
+  }
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
     setError(null);
     startTransition(async () => {
+      if (mode === "edit") {
+        fd.delete("existingGalleryUrls");
+        [...gallery.kept].forEach((url) => fd.append("existingGalleryUrls", url));
+      }
+      fd.delete("galleryImages");
+      gallery.newFiles.forEach((f) => fd.append("galleryImages", f));
       const res =
-        mode === "create"
-          ? await createDashboardNewsItem(fd)
-          : await updateDashboardNewsItem(initial!.id, fd);
+        mode === "create" ? await createDashboardNewsItem(fd) : await updateDashboardNewsItem(initial!.id, fd);
       if (!res.ok) {
         setError(res.error ?? "Fehler beim Speichern.");
         return;
@@ -79,7 +156,6 @@ export default function DashboardNewsForm({
       encType="multipart/form-data"
       className="rounded-2xl md:rounded-3xl border border-border bg-card shadow-sm overflow-hidden"
     >
-      {/* Filter bar-style header */}
       <div className="px-5 py-4 border-b border-border bg-muted/40 flex flex-col md:flex-row md:items-center gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
@@ -91,7 +167,7 @@ export default function DashboardNewsForm({
         </div>
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || finalCount > maxGallery}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1a3826] px-5 py-2.5 text-sm font-black text-white shadow-lg hover:opacity-90 disabled:opacity-60"
         >
           <UploadCloud size={18} /> {pending ? "Speichern…" : "Speichern"}
@@ -99,7 +175,6 @@ export default function DashboardNewsForm({
       </div>
 
       <div className="p-5 md:p-6 space-y-6">
-        {/* Core fields */}
         <div className="grid gap-4">
           <div>
             <label htmlFor="title" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
@@ -155,14 +230,11 @@ export default function DashboardNewsForm({
           </div>
         </div>
 
-        {/* Media */}
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
               <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Titelbild</p>
-              <p className="text-xs font-bold text-muted-foreground">
-                {mode === "create" ? "Pflichtfeld" : "optional"}
-              </p>
+              <p className="text-xs font-bold text-muted-foreground">{mode === "create" ? "Pflichtfeld" : "optional"}</p>
             </div>
             <div className="p-4 space-y-3">
               <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-border bg-muted">
@@ -189,18 +261,14 @@ export default function DashboardNewsForm({
                 }}
                 className="w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-[#1a3826] file:px-4 file:py-2.5 file:text-xs file:font-black file:text-[#FFC72C]"
               />
-              <p className="text-xs text-muted-foreground">
-                JPG/PNG/WebP/GIF. Empfohlen: \(16:9\).
-              </p>
+              <p className="text-xs text-muted-foreground">JPG/PNG/WebP/GIF. Empfohlen: \(16:9\).</p>
             </div>
           </div>
 
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b border-border bg-muted/40 flex items-center justify-between">
               <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Anhang</p>
-              <p className="text-xs font-bold text-muted-foreground">
-                {mode === "create" ? "Pflichtfeld" : "optional"}
-              </p>
+              <p className="text-xs font-bold text-muted-foreground">{mode === "create" ? "Pflichtfeld" : "optional"}</p>
             </div>
             <div className="p-4 space-y-3">
               <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-border bg-muted flex items-center justify-center">
@@ -243,8 +311,14 @@ export default function DashboardNewsForm({
                 PDF/Bild/GIF (bis 10 MB) oder Video (bis 200 MB).
                 {mode === "edit" && initial?.attachmentUrl ? (
                   <>
-                    {" "}Aktuell:{" "}
-                    <a href={initial.attachmentUrl} target="_blank" rel="noreferrer" className="font-bold underline text-[#1a3826] dark:text-[#FFC72C]">
+                    {" "}
+                    Aktuell:{" "}
+                    <a
+                      href={initial.attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-bold underline text-[#1a3826] dark:text-[#FFC72C]"
+                    >
                       öffnen
                     </a>
                     .
@@ -254,6 +328,122 @@ export default function DashboardNewsForm({
             </div>
           </div>
         </div>
+
+        <div className="rounded-2xl border border-border bg-card overflow-hidden">
+          <div className="px-4 py-3 border-b border-border bg-muted/40 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Galerie (optional)</p>
+              <p className="text-xs text-muted-foreground">
+                Bis zu 50 zusätzliche Bilder im Popup; Häkchen = behalten, „Ersetzen“ = Datei tauschen
+              </p>
+            </div>
+            <p
+              className={`text-xs font-black ${finalCount > maxGallery ? "text-destructive" : "text-muted-foreground"}`}
+            >
+              {finalCount} / {maxGallery}
+            </p>
+          </div>
+          <div className="p-4 space-y-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                checked={shrinkGallery}
+                onChange={(e) => setShrinkGallery(e.currentTarget.checked)}
+                className="h-4 w-4 accent-[#1a3826]"
+              />
+              Große Bilder vor Upload auf max. 1920 px Breite verkleinern (GIF bleibt unverändert)
+            </label>
+            <input
+              id="newsGalleryPick"
+              type="file"
+              accept="image/*,image/gif,.gif"
+              multiple
+              onChange={onGalleryPick}
+              className="w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-[#1a3826] file:px-4 file:py-2.5 file:text-xs file:font-black file:text-[#FFC72C]"
+            />
+            <p className="text-xs text-muted-foreground">
+              Mehrfach hinzufügen möglich. {mode === "edit" ? `Vorher: ${existingCount}, Behalten: ${keepCount}, Neu: ${newCount}.` : null}
+            </p>
+
+            {mode === "edit" && (initial?.galleryUrls?.length ?? 0) > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Bestehende Galeriebilder</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  {(initial?.galleryUrls ?? []).map((url, idx) => {
+                    const kept = gallery.kept.has(url);
+                    return (
+                      <div
+                        key={url}
+                        className={`group relative overflow-hidden rounded-xl border ${kept ? "border-[#1a3826]/40" : "border-border opacity-60"} bg-muted`}
+                      >
+                        <label className="block cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="absolute top-2 left-2 z-10 h-4 w-4 accent-[#1a3826]"
+                            checked={kept}
+                            onChange={(e) => {
+                              const checked = e.currentTarget.checked;
+                              dispatch({ type: "toggleKeep", url, checked });
+                            }}
+                          />
+                          <div className="relative aspect-square w-full">
+                            <Image src={url} alt="" fill className="object-cover" sizes="160px" unoptimized />
+                          </div>
+                        </label>
+                        {kept ? (
+                          <>
+                            <input
+                              type="file"
+                              id={`news-gallery-replace-${idx}`}
+                              className="sr-only"
+                              accept="image/*,image/gif,.gif"
+                              tabIndex={-1}
+                              onChange={async (e) => {
+                                const f = e.currentTarget.files?.[0];
+                                e.currentTarget.value = "";
+                                if (!f) return;
+                                const file = shrinkGallery ? await resizeImageFileIfNeeded(f) : f;
+                                dispatch({ type: "replace", url, file, max: maxGallery });
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => document.getElementById(`news-gallery-replace-${idx}`)?.click()}
+                              className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-1 rounded-lg bg-black/65 px-1.5 py-1 text-[10px] font-black uppercase text-white opacity-0 transition hover:bg-black/80 group-hover:opacity-100"
+                            >
+                              <RefreshCw size={12} /> Ersetzen
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {gallery.newFiles.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Neue Galerie-Dateien</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  {gallery.newFiles.map((file, i) => (
+                    <GalleryFileThumb
+                      key={`${file.name}-${file.size}-${file.lastModified}-${i}`}
+                      file={file}
+                      onRemove={() => dispatch({ type: "removeNew", index: i })}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {finalCount > maxGallery ? (
+          <p className="rounded-xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
+            Zu viele Galeriebilder. Maximum ist {maxGallery}.
+          </p>
+        ) : null}
 
         {error ? (
           <p className="rounded-xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm font-bold text-destructive">
@@ -270,7 +460,7 @@ export default function DashboardNewsForm({
           </Link>
           <button
             type="submit"
-            disabled={pending}
+            disabled={pending || finalCount > maxGallery}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1a3826] px-6 py-3 text-sm font-black text-white shadow-lg hover:opacity-90 disabled:opacity-60"
           >
             <UploadCloud size={18} /> {pending ? "Speichern…" : "Speichern"}
@@ -308,9 +498,7 @@ export function DashboardNewsFormShell({
           </div>
         </header>
 
-        <section className="max-w-3xl">
-          {children}
-        </section>
+        <section className="max-w-5xl">{children}</section>
       </div>
     </div>
   );

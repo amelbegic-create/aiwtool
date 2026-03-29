@@ -204,7 +204,7 @@ export default function AdminSitzplanClient({ restaurants }: { restaurants: Rest
                                 ) : (
                                   <Upload size={16} />
                                 )}
-                                Hochladen
+                                {n === 0 ? "Hochladen" : "PDF hinzufügen"}
                               </span>
                             </label>
                           ) : (

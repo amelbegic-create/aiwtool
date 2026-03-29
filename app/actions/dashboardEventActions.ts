@@ -66,9 +66,13 @@ export type DashboardEventPublic = {
   coverImageUrl: string;
   videoUrl: string | null;
   images: Array<{ id: string; imageUrl: string; sortOrder: number }>;
+  likeCount: number;
+  commentCount: number;
+  likedByMe: boolean;
 };
 
 export async function getActiveDashboardEvents(): Promise<DashboardEventPublic[]> {
+  const dbUser = await getDbUserForAccess();
   const rows = await prisma.dashboardEventItem.findMany({
     where: { isActive: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
@@ -84,7 +88,36 @@ export async function getActiveDashboardEvents(): Promise<DashboardEventPublic[]
       },
     },
   });
-  return rows;
+  const ids = rows.map((r) => r.id);
+  if (ids.length === 0) return [];
+
+  const [likeGroups, commentGroups, myLikes] = await Promise.all([
+    prisma.dashboardEventLike.groupBy({
+      by: ["eventItemId"],
+      where: { eventItemId: { in: ids } },
+      _count: { _all: true },
+    }),
+    prisma.dashboardEventComment.groupBy({
+      by: ["eventItemId"],
+      where: { eventItemId: { in: ids } },
+      _count: { _all: true },
+    }),
+    prisma.dashboardEventLike.findMany({
+      where: { userId: dbUser.id, eventItemId: { in: ids } },
+      select: { eventItemId: true },
+    }),
+  ]);
+
+  const likeMap = new Map(likeGroups.map((g) => [g.eventItemId, g._count._all]));
+  const commentMap = new Map(commentGroups.map((g) => [g.eventItemId, g._count._all]));
+  const myLikeSet = new Set(myLikes.map((x) => x.eventItemId));
+
+  return rows.map((r) => ({
+    ...r,
+    likeCount: likeMap.get(r.id) ?? 0,
+    commentCount: commentMap.get(r.id) ?? 0,
+    likedByMe: myLikeSet.has(r.id),
+  }));
 }
 
 export async function listDashboardEventsForAdmin() {
@@ -273,11 +306,99 @@ export async function setDashboardEventActive(
 
 export async function recordDashboardEventView(eventItemId: string) {
   const dbUser = await getDbUserForAccess();
-  await prisma.dashboardEventView.createMany({
-    data: [{ userId: dbUser.id, eventItemId }],
-    skipDuplicates: true,
+  const now = new Date();
+  await prisma.dashboardEventView.upsert({
+    where: {
+      userId_eventItemId: {
+        userId: dbUser.id,
+        eventItemId,
+      },
+    },
+    create: { userId: dbUser.id, eventItemId, viewedAt: now },
+    update: { viewedAt: now },
   });
   return { ok: true as const };
+}
+
+export async function toggleDashboardEventLike(eventItemId: string): Promise<{
+  ok: boolean;
+  likeCount?: number;
+  likedByMe?: boolean;
+  error?: string;
+}> {
+  try {
+    const dbUser = await getDbUserForAccess();
+    const existing = await prisma.dashboardEventLike.findUnique({
+      where: {
+        userId_eventItemId: { userId: dbUser.id, eventItemId },
+      },
+    });
+    if (existing) {
+      await prisma.dashboardEventLike.delete({ where: { id: existing.id } });
+    } else {
+      await prisma.dashboardEventLike.create({
+        data: { userId: dbUser.id, eventItemId },
+      });
+    }
+    const likeCount = await prisma.dashboardEventLike.count({ where: { eventItemId } });
+    revalidatePath("/dashboard");
+    return { ok: true, likeCount, likedByMe: !existing };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
+  }
+}
+
+export type DashboardEventCommentPublic = {
+  id: string;
+  body: string;
+  createdAt: string;
+  userName: string | null;
+  userImage: string | null;
+};
+
+export async function getDashboardEventComments(eventItemId: string): Promise<DashboardEventCommentPublic[]> {
+  await getDbUserForAccess();
+  const rows = await prisma.dashboardEventComment.findMany({
+    where: { eventItemId },
+    orderBy: { createdAt: "asc" },
+    include: { user: { select: { name: true, image: true } } },
+  });
+  return rows.map((c) => ({
+    id: c.id,
+    body: c.body,
+    createdAt: c.createdAt.toISOString(),
+    userName: c.user.name,
+    userImage: c.user.image,
+  }));
+}
+
+export async function addDashboardEventComment(
+  eventItemId: string,
+  body: string
+): Promise<{ ok: boolean; comment?: DashboardEventCommentPublic; error?: string }> {
+  try {
+    const dbUser = await getDbUserForAccess();
+    const text = body.trim();
+    if (text.length < 1) return { ok: false, error: "Kommentar ist leer." };
+    if (text.length > 2000) return { ok: false, error: "Maximal 2000 Zeichen." };
+    const c = await prisma.dashboardEventComment.create({
+      data: { userId: dbUser.id, eventItemId, body: text },
+      include: { user: { select: { name: true, image: true } } },
+    });
+    revalidatePath("/dashboard");
+    return {
+      ok: true,
+      comment: {
+        id: c.id,
+        body: c.body,
+        createdAt: c.createdAt.toISOString(),
+        userName: c.user.name,
+        userImage: c.user.image,
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
+  }
 }
 
 export async function listDashboardEventsActivityForAdmin() {

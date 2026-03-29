@@ -164,13 +164,14 @@ export default function TeamPageClient({
     return s;
   }, [initialTeam]);
 
+  /** Sve Abteilungen iz Admin-Bereich (sortOrder) + ev. imena koja još samo postoje na članovima tima. */
   const departmentOptions = useMemo(() => {
-    const fromDb = new Set(departmentNamesOrdered);
-    const ordered = departmentNamesOrdered.filter((n) => namesInTeam.has(n));
+    const fromDb = departmentNamesOrdered.filter(Boolean);
+    const dbSet = new Set(fromDb);
     const orphans = Array.from(namesInTeam)
-      .filter((n) => !fromDb.has(n))
-      .sort((a, b) => a.localeCompare(b));
-    return [...ordered, ...orphans];
+      .filter((n) => !dbSet.has(n))
+      .sort((a, b) => a.localeCompare(b, "de"));
+    return [...fromDb, ...orphans];
   }, [departmentNamesOrdered, namesInTeam]);
 
   const filteredTeam =

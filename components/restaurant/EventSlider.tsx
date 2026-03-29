@@ -1,10 +1,12 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, ArrowRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight, X, Heart, MessageCircle } from "lucide-react";
 import type { DashboardEventPublic } from "@/app/actions/dashboardEventActions";
 import { recordDashboardEventView } from "@/app/actions/dashboardEventActions";
+import EventSocialPanel from "@/components/dashboard/EventSocialPanel";
 
 const AUTO_SCROLL_INTERVAL_MS = 5000;
 const SCROLL_AMOUNT = 396;
@@ -20,12 +22,15 @@ export default function EventSlider({
   items,
   initialOpenId,
 }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  const recordedRef = useRef<Set<string>>(new Set());
+  const dismissedFromUrlRef = useRef(false);
 
   const openItem = items.find((i) => i.id === openItemId) ?? null;
   const gallery = openItem?.images ?? [];
@@ -73,9 +78,14 @@ export default function EventSlider({
     if (activeMediaIndex > max) setActiveMediaIndex(0);
   }, [media.length, activeMediaIndex]);
 
-  // Ako dođeš preko notifikacije, otvori odgovarajući popup.
+  useEffect(() => {
+    dismissedFromUrlRef.current = false;
+  }, [initialOpenId]);
+
+  // Ako dođeš preko notifikacije, otvori odgovarajući popup (jednom po initialOpenId dok korisnik ne zatvori).
   useEffect(() => {
     if (!initialOpenId) return;
+    if (dismissedFromUrlRef.current) return;
     if (openItemId) return;
     const exists = items.some((x) => x.id === initialOpenId);
     if (!exists) return;
@@ -83,11 +93,20 @@ export default function EventSlider({
     setActiveMediaIndex(0);
   }, [initialOpenId, items, openItemId]);
 
-  // Aktivnost: zabilježi da je korisnik otvorio popup.
+  const closeEventModal = () => {
+    dismissedFromUrlRef.current = true;
+    setOpenItemId(null);
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.has("openEvent")) {
+      params.delete("openEvent");
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    }
+  };
+
+  // Aktivnost: svaki put kad se otvori popup — ažuriraj zadnji pregled (datum + sat u adminu).
   useEffect(() => {
     if (!openItemId) return;
-    if (recordedRef.current.has(openItemId)) return;
-    recordedRef.current.add(openItemId);
     void recordDashboardEventView(openItemId);
   }, [openItemId]);
 
@@ -185,7 +204,17 @@ export default function EventSlider({
                       {item.subtitle}
                     </p>
                   )}
-                  <div className="mt-3 flex items-center gap-1.5 text-[#FFC72C] text-sm font-bold opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200">
+                  <div className="mt-2 flex items-center gap-3 text-white/90 text-xs font-bold">
+                    <span className="flex items-center gap-1">
+                      <Heart size={13} className="text-red-300" />
+                      {item.likeCount ?? 0}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MessageCircle size={13} />
+                      {item.commentCount ?? 0}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-1.5 text-[#FFC72C] text-sm font-bold opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200">
                     Mehr anzeigen <ArrowRight size={14} />
                   </div>
                 </div>
@@ -199,10 +228,10 @@ export default function EventSlider({
         <div
           className="fixed inset-0 z-[300] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setOpenItemId(null);
+            if (e.target === e.currentTarget) closeEventModal();
           }}
         >
-          <div className="relative flex h-[82vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border shadow-2xl bg-card">
+          <div className="relative flex max-h-[92vh] h-[82vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border shadow-2xl bg-card">
             <div className="flex items-center justify-between bg-[#1a3826] px-4 py-3">
               <div>
                 <p className="text-sm font-black uppercase tracking-wide text-[#FFC72C]">Event Galerie</p>
@@ -210,7 +239,7 @@ export default function EventSlider({
               </div>
               <button
                 type="button"
-                onClick={() => setOpenItemId(null)}
+                onClick={closeEventModal}
                 className="rounded-lg p-1.5 text-[#FFC72C] transition hover:bg-white/10"
                 aria-label="Schließen"
               >
@@ -253,12 +282,19 @@ export default function EventSlider({
               </button>
             </div>
 
-            <div className="flex items-center justify-between border-t border-border bg-card px-4 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-t border-border bg-card px-4 py-2 text-xs text-muted-foreground shrink-0">
               <span>{openItem.subtitle || "Galerie"}</span>
               <span className="font-bold">
                 {activeMediaIndex + 1} / {media.length}
               </span>
             </div>
+
+            <EventSocialPanel
+              eventId={openItem.id}
+              initialLikeCount={openItem.likeCount ?? 0}
+              initialCommentCount={openItem.commentCount ?? 0}
+              initialLikedByMe={openItem.likedByMe ?? false}
+            />
           </div>
         </div>
       )}

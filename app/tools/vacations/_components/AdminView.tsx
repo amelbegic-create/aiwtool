@@ -158,6 +158,21 @@ function deptColor(department?: string | null): RGB {
   return DEPT_PALETTE[idx];
 }
 
+const BLOCKED_TAB_MONTH_NAMES = [
+  "Januar",
+  "Februar",
+  "März",
+  "April",
+  "Mai",
+  "Juni",
+  "Juli",
+  "August",
+  "September",
+  "Oktober",
+  "November",
+  "Dezember",
+] as const;
+
 // Boja odjela iz baze (HEX → RGB); fallback na paletu po imenu
 function resolveDeptRGB(user: { department?: string | null; departmentColor?: string | null }): RGB {
   const hex = user.departmentColor?.trim();
@@ -750,6 +765,8 @@ export default function AdminView({
   const [loadingGlobal, setLoadingGlobal] = useState(false);
   const [newBlockedDate, setNewBlockedDate] = useState("");
   const [newBlockedReason, setNewBlockedReason] = useState("");
+  /** Filter „BLOCKED“ taba: svi mjeseci ili 1–12 */
+  const [blockedListMonth, setBlockedListMonth] = useState<"all" | number>("all");
 
   const handleAddBlocked = async () => {
     if (!newBlockedDate.trim()) {
@@ -767,6 +784,23 @@ export default function AdminView({
     }
   };
 
+  const handleRemoveBlockedGroup = async (ids: string[]) => {
+    const msg =
+      ids.length > 1
+        ? `${ids.length} Einträge für dieses Datum wirklich löschen?`
+        : "Eintrag wirklich löschen?";
+    if (!confirm(msg)) return;
+    try {
+      for (const id of ids) {
+        await removeBlockedDay(id);
+      }
+      toast.success("Gelöscht.");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler beim Löschen.");
+    }
+  };
+
   const handleYearChange = (y: number) => {
     if (y === selectedYear) return;
     startTransition(() => {
@@ -775,6 +809,34 @@ export default function AdminView({
   };
 
   const globalHolidays = globalHolidaysProp ?? [];
+
+  const holidaysForBlockedTab = useMemo(() => {
+    if (blockedListMonth === "all") return globalHolidays;
+    return globalHolidays.filter((h) => h.m === blockedListMonth);
+  }, [globalHolidays, blockedListMonth]);
+
+  const blockedDayGroupsForTab = useMemo(() => {
+    const inYear = blockedDays.filter((d) => new Date(d.date).getFullYear() === selectedYear);
+    const inMonth =
+      blockedListMonth === "all"
+        ? inYear
+        : inYear.filter((d) => new Date(d.date).getMonth() + 1 === blockedListMonth);
+    const map = new Map<string, BlockedDay[]>();
+    for (const d of inMonth) {
+      const k = `${d.date}|${(d.reason ?? "").trim()}`;
+      const arr = map.get(k) ?? [];
+      arr.push(d);
+      map.set(k, arr);
+    }
+    return Array.from(map.entries())
+      .map(([key, entries]) => ({
+        key,
+        date: entries[0].date,
+        reason: entries[0].reason,
+        ids: entries.map((e) => e.id),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [blockedDays, selectedYear, blockedListMonth]);
 
   const [deptExportModalOpen, setDeptExportModalOpen] = useState(false);
   const [deptExportData, setDeptExportData] = useState<{
@@ -1498,7 +1560,7 @@ export default function AdminView({
                     : "text-muted-foreground hover:bg-accent"
                 }`}
               >
-                GESPERRT
+                FT/Sperrtage
               </button>
             </div>
 
@@ -2145,7 +2207,33 @@ export default function AdminView({
 
         {/* BLOCKED: globalni praznici (iz Admin) + gesperrte Tage (Standort) */}
         {activeTab === "BLOCKED" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
+              <label htmlFor="blocked-tab-month" className="text-xs font-bold text-muted-foreground whitespace-nowrap">
+                Monat filtern
+              </label>
+              <select
+                id="blocked-tab-month"
+                value={blockedListMonth === "all" ? "all" : String(blockedListMonth)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setBlockedListMonth(v === "all" ? "all" : parseInt(v, 10));
+                }}
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm font-medium min-w-[180px]"
+              >
+                <option value="all">Alle Monate</option>
+                {BLOCKED_TAB_MONTH_NAMES.map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground">
+                Gilt für Feiertage und gesperrte Tage ({selectedYear}).
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Globalni praznici – iz Admin panela, samo za pregled (ZELENO) */}
             <div className="lg:col-span-2 bg-card p-6 rounded-2xl shadow-sm border border-border">
               <h3 className="font-bold text-card-foreground mb-4 flex items-center gap-2">
@@ -2155,8 +2243,7 @@ export default function AdminView({
                 Diese Feiertage werden zentral im Admin-Panel unter „Feiertage“ verwaltet und gelten für alle Module.
               </p>
               <div className="flex flex-wrap gap-2">
-                {globalHolidays.map((h, i) => {
-                  const dateStr = `${selectedYear}-${String(h.m).padStart(2, "0")}-${String(h.d).padStart(2, "0")}`;
+                {holidaysForBlockedTab.map((h, i) => {
                   return (
                     <div
                       key={`${h.d}-${h.m}-${i}`}
@@ -2166,8 +2253,12 @@ export default function AdminView({
                     </div>
                   );
                 })}
-                {globalHolidays.length === 0 && (
-                  <span className="text-sm text-muted-foreground italic">Keine Feiertage für dieses Jahr (Admin-Panel prüfen).</span>
+                {holidaysForBlockedTab.length === 0 && (
+                  <span className="text-sm text-muted-foreground italic">
+                    {globalHolidays.length === 0
+                      ? "Keine Feiertage für dieses Jahr (Admin-Panel prüfen)."
+                      : "Keine Feiertage in diesem Monat (Filter anpassen)."}
+                  </span>
                 )}
               </div>
             </div>
@@ -2202,40 +2293,41 @@ export default function AdminView({
                 Gesperrte Tage (Standort) {selectedYear}
               </h3>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {blockedDays
-                  .filter((d) => new Date(d.date).getFullYear() === selectedYear)
-                  .map((d) => (
-                    <div
-                      key={d.id}
-                      className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800 group"
-                    >
-                      <div className="text-sm font-semibold text-red-800 dark:text-red-200 truncate">
-                        {d.reason ?? "—"}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-red-600 dark:text-red-300 font-mono">
-                          {formatDate(d.date)}
-                        </span>
-                        <button
-                          onClick={async () => {
-                            if (confirm("Löschen?")) {
-                              await removeBlockedDay(d.id);
-                              toast.success("Eintrag entfernt.");
-                              router.refresh();
-                            }
-                          }}
-                          className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                          title="Löschen"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                {blockedDayGroupsForTab.map((g) => (
+                  <div
+                    key={g.key}
+                    className="flex justify-between items-center p-3 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-200 dark:border-red-800 group gap-2"
+                  >
+                    <div className="text-sm font-semibold text-red-800 dark:text-red-200 truncate min-w-0">
+                      {g.reason ?? "—"}
+                      {g.ids.length > 1 && (
+                        <span className="ml-2 text-[10px] font-bold text-red-600/80">({g.ids.length} Standorte)</span>
+                      )}
                     </div>
-                  ))}
-                {blockedDays.filter((d) => new Date(d.date).getFullYear() === selectedYear).length === 0 && (
-                  <p className="text-xs text-muted-foreground italic py-2">Keine weiteren gesperrten Tage.</p>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-red-600 dark:text-red-300 font-mono">
+                        {formatDate(g.date)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveBlockedGroup(g.ids)}
+                        className="text-red-500 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                        title="Löschen"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {blockedDayGroupsForTab.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic py-2">
+                    {blockedDays.filter((d) => new Date(d.date).getFullYear() === selectedYear).length === 0
+                      ? "Keine weiteren gesperrten Tage."
+                      : "Keine gesperrten Tage in diesem Monat (Filter anpassen)."}
+                  </p>
                 )}
               </div>
+            </div>
             </div>
           </div>
         )}

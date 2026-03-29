@@ -8,6 +8,7 @@ import { DashboardNewsAttachmentKind } from "@prisma/client";
 
 const MAX_IMAGE_PDF_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const MAX_NEWS_GALLERY_IMAGES = 50;
 
 /** MIME ili ekstenzija (npr. .gif kad browser pošalje prazan type). */
 function isImageFile(file: File): boolean {
@@ -31,6 +32,8 @@ export type DashboardNewsPublic = {
   coverImageUrl: string;
   attachmentUrl: string;
   attachmentKind: DashboardNewsAttachmentKind;
+  /** Dodatne slike u modalu (pored attachmenta). */
+  galleryUrls: string[];
   /** ISO string — za „NEU“ značku prvih 3 dana nakon objave. */
   createdAt: string;
 };
@@ -78,6 +81,32 @@ async function uploadCover(file: File, prefix: string): Promise<string> {
   return blob.url;
 }
 
+async function uploadNewsGalleryImage(file: File, prefix: string): Promise<string> {
+  assertImageFile(file, "Galerie");
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) throw new Error("BLOB_READ_WRITE_TOKEN fehlt.");
+  const originalName = file.name || "image.jpg";
+  const ext = (originalName.split(".").pop() || "jpg").toLowerCase();
+  const safeBase = originalName.replace(/\s+/g, "_").replace(/[^\w.\-]/g, "");
+  const path = `dashboard-news/gallery/${prefix}-${Date.now()}-${safeBase}.${ext}`;
+  const blob = await put(path, file, { access: "public", token, addRandomSuffix: true });
+  return blob.url;
+}
+
+function normalizeExistingNewsGalleryUrls(formData: FormData): string[] {
+  const values = formData
+    .getAll("existingGalleryUrls")
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+  return [...new Set(values)];
+}
+
+function getNewNewsGalleryFiles(formData: FormData): File[] {
+  return formData
+    .getAll("galleryImages")
+    .filter((v): v is File => v instanceof File && v.size > 0);
+}
+
 async function uploadAttachment(file: File, prefix: string): Promise<{ url: string; kind: DashboardNewsAttachmentKind }> {
   const kind = assertAttachmentFile(file);
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -108,9 +137,22 @@ export async function getActiveDashboardNews(): Promise<DashboardNewsPublic[]> {
       attachmentUrl: true,
       attachmentKind: true,
       createdAt: true,
+      galleryImages: {
+        select: { imageUrl: true, sortOrder: true, createdAt: true },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      },
     },
   });
-  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    subtitle: r.subtitle,
+    coverImageUrl: r.coverImageUrl,
+    attachmentUrl: r.attachmentUrl,
+    attachmentKind: r.attachmentKind,
+    galleryUrls: r.galleryImages.map((g) => g.imageUrl),
+    createdAt: r.createdAt.toISOString(),
+  }));
 }
 
 export async function listDashboardNewsForAdmin() {
@@ -122,8 +164,18 @@ export async function listDashboardNewsForAdmin() {
 
 export async function getDashboardNewsById(id: string) {
   await requirePermission("dashboard_news:manage");
-  const row = await prisma.dashboardNewsItem.findUnique({ where: { id } });
-  return row;
+  const cleanId = String(id ?? "").trim();
+  if (!cleanId) return null;
+
+  const row = await prisma.dashboardNewsItem.findUnique({ where: { id: cleanId } });
+  if (!row) return null;
+
+  const galleryImages = await prisma.dashboardNewsGalleryImage.findMany({
+    where: { newsId: cleanId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  return { ...row, galleryImages };
 }
 
 export async function createDashboardNewsItem(formData: FormData): Promise<{ ok: boolean; error?: string }> {
@@ -142,8 +194,19 @@ export async function createDashboardNewsItem(formData: FormData): Promise<{ ok:
     if (!(cover instanceof File)) return { ok: false, error: "Titelbild erforderlich." };
     if (!(attachment instanceof File)) return { ok: false, error: "Anhang erforderlich." };
 
+    const galleryFiles = getNewNewsGalleryFiles(formData);
+    if (galleryFiles.length > MAX_NEWS_GALLERY_IMAGES) {
+      return { ok: false, error: `Maximal ${MAX_NEWS_GALLERY_IMAGES} Galeriebilder erlaubt.` };
+    }
+
     const coverUrl = await uploadCover(cover, "new");
     const { url: attUrl, kind } = await uploadAttachment(attachment, "new");
+    const galleryUrls =
+      galleryFiles.length > 0
+        ? await Promise.all(
+            galleryFiles.map((file, idx) => uploadNewsGalleryImage(file, `new-${idx + 1}`))
+          )
+        : [];
 
     await prisma.dashboardNewsItem.create({
       data: {
@@ -154,6 +217,13 @@ export async function createDashboardNewsItem(formData: FormData): Promise<{ ok:
         attachmentKind: kind,
         sortOrder,
         isActive,
+        ...(galleryUrls.length > 0
+          ? {
+              galleryImages: {
+                create: galleryUrls.map((url, idx) => ({ imageUrl: url, sortOrder: idx })),
+              },
+            }
+          : {}),
       },
     });
 
@@ -198,6 +268,16 @@ export async function updateDashboardNewsItem(
       attachmentKind = up.kind;
     }
 
+    const existingGalleryUrls = normalizeExistingNewsGalleryUrls(formData);
+    const newGalleryFiles = getNewNewsGalleryFiles(formData);
+    if (existingGalleryUrls.length + newGalleryFiles.length > MAX_NEWS_GALLERY_IMAGES) {
+      return { ok: false, error: `Maximal ${MAX_NEWS_GALLERY_IMAGES} Galeriebilder erlaubt.` };
+    }
+    const uploadedGalleryUrls = await Promise.all(
+      newGalleryFiles.map((file, idx) => uploadNewsGalleryImage(file, `${id}-g-${idx + 1}`))
+    );
+    const finalGalleryUrls = [...existingGalleryUrls, ...uploadedGalleryUrls];
+
     await prisma.dashboardNewsItem.update({
       where: { id },
       data: {
@@ -208,6 +288,10 @@ export async function updateDashboardNewsItem(
         attachmentKind,
         sortOrder,
         isActive,
+        galleryImages: {
+          deleteMany: {},
+          create: finalGalleryUrls.map((url, idx) => ({ imageUrl: url, sortOrder: idx })),
+        },
       },
     });
 
@@ -248,9 +332,16 @@ export async function setDashboardNewsActive(
 
 export async function recordDashboardNewsView(newsItemId: string) {
   const dbUser = await getDbUserForAccess();
-  await prisma.dashboardNewsView.createMany({
-    data: [{ userId: dbUser.id, newsItemId }],
-    skipDuplicates: true,
+  const now = new Date();
+  await prisma.dashboardNewsView.upsert({
+    where: {
+      userId_newsItemId: {
+        userId: dbUser.id,
+        newsItemId,
+      },
+    },
+    create: { userId: dbUser.id, newsItemId, viewedAt: now },
+    update: { viewedAt: now },
   });
   return { ok: true as const };
 }
