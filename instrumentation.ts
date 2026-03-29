@@ -215,6 +215,30 @@ export async function register() {
     await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "isArchived" BOOLEAN NOT NULL DEFAULT false`);
     await run(`CREATE INDEX IF NOT EXISTS "Idea_isArchived_idx" ON "Idea"("isArchived")`);
 
+    // ── Idea status columns (IdeaStatus enum + admin reply) ───────────────
+    // Vercel deploy obično ne pokreće `prisma migrate deploy`, pa Prisma može
+    // failati ako LIVE Neon DB nema ove kolone.
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'IdeaStatus') THEN
+          CREATE TYPE "IdeaStatus" AS ENUM ('SENT', 'IN_PROGRESS', 'DONE');
+        END IF;
+      END $$
+    `);
+    await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "status" "IdeaStatus" NOT NULL DEFAULT 'SENT'`);
+    await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "adminReply" TEXT`);
+    await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "repliedAt" TIMESTAMP(3)`);
+    await run(`ALTER TABLE "Idea" ADD COLUMN IF NOT EXISTS "repliedById" TEXT`);
+    await run(`CREATE INDEX IF NOT EXISTS "Idea_status_idx" ON "Idea"("status")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Idea_repliedById_fkey') THEN
+          ALTER TABLE "Idea" ADD CONSTRAINT "Idea_repliedById_fkey"
+            FOREIGN KEY ("repliedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
     // ── 10b. Dashboard news slider ──────────────────────────────────────────
     await run(`
       DO $$ BEGIN

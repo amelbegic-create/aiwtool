@@ -15,6 +15,7 @@ const migrations = [
   "prisma/migrations/20250222130000_idea_image_urls/migration.sql",
   "prisma/migrations/20250222120000_labor_report_unique/migration.sql",
   "prisma/migrations/20250222140000_partner_company_columns/migration.sql",
+  "prisma/migrations/20260328140000_idea_status_admin_reply/migration.sql",
 ];
 
 console.log("Running migrations...");
