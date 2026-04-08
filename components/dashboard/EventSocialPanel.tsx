@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Heart, MessageCircle, Send, Loader2, X } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { Heart, MessageCircle, Send, Loader2, X, Trash2 } from "lucide-react";
 import {
   toggleDashboardEventLike,
   getDashboardEventComments,
   addDashboardEventComment,
+  deleteDashboardEventComment,
   type DashboardEventCommentPublic,
 } from "@/app/actions/dashboardEventActions";
 import { formatDateTimeDeAt } from "@/lib/dateUtils";
 import { toast } from "sonner";
+import { hasPermission } from "@/lib/permissionCheck";
 
 export default function EventSocialPanel({
   eventId,
@@ -22,6 +25,14 @@ export default function EventSocialPanel({
   initialCommentCount: number;
   initialLikedByMe: boolean;
 }) {
+  const { data: session } = useSession();
+  const sessionUser = session?.user as { role?: string; permissions?: string[] } | undefined;
+  const canDeleteComments = hasPermission(
+    String(sessionUser?.role ?? ""),
+    Array.isArray(sessionUser?.permissions) ? sessionUser.permissions : [],
+    "dashboard_events:manage"
+  );
+
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [liked, setLiked] = useState(initialLikedByMe);
   const [commentCount, setCommentCount] = useState(initialCommentCount);
@@ -31,6 +42,7 @@ export default function EventSocialPanel({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [likePending, setLikePending] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
 
   useEffect(() => {
     setLikeCount(initialLikeCount);
@@ -82,6 +94,21 @@ export default function EventSocialPanel({
       toast.error(e instanceof Error ? e.message : "Fehler.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const onDeleteComment = async (id: string) => {
+    if (!canDeleteComments || deletingCommentId) return;
+    setDeletingCommentId(id);
+    try {
+      const r = await deleteDashboardEventComment(id);
+      if (!r.ok) throw new Error(r.error ?? "Fehler");
+      setComments((prev) => prev.filter((c) => c.id !== id));
+      setCommentCount((c) => Math.max(0, c - 1));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fehler.");
+    } finally {
+      setDeletingCommentId(null);
     }
   };
 
@@ -149,9 +176,23 @@ export default function EventSocialPanel({
                       <span className="text-xs font-bold text-foreground truncate">
                         {c.userName || "Unbekannt"}
                       </span>
-                      <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                        {formatDateTimeDeAt(c.createdAt)}
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {formatDateTimeDeAt(c.createdAt)}
+                        </span>
+                        {canDeleteComments && (
+                          <button
+                            type="button"
+                            onClick={() => void onDeleteComment(c.id)}
+                            disabled={!!deletingCommentId}
+                            className="p-1 rounded-lg hover:bg-muted text-muted-foreground disabled:opacity-50"
+                            aria-label="Kommentar löschen"
+                            title="Löschen"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-foreground whitespace-pre-wrap break-words mt-0.5">{c.body}</p>
                   </div>

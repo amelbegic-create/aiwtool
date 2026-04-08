@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 type PdfPreviewModalProps = {
@@ -8,18 +10,34 @@ type PdfPreviewModalProps = {
   onClose: () => void;
 };
 
-/** Zentrierter PDF-Dialog (iframe), gleicher Stil wie Restaurants-Hub. */
+/** Zentrierter PDF-Dialog (iframe). Portal nach document.body, damit nichts vom Dashboard „durchscheint“. */
 export default function PdfPreviewModal({ url, title, onClose }: PdfPreviewModalProps) {
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  if (!mounted || typeof document === "undefined") return null;
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
       role="presentation"
     >
       <div
-        className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden"
+        className="relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl ring-1 ring-black/10 dark:ring-white/10"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -55,6 +73,7 @@ export default function PdfPreviewModal({ url, title, onClose }: PdfPreviewModal
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

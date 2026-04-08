@@ -36,6 +36,7 @@ export default async function AdminHome() {
   const besuchsberichteAccess = await tryRequirePermission("besuchsberichte:manage");
   const dashboardNewsAccess = await tryRequirePermission("dashboard_news:manage");
   const dashboardEventsAccess = await tryRequirePermission("dashboard_events:manage");
+  const dashboardDocsAccess = await tryRequirePermission("dashboard_docs:manage");
 
   const session = await getServerSession(authOptions);
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
@@ -184,9 +185,20 @@ export default async function AdminHome() {
       ? [
           {
             title: "Dashboard-Events",
-            desc: "Events & Highlights: Cover, Galerie (max. 10 Bilder), Reihenfolge und Sichtbarkeit.",
+            desc: "Events & Highlights: Cover, Galerie (bis zu 200 Bilder), Reihenfolge und Sichtbarkeit.",
             href: "/admin/dashboard-events",
             icon: CalendarDays,
+            tag: "Dashboard",
+          } satisfies AdminCard,
+        ]
+      : []),
+    ...(dashboardDocsAccess.ok
+      ? [
+          {
+            title: "Dashboard-Dokumente",
+            desc: "Zwei globale PDFs („Biblija AIW“) für alle Nutzer auf dem Dashboard verwalten.",
+            href: "/admin/dashboard-docs",
+            icon: BookOpen,
             tag: "Dashboard",
           } satisfies AdminCard,
         ]

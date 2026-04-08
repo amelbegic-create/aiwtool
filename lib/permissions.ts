@@ -52,6 +52,10 @@ export const PERMISSIONS: PermissionGroup[] = [
         key: "dashboard_events:manage",
         label: "Dashboard-Events-Slider: Events und Bildergalerie verwalten",
       },
+      {
+        key: "dashboard_docs:manage",
+        label: "Dashboard: Globale PDF-Dokumente (Biblija AIW) hochladen und verwalten",
+      },
     ],
   },
   {

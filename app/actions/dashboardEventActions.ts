@@ -7,7 +7,30 @@ import { revalidatePath } from "next/cache";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
-const MAX_GALLERY_IMAGES = 50;
+const MAX_GALLERY_IMAGES = 200;
+const GALLERY_UPLOAD_CONCURRENCY = 4;
+
+async function uploadManyWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const cap = Math.max(1, Math.min(10, Math.floor(concurrency || 1)));
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  const runners = Array.from({ length: Math.min(cap, items.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i], i);
+    }
+  });
+
+  await Promise.all(runners);
+  return results;
+}
 
 function isImageFile(file: File): boolean {
   const type = (file.type || "").toLowerCase();
@@ -179,8 +202,10 @@ export async function createDashboardEventItem(formData: FormData): Promise<{ ok
     }
 
     const coverImageUrl = await uploadImage(cover, "dashboard-events/covers", "new");
-    const galleryUrls = await Promise.all(
-      galleryFiles.map((file, idx) => uploadImage(file, "dashboard-events/gallery", `new-${idx + 1}`))
+    const galleryUrls = await uploadManyWithConcurrency(
+      galleryFiles,
+      GALLERY_UPLOAD_CONCURRENCY,
+      (file, idx) => uploadImage(file, "dashboard-events/gallery", `new-${idx + 1}`)
     );
 
     let videoUrl: string | null = null;
@@ -239,8 +264,10 @@ export async function updateDashboardEventItem(
 
     const existingGalleryUrls = normalizeExistingImageUrls(formData);
     const newGalleryFiles = getNewGalleryFiles(formData);
-    const uploadedGalleryUrls = await Promise.all(
-      newGalleryFiles.map((file, idx) => uploadImage(file, "dashboard-events/gallery", `${id}-${idx + 1}`))
+    const uploadedGalleryUrls = await uploadManyWithConcurrency(
+      newGalleryFiles,
+      GALLERY_UPLOAD_CONCURRENCY,
+      (file, idx) => uploadImage(file, "dashboard-events/gallery", `${id}-${idx + 1}`)
     );
 
     const finalUrls = [...existingGalleryUrls, ...uploadedGalleryUrls];
@@ -396,6 +423,17 @@ export async function addDashboardEventComment(
         userImage: c.user.image,
       },
     };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
+  }
+}
+
+export async function deleteDashboardEventComment(commentId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requirePermission("dashboard_events:manage");
+    await prisma.dashboardEventComment.delete({ where: { id: commentId } });
+    revalidatePath("/dashboard");
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Fehler." };
   }

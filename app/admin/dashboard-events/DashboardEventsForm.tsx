@@ -90,7 +90,7 @@ export default function DashboardEventsForm({
     })
   );
 
-  const maxGallery = 50;
+  const maxGallery = 200;
   const existingCount = initial?.galleryUrls?.length ?? 0;
   const keepCount = gallery.kept.size;
   const newCount = gallery.newFiles.length;

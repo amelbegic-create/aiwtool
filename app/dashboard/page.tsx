@@ -22,6 +22,8 @@ import DashboardVacationCard from "@/components/dashboard/DashboardVacationCard"
 import { getUserVacationYearSnapshot, getVacationReportForUser } from "@/app/actions/vacationActions";
 import { getActiveDashboardNews } from "@/app/actions/dashboardNewsActions";
 import { getActiveDashboardEvents } from "@/app/actions/dashboardEventActions";
+import { getPinnedDocs } from "@/app/actions/dashboardPinnedDocsActions";
+import QualitaetsfuehrerLauncher from "@/components/dashboard/QualitaetsfuehrerLauncher";
 
 export const dynamic = "force-dynamic";
 
@@ -210,6 +212,13 @@ export default async function DashboardPage({
     /* Tabelle fehlt bis db push / instrumentation */
   }
 
+  let pinnedDocs: Awaited<ReturnType<typeof getPinnedDocs>> = [];
+  try {
+    pinnedDocs = await getPinnedDocs();
+  } catch {
+    /* Tabelle fehlt bis db push / instrumentation */
+  }
+
   const sp = await searchParams;
   const openNewsId = typeof sp?.openNews === "string" ? sp.openNews : null;
   const openEventId = typeof sp?.openEvent === "string" ? sp.openEvent : null;
@@ -249,8 +258,8 @@ export default async function DashboardPage({
           </>
         )}
 
-        <div className="relative z-10 mx-auto max-w-7xl px-4 md:px-8 pt-5 md:pt-6 pb-5 md:pb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+        <div className="relative z-10 mx-auto max-w-7xl px-4 md:px-8 pt-5 md:pt-6 pb-5 md:pb-6 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-4 md:gap-6 md:items-center">
+          <div className="min-w-0">
             <p className="text-[#FFC72C]/60 text-[10px] font-bold uppercase tracking-[0.2em] mb-1.5">
               {today}
             </p>
@@ -263,14 +272,11 @@ export default async function DashboardPage({
               </span>
             </div>
           </div>
-          <div className="shrink-0 flex flex-col items-end sm:flex-row sm:items-center gap-2">
-            <Link
-              href="/dashboard/meine-ideen"
-              className="text-[11px] font-bold text-[#FFC72C]/90 hover:text-[#FFC72C] underline-offset-2 hover:underline order-2 sm:order-1"
-            >
-              Meine Ideen
-            </Link>
-            <div className="flex items-center gap-2 order-1 sm:order-2">
+          <div className="flex justify-center px-1 md:px-2">
+            <QualitaetsfuehrerLauncher docs={pinnedDocs} />
+          </div>
+          <div className="flex flex-col items-stretch sm:items-end sm:flex-row sm:justify-end gap-2 justify-self-end w-full md:w-auto">
+            <div className="flex items-center justify-center sm:justify-end gap-2">
               <DeineIdeeButton />
               <DashboardChangelogButton changelog={changelog} />
             </div>
@@ -294,7 +300,7 @@ export default async function DashboardPage({
       ══════════════════════════════════════ */}
       <main className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8 pt-2 md:pt-4 pb-10 safe-area-l safe-area-r">
 
-        {/* ── Kartice u jednom horizontalnom redu (slika 2): Kalendar | MEIN TEAM | JAHRESURLAUB | To-Do ── */}
+        {/* ── Vier Karten in einer Reihe (lg): Kalender | Team | Aufgaben | Urlaub ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5 items-stretch min-h-[240px]">
           {/* 1. Mein Kalender */}
           <div className="min-h-0 flex flex-col">
@@ -362,7 +368,12 @@ export default async function DashboardPage({
             </Link>
           </div>
 
-          {/* 3. JAHRESURLAUB */}
+          {/* 3. Meine Aufgaben */}
+          <div className="min-h-0 flex flex-col">
+            <DashboardTodoCard userId={dbUser.id} initialTodos={initialTodos} />
+          </div>
+
+          {/* 4. JAHRESURLAUB */}
           <div className="min-h-0 flex flex-col">
             <DashboardVacationCard
               year={currentYear}
@@ -373,11 +384,6 @@ export default async function DashboardPage({
               remaining={vacationSnapshot.remaining}
               pdf={vacationPdfPayload}
             />
-          </div>
-
-          {/* 4. Meine Aufgaben (To-Do) */}
-          <div className="min-h-0 flex flex-col">
-            <DashboardTodoCard userId={dbUser.id} initialTodos={initialTodos} />
           </div>
         </div>
 

@@ -748,6 +748,16 @@ model DashboardHighlight {
   @@index([addedAt])
 }
 
+/// Globalni dokumenti istaknuti na dashboardu (npr. \"Biblija AIW\") – samo URL + naslov.
+model DashboardPinnedDoc {
+  id        String   @id @default(cuid())
+  key       String   @unique // stabilan identifikator (generisan), npr. \"doc_xxx\"
+  title     String
+  pdfUrl    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 /// Slider „Novosti“ na dashboardu – cover + attachment (PDF ili slika)
 model DashboardNewsItem {
   id               String                       @id @default(cuid())

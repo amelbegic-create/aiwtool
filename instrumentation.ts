@@ -465,6 +465,20 @@ export async function register() {
         END IF;
       END $$
     `);
+
+    // ── 10d. Dashboard pinned docs (global PDFs) ─────────────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "DashboardPinnedDoc" (
+        "id"        TEXT NOT NULL,
+        "key"       TEXT NOT NULL,
+        "title"     TEXT NOT NULL,
+        "pdfUrl"    TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DashboardPinnedDoc_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE UNIQUE INDEX IF NOT EXISTS "DashboardPinnedDoc_key_key" ON "DashboardPinnedDoc"("key")`);
     await run(`
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DashboardEventComment_eventItemId_fkey') THEN
