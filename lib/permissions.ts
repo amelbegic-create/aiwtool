@@ -65,20 +65,6 @@ export const PERMISSIONS: PermissionGroup[] = [
     items: [{ key: "todo:access", label: "To-Do-Modul nutzen" }],
   },
   {
-    id: "rules",
-    title: "Richtlinien",
-    subtitle: "Verwaltung von Richtlinien, Kategorien und Inhalten",
-    items: [
-      { key: "rules:access", label: "Zugriff auf Richtlinien" },
-      { key: "rules:create", label: "Richtlinien erstellen" },
-      { key: "rules:edit", label: "Richtlinien bearbeiten" },
-      { key: "rules:delete", label: "Richtlinien löschen" },
-      { key: "rules:publish", label: "Richtlinien veröffentlichen" },
-      { key: "rules:categories", label: "Kategorien verwalten" },
-      { key: "rules:uploads", label: "Dateien hochladen" },
-    ],
-  },
-  {
     id: "pds",
     title: "Beurteilungssystem",
     subtitle: "Leistungs- und Entwicklungsbeurteilungen",
@@ -168,6 +154,20 @@ export const PERMISSIONS: PermissionGroup[] = [
     items: [
       { key: "besuchsberichte:access", label: "Zugriff auf Besuchsberichte" },
       { key: "besuchsberichte:manage", label: "Kategorien und Dokumente verwalten (pro Standort)" },
+    ],
+  },
+  {
+    id: "rules",
+    title: "Bedienungsanleitungen",
+    subtitle: "Verwaltung von Bedienungsanleitungen, Kategorien und Inhalten",
+    items: [
+      { key: "rules:access", label: "Zugriff auf Bedienungsanleitungen" },
+      { key: "rules:create", label: "Bedienungsanleitungen erstellen" },
+      { key: "rules:edit", label: "Bedienungsanleitungen bearbeiten" },
+      { key: "rules:delete", label: "Bedienungsanleitungen löschen" },
+      { key: "rules:publish", label: "Bedienungsanleitungen veröffentlichen" },
+      { key: "rules:categories", label: "Kategorien verwalten" },
+      { key: "rules:uploads", label: "Dateien hochladen" },
     ],
   },
   {
