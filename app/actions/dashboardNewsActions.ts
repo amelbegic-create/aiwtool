@@ -36,7 +36,57 @@ export type DashboardNewsPublic = {
   galleryUrls: string[];
   /** ISO string — za „NEU“ značku prvih 3 dana nakon objave. */
   createdAt: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  notifyAll: boolean;
+  addToCalendar: boolean;
 };
+
+function parseDateStartUtc(dateStrRaw: unknown): Date | null {
+  const s = typeof dateStrRaw === "string" ? dateStrRaw.trim() : "";
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error("Ungültiges Startdatum.");
+  const t = Date.parse(`${s}T00:00:00.000Z`);
+  if (!Number.isFinite(t)) throw new Error("Ungültiges Startdatum.");
+  return new Date(t);
+}
+
+function parseDateEndUtc(dateStrRaw: unknown): Date | null {
+  const s = typeof dateStrRaw === "string" ? dateStrRaw.trim() : "";
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new Error("Ungültiges Enddatum.");
+  const t = Date.parse(`${s}T23:59:59.999Z`);
+  if (!Number.isFinite(t)) throw new Error("Ungültiges Enddatum.");
+  return new Date(t);
+}
+
+async function upsertCalendarEventsForNews(params: {
+  newsId: string;
+  ownerUserId: string;
+  title: string;
+  startsAt: Date;
+  endsAt: Date | null;
+}) {
+  // Calendar view currently displays events without filtering by userId,
+  // so we must create exactly ONE event (not one per user).
+  await prisma.calendarEvent.deleteMany({ where: { dashboardNewsItemId: params.newsId } });
+
+  await prisma.calendarEvent.create({
+    data: {
+      userId: params.ownerUserId,
+      dashboardNewsItemId: params.newsId,
+      title: params.title,
+      date: params.startsAt,
+      endDate: params.endsAt ?? undefined,
+      type: "Promotion",
+      color: "#FFBC0D",
+    },
+  });
+}
+
+async function deleteCalendarEventsForNews(newsId: string) {
+  await prisma.calendarEvent.deleteMany({ where: { dashboardNewsItemId: newsId } });
+}
 
 function assertImageFile(file: File, label: string) {
   if (!file || file.size === 0) throw new Error(`${label}: Datei fehlt.`);
@@ -126,8 +176,15 @@ async function uploadAttachment(file: File, prefix: string): Promise<{ url: stri
 
 /** Öffentlich für eingeloggte Dashboard-Seite (keine Admin-Permission nötig). */
 export async function getActiveDashboardNews(): Promise<DashboardNewsPublic[]> {
+  const now = new Date();
   const rows = await prisma.dashboardNewsItem.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+      ],
+    },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     select: {
       id: true,
@@ -137,6 +194,10 @@ export async function getActiveDashboardNews(): Promise<DashboardNewsPublic[]> {
       attachmentUrl: true,
       attachmentKind: true,
       createdAt: true,
+      startsAt: true,
+      endsAt: true,
+      notifyAll: true,
+      addToCalendar: true,
       galleryImages: {
         select: { imageUrl: true, sortOrder: true, createdAt: true },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -152,6 +213,10 @@ export async function getActiveDashboardNews(): Promise<DashboardNewsPublic[]> {
     attachmentKind: r.attachmentKind,
     galleryUrls: r.galleryImages.map((g) => g.imageUrl),
     createdAt: r.createdAt.toISOString(),
+    startsAt: r.startsAt ? r.startsAt.toISOString() : null,
+    endsAt: r.endsAt ? r.endsAt.toISOString() : null,
+    notifyAll: r.notifyAll,
+    addToCalendar: r.addToCalendar,
   }));
 }
 
@@ -180,7 +245,7 @@ export async function getDashboardNewsById(id: string) {
 
 export async function createDashboardNewsItem(formData: FormData): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requirePermission("dashboard_news:manage");
+    const dbUser = await requirePermission("dashboard_news:manage");
     const title = String(formData.get("title") ?? "").trim();
     if (!title) return { ok: false, error: "Titel ist erforderlich." };
     const subtitleRaw = formData.get("subtitle");
@@ -188,6 +253,18 @@ export async function createDashboardNewsItem(formData: FormData): Promise<{ ok:
       typeof subtitleRaw === "string" && subtitleRaw.trim() ? subtitleRaw.trim() : null;
     const sortOrder = Math.max(0, parseInt(String(formData.get("sortOrder") ?? "0"), 10) || 0);
     const isActive = formData.get("isActive") === "true";
+
+    const startsAt = parseDateStartUtc(formData.get("startsAt"));
+    const endsAt = parseDateEndUtc(formData.get("endsAt"));
+    const notifyAll = Boolean(formData.get("notifyAll"));
+    const addToCalendar = Boolean(formData.get("addToCalendar"));
+
+    if (startsAt && endsAt && endsAt.getTime() < startsAt.getTime()) {
+      return { ok: false, error: "Enddatum darf nicht vor dem Startdatum liegen." };
+    }
+    if (addToCalendar && !startsAt) {
+      return { ok: false, error: "Für „In Kalender“ muss „Gültig ab“ gesetzt sein." };
+    }
 
     const cover = formData.get("cover");
     const attachment = formData.get("attachment");
@@ -208,7 +285,7 @@ export async function createDashboardNewsItem(formData: FormData): Promise<{ ok:
           )
         : [];
 
-    await prisma.dashboardNewsItem.create({
+    const created = await prisma.dashboardNewsItem.create({
       data: {
         title,
         subtitle,
@@ -217,6 +294,10 @@ export async function createDashboardNewsItem(formData: FormData): Promise<{ ok:
         attachmentKind: kind,
         sortOrder,
         isActive,
+        startsAt,
+        endsAt,
+        notifyAll,
+        addToCalendar,
         ...(galleryUrls.length > 0
           ? {
               galleryImages: {
@@ -226,6 +307,16 @@ export async function createDashboardNewsItem(formData: FormData): Promise<{ ok:
           : {}),
       },
     });
+
+    if (addToCalendar && startsAt) {
+      await upsertCalendarEventsForNews({
+        newsId: created.id,
+        ownerUserId: dbUser.id,
+        title,
+        startsAt,
+        endsAt,
+      });
+    }
 
     revalidatePath("/dashboard");
     revalidatePath("/admin/dashboard-news");
@@ -240,7 +331,7 @@ export async function updateDashboardNewsItem(
   formData: FormData
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requirePermission("dashboard_news:manage");
+    const dbUser = await requirePermission("dashboard_news:manage");
     const existing = await prisma.dashboardNewsItem.findUnique({ where: { id } });
     if (!existing) return { ok: false, error: "Eintrag nicht gefunden." };
 
@@ -251,6 +342,18 @@ export async function updateDashboardNewsItem(
       typeof subtitleRaw === "string" && subtitleRaw.trim() ? subtitleRaw.trim() : null;
     const sortOrder = Math.max(0, parseInt(String(formData.get("sortOrder") ?? "0"), 10) || 0);
     const isActive = formData.get("isActive") === "true";
+
+    const startsAt = parseDateStartUtc(formData.get("startsAt"));
+    const endsAt = parseDateEndUtc(formData.get("endsAt"));
+    const notifyAll = Boolean(formData.get("notifyAll"));
+    const addToCalendar = Boolean(formData.get("addToCalendar"));
+
+    if (startsAt && endsAt && endsAt.getTime() < startsAt.getTime()) {
+      return { ok: false, error: "Enddatum darf nicht vor dem Startdatum liegen." };
+    }
+    if (addToCalendar && !startsAt) {
+      return { ok: false, error: "Für „In Kalender“ muss „Gültig ab“ gesetzt sein." };
+    }
 
     let coverImageUrl = existing.coverImageUrl;
     let attachmentUrl = existing.attachmentUrl;
@@ -288,12 +391,22 @@ export async function updateDashboardNewsItem(
         attachmentKind,
         sortOrder,
         isActive,
+        startsAt,
+        endsAt,
+        notifyAll,
+        addToCalendar,
         galleryImages: {
           deleteMany: {},
           create: finalGalleryUrls.map((url, idx) => ({ imageUrl: url, sortOrder: idx })),
         },
       },
     });
+
+    if (addToCalendar && startsAt) {
+      await upsertCalendarEventsForNews({ newsId: id, ownerUserId: dbUser.id, title, startsAt, endsAt });
+    } else {
+      await deleteCalendarEventsForNews(id);
+    }
 
     revalidatePath("/dashboard");
     revalidatePath("/admin/dashboard-news");
@@ -306,6 +419,7 @@ export async function updateDashboardNewsItem(
 export async function deleteDashboardNewsItem(id: string): Promise<{ ok: boolean; error?: string }> {
   try {
     await requirePermission("dashboard_news:manage");
+    await deleteCalendarEventsForNews(id);
     await prisma.dashboardNewsItem.delete({ where: { id } });
     revalidatePath("/dashboard");
     revalidatePath("/admin/dashboard-news");

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -16,7 +16,19 @@ import {
   Download,
   Share2,
   X,
+  MessageSquare,
+  Trash2,
+  Paperclip,
+  Send,
+  ImageIcon,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  addPartnerComment,
+  deletePartnerComment,
+  uploadPartnerCommentAttachment,
+} from "@/app/actions/partnerActions";
+import type { PartnerCommentItem } from "@/app/actions/partnerActions";
 
 type DocItem = { fileUrl: string; fileName: string; fileType: string };
 
@@ -40,9 +52,279 @@ type PartnerData = {
   }>;
 };
 
-export default function PartnerDetailClient({ partner }: { partner: PartnerData }) {
+type Props = {
+  partner: PartnerData;
+  canSeeComments: boolean;
+  canDeleteComments: boolean;
+  initialComments: PartnerCommentItem[];
+};
+
+// ─── Comments Section ──────────────────────────────────────────────────────────
+
+function PartnerCommentsSection({
+  partnerId,
+  initialComments,
+  canDeleteComments,
+}: {
+  partnerId: string;
+  initialComments: PartnerCommentItem[];
+  canDeleteComments: boolean;
+}) {
+  const [comments, setComments] = useState<PartnerCommentItem[]>(initialComments);
+  const [text, setText] = useState("");
+  const [attachment, setAttachment] = useState<{
+    url: string;
+    fileName: string;
+    kind: "image" | "document";
+  } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await uploadPartnerCommentAttachment(fd);
+      if (!res.success) {
+        toast.error(res.error);
+      } else {
+        setAttachment({ url: res.url, fileName: res.fileName, kind: res.kind });
+        toast.success("Datei hochgeladen.");
+      }
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim() && !attachment) return;
+
+    startTransition(async () => {
+      const res = await addPartnerComment(
+        partnerId,
+        text,
+        attachment?.url ?? null,
+        attachment?.fileName ?? null,
+        attachment?.kind ?? null
+      );
+      if (!res.success) {
+        toast.error(res.error);
+      } else {
+        setComments((prev) => [res.comment, ...prev]);
+        setText("");
+        setAttachment(null);
+        toast.success("Kommentar gespeichert.");
+      }
+    });
+  };
+
+  const handleDelete = (commentId: string) => {
+    startTransition(async () => {
+      const res = await deletePartnerComment(commentId);
+      if (!res.success) {
+        toast.error(res.error);
+      } else {
+        setComments((prev) => prev.filter((c) => c.id !== commentId));
+        toast.success("Kommentar gelöscht.");
+      }
+    });
+  };
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleString("de-AT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-5 py-3.5 bg-[#1a3826] border-b border-[#FFC72C]/20">
+        <MessageSquare size={16} className="text-[#FFC72C]" />
+        <span className="text-sm font-black text-white uppercase tracking-wider">
+          Interne Kommentare
+        </span>
+        {comments.length > 0 && (
+          <span className="ml-auto text-xs font-bold text-[#FFC72C]/80">
+            {comments.length}
+          </span>
+        )}
+      </div>
+
+      {/* Add comment form */}
+      <form onSubmit={handleSubmit} className="p-4 border-b border-border space-y-3">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Kommentar hinzufügen…"
+          rows={3}
+          className="w-full rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/40 dark:focus:ring-[#FFC72C]/40 placeholder:text-muted-foreground"
+        />
+
+        {/* Attachment preview */}
+        {attachment && (
+          <div className="flex items-center gap-2 rounded-lg border border-[#1a3826]/20 bg-[#1a3826]/5 px-3 py-2 text-sm">
+            {attachment.kind === "image" ? (
+              <ImageIcon size={14} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
+            ) : (
+              <FileText size={14} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
+            )}
+            <span className="truncate flex-1 text-foreground font-medium text-xs">
+              {attachment.fileName}
+            </span>
+            <button
+              type="button"
+              onClick={() => setAttachment(null)}
+              className="text-muted-foreground hover:text-destructive transition"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 justify-between">
+          {/* File upload button */}
+          <button
+            type="button"
+            disabled={uploading || isPending}
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-muted/50 hover:bg-muted text-xs font-semibold text-muted-foreground transition disabled:opacity-50"
+          >
+            <Paperclip size={14} />
+            {uploading ? "Wird hochgeladen…" : "Anhang"}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+            onChange={handleFileChange}
+          />
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={isPending || uploading || (!text.trim() && !attachment)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a3826] hover:bg-[#1a3826]/90 text-[#FFC72C] text-xs font-black transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Send size={13} />
+            Senden
+          </button>
+        </div>
+      </form>
+
+      {/* Comment list */}
+      <div className="divide-y divide-border">
+        {comments.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-muted-foreground text-center">
+            Noch keine Kommentare.
+          </p>
+        ) : (
+          comments.map((c) => (
+            <div key={c.id} className="px-5 py-4 group">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="shrink-0 h-8 w-8 rounded-full bg-[#1a3826]/10 dark:bg-[#FFC72C]/15 flex items-center justify-center">
+                    <UserCircle size={16} className="text-[#1a3826] dark:text-[#FFC72C]" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-xs font-black text-foreground">
+                      {c.authorName ?? "Unbekannt"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground ml-2">
+                      {formatDate(c.createdAt)}
+                    </span>
+                  </div>
+                </div>
+
+                {canDeleteComments && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(c.id)}
+                    disabled={isPending}
+                    className="opacity-0 group-hover:opacity-100 transition p-1 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                    title="Kommentar löschen"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+
+              {c.content && (
+                <p className="mt-2 ml-10 text-sm text-foreground leading-relaxed whitespace-pre-line break-words">
+                  {c.content}
+                </p>
+              )}
+
+              {/* Attachment */}
+              {c.attachmentUrl && (
+                <div className="mt-2 ml-10">
+                  {c.attachmentKind === "image" ? (
+                    <a
+                      href={c.attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block max-w-xs rounded-xl overflow-hidden border border-border hover:opacity-90 transition"
+                    >
+                      <Image
+                        src={c.attachmentUrl}
+                        alt={c.attachmentName ?? "Anhang"}
+                        width={320}
+                        height={200}
+                        className="object-cover w-full"
+                        unoptimized={c.attachmentUrl.includes("blob.vercel-storage.com")}
+                      />
+                    </a>
+                  ) : (
+                    <a
+                      href={c.attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-[#1a3826]/20 bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:border-[#FFC72C]/20 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/10 text-xs font-semibold text-[#1a3826] dark:text-[#FFC72C] transition"
+                    >
+                      <FileText size={13} />
+                      {c.attachmentName ?? "Dokument"}
+                      <Download size={12} className="ml-1 text-muted-foreground" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Detail Component ─────────────────────────────────────────────────────
+
+export default function PartnerDetailClient({
+  partner,
+  canSeeComments,
+  canDeleteComments,
+  initialComments,
+}: Props) {
   const [galleryIndex, setGalleryIndex] = useState(0);
-  const [documentPreview, setDocumentPreview] = useState<{ url: string; fileName: string; viewable: boolean } | null>(null);
+  const [documentPreview, setDocumentPreview] = useState<{
+    url: string;
+    fileName: string;
+    viewable: boolean;
+  } | null>(null);
   const hasGallery = partner.galleryUrls.length > 0;
 
   const isViewableInIframe = (fileType: string) => {
@@ -84,7 +366,7 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
 
   return (
     <div className="min-h-screen bg-background pb-16">
-      {/* Action bar – kao Pravila */}
+      {/* Action bar */}
       <div className="border-b border-border bg-card">
         <div className="max-w-4xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <Link
@@ -112,9 +394,9 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-5 flex gap-6 flex-col lg:flex-row">
-        {/* Glavni sadržaj – kao Pravila */}
+        {/* Main content */}
         <div className="flex-1 min-w-0 space-y-5">
-          {/* Header: logo + naziv + kategorija */}
+          {/* Header: logo + name + category */}
           <header className="border-b border-border pb-4 flex flex-col sm:flex-row gap-4 items-start">
             <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-[#1a3826]/10 dark:bg-[#1a3826]/20 shrink-0 flex items-center justify-center">
               {partner.logoUrl ? (
@@ -136,7 +418,9 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                 {partner.category?.name && (
-                  <span className="font-medium text-muted-foreground">{partner.category.name}</span>
+                  <span className="font-medium text-muted-foreground">
+                    {partner.category.name}
+                  </span>
                 )}
                 {partner.websiteUrl && (
                   <a
@@ -157,7 +441,9 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
 
           {/* Beschreibung */}
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm text-base overflow-hidden min-w-0">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Beschreibung</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              Beschreibung
+            </p>
             {partner.serviceDescription ? (
               <p className="text-foreground leading-relaxed whitespace-pre-line break-words break-all">
                 {partner.serviceDescription}
@@ -173,11 +459,13 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
                 Interne Notizen
               </p>
-              <p className="text-foreground leading-relaxed whitespace-pre-line text-sm break-words break-all">{partner.notes}</p>
+              <p className="text-foreground leading-relaxed whitespace-pre-line text-sm break-words break-all">
+                {partner.notes}
+              </p>
             </div>
           )}
 
-          {/* Galerie – kao Pravila (karusel + thumbnails) */}
+          {/* Gallery */}
           {hasGallery && (
             <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
@@ -190,14 +478,18 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
                   fill
                   className="object-contain"
                   sizes="(max-width: 768px) 100vw, 640px"
-                  unoptimized={partner.galleryUrls[galleryIndex]?.includes("blob.vercel-storage.com")}
+                  unoptimized={partner.galleryUrls[galleryIndex]?.includes(
+                    "blob.vercel-storage.com"
+                  )}
                 />
                 {partner.galleryUrls.length > 1 && (
                   <>
                     <button
                       type="button"
                       onClick={() =>
-                        setGalleryIndex((i) => (i - 1 + partner.galleryUrls.length) % partner.galleryUrls.length)
+                        setGalleryIndex(
+                          (i) => (i - 1 + partner.galleryUrls.length) % partner.galleryUrls.length
+                        )
                       }
                       className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-card/90 flex items-center justify-center text-foreground shadow"
                     >
@@ -223,20 +515,38 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
                       idx === galleryIndex ? "border-[#1a3826]" : "border-transparent opacity-70"
                     }`}
                   >
-                    <Image src={url} alt="" fill className="object-cover" sizes="56px" unoptimized={url.includes("blob.vercel-storage.com")} />
+                    <Image
+                      src={url}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="56px"
+                      unoptimized={url.includes("blob.vercel-storage.com")}
+                    />
                   </button>
                 ))}
               </div>
             </div>
           )}
+
+          {/* Comments section (managers, admins, system architect only) */}
+          {canSeeComments && (
+            <PartnerCommentsSection
+              partnerId={partner.id}
+              initialComments={initialComments}
+              canDeleteComments={canDeleteComments}
+            />
+          )}
         </div>
 
-        {/* Sa strane: Kontakt + Dokument (PDF cjenovnik) – kao Pravila */}
+        {/* Sidebar: contacts + docs */}
         <aside className="lg:w-72 shrink-0 space-y-4">
           <div className="lg:sticky lg:top-20 space-y-4">
             {/* Kontakt */}
             <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Kontakt</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                Kontakt
+              </p>
               {partner.contacts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Keine Kontakte hinterlegt.</p>
               ) : (
@@ -283,7 +593,9 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
             {/* Webseite */}
             {partner.websiteUrl && (
               <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Webseite</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                  Webseite
+                </p>
                 <a
                   href={partner.websiteUrl}
                   target="_blank"
@@ -298,7 +610,7 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
               </div>
             )}
 
-            {/* Preisliste PDF – popup */}
+            {/* Preisliste PDF */}
             {partner.priceListPdfUrl && (
               <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
@@ -310,14 +622,18 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
                   className="w-full flex items-center gap-3 min-h-[44px] px-3 py-3 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left"
                 >
                   <FileText size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
-                  <span className="text-sm font-medium text-foreground truncate flex-1">{pdfLabel}</span>
-                  <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase">Öffnen</span>
+                  <span className="text-sm font-medium text-foreground truncate flex-1">
+                    {pdfLabel}
+                  </span>
+                  <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase">
+                    Öffnen
+                  </span>
                   <Download size={16} className="text-muted-foreground shrink-0" />
                 </button>
               </div>
             )}
 
-            {/* Dokumente (uploadani PDF, Excel, Word, …) */}
+            {/* Dokumente */}
             {partner.documents.length > 0 && (
               <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
@@ -328,12 +644,21 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
                     <li key={`${doc.fileUrl}-${idx}`}>
                       <button
                         type="button"
-                        onClick={() => openDoc(doc.fileUrl, doc.fileName, isViewableInIframe(doc.fileType))}
+                        onClick={() =>
+                          openDoc(doc.fileUrl, doc.fileName, isViewableInIframe(doc.fileType))
+                        }
                         className="w-full flex items-center gap-3 min-h-[44px] px-3 py-2.5 rounded-xl bg-[#1a3826]/5 hover:bg-[#1a3826]/10 dark:bg-[#FFC72C]/5 dark:hover:bg-[#FFC72C]/15 border border-[#1a3826]/15 dark:border-[#FFC72C]/20 transition touch-manipulation text-left"
                       >
-                        <FileText size={18} className="text-[#1a3826] dark:text-[#FFC72C] shrink-0" />
-                        <span className="text-sm font-medium text-foreground truncate flex-1">{doc.fileName}</span>
-                        <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase shrink-0">Öffnen</span>
+                        <FileText
+                          size={18}
+                          className="text-[#1a3826] dark:text-[#FFC72C] shrink-0"
+                        />
+                        <span className="text-sm font-medium text-foreground truncate flex-1">
+                          {doc.fileName}
+                        </span>
+                        <span className="text-xs font-bold text-[#1a3826] dark:text-[#FFC72C] uppercase shrink-0">
+                          Öffnen
+                        </span>
                       </button>
                     </li>
                   ))}
@@ -344,7 +669,7 @@ export default function PartnerDetailClient({ partner }: { partner: PartnerData 
         </aside>
       </div>
 
-      {/* Dokument-Popup (PDF/Slike u iframe-u, ostalo nur Herunterladen) */}
+      {/* Document popup */}
       {documentPreview !== null && (
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"

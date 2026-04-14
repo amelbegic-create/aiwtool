@@ -5,7 +5,10 @@ export const IMPLICIT_LOGIN_PERMISSION_KEYS = [
   "todo:access",
   "partners:access",
   "vorlagen:access",
+  "information:access",
   "besuchsberichte:access",
+  "training:access",
+  "inventory:access",
 ] as const;
 
 /** Pun skup za ADMIN nakon migracije (konfigurabilno, ali početno full). */
@@ -32,6 +35,8 @@ export function buildDefaultManagerPermissionSet(): string[] {
     "rules:uploads",
     "partners:manage",
     "pds:access",
+    "inventory:access",
+    "inventory:edit",
   ]);
   return [...keys].filter((k) => ALL_PERMISSION_KEYS.includes(k));
 }

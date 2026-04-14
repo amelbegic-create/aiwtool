@@ -19,6 +19,9 @@ import {
   Wallet,
   Layers,
   Newspaper,
+  GraduationCap,
+  TrendingUp,
+  Info,
 } from "lucide-react";
 import { getUnreadIdeasCount } from "@/app/actions/ideaActions";
 import { AdminHomeCategories } from "@/components/admin/AdminHomeCategories";
@@ -33,10 +36,13 @@ export default async function AdminHome() {
   const holidaysAccess = await tryRequirePermission("holidays:manage");
   const ideenboxAccess = await tryRequirePermission("ideenbox:access");
   const vorlagenAccess = await tryRequirePermission("vorlagen:manage");
+  const informationAccess = await tryRequirePermission("information:manage");
   const besuchsberichteAccess = await tryRequirePermission("besuchsberichte:manage");
   const dashboardNewsAccess = await tryRequirePermission("dashboard_news:manage");
   const dashboardEventsAccess = await tryRequirePermission("dashboard_events:manage");
   const dashboardDocsAccess = await tryRequirePermission("dashboard_docs:manage");
+  const trainingManageAccess = await tryRequirePermission("training:manage");
+  const clAnalyseAccess = await tryRequirePermission("labor:access");
 
   const session = await getServerSession(authOptions);
   const sessionRole = (session?.user as { role?: string } | undefined)?.role;
@@ -145,6 +151,17 @@ export default async function AdminHome() {
           } satisfies AdminCard,
         ]
       : []),
+    ...(informationAccess.ok
+      ? [
+          {
+            title: "Informationen",
+            desc: "Interne Informationsdokumente (Dresscode, Richtlinien) hochladen und verwalten.",
+            href: "/admin/informationen",
+            icon: Info,
+            tag: "Informationen",
+          } satisfies AdminCard,
+        ]
+      : []),
     ...(besuchsberichteAccess.ok
       ? [
           {
@@ -203,6 +220,17 @@ export default async function AdminHome() {
           } satisfies AdminCard,
         ]
       : []),
+    ...(trainingManageAccess.ok
+      ? [
+          {
+            title: "Training",
+            desc: "Trainingsprogramme, Termine und Teilnehmer verwalten (öffentliche Übersicht unter /training).",
+            href: "/admin/training",
+            icon: GraduationCap,
+            tag: "Training",
+          } satisfies AdminCard,
+        ]
+      : []),
   ];
 
   const categoryBlocks: AdminCategoryBlock[] = [
@@ -227,7 +255,19 @@ export default async function AdminHome() {
       title: "Finanzen",
       description: "Auswertungen und Einstellungen rund um Finanzen und Controlling.",
       icon: Wallet,
-      cards: [],
+      cards: [
+        ...(clAnalyseAccess.ok
+          ? [
+              {
+                title: "CL Analyse",
+                desc: "Budget vs. Ist CL: Monats- und Jahresvergleich für alle Restaurants. Grafiken, Tabelle und Restaurantvergleich.",
+                href: "/admin/finanz/cl-analyse",
+                icon: TrendingUp,
+                tag: "Controlling",
+              } satisfies AdminCard,
+            ]
+          : []),
+      ],
       alwaysShow: true,
     },
     {

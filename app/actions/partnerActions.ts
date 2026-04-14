@@ -7,6 +7,163 @@ import { authOptions } from "@/lib/authOptions";
 import { requirePermission } from "@/lib/access";
 import { put } from "@vercel/blob";
 
+// Roles that can read/post comments
+const COMMENT_ROLES = ["SYSTEM_ARCHITECT", "ADMIN", "MANAGER"] as const;
+// Roles that can delete comments
+const COMMENT_DELETE_ROLES = ["SYSTEM_ARCHITECT", "ADMIN"] as const;
+
+type CommentRole = (typeof COMMENT_ROLES)[number];
+type CommentDeleteRole = (typeof COMMENT_DELETE_ROLES)[number];
+
+async function getCommentUser() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) return null;
+  return prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, name: true, role: true },
+  });
+}
+
+export type PartnerCommentItem = {
+  id: string;
+  partnerCompanyId: string;
+  authorId: string;
+  authorName: string | null;
+  content: string;
+  attachmentUrl: string | null;
+  attachmentName: string | null;
+  attachmentKind: string | null;
+  createdAt: string; // ISO string (serialisable)
+};
+
+export async function getPartnerComments(
+  partnerCompanyId: string
+): Promise<PartnerCommentItem[]> {
+  const user = await getCommentUser();
+  if (!user) return [];
+  if (!COMMENT_ROLES.includes(user.role as CommentRole)) return [];
+
+  const rows = await prisma.partnerCompanyComment.findMany({
+    where: { partnerCompanyId },
+    orderBy: { createdAt: "desc" },
+    include: { author: { select: { name: true } } },
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    partnerCompanyId: r.partnerCompanyId,
+    authorId: r.authorId,
+    authorName: r.author.name,
+    content: r.content,
+    attachmentUrl: r.attachmentUrl,
+    attachmentName: r.attachmentName,
+    attachmentKind: r.attachmentKind,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function addPartnerComment(
+  partnerCompanyId: string,
+  content: string,
+  attachmentUrl?: string | null,
+  attachmentName?: string | null,
+  attachmentKind?: string | null
+): Promise<{ success: true; comment: PartnerCommentItem } | { success: false; error: string }> {
+  try {
+    const user = await getCommentUser();
+    if (!user) return { success: false, error: "Nicht angemeldet." };
+    if (!COMMENT_ROLES.includes(user.role as CommentRole))
+      return { success: false, error: "Keine Berechtigung." };
+    if (!content?.trim()) return { success: false, error: "Kommentar darf nicht leer sein." };
+
+    const row = await prisma.partnerCompanyComment.create({
+      data: {
+        partnerCompanyId,
+        authorId: user.id,
+        content: content.trim(),
+        attachmentUrl: attachmentUrl?.trim() || null,
+        attachmentName: attachmentName?.trim() || null,
+        attachmentKind: attachmentKind?.trim() || null,
+      },
+      include: { author: { select: { name: true } } },
+    });
+
+    revalidatePath(`/tools/partners/${partnerCompanyId}`);
+
+    return {
+      success: true,
+      comment: {
+        id: row.id,
+        partnerCompanyId: row.partnerCompanyId,
+        authorId: row.authorId,
+        authorName: row.author.name,
+        content: row.content,
+        attachmentUrl: row.attachmentUrl,
+        attachmentName: row.attachmentName,
+        attachmentKind: row.attachmentKind,
+        createdAt: row.createdAt.toISOString(),
+      },
+    };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Fehler beim Speichern." };
+  }
+}
+
+export async function deletePartnerComment(
+  commentId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const user = await getCommentUser();
+    if (!user) return { success: false, error: "Nicht angemeldet." };
+    if (!COMMENT_DELETE_ROLES.includes(user.role as CommentDeleteRole))
+      return { success: false, error: "Keine Berechtigung zum Löschen." };
+
+    const row = await prisma.partnerCompanyComment.findUnique({
+      where: { id: commentId },
+      select: { partnerCompanyId: true },
+    });
+    if (!row) return { success: false, error: "Kommentar nicht gefunden." };
+
+    await prisma.partnerCompanyComment.delete({ where: { id: commentId } });
+    revalidatePath(`/tools/partners/${row.partnerCompanyId}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Fehler beim Löschen." };
+  }
+}
+
+export async function uploadPartnerCommentAttachment(
+  formData: FormData
+): Promise<
+  | { success: true; url: string; fileName: string; kind: "image" | "document" }
+  | { success: false; error: string }
+> {
+  try {
+    const user = await getCommentUser();
+    if (!user) return { success: false, error: "Nicht angemeldet." };
+    if (!COMMENT_ROLES.includes(user.role as CommentRole))
+      return { success: false, error: "Keine Berechtigung." };
+
+    const file = formData.get("file") as File | null;
+    if (!file?.size) return { success: false, error: "Keine Datei ausgewählt." };
+
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) return { success: false, error: "Blob nicht konfiguriert." };
+
+    const kind: "image" | "document" = file.type.startsWith("image/") ? "image" : "document";
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const blob = await put(
+      `partners/comments/${Date.now()}-${safeName}`,
+      file,
+      { access: "public", token, addRandomSuffix: true }
+    );
+
+    return { success: true, url: blob.url, fileName: file.name, kind };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Upload fehlgeschlagen." };
+  }
+}
+
 export type PartnerContactInput = {
   id?: string;
   contactName: string;

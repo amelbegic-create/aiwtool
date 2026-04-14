@@ -19,6 +19,10 @@ export type DashboardNewsFormInitial = {
   subtitle: string | null;
   sortOrder: number;
   isActive: boolean;
+  startsAt?: string | null; // YYYY-MM-DD
+  endsAt?: string | null;   // YYYY-MM-DD
+  notifyAll?: boolean;
+  addToCalendar?: boolean;
   coverImageUrl: string;
   attachmentUrl: string;
   attachmentKind: DashboardNewsAttachmentKind;
@@ -226,6 +230,67 @@ export default function DashboardNewsForm({
                 <option value="true">Aktiv (sichtbar)</option>
                 <option value="false">Inaktiv</option>
               </select>
+            </div>
+          </div>
+
+          {/* Zeitraum + Optionen */}
+          <div className="rounded-2xl border border-border bg-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border bg-muted/40 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">Zeitraum & Optionen</p>
+                <p className="text-xs text-muted-foreground">
+                  Optional: Wenn ein Enddatum gesetzt ist, verschwindet die Meldung danach automatisch vom Dashboard.
+                </p>
+              </div>
+            </div>
+            <div className="p-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <label htmlFor="startsAt" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
+                  Gültig ab (optional)
+                </label>
+                <input
+                  id="startsAt"
+                  name="startsAt"
+                  type="date"
+                  defaultValue={initial?.startsAt ?? ""}
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium"
+                />
+              </div>
+              <div>
+                <label htmlFor="endsAt" className="mb-1 block text-xs font-black uppercase text-muted-foreground">
+                  Gültig bis (optional)
+                </label>
+                <input
+                  id="endsAt"
+                  name="endsAt"
+                  type="date"
+                  defaultValue={initial?.endsAt ?? ""}
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium"
+                />
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground md:col-span-2">
+                <input
+                  type="checkbox"
+                  name="notifyAll"
+                  defaultChecked={initial?.notifyAll ?? true}
+                  className="h-4 w-4 accent-[#1a3826]"
+                />
+                Notifikation an alle senden (im Glocken-Menü)
+              </label>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground md:col-span-2">
+                <input
+                  type="checkbox"
+                  name="addToCalendar"
+                  defaultChecked={initial?.addToCalendar ?? false}
+                  className="h-4 w-4 accent-[#1a3826]"
+                />
+                In Kalender eintragen (bei „Gültig ab“ wird ein Termin für alle Benutzer erstellt)
+              </label>
+              <p className="text-xs text-muted-foreground md:col-span-2">
+                Tipp: Für „In Kalender“ sollte mindestens „Gültig ab“ gesetzt sein.
+              </p>
             </div>
           </div>
         </div>

@@ -16,6 +16,9 @@ import {
   Euro,
   Map,
   Calendar,
+  HandHelping,
+  Info,
+  Package,
 } from "lucide-react";
 
 export const TOOL_CATEGORIES = [
@@ -32,6 +35,9 @@ export const APP_TOOLS = [
   { id: 'sitzplan', name: 'Sitzplan & Layout', href: '/tools/sitzplan', icon: Map, category: 'restaurant' },
   { id: 'vorlagen', name: 'Vorlagen', href: '/tools/vorlagen', icon: FileText, category: 'restaurant' },
   { id: 'besuchsberichte', name: 'Besuchsberichte', href: '/tools/besuchsberichte', icon: FileCheck, category: 'restaurant' },
+  { id: 'aushilfe', name: 'Aushilfe', href: '/tools/aushilfe', icon: HandHelping, category: 'restaurant' },
+  { id: 'informationen', name: 'Informationen', href: '/tools/informationen', icon: Info, category: 'restaurant' },
+  { id: 'inventar', name: 'Equipment', href: '/tools/inventar', icon: Package, category: 'restaurant' },
   // PERSONAL
   { id: 'vacations', name: 'Urlaubsplanung', href: '/tools/vacations', icon: PlaneTakeoff, category: 'personal' },
   { id: 'calendar', name: 'Mein Kalender', href: '/tools/calendar', icon: Calendar, category: 'personal' },
@@ -55,6 +61,8 @@ export const TOOL_PERMISSION: Record<string, string> = {
   'productivity': 'productivity:access',
   'partners': 'partners:access',
   'vorlagen': 'vorlagen:access',
+  'informationen': 'information:access',
   'besuchsberichte': 'besuchsberichte:access',
+  'inventar': 'inventory:access',
   'admin-panel': 'admin_panel:access',
 };

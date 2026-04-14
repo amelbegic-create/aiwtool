@@ -51,6 +51,7 @@ export default async function RootLayout({
   let activeRestaurantId: string | undefined = undefined;
   let pendingNotifications = 0;
   let topbarNotifications: Awaited<ReturnType<typeof getNotificationsForUser>>["items"] = [];
+  let showTeam = false;
   let layoutError: string | null = null;
 
   try {
@@ -68,6 +69,14 @@ export default async function RootLayout({
           const role = user.role;
 
           const canSeeAllRestaurants = ["SYSTEM_ARCHITECT", "ADMIN"].includes(role);
+          // God-mode roles always see the team module; others only if they have direct reports
+          const isGodRole = ["SYSTEM_ARCHITECT", "ADMIN"].includes(role);
+          if (isGodRole) {
+            showTeam = true;
+          } else {
+            const subordinateCount = await prisma.user.count({ where: { supervisorId: userId, isActive: true } });
+            showTeam = subordinateCount > 0;
+          }
           let preferredRestaurantId: string | undefined;
 
           if (canSeeAllRestaurants) {
@@ -121,8 +130,13 @@ export default async function RootLayout({
           console.error("[Layout] DB/notifications error:", dbErr);
           const hasDbUrl = !!process.env.DATABASE_URL;
           const detail = getSafeErrorMessage(dbErr);
+          const unreachable =
+            /can'?t reach database|P1001|connection refused|ECONNREFUSED|ETIMEDOUT|timeout/i.test(detail);
+          const neonHint = unreachable
+            ? " Neon: u konzoli probudi branch (free tier spava), provjeri pooled DATABASE_URL (?sslmode=require), DIRECT_URL bez pooler-a, ispravnu lozinku – pa Redeploy na Vercelu."
+            : "";
           const base = hasDbUrl
-            ? "Baza nije dostupna (povezivanje ne uspijeva). Provjerite DATABASE_URL i DIRECT_URL – moraju biti LIVE Neon URL-ovi."
+            ? `Baza nije dostupna (povezivanje ne uspijeva). Provjerite DATABASE_URL i DIRECT_URL.${neonHint}`
             : "DATABASE_URL nije postavljen na ovom projektu. Dodajte env varijable u projekt koji služi www.aiw.services.";
           layoutError = `${base} Detalj: ${detail}`;
       }
@@ -151,7 +165,7 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider>
-        {/* Inactivity watchdog (10 min) + session: AutoLogoutProvider unutar AuthProvider */}
+        {/* Inactivity watchdog (15 min) + session: AutoLogoutProvider unutar AuthProvider */}
         <AuthProvider>
             {session?.user && (
                 <>
@@ -160,6 +174,7 @@ export default async function RootLayout({
                         restaurants={userRestaurants} 
                         activeRestaurantId={activeRestaurantId}
                         notificationCount={pendingNotifications}
+                        showTeam={showTeam}
                         notifications={topbarNotifications.map((n) => ({
                           id: n.id,
                           kind: n.kind,
@@ -178,7 +193,7 @@ export default async function RootLayout({
                     <main className="pt-14 md:pt-16 md:min-h-0 pb-20 md:pb-0 safe-area-b-mobile min-h-screen">
                         {children}
                     </main>
-                    <BottomNav />
+                    <BottomNav showTeam={showTeam} />
                 </>
             )}
             {!session?.user && children}

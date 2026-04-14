@@ -106,6 +106,33 @@ model TemplateItem {
   @@index([categoryId])
 }
 
+// --- INFORMATIONEN ---
+model InformationCategory {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  iconName    String?
+  sortOrder   Int                 @default(0)
+  items       InformationItem[]
+  createdAt   DateTime            @default(now())
+
+  @@index([sortOrder])
+}
+
+model InformationItem {
+  id             String              @id @default(cuid())
+  title          String
+  description    String?
+  fileUrl        String
+  fileType       String
+  extractedText  String?             @db.Text
+  categoryId     String
+  category       InformationCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+
+  @@index([categoryId])
+}
+
 // --- BESUCHSBERICHTE (pro Restoran, po godinama) ---
 model VisitReportCategory {
   id           String            @id @default(cuid())
@@ -169,6 +196,8 @@ model CalendarEvent {
   id         String    @id @default(cuid())
   userId     String
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dashboardNewsItemId String?
+  dashboardNewsItem   DashboardNewsItem? @relation(fields: [dashboardNewsItemId], references: [id], onDelete: Cascade)
   title      String
   date       DateTime
   endDate    DateTime? // optional: multi-day event
@@ -181,6 +210,7 @@ model CalendarEvent {
   @@index([userId])
   @@index([userId, date])
   @@index([categoryId])
+  @@index([dashboardNewsItemId])
 }
 
 // --- TO-DO LIST ---
@@ -255,14 +285,112 @@ model User {
   /** Pročitane in-app notifikacije (ključ = NotificationItem.id iz notificationActions) */
   notificationReads               NotificationRead[]
 
+  helpRequestsCreated             HelpRequest[]     @relation("HelpRequestCreatedBy")
+  helpSlotsAsProviderManager      HelpSlot[]        @relation("HelpSlotProviderManager")
+
   // Activity tracking for dashboard popup views
   dashboardNewsViews            DashboardNewsView[]
   dashboardEventViews           DashboardEventView[]
   dashboardEventLikes           DashboardEventLike[]
   dashboardEventComments        DashboardEventComment[]
 
+  trainingParticipants          TrainingParticipant[]
+  trainingParticipantAssessments TrainingParticipant[] @relation("TrainingParticipantAssessedBy")
+
+  partnerCompanyComments        PartnerCompanyComment[] @relation("PartnerCompanyCommentAuthor")
+
+  oneOnOneTopics         OneOnOneTopic[] @relation("TopicRequester")
+  supervisedTopics       OneOnOneTopic[] @relation("TopicSupervisor")
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+// --- Vorlagen: feste Schulungsinhalte (8 Standardprogramme) ---
+model TrainingTemplate {
+  id             String            @id @default(cuid())
+  slug           String            @unique
+  title          String
+  topics         String?           @db.Text
+  prerequisites  String?           @db.Text
+  sortOrder      Int               @default(0)
+  programs       TrainingProgram[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([sortOrder])
+}
+
+// --- SCHULUNGEN (Trainingsplan, öffentlich / Gast-Passwort / Admin-CRUD) ---
+model TrainingProgram {
+  id             String            @id @default(cuid())
+  title          String
+  description    String?           @db.Text
+  /** Inhalte / Themen (mehrzeilig, wie Excel-Spalte) */
+  topics         String?           @db.Text
+  /** Voraussetzungen */
+  prerequisites  String?           @db.Text
+  /** z. B. „1 Tag / #107“ oder „2 Tage / #004 + #156“ */
+  scheduleMeta   String?
+  sortOrder      Int               @default(0)
+  isActive       Boolean           @default(true)
+  templateId     String?
+  template       TrainingTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  restaurants    TrainingProgramRestaurant[]
+  sessions       TrainingSession[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([sortOrder])
+  @@index([isActive])
+  @@index([templateId])
+}
+
+model TrainingSession {
+  id           String                 @id @default(cuid())
+  programId    String
+  program      TrainingProgram        @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title        String?
+  startsAt     DateTime
+  endsAt       DateTime?
+  location     String?
+  notes        String?                @db.Text
+  sortOrder    Int                    @default(0)
+  participants TrainingParticipant[]
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@index([programId])
+  @@index([programId, sortOrder])
+  @@index([startsAt])
+}
+
+model TrainingParticipant {
+  id           String          @id @default(cuid())
+  sessionId    String
+  session      TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstName    String?
+  lastName     String?
+  /** Anzeigereihenfolge (01., 02., …) */
+  displayOrder Int             @default(0)
+  /** z. B. „156“ für „(#156)“ */
+  badgeCode    String?
+  /** Nachkurs: Bewertung durch Trainer */
+  courseComment     String?    @db.Text
+  /** Ergebnis 0–100 % */
+  resultPercent     Int?
+  assessedByUserId  String?
+  assessedBy        User?      @relation("TrainingParticipantAssessedBy", fields: [assessedByUserId], references: [id], onDelete: SetNull)
+  assessedAt        DateTime?
+
+  createdAt    DateTime        @default(now())
+
+  @@index([sessionId])
+  @@index([sessionId, displayOrder])
+  @@index([userId])
+  @@index([assessedAt])
 }
 
 model NotificationRead {
@@ -492,9 +620,56 @@ model Restaurant {
   pdsTemplates        PDSTemplate[] // Many-to-many: PDS obrasci koji ciljaju ovaj restoran
   pdsList             PDS[]
   visitReportCategories VisitReportCategory[]
+  trainingPrograms    TrainingProgramRestaurant[]
+  helpRequestsMade    HelpRequest[]        @relation("HelpRequestingRestaurant")
+  helpSlotsProvided   HelpSlot[]           @relation("HelpProvidingRestaurant")
+  inventarSections    InventarSection[]
 
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+}
+
+model InventarSection {
+  id           String         @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String         // "Produktion" | "Service" | "Lobby" | "McCafe"
+  icon         String?        // Lucide icon name
+  sortOrder    Int            @default(0)
+  items        InventarItem[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([restaurantId])
+}
+
+model InventarItem {
+  id               String          @id @default(cuid())
+  sectionId        String
+  section          InventarSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  geraet           String          // e.g. "Griller 1"
+  marke            String?         // e.g. "Garland"
+  modell           String?         // e.g. "MWE3S-1"
+  seriennummer     String?
+  anschaffungsjahr Int?
+  garantieUrl      String?         // Vercel Blob URL
+  garantieName     String?
+  sortOrder        Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([sectionId])
+}
+
+model TrainingProgramRestaurant {
+  programId    String
+  restaurantId String
+  program      TrainingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@id([programId, restaurantId])
+  @@index([programId])
+  @@index([restaurantId])
 }
 
 model RestaurantUser {
@@ -768,13 +943,19 @@ model DashboardNewsItem {
   attachmentKind   DashboardNewsAttachmentKind
   sortOrder        Int                          @default(0)
   isActive         Boolean                      @default(true)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  notifyAll        Boolean                      @default(false)
+  addToCalendar    Boolean                      @default(false)
   createdAt        DateTime                     @default(now())
   updatedAt        DateTime                     @updatedAt
 
   views            DashboardNewsView[]
   galleryImages    DashboardNewsGalleryImage[]
+  calendarEvents   CalendarEvent[]
 
   @@index([isActive, sortOrder])
+  @@index([isActive, startsAt, endsAt])
 }
 
 /// Dodatne slike u News modalu (do 50), pored covera i attachmenta.
@@ -896,11 +1077,29 @@ model PartnerCompany {
   galleryUrls        String[]                   @default([])
   contacts           PartnerContact[]
   documents          PartnerCompanyDocument[]
+  comments           PartnerCompanyComment[]
 
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
 
   @@index([categoryId])
+}
+
+model PartnerCompanyComment {
+  id               String         @id @default(cuid())
+  partnerCompanyId String
+  partnerCompany   PartnerCompany @relation(fields: [partnerCompanyId], references: [id], onDelete: Cascade)
+  authorId         String
+  author           User           @relation("PartnerCompanyCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  content          String         @db.Text
+  attachmentUrl    String?
+  attachmentName   String?
+  attachmentKind   String?        // "image" | "document"
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([partnerCompanyId])
+  @@index([authorId])
 }
 
 model PartnerCompanyDocument {
@@ -1044,6 +1243,43 @@ model BonusEntry {
   @@index([userId])
 }
 
+// ─── Aushilfe (Ispomoć) ───────────────────────────────────────────────────────
+
+model HelpRequest {
+  id                     String      @id @default(cuid())
+  requestingRestaurantId String
+  requestingRestaurant   Restaurant  @relation("HelpRequestingRestaurant", fields: [requestingRestaurantId], references: [id])
+  date                   String      // YYYY-MM-DD
+  shiftTime              String      // npr. "06:00–14:00"
+  neededSpots            Int
+  notes                  String?
+  isArchived             Boolean     @default(false)
+  createdByUserId        String?
+  createdByUser          User?       @relation("HelpRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt              DateTime    @default(now())
+  slots                  HelpSlot[]
+
+  @@index([requestingRestaurantId])
+  @@index([isArchived, date])
+  @@index([createdByUserId])
+}
+
+model HelpSlot {
+  id                    String      @id @default(cuid())
+  helpRequestId         String
+  helpRequest           HelpRequest @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+  providingRestaurantId String
+  providingRestaurant   Restaurant  @relation("HelpProvidingRestaurant", fields: [providingRestaurantId], references: [id])
+  workerName            String
+  providerManagerId     String?
+  providerManager       User?       @relation("HelpSlotProviderManager", fields: [providerManagerId], references: [id], onDelete: SetNull)
+  createdAt             DateTime    @default(now())
+
+  @@index([helpRequestId])
+  @@index([providingRestaurantId])
+  @@index([providerManagerId])
+}
+
 // Snapshot kompletnog Bonus state objekta (preneseno direktno iz HTML alata)
 model BonusSheet {
   id        String   @id @default(cuid())
@@ -1051,4 +1287,34 @@ model BonusSheet {
   data      Json     // kompletan 'state' objekat iz alata
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ─── 1:1 TEME ZA RAZGOVOR ─────────────────────────────────────────────────────
+enum OneOnOneTopicStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model OneOnOneTopic {
+  id                     String               @id @default(cuid())
+  createdByUserId        String
+  createdBy              User                 @relation("TopicRequester", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  supervisorUserId       String
+  supervisor             User                 @relation("TopicSupervisor", fields: [supervisorUserId], references: [id], onDelete: Cascade)
+  title                  String
+  details                String?
+  isUrgent               Boolean              @default(false)
+  status                 OneOnOneTopicStatus  @default(OPEN)
+  supervisorNotes        String?
+  agreedActions          String?
+  isArchivedByRequester  Boolean              @default(false)
+  isArchivedBySupervisor Boolean              @default(false)
+  resolvedAt             DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@index([createdByUserId])
+  @@index([supervisorUserId])
 }

@@ -1,6 +1,32 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+
+/**
+ * Robuster Parser für Europäische Zahlen (de-AT/de-DE):
+ * "90.000"   → 90000  (Punkt = Tausendertrennzeichen)
+ * "90.000,50" → 90000.5
+ * "12,50"    → 12.5
+ * "12.5"     → 12.5   (Punkt = Dezimal wenn nicht 3 Stellen danach)
+ */
+function parseEuroInput(v: string | null | undefined): number {
+  if (!v) return 0;
+  const str = String(v).trim().replace(/\s/g, "");
+  if (!str) return 0;
+  const hasComma = str.includes(",");
+  if (hasComma) {
+    const clean = str.replace(/\./g, "").replace(",", ".");
+    return parseFloat(clean) || 0;
+  }
+  const lastDot = str.lastIndexOf(".");
+  if (lastDot === -1) return parseInt(str.replace(/\D/g, ""), 10) || 0;
+  const afterDot = str.slice(lastDot + 1);
+  const beforeDot = str.slice(0, lastDot).replace(/\./g, "");
+  if (/^\d{3}$/.test(afterDot) && /^\d{1,3}$/.test(beforeDot)) {
+    return parseInt(str.replace(/\./g, ""), 10) || 0;
+  }
+  return parseFloat(beforeDot + "." + afterDot.replace(/\D/g, "")) || 0;
+}
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
@@ -183,7 +209,19 @@ export async function getLaborData(
     await expireClGrantIfNeeded(report);
 
     const daysData = report.daysData as LaborPlanPayload | null;
-    const data = daysData ?? { inputs: {}, rows: [] };
+    let data: LaborPlanPayload = daysData ?? { inputs: {}, rows: [] };
+
+    // Fallback: wenn avgWage im JSON fehlt, aber hourlyWage-Spalte in DB gesetzt ist
+    if (report.hourlyWage > 0 && !data.inputs?.avgWage) {
+      data = {
+        ...data,
+        inputs: {
+          ...data.inputs,
+          avgWage: report.hourlyWage.toFixed(2).replace(".", ","),
+        },
+      };
+    }
+
     const cl = await buildLaborClClientState(report, viewer.userId, viewer.role);
     return { data, cl };
   } catch (error) {
@@ -248,9 +286,9 @@ export async function saveLaborData(
 
     const inputs = payload.inputs ?? {};
     const rows = payload.rows ?? [];
-    const hourlyWage = parseFloat(String(inputs.avgWage || "0").replace(",", ".")) || 0;
-    const budgetSales = parseFloat(String(inputs.budgetUmsatz || "0").replace(",", ".")) || 0;
-    const budgetCost = parseFloat(String(inputs.budgetCL || "0").replace(",", ".")) || 0;
+    const hourlyWage = parseEuroInput(inputs.avgWage);
+    const budgetSales = parseEuroInput(inputs.budgetUmsatz);
+    const budgetCost = parseEuroInput(inputs.budgetCL);
 
     const wasGranteeSave =
       existing2?.clLocked &&
@@ -347,9 +385,9 @@ export async function finishClMonth(
   try {
     const inputs = payload.inputs ?? {};
     const rows = payload.rows ?? [];
-    const hourlyWage = parseFloat(String(inputs.avgWage || "0").replace(",", ".")) || 0;
-    const budgetSales = parseFloat(String(inputs.budgetUmsatz || "0").replace(",", ".")) || 0;
-    const budgetCost = parseFloat(String(inputs.budgetCL || "0").replace(",", ".")) || 0;
+    const hourlyWage = parseEuroInput(inputs.avgWage);
+    const budgetSales = parseEuroInput(inputs.budgetUmsatz);
+    const budgetCost = parseEuroInput(inputs.budgetCL);
 
     await prisma.laborReport.upsert({
       where: { restaurantId_month_year: { restaurantId, month, year } },

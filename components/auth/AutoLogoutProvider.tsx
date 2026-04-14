@@ -2,8 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import { signOut, useSession } from "next-auth/react";
+import { INACTIVITY_LOGOUT_MS } from "@/lib/constants/sessionIdle";
 
-const IDLE_MS = 10 * 60 * 1000; // 10 minuta
+const IDLE_MS = INACTIVITY_LOGOUT_MS;
 const THROTTLE_MS = 1000; // Reset timer najviše jednom u sekundi
 
 const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
@@ -29,7 +30,7 @@ function throttle<T extends (...args: unknown[]) => void>(
 }
 
 /**
- * AutoLogoutProvider: prati aktivnost i odjavljuje korisnika nakon 10 min neaktivnosti.
+ * AutoLogoutProvider: prati aktivnost i odjavljuje korisnika nakon 15 min neaktivnosti.
  * Preusmjerava na /login?timeout=true da login stranica može prikazati poruku.
  * Mora biti unutar SessionProvider; aktivna je samo kad je korisnik autenticiran.
  */

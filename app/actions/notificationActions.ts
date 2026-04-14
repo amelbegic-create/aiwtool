@@ -29,7 +29,14 @@ export type NotificationKind =
   | "worker_vacation_rejected"
   | "worker_vacation_returned"
   | "dashboard_news_new"
-  | "dashboard_events_new";
+  | "dashboard_news_starts_tomorrow"
+  | "dashboard_news_ends_tomorrow"
+  | "dashboard_events_new"
+  | "training_participant_feedback"
+  | "training_participant_added"
+  | "aushilfe_request"
+  | "one_on_one_topic_created"
+  | "one_on_one_topic_updated";
 
 export interface NotificationItem {
   id: string;
@@ -89,6 +96,16 @@ function initials(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+async function resolveTrainingLarsUserId(): Promise<string | undefined> {
+  const env = process.env.TRAINING_LARS_USER_ID?.trim();
+  if (env) return env;
+  const u = await prisma.user.findFirst({
+    where: { email: "lars.hoffmann@aiw.at" },
+    select: { id: true },
+  });
+  return u?.id;
 }
 
 async function buildNotificationsForUser(userId: string): Promise<NotificationItem[]> {
@@ -412,10 +429,10 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
   const sinceDash = new Date();
   sinceDash.setDate(sinceDash.getDate() - 30);
   const dashNews = await prisma.dashboardNewsItem.findMany({
-    where: { isActive: true, createdAt: { gte: sinceDash } },
+    where: { isActive: true, notifyAll: true, createdAt: { gte: sinceDash } },
     orderBy: { createdAt: "desc" },
     take: 10,
-    select: { id: true, title: true, createdAt: true },
+    select: { id: true, title: true, createdAt: true, startsAt: true, endsAt: true },
   });
   for (const n of dashNews) {
     items.push({
@@ -427,6 +444,46 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
       createdAt: n.createdAt.toISOString(),
       actorInitials: "N",
     });
+  }
+
+  // Dashboard News reminders (start tomorrow / end tomorrow)
+  // This is computed on demand (in-app). Keys are stable per day; users can mark them read.
+  const nowUtc = new Date();
+  const today = new Date(Date.UTC(nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate(), 0, 0, 0, 0));
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const yyyyMmDd = (d: Date) => d.toISOString().slice(0, 10);
+  const tomorrowKey = yyyyMmDd(tomorrow);
+
+  for (const n of dashNews) {
+    if (n.startsAt) {
+      const startKey = yyyyMmDd(new Date(Date.UTC(n.startsAt.getUTCFullYear(), n.startsAt.getUTCMonth(), n.startsAt.getUTCDate())));
+      if (startKey === tomorrowKey) {
+        items.push({
+          id: `dash-news-start:${n.id}:${tomorrowKey}`,
+          kind: "dashboard_news_starts_tomorrow",
+          title: "Promotion startet morgen",
+          description: `„${n.title}“ ist ab morgen aktiv. Bitte Details im Dashboard ansehen.`,
+          href: `/dashboard?openNews=${encodeURIComponent(n.id)}`,
+          createdAt: today.toISOString(),
+          actorInitials: "N",
+        });
+      }
+    }
+    if (n.endsAt) {
+      const endKey = yyyyMmDd(new Date(Date.UTC(n.endsAt.getUTCFullYear(), n.endsAt.getUTCMonth(), n.endsAt.getUTCDate())));
+      if (endKey === tomorrowKey) {
+        items.push({
+          id: `dash-news-end:${n.id}:${tomorrowKey}`,
+          kind: "dashboard_news_ends_tomorrow",
+          title: "Promotion endet morgen",
+          description: `„${n.title}“ endet morgen. Bitte Details im Dashboard ansehen.`,
+          href: `/dashboard?openNews=${encodeURIComponent(n.id)}`,
+          createdAt: today.toISOString(),
+          actorInitials: "N",
+        });
+      }
+    }
   }
 
   const dashEvents = await prisma.dashboardEventItem.findMany({
@@ -445,6 +502,211 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
       createdAt: ev.createdAt.toISOString(),
       actorInitials: "E",
     });
+  }
+
+  // Schulungen: Bewertung (Kommentar / %) — Vorgesetzter, Restaurant-Training-Admins, Lars, Bewerter
+  const sinceTrain = new Date();
+  sinceTrain.setDate(sinceTrain.getDate() - 14);
+  const larsUid = await resolveTrainingLarsUserId();
+
+  const managersRows = await prisma.restaurantUser.findMany({
+    where: {
+      user: {
+        isActive: true,
+        permissions: { has: "training:manage" },
+      },
+    },
+    select: { userId: true, restaurantId: true },
+  });
+  const managersByRestaurant = new Map<string, Set<string>>();
+  for (const m of managersRows) {
+    let set = managersByRestaurant.get(m.restaurantId);
+    if (!set) {
+      set = new Set();
+      managersByRestaurant.set(m.restaurantId, set);
+    }
+    set.add(m.userId);
+  }
+
+  const trainingFeedback = await prisma.trainingParticipant.findMany({
+    where: { assessedAt: { gte: sinceTrain } },
+    orderBy: { assessedAt: "desc" },
+    take: 40,
+    include: {
+      user: { select: { id: true, name: true, supervisorId: true } },
+      assessedBy: { select: { id: true, name: true } },
+      session: {
+        include: {
+          program: {
+            include: {
+              restaurants: { include: { restaurant: { select: { id: true, name: true } } } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  for (const row of trainingFeedback) {
+    if (!row.assessedAt) continue;
+    const recipientIds = new Set<string>();
+    const sup = row.user?.supervisorId;
+    if (sup) recipientIds.add(sup);
+    if (larsUid) recipientIds.add(larsUid);
+    if (row.assessedByUserId) recipientIds.add(row.assessedByUserId);
+    for (const pr of row.session.program.restaurants) {
+      const set = managersByRestaurant.get(pr.restaurantId);
+      if (set) {
+        for (const uid of set) recipientIds.add(uid);
+      }
+    }
+
+    if (!recipientIds.has(userId)) continue;
+
+    const pname = row.user?.name ?? "Teilnehmer";
+    const pct =
+      row.resultPercent !== null && row.resultPercent !== undefined
+        ? `${row.resultPercent} %`
+        : "ohne %";
+    const progTitle = row.session.program.title;
+    const trainerName = row.assessedBy?.name ?? "Trainer";
+    const firstRestName = row.session.program.restaurants[0]?.restaurant?.name ?? null;
+    items.push({
+      id: `train-feedback:${row.id}:${row.assessedAt.toISOString()}`,
+      kind: "training_participant_feedback",
+      title: "Schulung: Bewertung",
+      description: `${trainerName} hat ${pname} bewertet — ${progTitle} (${pct})`,
+      href: "/admin/training",
+      createdAt: row.assessedAt.toISOString(),
+      actorName: pname,
+      actorInitials: initials(pname),
+      restaurantName: firstRestName,
+    });
+  }
+
+  // Schulungen: Einladung — User bekommt Benachrichtigung wenn er als Teilnehmer hinzugefügt wird
+  const sinceInvite = new Date();
+  sinceInvite.setDate(sinceInvite.getDate() - 30);
+  const addedParticipants = await prisma.trainingParticipant.findMany({
+    where: { userId, createdAt: { gte: sinceInvite } },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    include: {
+      session: {
+        include: {
+          program: { select: { title: true } },
+        },
+      },
+    },
+  });
+  for (const p of addedParticipants) {
+    items.push({
+      id: `training-added:${p.id}`,
+      kind: "training_participant_added",
+      title: "Schulung: Einladung",
+      description: `Du wurdest zur Schulung „${p.session.program.title}" eingeladen.`,
+      href: "/training",
+      createdAt: p.createdAt.toISOString(),
+      actorInitials: "S",
+    });
+  }
+
+  // Aushilfe: neue aktive Anfragen der letzten 7 Tage (für alle Manager/Admin)
+  if (isAdmin || user.role === "MANAGER") {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    try {
+      const recentHelpRequests = await prisma.helpRequest.findMany({
+        where: { isArchived: false, createdAt: { gte: sevenDaysAgo } },
+        include: {
+          requestingRestaurant: { select: { name: true, code: true } },
+          createdByUser: { select: { name: true, email: true, image: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      for (const hr of recentHelpRequests) {
+        const restCode = (hr.requestingRestaurant.code ?? "").trim() || (hr.requestingRestaurant.name ?? "").trim();
+        const restName = hr.requestingRestaurant.name ?? hr.requestingRestaurant.code;
+        const requesterName = hr.createdByUser?.name?.trim() || hr.createdByUser?.email?.trim() || "Unbekannt";
+        const personenText = hr.neededSpots === 1 ? "Person" : "Personen";
+        
+        items.push({
+          id: `aushilfe:${hr.id}`,
+          kind: "aushilfe_request",
+          title: `Restaurant #${restCode} sucht ${hr.neededSpots} ${personenText}`,
+          description: `${requesterName} braucht Aushilfe`,
+          href: "/tools/aushilfe",
+          createdAt: hr.createdAt.toISOString(),
+          restaurantName: restName,
+          actorName: requesterName,
+          actorImage: hr.createdByUser?.image,
+          actorInitials: initials(hr.createdByUser?.name),
+        });
+      }
+    } catch {
+      // HelpRequest table might not exist yet in some environments — ignore
+    }
+  }
+
+  // 1:1 Teme za razgovor: supervisor sees OPEN topics from subordinates
+  try {
+    const openTopicsForSupervisor = await prisma.oneOnOneTopic.findMany({
+      where: {
+        supervisorUserId: userId,
+        status: { in: ["OPEN", "IN_PROGRESS"] },
+        isArchivedBySupervisor: false,
+      },
+      include: {
+        createdBy: { select: { name: true, email: true, image: true } },
+      },
+      orderBy: [{ isUrgent: "desc" }, { createdAt: "desc" }],
+    });
+    for (const topic of openTopicsForSupervisor) {
+      const requesterName = topic.createdBy?.name?.trim() || topic.createdBy?.email?.trim() || "Unbekannt";
+      items.push({
+        id: `one-on-one-supervisor:${topic.id}`,
+        kind: "one_on_one_topic_created",
+        title: `Gesprächsthema von ${requesterName}`,
+        description: `„${topic.title}"${topic.isUrgent ? " — DRINGEND" : ""}`,
+        href: "/profile?tab=topics",
+        createdAt: topic.createdAt.toISOString(),
+        actorName: requesterName,
+        actorImage: topic.createdBy?.image,
+        actorInitials: initials(topic.createdBy?.name),
+      });
+    }
+
+    // Requester sees when supervisor updates status or adds notes
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 14);
+    const updatedTopics = await prisma.oneOnOneTopic.findMany({
+      where: {
+        createdByUserId: userId,
+        status: { in: ["IN_PROGRESS", "DONE"] },
+        isArchivedByRequester: false,
+        updatedAt: { gte: sevenDaysAgo },
+      },
+      include: {
+        supervisor: { select: { name: true, email: true, image: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+    for (const topic of updatedTopics) {
+      const supName = topic.supervisor?.name?.trim() || topic.supervisor?.email?.trim() || "Vorgesetzter";
+      items.push({
+        id: `one-on-one-requester:${topic.id}:${topic.updatedAt.toISOString()}`,
+        kind: "one_on_one_topic_updated",
+        title: `Thema aktualisiert von ${supName}`,
+        description: `„${topic.title}" → ${topic.status === "DONE" ? "Erledigt" : "In Bearbeitung"}`,
+        href: "/profile?tab=topics",
+        createdAt: topic.updatedAt.toISOString(),
+        actorName: supName,
+        actorImage: topic.supervisor?.image,
+        actorInitials: initials(topic.supervisor?.name),
+      });
+    }
+  } catch {
+    // Ignore if table not yet available
   }
 
   items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -478,6 +740,7 @@ export async function markNotificationsAsRead(notifKeys: string[]) {
   revalidatePath("/", "layout");
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/zahtjevi");
+  revalidatePath("/admin/training");
   return { success: true as const };
 }
 

@@ -148,12 +148,30 @@ export const PERMISSIONS: PermissionGroup[] = [
     ],
   },
   {
+    id: "informationen",
+    title: "Informationen",
+    subtitle: "Interne Informationen, Dresscode und Richtlinien",
+    items: [
+      { key: "information:access", label: "Zugriff auf Informationen" },
+      { key: "information:manage", label: "Informationen verwalten (Upload, Löschen)" },
+    ],
+  },
+  {
     id: "besuchsberichte",
     title: "Besuchsberichte",
       subtitle: "Besuchsberichte pro Standort, Reihenfolge der Dokumente",
     items: [
       { key: "besuchsberichte:access", label: "Zugriff auf Besuchsberichte" },
       { key: "besuchsberichte:manage", label: "Kategorien und Dokumente verwalten (pro Standort)" },
+    ],
+  },
+  {
+    id: "training",
+    title: "Training",
+    subtitle: "Trainingsplan und Termine (öffentlich mit Zugangscode)",
+    items: [
+      { key: "training:access", label: "Zugriff auf Training-Übersicht (eingeloggt)" },
+      { key: "training:manage", label: "Training, Termine und Teilnehmer verwalten" },
     ],
   },
   {

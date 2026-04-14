@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, CalendarRange, FileText, Lightbulb, Lock, Unlock, MessageCircle } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, CalendarRange, FileText, Lightbulb, Lock, Unlock, MessageCircle, GraduationCap, MessageSquare } from "lucide-react";
 import { useState, useEffect, useRef, useTransition } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
@@ -52,6 +52,7 @@ interface TopNavbarProps {
   activeRestaurantId?: string;
   notificationCount?: number;
   notifications?: RichNotification[];
+  showTeam?: boolean;
 }
 
 /* ---- helpers ---- */
@@ -113,6 +114,22 @@ function kindMeta(kind?: string, status?: string) {
       labelColor: "text-[#FFC72C]",
     };
   }
+  if (kind === "training_participant_feedback") {
+    return {
+      icon: <GraduationCap size={14} className="text-white" />,
+      bg: "bg-emerald-700",
+      label: "Schulung",
+      labelColor: "text-emerald-700 dark:text-emerald-400",
+    };
+  }
+  if (kind === "training_participant_added") {
+    return {
+      icon: <GraduationCap size={14} className="text-white" />,
+      bg: "bg-[#1a3826]",
+      label: "Schulung",
+      labelColor: "text-[#1a3826] dark:text-[#FFC72C]",
+    };
+  }
   if (kind === "cl_month_locked") {
     return {
       icon: <Lock size={14} className="text-white" />,
@@ -127,6 +144,22 @@ function kindMeta(kind?: string, status?: string) {
       bg: "bg-violet-600",
       label: "CL Entsperre",
       labelColor: "text-violet-700 dark:text-violet-400",
+    };
+  }
+  if (kind === "one_on_one_topic_created") {
+    return {
+      icon: <MessageSquare size={14} className="text-white" />,
+      bg: "bg-amber-600",
+      label: "Gesprächsthema",
+      labelColor: "text-amber-700 dark:text-amber-400",
+    };
+  }
+  if (kind === "one_on_one_topic_updated") {
+    return {
+      icon: <MessageSquare size={14} className="text-white" />,
+      bg: "bg-[#1a3826]",
+      label: "Thema aktualisiert",
+      labelColor: "text-[#1a3826] dark:text-[#FFC72C]",
     };
   }
   const s = status ?? kind ?? "";
@@ -167,6 +200,7 @@ export default function TopNavbar({
   activeRestaurantId,
   notificationCount = 0,
   notifications = [],
+  showTeam = false,
 }: TopNavbarProps) {
   const pathname = usePathname();
   const [notifPending, startNotifTransition] = useTransition();
@@ -296,7 +330,7 @@ export default function TopNavbar({
         {/* SREDINA: NAVIGACIJA - samo desktop */}
         <nav className="hidden md:flex h-full items-center gap-1">
           {TOOL_CATEGORIES.map((category) => {
-            const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
+            const categoryTools = APP_TOOLS.filter(t => t.category === category.id && (t.id !== 'team' || showTeam));
             const isDashboard = category.id === 'dashboard';
             const isVorlagen = category.id === 'vorlagen';
             const isActiveCategory = 
@@ -307,10 +341,10 @@ export default function TopNavbar({
 
             if (isDashboard) {
               return (
-                <div key={category.id} className="relative h-full flex items-center">
-                  <Link 
+                <div key={category.id} className="relative flex h-full items-center">
+                  <Link
                     href="/dashboard"
-                    className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${isActiveCategory ? 'bg-white/10 text-[#FFC72C]' : 'hover:bg-white/5 text-emerald-100/60 hover:text-white'}`}
+                    className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${isActiveCategory ? "bg-white/10 text-[#FFC72C]" : "hover:bg-white/5 text-emerald-100/60 hover:text-white"}`}
                   >
                     <LayoutGrid size={14} />
                     {displayLabel}
@@ -360,6 +394,22 @@ export default function TopNavbar({
               </div>
             );
           })}
+
+          {/* Training – uvijek zadnji u navigaciji */}
+          {(() => {
+            const trainingActive = pathname === "/training" || pathname.startsWith("/training/");
+            return (
+              <div className="relative flex h-full items-center">
+                <Link
+                  href="/training"
+                  className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${trainingActive ? "bg-white/10 text-[#FFC72C]" : "hover:bg-white/5 text-emerald-100/60 hover:text-white"}`}
+                >
+                  <GraduationCap size={14} aria-hidden />
+                  Training
+                </Link>
+              </div>
+            );
+          })()}
         </nav>
 
         {/* DESNA STRANA: NOTIFIKACIJE + USER PROFILE */}
@@ -578,7 +628,7 @@ export default function TopNavbar({
 
               <nav className="space-y-1">
                 {TOOL_CATEGORIES.map((category) => {
-                  const categoryTools = APP_TOOLS.filter(t => t.category === category.id);
+                  const categoryTools = APP_TOOLS.filter(t => t.category === category.id && (t.id !== 'team' || showTeam));
                   const isDashboard = category.id === 'dashboard';
                   const isVorlagen = category.id === 'vorlagen';
 
@@ -642,6 +692,18 @@ export default function TopNavbar({
                     </div>
                   );
                 })}
+
+                {/* Schulungen – uvijek zadnji */}
+                <div>
+                  <Link
+                    href="/training"
+                    onClick={closeMenu}
+                    className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
+                  >
+                    <GraduationCap size={18} aria-hidden />
+                    <span className="uppercase tracking-widest text-xs font-black">Schulungen</span>
+                  </Link>
+                </div>
               </nav>
 
               <div className="pt-4 border-t border-white/10 space-y-2">

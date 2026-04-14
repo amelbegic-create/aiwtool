@@ -81,6 +81,117 @@ async function main() {
     }
   }
 
+  // --- Schulungen: 8 Standard-Vorlagen (Inhalte bearbeitbar in der DB / Admin)
+  const trainingTemplates = [
+    {
+      slug: 'crewtrainer-service',
+      title: 'Crewtrainer Service',
+      sortOrder: 10,
+      topics:
+        'Gastorientierung und Markenstandards\n' +
+        'Serviceabläufe an der Theke und im Drive\n' +
+        'Kommunikation mit Gästen, Beschwerdemanagement (Basis)\n' +
+        'Sauberkeit und Präsentation im Frontbereich',
+      prerequisites: 'Einsatz im Restaurant; Bereitschaft zur Schicht im Service',
+    },
+    {
+      slug: 'foodsafety-neu',
+      title: 'FoodSafety NEU',
+      sortOrder: 20,
+      topics:
+        'HACCP-Grundlagen und kritische Kontrollpunkte\n' +
+        'Kühlkette, Lagerung, MHD / FIFO\n' +
+        'Hygiene bei Zubereitung und Ausgabe\n' +
+        'Reinigung und Desinfektion',
+      prerequisites: 'Keine; für alle Mitarbeitenden in Produktion und Service empfohlen',
+    },
+    {
+      slug: 'crewtrainer-kueche',
+      title: 'Crewtrainer Küche',
+      sortOrder: 30,
+      topics:
+        'Küchenabläufe und Stationsführung\n' +
+        'Qualität von Produkten (Temperatur, Garzeiten)\n' +
+        'Anleitung neuer Mitarbeitender in der Produktion\n' +
+        'Sicherheit und Ordnung in der Küche',
+      prerequisites: 'Erfahrung in der Küchenproduktion',
+    },
+    {
+      slug: 'crewtrainer-mccafe',
+      title: 'Crewtrainer McCafé',
+      sortOrder: 40,
+      topics:
+        'Getränkezubereitung und Kaffeespezialitäten\n' +
+        'Pflege und Bedienung der Geräte\n' +
+        'Präsentation und Verkauf im McCafé-Bereich\n' +
+        'Hygiene und Nachfüllroutinen',
+      prerequisites: 'Grundkenntnisse im Service oder Produktion',
+    },
+    {
+      slug: 'teilschichtfuehrer-neu',
+      title: 'Teilschichtführer neu',
+      sortOrder: 50,
+      topics:
+        'Rollenverständnis Teilschichtführung\n' +
+        'Einteilung und Kommunikation in der Schicht\n' +
+        'Qualität, Geschwindigkeit und Teamführung (Basis)\n' +
+        'Dokumentation und Übergaben',
+      prerequisites: 'Empfohlen: Erfahrung als Trainer oder erweiterte Verantwortung',
+    },
+    {
+      slug: 'it-schulung',
+      title: 'IT-Schulung',
+      sortOrder: 60,
+      topics:
+        'Sichere Nutzung von Systemen und Zugangsdaten\n' +
+        'Interne Tools und Supportwege\n' +
+        'Umgang mit E-Mail und Dateien\n' +
+        'Datenschutz im Alltag (Kurzüberblick)',
+      prerequisites: 'Keine',
+    },
+    {
+      slug: 'schichtfuehrer-neu',
+      title: 'Schichtführer neu',
+      sortOrder: 70,
+      topics:
+        'Verantwortung für die gesamte Schicht\n' +
+        'Personaleinsatz und Prioritäten\n' +
+        'Eskalation und Zusammenarbeit mit der Geschäftsführung\n' +
+        'Kennzahlen und Qualität im Überblick',
+      prerequisites: 'Funktion als Teilschichtführer oder vergleichbare Erfahrung',
+    },
+    {
+      slug: 'qualitaet-brand-standards',
+      title: 'Qualität & Brand Standards',
+      sortOrder: 80,
+      topics:
+        'Markenstandards und Konsistenz am POI\n' +
+        'Qualitätskontrollen im Alltag\n' +
+        'Gästeerlebnis und Geschwindigkeit im Gleichgewicht\n' +
+        'Best Practices aus dem Netzwerk',
+      prerequisites: 'Offen für alle Führungskräfte und Trainer',
+    },
+  ] as const;
+
+  for (const t of trainingTemplates) {
+    await prisma.trainingTemplate.upsert({
+      where: { slug: t.slug },
+      update: {
+        title: t.title,
+        topics: t.topics,
+        prerequisites: t.prerequisites,
+        sortOrder: t.sortOrder,
+      },
+      create: {
+        slug: t.slug,
+        title: t.title,
+        topics: t.topics,
+        prerequisites: t.prerequisites,
+        sortOrder: t.sortOrder,
+      },
+    });
+  }
+
   // --- Dashboard-News: Demo-Einträge für den Startseiten-Slider (nur wenn leer)
   const dashboardNewsCount = await prisma.dashboardNewsItem.count();
   if (dashboardNewsCount === 0) {

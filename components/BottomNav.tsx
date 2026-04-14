@@ -5,19 +5,21 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, Users, Wrench, User } from "lucide-react";
 import { dict } from "@/translations";
 
-const NAV_ITEMS = [
+const BASE_NAV_ITEMS = [
   { href: "/dashboard", label: dict.nav_dashboard, icon: LayoutDashboard },
-  { href: "/team", label: dict.nav_team, icon: Users },
+  { href: "/team", label: dict.nav_team, icon: Users, requiresTeam: true },
   { href: "/tools/categories/staff", label: dict.nav_staff_tools, icon: Wrench },
   { href: "/profile", label: dict.nav_profile, icon: User },
 ];
 
-export default function BottomNav() {
+export default function BottomNav({ showTeam = false }: { showTeam?: boolean }) {
   const pathname = usePathname();
 
   if (pathname === "/login" || pathname === "/select-restaurant" || pathname?.startsWith("/login/")) {
     return null;
   }
+
+  const NAV_ITEMS = BASE_NAV_ITEMS.filter(item => !item.requiresTeam || showTeam);
 
   return (
     <nav
@@ -25,7 +27,7 @@ export default function BottomNav() {
       role="navigation"
       aria-label="Hauptnavigation"
     >
-      <div className="grid grid-cols-4 h-16 max-w-lg mx-auto">
+      <div className={`grid h-16 max-w-lg mx-auto ${NAV_ITEMS.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
         {NAV_ITEMS.map((item) => {
           const isActive =
             item.href === "/dashboard"
