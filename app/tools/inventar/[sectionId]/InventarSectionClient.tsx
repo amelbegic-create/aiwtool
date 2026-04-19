@@ -620,53 +620,49 @@ export default function InventarSectionClient({
   };
 
   return (
-    <div className="min-h-screen bg-background pb-16">
-      {/* Header */}
-      <div className="border-b border-border bg-card">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/tools/inventar"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] min-h-[44px] touch-manipulation"
-          >
-            <ArrowLeft size={18} /> Zurück zum Inventar
-          </Link>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            <span className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground text-xs font-medium">
+    <div className="min-h-screen bg-background pb-16 font-sans text-foreground">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <Link
+              href="/tools/inventar"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] mb-3"
+            >
+              <ArrowLeft size={18} /> Zurück zu Equipment
+            </Link>
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2 flex items-center gap-3">
+              {initialSection.name}
+              <span className="text-base px-2.5 py-1 rounded-full bg-[#FFC72C] text-[#1a3826] font-black">
+                {items.length}
+              </span>
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium">
               Restaurant {restaurantName}
-            </span>
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => setAddOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] hover:bg-[#1a3826]/90 text-[#FFC72C] text-sm font-black min-h-[44px] touch-manipulation transition"
-              >
-                <Plus size={16} />
-                Neues Gerät
-              </button>
-            )}
+            </p>
           </div>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 py-5 space-y-4">
-        {/* Title */}
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-black uppercase tracking-tighter text-[#1a3826] dark:text-[#FFC72C]">
-            {initialSection.name}
-          </h1>
-          <span className="px-2.5 py-1 rounded-full bg-[#FFC72C] text-[#1a3826] text-xs font-black">
-            {items.length}
-          </span>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] hover:bg-[#1a3826]/90 text-[#FFC72C] text-sm font-black min-h-[44px] touch-manipulation transition self-start md:self-auto"
+            >
+              <Plus size={16} />
+              Neues Gerät
+            </button>
+          )}
         </div>
 
+      <div className="mt-6 space-y-4">
         {/* Search */}
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 max-w-sm shadow-sm">
-          <Search size={14} className="text-muted-foreground shrink-0" />
+        <div className="flex items-center gap-2.5 rounded-xl border border-[#1a3826]/15 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/80 via-card to-[#1a3826]/5 dark:from-[#1a3826]/15 dark:via-card dark:to-[#1a3826]/10 px-4 py-2.5 max-w-sm shadow-sm focus-within:ring-2 focus-within:ring-[#1a3826]/20 dark:focus-within:ring-[#FFC72C]/20 transition-all">
+          <Search size={15} className="text-[#1a3826]/50 dark:text-[#FFC72C]/60 shrink-0" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Suchen…"
-            className="flex-1 bg-transparent text-sm focus:outline-none"
+            className="flex-1 bg-transparent text-sm focus:outline-none text-foreground placeholder:text-muted-foreground"
           />
           {search && (
             <button type="button" onClick={() => setSearch("")}>
@@ -785,6 +781,7 @@ export default function InventarSectionClient({
             Garantiescheine hinterlegt
           </span>
         </div>
+      </div>
       </div>
 
       {/* Add modal */}

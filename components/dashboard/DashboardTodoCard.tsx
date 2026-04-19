@@ -56,7 +56,7 @@ export default function DashboardTodoCard({ userId, initialTodos }: Props) {
   const hasMore = todos.length > MAX_VISIBLE;
 
   return (
-    <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#1a3826] to-[#0a1f14] p-4 flex flex-col gap-3 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 min-h-[140px] h-full">
+    <div className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#1a3826] to-[#0a1f14] p-4 flex flex-col gap-3 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 min-h-[140px] lg:min-h-0 h-full max-h-full">
       <div className="absolute right-3 top-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white/5 pointer-events-none" />
       <div className="absolute -right-2 -top-2 w-16 h-16 rounded-full bg-[#FFC72C]/10 blur-xl pointer-events-none" />
 
@@ -80,8 +80,8 @@ export default function DashboardTodoCard({ userId, initialTodos }: Props) {
         </button>
       </header>
 
-      <div className="relative z-10 flex-1 min-h-0 flex flex-col">
-        <ul className="max-h-[6.5rem] overflow-y-auto overflow-x-hidden space-y-0.5 min-h-0">
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col overflow-hidden">
+        <ul className="flex-1 min-h-0 max-h-[6.5rem] lg:max-h-none overflow-y-auto overflow-x-hidden space-y-0.5">
           {visible.length === 0 ? (
             <li className="text-xs text-white/60 py-1">Noch keine offenen Aufgaben.</li>
           ) : (

@@ -404,7 +404,6 @@ export default function TopNavbar({
                   href="/training"
                   className={`h-10 px-4 rounded-lg flex items-center gap-2 text-[11px] font-black uppercase transition-all tracking-widest ${trainingActive ? "bg-white/10 text-[#FFC72C]" : "hover:bg-white/5 text-emerald-100/60 hover:text-white"}`}
                 >
-                  <GraduationCap size={14} aria-hidden />
                   Training
                 </Link>
               </div>
@@ -700,7 +699,6 @@ export default function TopNavbar({
                     onClick={closeMenu}
                     className="flex items-center gap-3 px-4 py-3.5 rounded-xl text-white hover:bg-white/10 transition-colors min-h-[44px]"
                   >
-                    <GraduationCap size={18} aria-hidden />
                     <span className="uppercase tracking-widest text-xs font-black">Schulungen</span>
                   </Link>
                 </div>

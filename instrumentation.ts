@@ -544,6 +544,38 @@ export async function register() {
     // ── 14. Vorlagen (TemplateItem) – tekst iz PDF-a za pretragu ─────────────
     await run(`ALTER TABLE "TemplateItem" ADD COLUMN IF NOT EXISTS "extractedText" TEXT`);
 
+    // ── 15. Aushilfe: Schicht 1–3 + Sektori ─────────────────────────────────
+    // HelpRequest: shiftTime postaje nullable, dodajemo shiftNumber, sectorKey, sectorLabel
+    await run(`ALTER TABLE "HelpRequest" ALTER COLUMN "shiftTime" DROP NOT NULL`);
+    await run(`ALTER TABLE "HelpRequest" ADD COLUMN IF NOT EXISTS "shiftNumber" INTEGER NOT NULL DEFAULT 1`);
+    await run(`ALTER TABLE "HelpRequest" ADD COLUMN IF NOT EXISTS "sectorKey" TEXT NOT NULL DEFAULT 'kueche'`);
+    await run(`ALTER TABLE "HelpRequest" ADD COLUMN IF NOT EXISTS "sectorLabel" TEXT NOT NULL DEFAULT 'Küche'`);
+
+    // AushilfeCustomSector – posebne kategorije po restoranu
+    await run(`
+      CREATE TABLE IF NOT EXISTS "AushilfeCustomSector" (
+        "id"           TEXT NOT NULL,
+        "restaurantId" TEXT NOT NULL,
+        "key"          TEXT NOT NULL,
+        "label"        TEXT NOT NULL,
+        "group"        TEXT NOT NULL DEFAULT 'Sonstiges',
+        "sortOrder"    INTEGER NOT NULL DEFAULT 0,
+        "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "AushilfeCustomSector_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE UNIQUE INDEX IF NOT EXISTS "AushilfeCustomSector_restaurantId_key_key" ON "AushilfeCustomSector"("restaurantId", "key")`);
+    await run(`CREATE INDEX IF NOT EXISTS "AushilfeCustomSector_restaurantId_idx" ON "AushilfeCustomSector"("restaurantId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AushilfeCustomSector_restaurantId_fkey') THEN
+          ALTER TABLE "AushilfeCustomSector" ADD CONSTRAINT "AushilfeCustomSector_restaurantId_fkey"
+            FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
     console.log("[db-init] Schema sync complete.");
   }
 }

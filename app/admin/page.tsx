@@ -22,6 +22,7 @@ import {
   GraduationCap,
   TrendingUp,
   Info,
+  HandHelping,
 } from "lucide-react";
 import { getUnreadIdeasCount } from "@/app/actions/ideaActions";
 import { AdminHomeCategories } from "@/components/admin/AdminHomeCategories";
@@ -170,6 +171,20 @@ export default async function AdminHome() {
             href: "/admin/besuchsberichte",
             icon: FileCheck,
             tag: "Besuchsberichte",
+          } satisfies AdminCard,
+        ]
+      : []),
+    // Aushilfe custom sectors – only visible to Admin/SA/Manager (role-based, no separate permission key needed)
+    ...(["SYSTEM_ARCHITECT", "ADMIN", "MANAGER"].includes(
+      (session?.user as { role?: string } | undefined)?.role ?? ""
+    )
+      ? [
+          {
+            title: "Aushilfe Sektoren",
+            desc: "Restaurantspezifische Arbeitsbereiche für Aushilfe-Anfragen verwalten.",
+            href: "/admin/aushilfe/sectors",
+            icon: HandHelping,
+            tag: "Aushilfe",
           } satisfies AdminCard,
         ]
       : []),

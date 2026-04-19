@@ -80,7 +80,7 @@ async function exportPDF(
   const { default: jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
 
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
 
   // ── Header
@@ -94,10 +94,10 @@ async function exportPDF(
   doc.text("CL ANALYSE", 10, 14);
   doc.setFontSize(9);
   doc.setTextColor(200, 230, 210);
-  doc.text("Budget vs. Ist · Controlling · Finanzauswertung", 10, 20);
+  doc.text("Budget CL vs. Ist CL · Finanzauswertung", 10, 20);
   doc.setTextColor(255, 255, 255);
-  doc.text(`Jahr: ${year}`, W - 60, 10);
-  doc.text(`Erstellt: ${new Date().toLocaleDateString("de-AT")}`, W - 60, 16);
+  doc.text(`Jahr: ${year}`, W - 50, 10);
+  doc.text(`Erstellt: ${new Date().toLocaleDateString("de-AT")}`, W - 50, 16);
 
   // ── Filter summary
   let y = 30;
@@ -107,7 +107,7 @@ async function exportPDF(
   doc.text(`Restaurants: ${restaurantNames.join(", ")}`, 10, y);
   doc.text(`Monate: ${months.map((m) => DE_MONTHS[m - 1]).join(", ")}`, 10, y + 5);
 
-  // ── KPI summary boxes — McDonald's colors (yellow bg + dark green text)
+  // ── KPI summary boxes (3 boxes: Budget CL, Ist CL, Differenz)
   y = 42;
   type RgbTriple = [number, number, number];
   const boxes: { label: string; value: string; bg: RgbTriple; fg: RgbTriple }[] = [
@@ -116,8 +116,6 @@ async function exportPDF(
     { label: "Differenz (Bdg−Ist)", value: `${sign(kpis.totalDiff)}${fmtEuro(kpis.totalDiff)} €`,
       bg: kpis.totalDiff >= 0 ? [220,252,231] : [254,226,226],
       fg: kpis.totalDiff >= 0 ? [22,163,74]  : [220,38,38] },
-    { label: "Budget Umsatz",       value: `${fmtEuro(kpis.totalBudgetUmsatz)} €`, bg: [26,56,38],    fg: [255,199,44] },
-    { label: "Ist Umsatz",          value: `${fmtEuro(kpis.totalActualUmsatz)} €`, bg: [26,56,38],    fg: [255,199,44] },
   ];
   const bw = (W - 20) / boxes.length - 2;
   boxes.forEach((b, i) => {
@@ -134,62 +132,47 @@ async function exportPDF(
     doc.text(b.label, bx + bw / 2, y + 14, { align: "center" });
   });
 
-  // ── Data table (no Δ PP column, all numbers centered)
-  const head = [["Restaurant","Monat","Budget CL €","Ist CL €","Differenz €","Bdg CL %","Ist CL %","Bdg Ums. €","Ist Ums. €","Std."]];
+  // ── Data table — 5 columns only
+  const head = [["Restaurant", "Monat", "Budget CL €", "Ist CL €", "Differenz €"]];
   const body = rows.map((r) => [
     r.restaurantName,
     `${DE_MONTHS_FULL[r.month - 1]} ${r.year}`,
-    fmtEuro(r.budgetCL),
-    fmtEuro(r.actualCL),
-    `${sign(r.diffCL)}${fmtEuro(r.diffCL)}`,
-    `${fmtPct(r.budgetCLPct)} %`,
-    `${fmtPct(r.actualCLPct)} %`,
-    fmtEuro(r.budgetUmsatz),
-    fmtEuro(r.actualUmsatz),
-    `${r.actualGesamtStd.toFixed(1)} h`,
+    `${fmtEuro(r.budgetCL)} €`,
+    `${fmtEuro(r.actualCL)} €`,
+    `${sign(r.diffCL)}${fmtEuro(r.diffCL)} €`,
   ]);
 
   autoTable(doc, {
     head,
     body,
     startY: y + 22,
-    styles: { fontSize: 8, cellPadding: 2.5, font: "helvetica", halign: "center", fontStyle: "bold" },
-    headStyles: { fillColor: [26, 56, 38], textColor: [255, 199, 44], fontStyle: "bold", fontSize: 8, halign: "center" },
+    styles: { fontSize: 9, cellPadding: 3, font: "helvetica", halign: "center", fontStyle: "bold" },
+    headStyles: { fillColor: [26, 56, 38], textColor: [255, 199, 44], fontStyle: "bold", fontSize: 9, halign: "center" },
     alternateRowStyles: { fillColor: [248, 250, 248] },
     columnStyles: {
-      0: { fontStyle: "bold", halign: "left" },   // Restaurant name — left aligned
-      1: { halign: "left" },                       // Monat — left aligned
-      2: { halign: "center" }, 3: { halign: "center" },
-      4: { halign: "center", fontStyle: "bold" },  // Differenz
-      5: { halign: "center" }, 6: { halign: "center" },
-      7: { halign: "center" }, 8: { halign: "center" },
-      // Last column (Std.) — bold black
-      9: { halign: "center", fontStyle: "bold", textColor: [0, 0, 0] },
+      0: { fontStyle: "bold", halign: "left" },
+      1: { halign: "left" },
+      2: { halign: "right" },
+      3: { halign: "right" },
+      4: { halign: "right", fontStyle: "bold" },
     },
     didParseCell: (data) => {
       if (data.section === "body") {
         const val = rows[data.row.index];
         if (!val) return;
-        // Differenz column (index 4) — green/red
         if (data.column.index === 4) {
           data.cell.styles.textColor = val.diffCL >= 0 ? [22, 163, 74] : [220, 38, 38];
-          data.cell.styles.fontStyle = "bold";
-        }
-        // Last column (Std., index 9) — bold black
-        if (data.column.index === 9) {
-          data.cell.styles.textColor = [0, 0, 0];
           data.cell.styles.fontStyle = "bold";
         }
       }
     },
     foot: [[
-      { content: "GESAMT", colSpan: 2, styles: { fontStyle: "bold", halign: "left", textColor: [0,0,0] as [number,number,number] } },
-      { content: `${fmtEuro(kpis.totalBudgetCL)}`, styles: { fontStyle: "bold", halign: "center", textColor: [0,0,0] as [number,number,number] } },
-      { content: `${fmtEuro(kpis.totalActualCL)}`, styles: { fontStyle: "bold", halign: "center", textColor: [0,0,0] as [number,number,number] } },
-      { content: `${sign(kpis.totalDiff)}${fmtEuro(kpis.totalDiff)}`, styles: { fontStyle: "bold", halign: "center", textColor: (kpis.totalDiff >= 0 ? [22,163,74] : [220,38,38]) as [number,number,number] } },
-      "", "", "", "", "",
+      { content: "GESAMT", colSpan: 2, styles: { fontStyle: "bold", halign: "left", textColor: [26,56,38] as [number,number,number] } },
+      { content: `${fmtEuro(kpis.totalBudgetCL)} €`, styles: { fontStyle: "bold", halign: "right", textColor: [26,56,38] as [number,number,number] } },
+      { content: `${fmtEuro(kpis.totalActualCL)} €`, styles: { fontStyle: "bold", halign: "right", textColor: [26,56,38] as [number,number,number] } },
+      { content: `${sign(kpis.totalDiff)}${fmtEuro(kpis.totalDiff)} €`, styles: { fontStyle: "bold", halign: "right", textColor: (kpis.totalDiff >= 0 ? [22,163,74] : [220,38,38]) as [number,number,number] } },
     ]],
-    footStyles: { fillColor: [255, 199, 44], textColor: [26, 56, 38], fontSize: 8, fontStyle: "bold" },
+    footStyles: { fillColor: [255, 199, 44], textColor: [26, 56, 38], fontSize: 9, fontStyle: "bold" },
     margin: { left: 10, right: 10 },
   });
 
@@ -211,17 +194,15 @@ async function exportPDF(
 /* ─────────────────────────────────────────────── CSV Export */
 
 function exportCSV(rows: CLMonthRow[]) {
-  const headers = ["Restaurant","Code","Jahr","Monat","Budget CL €","Ist CL €","Diff CL €","Diff CL %","Budget CL %","Ist CL %","Budget Umsatz €","Ist Umsatz €","Ist Std."];
+  const headers = ["Restaurant", "Monat", "Budget CL €", "Ist CL €", "Differenz €"];
   const lines = [
     headers.join(";"),
     ...rows.map((r) => [
-      r.restaurantName, r.restaurantCode, r.year,
-      DE_MONTHS_FULL[r.month - 1] ?? r.month,
-      r.budgetCL.toFixed(2).replace(".",","), r.actualCL.toFixed(2).replace(".",","),
-      r.diffCL.toFixed(2).replace(".",","), r.diffPct.toFixed(2).replace(".",","),
-      r.budgetCLPct.toFixed(2).replace(".",","), r.actualCLPct.toFixed(2).replace(".",","),
-      r.budgetUmsatz.toFixed(2).replace(".",","), r.actualUmsatz.toFixed(2).replace(".",","),
-      r.actualGesamtStd.toFixed(2).replace(".",","),
+      r.restaurantName,
+      `${DE_MONTHS_FULL[r.month - 1] ?? r.month} ${r.year}`,
+      r.budgetCL.toFixed(2).replace(".", ","),
+      r.actualCL.toFixed(2).replace(".", ","),
+      r.diffCL.toFixed(2).replace(".", ","),
     ].join(";")),
   ];
   const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -329,63 +310,36 @@ function HeroBar({
 }) {
   const isGood = diffCL >= 0;
   return (
-    <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-      {/* thin brand accent on top */}
-      <div className="h-[3px] w-full bg-[#1a3826]" />
-      <div className="grid grid-cols-3 divide-x divide-slate-100">
+    <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a3826] via-[#1a3826] to-[#0b1a12] border border-[#FFC72C]/25 shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+      <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
         {/* Budget CL */}
-        <div className="flex flex-col gap-1 px-6 py-5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Budget CL</span>
-          <span className="text-2xl sm:text-3xl font-black tabular-nums text-slate-800 leading-none">{fmtEuro(budgetCL)} €</span>
-          <span className="text-xs font-semibold text-slate-400">{fmtPct(budgetCLPct)} %</span>
+        <div className="flex flex-col gap-1.5 px-6 py-5">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#FFC72C]/70">Budget CL</span>
+          <span className="text-2xl sm:text-3xl font-black tabular-nums text-white leading-none">{fmtEuro(budgetCL)} €</span>
+          <span className="text-xs font-semibold text-white/40">{fmtPct(budgetCLPct)} % Ø</span>
         </div>
         {/* Ist CL */}
-        <div className="flex flex-col gap-1 px-6 py-5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Ist CL</span>
-          <span className="text-2xl sm:text-3xl font-black tabular-nums text-slate-800 leading-none">{fmtEuro(actualCL)} €</span>
-          <span className="text-xs font-semibold text-slate-400">{fmtPct(actualCLPct)} %</span>
+        <div className="flex flex-col gap-1.5 px-6 py-5">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Ist CL</span>
+          <span className="text-2xl sm:text-3xl font-black tabular-nums text-white leading-none">{fmtEuro(actualCL)} €</span>
+          <span className="text-xs font-semibold text-white/40">{fmtPct(actualCLPct)} % Ø</span>
         </div>
-        {/* Differenz — the star */}
-        <div className={`flex flex-col gap-1 px-6 py-5 ${isGood ? "bg-emerald-50" : "bg-red-50"}`}>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Differenz</span>
+        {/* Differenz */}
+        <div className={`flex flex-col gap-1.5 px-6 py-5 ${isGood ? "bg-emerald-900/30" : "bg-red-900/30"}`}>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Differenz</span>
           <div className="flex items-center gap-2">
             {isGood
-              ? <TrendingDown size={20} className="text-emerald-600 shrink-0" />
-              : <TrendingUp size={20} className="text-red-600 shrink-0" />}
-            <span className={`text-2xl sm:text-3xl font-black tabular-nums leading-none ${isGood ? "text-emerald-700" : "text-red-700"}`}>
+              ? <TrendingDown size={22} className="text-emerald-400 shrink-0" />
+              : <TrendingUp size={22} className="text-red-400 shrink-0" />}
+            <span className={`text-2xl sm:text-3xl font-black tabular-nums leading-none ${isGood ? "text-emerald-300" : "text-red-300"}`}>
               {sign(diffCL)}{fmtEuro(diffCL)} €
             </span>
           </div>
-          <span className={`text-xs font-semibold ${isGood ? "text-emerald-600" : "text-red-600"}`}>
+          <span className={`text-xs font-bold ${isGood ? "text-emerald-400" : "text-red-400"}`}>
             {sign(diffPct)}{fmtPct(diffPct)} PP · {isGood ? "Einsparung" : "Über Budget"}
           </span>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────── KPI Card */
-
-function KpiCard({
-  label, value, sub, accent = "neutral",
-}: {
-  label: string; value: string; sub?: string;
-  accent?: "good" | "bad" | "neutral";
-  icon?: React.ComponentType<{ size?: number; className?: string }>;
-  trend?: "good" | "bad" | "neutral";
-}) {
-  const borderColor = accent === "good" ? "border-l-emerald-500"
-    : accent === "bad" ? "border-l-red-500"
-    : "border-l-[#1a3826]";
-  const valueColor = accent === "good" ? "text-emerald-700"
-    : accent === "bad" ? "text-red-700"
-    : "text-slate-800";
-  return (
-    <div className={`flex flex-col gap-1.5 rounded-xl bg-white px-4 py-4 shadow-sm ring-1 ring-slate-200 border-l-4 ${borderColor}`}>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className={`text-xl font-black tabular-nums leading-tight ${valueColor}`}>{value}</p>
-      {sub && <p className="text-[11px] font-semibold text-slate-400">{sub}</p>}
     </div>
   );
 }
@@ -526,45 +480,7 @@ function CLAnalyseDashboard({ restaurants }: { restaurants: RestaurantOption[] }
     return { labels: chartLabels, datasets };
   }, [filteredRows, selectedMonths, activeRestaurants, chartLabels]);
 
-  /* ── Chart B: CL % line */
-  const lineChartData = useMemo(() => {
-    const datasets: object[] = activeRestaurants.map((rest, ri) => {
-      const color = CHART_COLORS[ri % CHART_COLORS.length] ?? GREEN;
-      return {
-        label: rest.name ?? rest.code,
-        data: selectedMonths.map((m) => {
-          const row = filteredRows.find((r) => r.restaurantId === rest.id && r.month === m);
-          return row?.hasData ? parseFloat(row.actualCLPct.toFixed(2)) : null;
-        }),
-        borderColor: color,
-        backgroundColor: color + "18",
-        fill: false,
-        tension: 0.35,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        borderWidth: 2.5,
-      };
-    });
-    // Budget reference line
-    const rowsWithBudget = filteredRows.filter((r) => r.budgetCLPct > 0);
-    if (rowsWithBudget.length > 0) {
-      const avg = rowsWithBudget.reduce((s, r) => s + r.budgetCLPct, 0) / rowsWithBudget.length;
-      datasets.push({
-        label: "Ø Budget CL %",
-        data: selectedMonths.map(() => parseFloat(avg.toFixed(2))),
-        borderColor: GOLD,
-        backgroundColor: "transparent",
-        fill: false,
-        tension: 0,
-        pointRadius: 0,
-        borderWidth: 2,
-        borderDash: [6, 4],
-      });
-    }
-    return { labels: chartLabels, datasets };
-  }, [filteredRows, selectedMonths, activeRestaurants, chartLabels]);
-
-  /* ── Chart C: Monthly savings/loss per restaurant (deviation) */
+  /* ── Chart B: Monthly savings/loss per restaurant (deviation) */
   const diffChartData = useMemo(() => {
     const labels: string[] = [];
     const data: number[] = [];
@@ -625,17 +541,6 @@ function CLAnalyseDashboard({ restaurants }: { restaurants: RestaurantOption[] }
     },
     scales: {
       y: { ticks: { callback: (v) => `${fmtEuro(Number(v))} €`, font: { size: 10 } }, grid: { color: "#e2e8f050" } },
-      x: { ticks: { font: { size: 11 } } },
-    },
-  };
-  const lineOpts: ChartOptions<"line"> = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } },
-      tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${c.parsed.y !== null ? fmtPct(c.parsed.y) + " %" : "–"}` } },
-    },
-    scales: {
-      y: { ticks: { callback: (v) => `${Number(v).toFixed(1)} %`, font: { size: 10 } }, grid: { color: "#e2e8f050" } },
       x: { ticks: { font: { size: 11 } } },
     },
   };
@@ -875,23 +780,6 @@ function CLAnalyseDashboard({ restaurants }: { restaurants: RestaurantOption[] }
               diffPct={kpis.diffPct}
             />
 
-            {/* ── KPI cards */}
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <KpiCard label="Budget Umsatz" value={`${fmtEuro(kpis.totalBudgetUmsatz)} €`} accent="neutral" />
-              <KpiCard label="Ist Umsatz" value={`${fmtEuro(kpis.totalActualUmsatz)} €`}
-                sub={kpis.totalActualUmsatz >= kpis.totalBudgetUmsatz ? "Über Budget" : "Unter Budget"}
-                accent={kpis.totalActualUmsatz >= kpis.totalBudgetUmsatz ? "good" : "neutral"}
-              />
-              <KpiCard label="Ø Budget CL %" value={`${fmtPct(kpis.avgBudgetPct)} %`} accent="neutral" />
-              <KpiCard label="Ø Ist CL %"
-                value={`${fmtPct(kpis.avgActualPct)} %`}
-                sub={kpis.avgActualPct <= kpis.avgBudgetPct
-                  ? `${sign(kpis.diffPct)}${fmtPct(kpis.diffPct)} PP vs. Budget`
-                  : `${sign(kpis.diffPct)}${fmtPct(kpis.diffPct)} PP über Budget`}
-                accent={kpis.avgActualPct <= kpis.avgBudgetPct ? "good" : "bad"}
-              />
-            </div>
-
             {/* ── Tabs */}
             <div className="flex items-center gap-1 rounded-xl bg-white p-1 w-fit shadow-sm ring-1 ring-slate-200">
               {([
@@ -911,68 +799,77 @@ function CLAnalyseDashboard({ restaurants }: { restaurants: RestaurantOption[] }
             {/* ══════ GRAFIKEN ══════ */}
             {tab === "grafiken" && (
               <div className="space-y-4">
-                {/* Graf 1 */}
-                <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                  <div className="mb-4 flex items-start justify-between">
+                {/* Graf 1 – Budget vs. Ist CL (Bar) */}
+                <div className="rounded-2xl overflow-hidden border border-[#FFC72C]/20 shadow-md">
+                  <div className="bg-[#1a3826] px-5 py-3 flex items-start justify-between">
                     <div>
-                      <h2 className="text-sm font-bold text-slate-800">Budget vs. Ist CL</h2>
-                      <p className="text-xs text-slate-400 mt-0.5">Monatlicher Vergleich in €</p>
+                      <h2 className="text-sm font-black text-white uppercase tracking-wider">Budget vs. Ist CL</h2>
+                      <p className="text-xs text-white/50 mt-0.5">Monatlicher Vergleich in €</p>
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#1a3826]/30" />Budget</span>
-                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#1a3826]" />Ist</span>
+                    <div className="flex items-center gap-3 text-[11px] text-white/60">
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#FFC72C]/40" />Budget</span>
+                      <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm bg-[#FFC72C]" />Ist</span>
                     </div>
                   </div>
-                  <div className="h-[300px]"><Bar data={barChartData} options={barOpts} /></div>
+                  <div className="bg-card p-5">
+                    <div className="h-[300px]"><Bar data={barChartData} options={barOpts} /></div>
+                  </div>
                 </div>
 
-                {/* Graf 2 */}
-                <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-                  <div className="mb-4">
-                    <h2 className="text-sm font-bold text-slate-800">CL % Entwicklung</h2>
-                    <p className="text-xs text-slate-400 mt-0.5">Ist CL % pro Monat — gestrichelt: Ø Budget</p>
+                {/* Graf 2 – Monatliche Einsparung / Überschreitung (Horizontal Bar) */}
+                <div className="rounded-2xl overflow-hidden border border-[#FFC72C]/20 shadow-md">
+                  <div className="bg-[#1a3826] px-5 py-3">
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider">Monatliche Einsparung / Überschreitung</h2>
+                    <p className="text-xs text-white/50 mt-0.5">Differenz Budget CL € – Ist CL € pro Monat</p>
                   </div>
-                  <div className="h-[260px]"><Line data={lineChartData} options={lineOpts} /></div>
+                  <div className="bg-card p-5">
+                    <div className="h-[300px]"><Bar data={diffChartData} options={horizOpts} /></div>
+                  </div>
+                </div>
+
+                {/* Graf 3 – Kumulativer CL-Verlauf (Line) */}
+                <div className="rounded-2xl overflow-hidden border border-[#FFC72C]/20 shadow-md">
+                  <div className="bg-[#1a3826] px-5 py-3">
+                    <h2 className="text-sm font-black text-white uppercase tracking-wider">Kumulativer CL-Verlauf</h2>
+                    <p className="text-xs text-white/50 mt-0.5">Kumulierte Einsparung / Überschreitung nach Restaurant</p>
+                  </div>
+                  <div className="bg-card p-5">
+                    <div className="h-[300px]"><Line data={cumulativeChartData} options={cumulativeOpts} /></div>
+                  </div>
                 </div>
               </div>
             )}
 
             {/* ══════ TABELLE ══════ */}
             {tab === "tabelle" && (
-              <div className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
-                  <h2 className="text-sm font-bold text-slate-800">
+              <div className="rounded-2xl overflow-hidden border border-[#FFC72C]/20 shadow-md">
+                <div className="bg-[#1a3826] flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
+                  <h2 className="text-sm font-black text-white uppercase tracking-wider">
                     Detailtabelle
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                    <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white/60 normal-case tracking-normal">
                       {sortedRows.length} Zeilen
                     </span>
                   </h2>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => exportCSV(sortedRows)}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-black text-foreground transition hover:bg-accent">
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-black text-white transition hover:bg-white/20">
                       <Download size={13} /> CSV
                     </button>
                     <button type="button" onClick={handlePDF} disabled={pdfPending}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#1a3826] px-3 py-1.5 text-xs font-black text-[#FFC72C] transition hover:opacity-90 disabled:opacity-40">
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#FFC72C] px-3 py-1.5 text-xs font-black text-[#1a3826] transition hover:opacity-90 disabled:opacity-40">
                       <FileText size={13} /> {pdfPending ? "…" : "PDF"}
                     </button>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto bg-card">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b border-border bg-muted/40">
-                        <ThSort col="restaurantName" label="Restaurant" sort={sort} onSort={handleSort} />
-                        <ThSort col="month" label="Monat" sort={sort} onSort={handleSort} />
-                        <ThSort col="budgetCL" label="Budget CL €" sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="actualCL" label="Ist CL €" sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="diffCL" label="Differenz €" sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="budgetCLPct" label="Bdg CL %" sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="actualCLPct" label="Ist CL %" sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="diffPct" label="Δ PP" sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="budgetUmsatz" label="Bdg Ums." sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="actualUmsatz" label="Ist Ums." sort={sort} onSort={handleSort} className="text-right" />
-                        <ThSort col="actualGesamtStd" label="Std." sort={sort} onSort={handleSort} className="text-right" />
+                      <tr className="bg-[#1a3826]/80 border-b border-[#FFC72C]/20">
+                        <ThSort col="restaurantName" label="Restaurant" sort={sort} onSort={handleSort} className="text-[#FFC72C]/80" />
+                        <ThSort col="month" label="Monat" sort={sort} onSort={handleSort} className="text-[#FFC72C]/80" />
+                        <ThSort col="budgetCL" label="Budget CL €" sort={sort} onSort={handleSort} className="text-right text-[#FFC72C]/80" />
+                        <ThSort col="actualCL" label="Ist CL €" sort={sort} onSort={handleSort} className="text-right text-[#FFC72C]/80" />
+                        <ThSort col="diffCL" label="Differenz €" sort={sort} onSort={handleSort} className="text-right text-[#FFC72C]/80" />
                       </tr>
                     </thead>
                     <tbody>
@@ -993,41 +890,21 @@ function CLAnalyseDashboard({ restaurants }: { restaurants: RestaurantOption[] }
                                 {sign(r.diffCL)}{fmtEuro(r.diffCL)} €
                               </span>
                             </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{fmtPct(r.budgetCLPct)} %</td>
-                            <td className={`px-3 py-2.5 text-right tabular-nums font-bold ${r.actualCLPct <= r.budgetCLPct ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                              {fmtPct(r.actualCLPct)} %
-                            </td>
-                            <td className={`px-3 py-2.5 text-right tabular-nums font-bold ${r.diffPct >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                              {sign(r.diffPct)}{fmtPct(r.diffPct)} PP
-                            </td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{fmtEuro(r.budgetUmsatz)} €</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums">{fmtEuro(r.actualUmsatz)} €</td>
-                            <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{r.actualGesamtStd.toFixed(1)} h</td>
                           </tr>
                         );
                       })}
                     </tbody>
                     {sortedRows.length > 1 && (
                       <tfoot>
-                        <tr className="border-t-2 border-border bg-[#1a3826]/5 dark:bg-[#FFC72C]/5">
-                          <td className="px-3 py-2.5 text-xs font-black uppercase text-foreground" colSpan={2}>GESAMT</td>
+                        <tr className="border-t-2 border-[#FFC72C]/30 bg-[#FFC72C] text-[#1a3826]">
+                          <td className="px-3 py-2.5 text-xs font-black uppercase" colSpan={2}>GESAMT</td>
                           <td className="px-3 py-2.5 text-right tabular-nums font-black">{fmtEuro(kpis.totalBudgetCL)} €</td>
-                          <td className={`px-3 py-2.5 text-right tabular-nums font-black ${kpis.totalActualCL <= kpis.totalBudgetCL ? "text-emerald-700" : "text-red-600"}`}>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-black">
                             {fmtEuro(kpis.totalActualCL)} €
                           </td>
-                          <td className={`px-3 py-2.5 text-right tabular-nums font-black ${kpis.totalDiff >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                          <td className="px-3 py-2.5 text-right tabular-nums font-black">
                             {sign(kpis.totalDiff)}{fmtEuro(kpis.totalDiff)} €
                           </td>
-                          <td className="px-3 py-2.5 text-right text-muted-foreground font-black">{fmtPct(kpis.avgBudgetPct)} %</td>
-                          <td className={`px-3 py-2.5 text-right tabular-nums font-black ${kpis.avgActualPct <= kpis.avgBudgetPct ? "text-emerald-700" : "text-red-600"}`}>
-                            {fmtPct(kpis.avgActualPct)} %
-                          </td>
-                          <td className={`px-3 py-2.5 text-right tabular-nums font-black ${kpis.diffPct >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                            {sign(kpis.diffPct)}{fmtPct(kpis.diffPct)} PP
-                          </td>
-                          <td className="px-3 py-2.5 text-right tabular-nums font-black">{fmtEuro(kpis.totalBudgetUmsatz)} €</td>
-                          <td className="px-3 py-2.5 text-right tabular-nums font-black">{fmtEuro(kpis.totalActualUmsatz)} €</td>
-                          <td className="px-3 py-2.5 text-right text-muted-foreground">–</td>
                         </tr>
                       </tfoot>
                     )}
@@ -1039,38 +916,20 @@ function CLAnalyseDashboard({ restaurants }: { restaurants: RestaurantOption[] }
             {/* ══════ VERGLEICH ══════ */}
             {tab === "vergleich" && (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {restaurantSummaries.map(({ rest, rRows, totalBudget, totalActual, totalDiff, avgActualPct, avgBudgetPct }) => {
+                {restaurantSummaries.map(({ rest, rRows, totalBudget, totalActual, totalDiff }) => {
                   const isGood = totalDiff >= 0;
-                  const miniData = {
-                    labels: selectedMonths.map((m) => DE_MONTHS[m - 1] ?? String(m)),
-                    datasets: [
-                      { label: "Budget", data: selectedMonths.map((m) => rRows.find((r) => r.month === m)?.budgetCL ?? 0), backgroundColor: "#1a382655", borderRadius: 3, borderSkipped: false as const },
-                      { label: "Ist", data: selectedMonths.map((m) => rRows.find((r) => r.month === m)?.actualCL ?? 0), backgroundColor: "#1a3826cc", borderRadius: 3, borderSkipped: false as const },
-                    ],
-                  };
-                  const miniOpts: ChartOptions<"bar"> = {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: { enabled: true } },
-                    scales: {
-                      y: { ticks: { font: { size: 9 }, callback: (v) => `${fmtEuro(Number(v))}` }, grid: { color: "#e2e8f050" } },
-                      x: { ticks: { font: { size: 9 } } },
-                    },
-                  };
                   return (
-                    <div key={rest.id} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
-                      {/* Header: 4px accent left + restaurant name */}
-                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3.5">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`h-8 w-1 shrink-0 rounded-full ${isGood ? "bg-emerald-500" : "bg-red-500"}`} />
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-800 leading-tight truncate">
-                              {rest.name && rest.name !== rest.code ? rest.name : rest.code}
-                            </p>
-                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{rest.code}</p>
-                          </div>
+                    <div key={rest.id} className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a3826] via-[#1a3826] to-[#0b1a12] border border-[#FFC72C]/25 shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+                      {/* Header */}
+                      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-white leading-tight truncate">
+                            {rest.name && rest.name !== rest.code ? rest.name : rest.code}
+                          </p>
+                          <p className="text-[10px] font-semibold text-[#FFC72C]/60 uppercase tracking-widest">{rest.code}</p>
                         </div>
                         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold shrink-0 ${
-                          isGood ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                          isGood ? "bg-emerald-900/50 text-emerald-300" : "bg-red-900/50 text-red-300"
                         }`}>
                           {isGood ? <CheckCircle2 size={10} /> : <AlertTriangle size={10} />}
                           {isGood ? "Einsparung" : "Überschreitung"}
@@ -1078,48 +937,31 @@ function CLAnalyseDashboard({ restaurants }: { restaurants: RestaurantOption[] }
                       </div>
 
                       <div className="p-4 space-y-3">
-                        {/* 3 key metrics inline */}
+                        {/* 3 key metrics */}
                         <div className="grid grid-cols-3 gap-2">
-                          <div className="rounded-lg bg-slate-50 px-2 py-2.5 text-center">
-                            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Budget CL</p>
-                            <p className="text-sm font-bold tabular-nums text-slate-700">{fmtEuro(totalBudget)} €</p>
+                          <div className="rounded-lg bg-white/5 px-2 py-2.5 text-center">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-[#FFC72C]/60 mb-1">Budget CL</p>
+                            <p className="text-sm font-bold tabular-nums text-white">{fmtEuro(totalBudget)} €</p>
                           </div>
-                          <div className="rounded-lg bg-slate-50 px-2 py-2.5 text-center">
-                            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">Ist CL</p>
-                            <p className="text-sm font-bold tabular-nums text-slate-700">{fmtEuro(totalActual)} €</p>
+                          <div className="rounded-lg bg-white/5 px-2 py-2.5 text-center">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-1">Ist CL</p>
+                            <p className="text-sm font-bold tabular-nums text-white">{fmtEuro(totalActual)} €</p>
                           </div>
-                          <div className={`rounded-lg px-2 py-2.5 text-center ${isGood ? "bg-emerald-50" : "bg-red-50"}`}>
-                            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isGood ? "text-emerald-600" : "text-red-600"}`}>Differenz</p>
-                            <p className={`text-sm font-bold tabular-nums ${isGood ? "text-emerald-700" : "text-red-700"}`}>
+                          <div className={`rounded-lg px-2 py-2.5 text-center ${isGood ? "bg-emerald-900/40" : "bg-red-900/40"}`}>
+                            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isGood ? "text-emerald-400" : "text-red-400"}`}>Differenz</p>
+                            <p className={`text-sm font-bold tabular-nums ${isGood ? "text-emerald-300" : "text-red-300"}`}>
                               {sign(totalDiff)}{fmtEuro(totalDiff)} €
                             </p>
                           </div>
                         </div>
 
-                        {/* CL % row */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="rounded-lg bg-slate-50 px-3 py-2.5 flex items-center justify-between">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Budget CL %</p>
-                            <p className="text-sm font-bold tabular-nums text-slate-700">{fmtPct(avgBudgetPct)} %</p>
-                          </div>
-                          <div className={`rounded-lg px-3 py-2.5 flex items-center justify-between ${avgActualPct <= avgBudgetPct ? "bg-emerald-50" : "bg-red-50"}`}>
-                            <p className={`text-[10px] font-bold uppercase tracking-widest ${avgActualPct <= avgBudgetPct ? "text-emerald-600" : "text-red-600"}`}>Ist CL %</p>
-                            <p className={`text-sm font-bold tabular-nums ${avgActualPct <= avgBudgetPct ? "text-emerald-700" : "text-red-700"}`}>
-                              {fmtPct(avgActualPct)} %
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Mini chart */}
-                        <div className="h-24"><Bar data={miniData} options={miniOpts} /></div>
-
                         {/* Month breakdown */}
                         <div className="space-y-px max-h-44 overflow-y-auto rounded-lg overflow-hidden">
                           {rRows.filter((r) => selectedMonths.includes(r.month)).sort((a, b) => a.month - b.month).map((r, i) => (
-                            <div key={r.month} className={`flex items-center justify-between px-3 py-2 text-[11px] ${i % 2 === 0 ? "bg-slate-50" : "bg-white"}`}>
-                              <span className="font-semibold text-slate-600 w-20">{DE_MONTHS_FULL[r.month - 1]}</span>
-                              <span className="font-semibold text-slate-500 tabular-nums">{fmtEuro(r.actualCL)} €</span>
-                              <span className={`font-bold tabular-nums w-20 text-right ${r.diffCL >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                            <div key={r.month} className={`flex items-center justify-between px-3 py-2 text-[11px] ${i % 2 === 0 ? "bg-white/5" : "bg-white/10"}`}>
+                              <span className="font-semibold text-white/70 w-20">{DE_MONTHS_FULL[r.month - 1]}</span>
+                              <span className="font-semibold text-white/60 tabular-nums">{fmtEuro(r.actualCL)} €</span>
+                              <span className={`font-bold tabular-nums w-20 text-right ${r.diffCL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                 {sign(r.diffCL)}{fmtEuro(r.diffCL)} €
                               </span>
                             </div>

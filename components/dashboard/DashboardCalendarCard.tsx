@@ -81,12 +81,17 @@ export default function DashboardCalendarCard({
     setComboOpen(true);
   };
 
+  const openFullDayForToday = () => {
+    if (today) setPopupSelectedDay(today);
+    setComboOpen(true);
+  };
+
   // Popup selected day defaults to today
   const effectivePopupDay = popupSelectedDay ?? today ?? new Date(displayYear, displayMonth - 1, 1);
 
   return (
     <>
-      <div className="relative rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-lg h-full flex flex-col overflow-hidden">
+      <div className="relative rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-lg h-full min-h-0 max-h-full flex flex-col overflow-hidden">
 
         {/* ── Compact month nav ── */}
         <div className="flex items-center justify-between gap-2 px-3 py-2 shrink-0 border-b border-gray-100 dark:border-gray-800">
@@ -125,75 +130,80 @@ export default function DashboardCalendarCard({
           </button>
         </div>
 
-        {/* ── Card body: big date left + event list right ── */}
-        <button
-          type="button"
-          onClick={openPopup}
-          className="flex-1 min-h-0 text-left px-3 py-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors"
-        >
-          <div className="flex gap-3 h-full">
+        {/* ── Card body: big date left + event list right (feste Höhe, Liste scrollt) ── */}
+        <div className="flex-1 min-h-0 flex flex-col px-3 py-2.5">
+          <div className="flex gap-2.5 min-h-0 flex-1">
 
-            {/* Big date block */}
-            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-3 py-3 shadow-sm w-[110px] shrink-0 flex flex-col">
+            {/* Big date block — öffnet Kalender-Popup */}
+            <button
+              type="button"
+              onClick={openPopup}
+              className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-2.5 py-2.5 shadow-sm w-[102px] shrink-0 flex flex-col text-left hover:bg-gray-50/80 dark:hover:bg-gray-900/80 transition-colors"
+            >
               {today ? (
                 <>
-                  <div className="text-[10px] font-black uppercase tracking-wide text-[#DA291C] leading-none">
+                  <div className="text-[9px] font-black uppercase tracking-wide text-[#DA291C] leading-none line-clamp-2">
                     {format(today, "EEEE", { locale: de })}
                   </div>
-                  <div className="text-[52px] leading-none font-black text-gray-900 dark:text-white mt-1.5">
+                  <div className="text-[44px] leading-none font-black text-gray-900 dark:text-white mt-1">
                     {format(today, "d")}
                   </div>
-                  <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mt-1.5 capitalize leading-tight">
+                  <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 mt-1 capitalize leading-tight line-clamp-2">
                     {format(today, "MMMM yyyy", { locale: de })}
                   </div>
                 </>
               ) : (
-                /* skeleton while client hydrates */
                 <div className="animate-pulse space-y-2 pt-1">
                   <div className="h-2 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                   <div className="h-9 w-10 bg-gray-200 dark:bg-gray-700 rounded" />
                   <div className="h-2 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
               )}
-            </div>
+            </button>
 
             {/* Event list for today */}
-            <div className="flex-1 min-w-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-3 py-3 flex flex-col">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400 mb-2">
+            <div className="flex-1 min-w-0 min-h-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-2.5 py-2 flex flex-col overflow-hidden">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400 shrink-0 mb-1.5">
                 Heute
               </div>
 
               {!today ? null : todayEvents.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
+                <div className="flex-1 min-h-0 flex items-center justify-center py-1">
                   <p className="text-xs text-gray-400 dark:text-gray-500 text-center leading-relaxed">
                     Keine Einträge<br />für diesen Tag.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-2 overflow-y-auto flex-1">
-                  {todayEvents.slice(0, 4).map((ev) => (
-                    <div
-                      key={`${ev.id}-${format(parseCalendarEventDate(ev), "yyyy-MM-dd")}`}
-                      className="rounded-xl bg-[#FFBC0D]/15 px-2.5 py-1.5 border border-[#FFBC0D]/30"
-                    >
-                      <div className="text-xs font-black text-[#7a5b00] dark:text-[#FFC72C] truncate leading-tight">
-                        {ev.title}
-                      </div>
-                      <div className="text-[10px] font-bold text-[#a37a00] dark:text-[#FFC72C]/70 truncate leading-tight mt-0.5">
-                        {ev.categoryLabel ?? ev.type}
-                      </div>
-                    </div>
-                  ))}
-                  {todayEvents.length > 4 && (
-                    <div className="text-[10px] font-bold text-gray-400">
-                      +{todayEvents.length - 4} weitere…
-                    </div>
-                  )}
-                </div>
+                <>
+                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1.5 pr-0.5 -mr-0.5">
+                    {todayEvents.map((ev) => (
+                      <button
+                        key={`${ev.id}-${format(parseCalendarEventDate(ev), "yyyy-MM-dd")}`}
+                        type="button"
+                        onClick={openFullDayForToday}
+                        className="w-full text-left rounded-xl bg-[#FFBC0D]/15 px-2 py-1.5 border border-[#FFBC0D]/30 hover:bg-[#FFBC0D]/25 transition-colors"
+                      >
+                        <div className="text-[11px] font-black text-[#7a5b00] dark:text-[#FFC72C] leading-tight line-clamp-2">
+                          {ev.title}
+                        </div>
+                        <div className="text-[9px] font-bold text-[#a37a00] dark:text-[#FFC72C]/70 truncate mt-0.5">
+                          {ev.categoryLabel ?? ev.type}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openFullDayForToday}
+                    className="mt-1.5 shrink-0 w-full rounded-lg border border-[#1a3826]/20 bg-[#1a3826]/5 dark:bg-white/5 py-1.5 px-2 text-[10px] font-black uppercase tracking-wide text-[#1a3826] dark:text-[#FFC72C] hover:bg-[#1a3826]/10 dark:hover:bg-white/10 transition-colors"
+                  >
+                    Ganzen Tag anzeigen
+                  </button>
+                </>
               )}
             </div>
           </div>
-        </button>
+        </div>
 
         {/* ── Footer button ── */}
         <div className="shrink-0 px-4 py-2.5 bg-[#1a3826]">

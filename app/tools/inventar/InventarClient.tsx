@@ -147,98 +147,55 @@ function SectionCard({
 }) {
   const style = SECTION_STYLES[section.name] ?? FALLBACK_STYLE;
 
-  // We don't have per-item stats here (only count), so show what we have
-  const itemLabel =
-    section.itemCount === 0
-      ? "Keine Geräte erfasst"
-      : `${section.itemCount} ${section.itemCount === 1 ? "Gerät" : "Geräte"}`;
-
   return (
-    <div
-      className={`group relative rounded-2xl border ${style.border} bg-card shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col`}
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group w-full text-left rounded-2xl md:rounded-3xl overflow-hidden min-h-[180px] bg-gradient-to-br from-[#1a3826] via-[#1a3826] to-[#0b1a12] border border-[#FFC72C]/25 shadow-[0_18px_40px_rgba(0,0,0,0.45)] hover:-translate-y-1 hover:border-[#FFC72C]/60 hover:shadow-[0_22px_55px_rgba(0,0,0,0.6)] transition-all duration-300 flex flex-col p-5 md:p-6"
     >
-      {/* Gradient top panel */}
-      <div
-        className={`bg-gradient-to-br ${style.gradientFrom} ${style.gradientTo} px-6 py-5 flex items-start gap-4 relative overflow-hidden`}
-      >
-        {/* Background watermark icon */}
-        <div className="absolute right-4 top-3 opacity-10 text-white scale-150">
-          {style.icon}
-        </div>
-
-        {/* Icon circle */}
-        <div className={`shrink-0 h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center ${style.accentText}`}>
-          {style.icon}
-        </div>
-
-        {/* Title + count */}
-        <div className="flex-1 min-w-0 z-10">
-          <div className="text-[11px] font-black text-white/50 uppercase tracking-[0.2em] mb-1">
+      {/* Header: icon + title */}
+      <div className="flex items-start justify-between gap-3 flex-1 min-h-0">
+        <div className="flex flex-col gap-2 min-w-0 flex-1">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#FFC72C]/60">
             Sektion
-          </div>
-          <div className="text-2xl font-black text-white uppercase tracking-tight leading-tight">
+          </span>
+          <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight leading-tight">
             {section.name}
-          </div>
-          <div className={`mt-1.5 text-sm font-bold ${style.accentText}`}>
-            {itemLabel}
+          </h2>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/60">
+              <Layers size={12} className="text-[#FFC72C]/70" />
+              {section.itemCount} {section.itemCount === 1 ? "Gerät" : "Geräte"}
+            </span>
           </div>
         </div>
-
-        {/* Big count badge */}
-        <div className={`shrink-0 z-10 flex flex-col items-center justify-center h-14 w-14 rounded-2xl ${style.badge} shadow-lg`}>
-          <span className="text-2xl font-black leading-none">{section.itemCount}</span>
-          <span className="text-[9px] font-black uppercase tracking-wider opacity-70 mt-0.5">Stk</span>
+        <div className={`shrink-0 flex items-center justify-center w-14 h-14 rounded-2xl bg-white/10 ${style.accentText}`}>
+          {style.icon}
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-px bg-border/40 border-t border-border">
-        <div className="bg-card px-4 py-3 flex flex-col items-center gap-0.5">
-          <Layers size={14} className="text-muted-foreground" />
-          <span className="text-xs font-black text-foreground">{section.itemCount}</span>
-          <span className="text-[10px] text-muted-foreground">Gesamt</span>
-        </div>
-        <div className="bg-card px-4 py-3 flex flex-col items-center gap-0.5">
-          <Hash size={14} className="text-muted-foreground" />
-          <span className="text-xs font-black text-foreground">—</span>
-          <span className="text-[10px] text-muted-foreground">Seriennr.</span>
-        </div>
-        <div className="bg-card px-4 py-3 flex flex-col items-center gap-0.5">
-          <ShieldCheck size={14} className="text-muted-foreground" />
-          <span className="text-xs font-black text-foreground">—</span>
-          <span className="text-[10px] text-muted-foreground">Garantien</span>
-        </div>
-      </div>
-
-      {/* Action row */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-t border-border">
-        {/* PDF export */}
+      {/* Footer */}
+      <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={onExportPdf}
           disabled={exportingPdf}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-bold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 hover:text-white text-xs font-bold transition disabled:opacity-40"
           title="PDF exportieren"
         >
           {exportingPdf ? (
-            <Loader2 size={13} className="animate-spin" />
+            <Loader2 size={12} className="animate-spin" />
           ) : (
-            <FileText size={13} />
+            <FileText size={12} />
           )}
           {exportingPdf ? "PDF…" : "PDF"}
         </button>
-
-        {/* Open section */}
-        <button
-          type="button"
-          onClick={onOpen}
-          className={`flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl ${style.bg} hover:opacity-90 text-[#FFC72C] text-xs font-black transition group-hover:shadow-md`}
-        >
+        <span className="flex items-center gap-1.5 text-[#FFC72C] text-xs font-bold opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all duration-200">
           Öffnen
-          <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-        </button>
+          <ChevronRight size={14} />
+        </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -305,26 +262,24 @@ export default function InventarClient({
   }, [pdfModal]);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* ── Header ── */}
-      <div className="border-b border-border bg-card">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-background font-sans text-foreground pb-24">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter text-[#1a3826] dark:text-[#FFC72C]">
-              EQUIPMENT{" "}
-              <span className="text-[#FFC72C] dark:text-white">VERWALTUNG</span>
+            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
+              EQUIPMENT
             </h1>
-            <p className="mt-0.5 text-sm font-medium text-muted-foreground">
+            <p className="text-muted-foreground text-sm font-medium">
               Geräte und Ausstattung · Restaurant {activeRestaurantName}
             </p>
           </div>
-
-          {/* Full export button */}
           <button
             type="button"
             onClick={handleFullPdf}
             disabled={exportingAll || sections.length === 0}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a3826] hover:bg-[#1a3826]/90 text-[#FFC72C] text-sm font-black transition disabled:opacity-50 shadow-md"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a3826] hover:bg-[#1a3826]/90 text-[#FFC72C] text-sm font-black transition disabled:opacity-50 shadow-md self-start md:self-auto"
           >
             {exportingAll ? (
               <Loader2 size={15} className="animate-spin" />
@@ -334,11 +289,9 @@ export default function InventarClient({
             {exportingAll ? "Wird erstellt…" : "Gesamt-PDF"}
           </button>
         </div>
-      </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-        {/* Summary stats bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* ── Stats bar ── */}
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: "Sektionen", value: sections.length, icon: <Layers size={16} /> },
             { label: "Geräte gesamt", value: totalItems, icon: <Package size={16} /> },
@@ -347,7 +300,7 @@ export default function InventarClient({
           ].map((stat) => (
             <div
               key={stat.label}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm"
+              className="flex items-center gap-3 rounded-2xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/60 via-card to-[#1a3826]/5 dark:from-[#1a3826]/10 dark:via-card dark:to-[#1a3826]/5 px-4 py-3 shadow-sm"
             >
               <div className="h-9 w-9 rounded-xl bg-[#1a3826]/8 dark:bg-[#FFC72C]/10 flex items-center justify-center text-[#1a3826] dark:text-[#FFC72C] shrink-0">
                 {stat.icon}
@@ -360,8 +313,8 @@ export default function InventarClient({
           ))}
         </div>
 
-        {/* Section cards grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        {/* ── Section cards grid ── */}
+        <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
           {sections.map((section) => (
             <SectionCard
               key={section.id}
@@ -374,9 +327,14 @@ export default function InventarClient({
         </div>
 
         {sections.length === 0 && (
-          <div className="rounded-2xl border border-border bg-card p-12 text-center text-muted-foreground">
-            <ClipboardList className="mx-auto mb-3 opacity-30" size={32} />
-            Kein Inventar gefunden.
+          <div className="mt-8 rounded-2xl md:rounded-3xl border border-[#1a3826]/10 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/40 via-card to-[#1a3826]/5 dark:from-[#1a3826]/10 dark:via-card dark:to-[#1a3826]/5 shadow-lg p-10 md:p-16 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-[#1a3826]/8 dark:bg-[#FFC72C]/12 flex items-center justify-center mx-auto mb-5">
+              <ClipboardList size={30} className="text-[#1a3826] dark:text-[#FFC72C]" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground">Kein Inventar gefunden</h2>
+            <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+              Für diesen Standort sind noch keine Sektionen erfasst.
+            </p>
           </div>
         )}
       </div>

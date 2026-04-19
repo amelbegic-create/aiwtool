@@ -77,12 +77,34 @@ export function generateAushilfePDF(request: HelpRequestRow) {
   doc.setFont("helvetica", "normal");
   doc.text(formatDate(request.date), leftMargin + 55, yPos + 20);
 
+  // Schicht display: new requests use shiftNumber + sectorLabel, legacy use shiftTime
+  const SHIFT_LABELS: Record<number, string> = {
+    1: "Schicht 1 (Frühschicht)",
+    2: "Schicht 2 (Mittelschicht)",
+    3: "Schicht 3 (Spätschicht)",
+  };
+  const shiftStr = request.shiftTime && !request.sectorLabel
+    ? request.shiftTime
+    : (SHIFT_LABELS[request.shiftNumber] ?? `Schicht ${request.shiftNumber}`);
+  const sectorStr = request.sectorLabel || "";
+
   doc.setFont("helvetica", "bold");
   doc.text("Schicht:", leftMargin + 35, yPos + 26);
   doc.setFont("helvetica", "normal");
-  doc.text(request.shiftTime, leftMargin + 55, yPos + 26);
+  doc.text(shiftStr, leftMargin + 55, yPos + 26);
 
   yPos += 35;
+
+  // Sektor (only for new-format requests)
+  if (sectorStr) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text("Sektor:", leftMargin, yPos);
+    doc.setFont("helvetica", "normal");
+    doc.text(sectorStr, leftMargin + 25, yPos);
+    yPos += 7;
+  }
 
   if (request.notes?.trim()) {
     yPos += 5;

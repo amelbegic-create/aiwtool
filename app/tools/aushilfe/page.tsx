@@ -8,6 +8,8 @@ import AushilfeClient from "./AushilfeClient";
 
 export const dynamic = "force-dynamic";
 
+const AUSHILFE_DEFAULT_ROLES = new Set(["SYSTEM_ARCHITECT", "ADMIN", "MANAGER"]);
+
 export default async function AushilfePage() {
   const session = await getServerSession(authOptions);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,6 +18,14 @@ export default async function AushilfePage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const role = (session?.user as any)?.role as string | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const permissions = ((session?.user as any)?.permissions ?? []) as string[];
+
+  const hasAccess =
+    AUSHILFE_DEFAULT_ROLES.has(role ?? "") ||
+    permissions.includes("aushilfe:access");
+
+  if (!hasAccess) redirect("/dashboard");
 
   const activeRequests = await getHelpRequests(false);
 
@@ -72,29 +82,14 @@ export default async function AushilfePage() {
     profile?.name?.trim() || profile?.email?.trim() || "Benutzer";
 
   return (
-    <div className="min-h-screen bg-background font-sans text-foreground">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 md:px-8 py-6 md:py-8">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-5 mb-6">
-          <div>
-            <h1 className="text-4xl font-black uppercase tracking-tighter text-[#1a3826] dark:text-[#FFC72C]">
-              AUSHILFE <span className="text-[#FFC72C] dark:text-white">ANFRAGEN</span>
-            </h1>
-            <p className="mt-1 text-sm font-medium text-muted-foreground">
-              Personalunterstützung zwischen Restaurants koordinieren
-            </p>
-          </div>
-        </div>
-
-        <AushilfeClient
-          initialActiveRequests={activeRequests}
-          accessibleRestaurants={accessibleRestaurants}
-          providingRestaurants={providingRestaurants}
-          defaultActiveRestaurantId={defaultActiveRestaurantId}
-          requesterName={requesterName}
-          userRole={role ?? ""}
-          userId={userId ?? ""}
-        />
-      </div>
-    </div>
+    <AushilfeClient
+      initialActiveRequests={activeRequests}
+      accessibleRestaurants={accessibleRestaurants}
+      providingRestaurants={providingRestaurants}
+      defaultActiveRestaurantId={defaultActiveRestaurantId}
+      requesterName={requesterName}
+      userRole={role ?? ""}
+      userId={userId ?? ""}
+    />
   );
 }

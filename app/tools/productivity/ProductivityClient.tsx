@@ -39,32 +39,12 @@ interface Restaurant {
   name: string | null;
 }
 
-interface Station {
-  key: string;
-  label: string;
-  group: string;
-  isCustom?: boolean;
-}
+import { DEFAULT_STATIONS, type Station } from "@/lib/productivityStations";
 
 interface HourData {
   rev: string;
   [key: string]: string;
 }
-
-// Njemački nazivi stanica
-const DEFAULT_STATIONS: Station[] = [
-  { key: "ausgabe", label: "Ausgabe", group: "Service" },
-  { key: "kueche", label: "Küche", group: "Kuhinja" },
-  { key: "lobby", label: "Lobby", group: "Lobby" },
-  { key: "mccafe", label: "McCafé", group: "McCafé" },
-  { key: "drive", label: "Drive", group: "Service" },
-  { key: "getraenke", label: "Getränke", group: "Service" },
-  { key: "kasse", label: "Kasse", group: "Service" },
-  { key: "tableservice", label: "T.Serv.", group: "Service" },
-  { key: "pommes", label: "Pommes", group: "Service" },
-  { key: "sf", label: "SF Prod.", group: "Ostalo" },
-  { key: "pause", label: "Pause (-)", group: "Ostalo" },
-];
 
 const DAYS = [
   { key: "monday", label: "Montag" },

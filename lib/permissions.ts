@@ -213,6 +213,14 @@ export const PERMISSIONS: PermissionGroup[] = [
       { key: "inventory:edit", label: "Bestände bearbeiten" },
     ],
   },
+  {
+    id: "aushilfe",
+    title: "Aushilfe Anfragen",
+    subtitle: "Personalunterstützung zwischen Restaurants – standardmäßig nur RL, Admin und Super Admin",
+    items: [
+      { key: "aushilfe:access", label: "Zugriff auf Aushilfe Anfragen (für andere Rollen freischalten)" },
+    ],
+  },
 ];
 
 export const ALL_PERMISSION_KEYS: PermissionKey[] = PERMISSIONS.flatMap((g) => g.items.map((i) => i.key));

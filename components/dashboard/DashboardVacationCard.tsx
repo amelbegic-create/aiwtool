@@ -134,7 +134,7 @@ export default function DashboardVacationCard({
         </div>
       )}
 
-      <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl bg-gradient-to-br from-[#1a3826] via-[#152e20] to-[#0a1f14] p-2 shadow-lg ring-1 ring-black/10 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:p-2.5">
+      <div className="relative flex h-full min-h-0 max-h-full flex-col overflow-hidden rounded-xl bg-gradient-to-br from-[#1a3826] via-[#152e20] to-[#0a1f14] p-2 shadow-lg ring-1 ring-black/10 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:p-2.5">
         <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#FFC72C]/15 blur-2xl" />
         <div className="pointer-events-none absolute bottom-0 left-1/2 h-24 w-48 -translate-x-1/2 rounded-full bg-white/5 blur-3xl" />
 
@@ -151,7 +151,7 @@ export default function DashboardVacationCard({
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-1 flex-col gap-1.5 rounded-xl border border-white/10 bg-white/95 p-2 shadow-inner dark:bg-slate-950/90 dark:border-white/10 sm:gap-2 sm:p-2.5">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-white/95 p-2 shadow-inner dark:bg-slate-950/90 dark:border-white/10 sm:gap-2 sm:p-2.5">
           {/* 4 jednaka stupca – centrirano; na vrlo uskoj širini lagani scroll */}
           <div className="overflow-x-auto sm:overflow-visible [-webkit-overflow-scrolling:touch]">
             <div className="grid w-full min-w-[15.5rem] grid-cols-4 gap-1 sm:min-w-0 sm:gap-2">

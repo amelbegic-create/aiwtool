@@ -300,10 +300,12 @@ export default async function DashboardPage({
       ══════════════════════════════════════ */}
       <main className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8 pt-2 md:pt-4 pb-10 safe-area-l safe-area-r">
 
-        {/* ── Vier Karten in einer Reihe (lg): Kalender | Team | Aufgaben | Urlaub ── */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 items-stretch min-h-[240px] ${teamCount > 0 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
+        {/* ── Vier Karten in einer Reihe (lg): Kalender | Team | Aufgaben | Urlaub — feste Höhe, kein Mitwachsen ── */}
+        <div
+          className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 min-h-0 items-stretch ${teamCount > 0 ? "lg:grid-cols-4" : "lg:grid-cols-3"} lg:grid-rows-1 lg:h-[300px] lg:max-h-[300px]`}
+        >
           {/* 1. Mein Kalender */}
-          <div className="min-h-0 flex flex-col">
+          <div className="min-h-0 flex flex-col overflow-hidden lg:min-h-0 lg:max-h-full">
             <DashboardCalendarCard
               userId={dbUser.id}
               initialEvents={calendarEvents}
@@ -314,10 +316,10 @@ export default async function DashboardPage({
           </div>
 
           {/* 2. MEIN TEAM — nur sichtbar wenn der Benutzer Mitarbeiter führt */}
-          {teamCount > 0 && <div className="min-h-0 flex flex-col">
+          {teamCount > 0 && <div className="min-h-0 flex flex-col overflow-hidden lg:min-h-0 lg:max-h-full">
             <Link
               href="/team"
-              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#FFC72C] to-[#dfa820] p-5 flex flex-row justify-between items-stretch gap-4 shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 min-h-[140px] h-full"
+              className="group relative overflow-hidden rounded-xl bg-gradient-to-br from-[#FFC72C] to-[#dfa820] p-5 flex flex-row justify-between items-stretch gap-4 shadow-lg hover:-translate-y-0.5 hover:shadow-xl transition-all duration-300 min-h-[140px] lg:min-h-0 h-full max-h-full"
             >
               <div className="absolute -right-2 -bottom-2 w-20 h-20 rounded-full bg-[#1a3826]/10 blur-xl pointer-events-none" />
               <div className="absolute right-8 top-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-[#1a3826]/5 pointer-events-none" />
@@ -369,12 +371,12 @@ export default async function DashboardPage({
           </div>}
 
           {/* 3. Meine Aufgaben */}
-          <div className="min-h-0 flex flex-col">
+          <div className="min-h-0 flex flex-col overflow-hidden lg:min-h-0 lg:max-h-full">
             <DashboardTodoCard userId={dbUser.id} initialTodos={initialTodos} />
           </div>
 
           {/* 4. JAHRESURLAUB */}
-          <div className="min-h-0 flex flex-col">
+          <div className="min-h-0 flex flex-col overflow-hidden lg:min-h-0 lg:max-h-full">
             <DashboardVacationCard
               year={currentYear}
               carryover={vacationSnapshot.carryover}
