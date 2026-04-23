@@ -9,6 +9,47 @@ import { requirePermission } from "@/lib/access";
 
 const GUEST_COOKIE = "mcd_training_guest";
 
+const DEFAULT_TRAINING_TEMPLATES: Array<{
+  slug: string;
+  title: string;
+  sortOrder: number;
+  topics?: string | null;
+  prerequisites?: string | null;
+}> = [
+  { slug: "crewtrainer-service", title: "Crewtrainer Service", sortOrder: 0 },
+  { slug: "foodsafety-neu", title: "FoodSafety NEU", sortOrder: 1 },
+  { slug: "crewtrainer-kueche", title: "Crewtrainer Küche", sortOrder: 2 },
+  { slug: "crewtrainer-mccafe", title: "Crewtrainer McCafé", sortOrder: 3 },
+  { slug: "teilschichtfuehrer-neu", title: "Teilschichtführer neu", sortOrder: 4 },
+  { slug: "it-schulung", title: "IT-Schulung", sortOrder: 5 },
+  { slug: "schichtfuehrer-neu", title: "Schichtführer neu", sortOrder: 6 },
+  { slug: "qualitaet-brand-standards", title: "Qualität & Brand Standards", sortOrder: 7 },
+  { slug: "individuell", title: "Individuell", sortOrder: 8, topics: null, prerequisites: null },
+];
+
+async function ensureTrainingTemplatesPrefilled(): Promise<void> {
+  // Idempotent upsert by slug so production always has defaults.
+  const existing = await prisma.trainingTemplate.count();
+  if (existing >= DEFAULT_TRAINING_TEMPLATES.length) return;
+
+  for (const t of DEFAULT_TRAINING_TEMPLATES) {
+    await prisma.trainingTemplate.upsert({
+      where: { slug: t.slug },
+      create: {
+        slug: t.slug,
+        title: t.title,
+        sortOrder: t.sortOrder,
+        topics: t.topics ?? null,
+        prerequisites: t.prerequisites ?? null,
+      },
+      update: {
+        // Keep admin edits; only ensure it exists and keep a reasonable order.
+        sortOrder: t.sortOrder,
+      },
+    });
+  }
+}
+
 export type PublicTrainingParticipant = {
   id: string;
   displayName: string;
@@ -185,6 +226,7 @@ export type TrainingRestaurantOption = {
 
 export async function listTrainingProgramsAdmin(): Promise<AdminTrainingProgramRow[]> {
   await requirePermission("training:manage");
+  await ensureTrainingTemplatesPrefilled();
   const rows = await prisma.trainingProgram.findMany({
     orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
     include: {
@@ -250,6 +292,7 @@ export async function listTrainingProgramsAdmin(): Promise<AdminTrainingProgramR
 
 export async function listTrainingTemplates(): Promise<TrainingTemplateOption[]> {
   await requirePermission("training:manage");
+  await ensureTrainingTemplatesPrefilled();
   const rows = await prisma.trainingTemplate.findMany({
     orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
     select: { id: true, slug: true, title: true, topics: true, prerequisites: true, sortOrder: true },

@@ -545,13 +545,13 @@ export async function register() {
     await run(`ALTER TABLE "TemplateItem" ADD COLUMN IF NOT EXISTS "extractedText" TEXT`);
 
     // ── 15. Aushilfe: Schicht 1–3 + Sektori ─────────────────────────────────
-    // HelpRequest: shiftTime postaje nullable, dodajemo shiftNumber, sectorKey, sectorLabel
     await run(`ALTER TABLE "HelpRequest" ALTER COLUMN "shiftTime" DROP NOT NULL`);
     await run(`ALTER TABLE "HelpRequest" ADD COLUMN IF NOT EXISTS "shiftNumber" INTEGER NOT NULL DEFAULT 1`);
     await run(`ALTER TABLE "HelpRequest" ADD COLUMN IF NOT EXISTS "sectorKey" TEXT NOT NULL DEFAULT 'kueche'`);
     await run(`ALTER TABLE "HelpRequest" ADD COLUMN IF NOT EXISTS "sectorLabel" TEXT NOT NULL DEFAULT 'Küche'`);
+    // neededSpots can now be 0 on HelpRequest itself (sum comes from positions)
+    await run(`ALTER TABLE "HelpRequest" ALTER COLUMN "neededSpots" SET DEFAULT 0`);
 
-    // AushilfeCustomSector – posebne kategorije po restoranu
     await run(`
       CREATE TABLE IF NOT EXISTS "AushilfeCustomSector" (
         "id"           TEXT NOT NULL,
@@ -572,6 +572,140 @@ export async function register() {
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AushilfeCustomSector_restaurantId_fkey') THEN
           ALTER TABLE "AushilfeCustomSector" ADD CONSTRAINT "AushilfeCustomSector_restaurantId_fkey"
             FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // ── 16. Aushilfe v2: HelpRequestPosition + HelpSlot.positionId ───────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "HelpRequestPosition" (
+        "id"            TEXT NOT NULL,
+        "helpRequestId" TEXT NOT NULL,
+        "sectorKey"     TEXT NOT NULL,
+        "sectorLabel"   TEXT NOT NULL,
+        "shiftTimeText" TEXT NOT NULL,
+        "neededSpots"   INTEGER NOT NULL DEFAULT 1,
+        "sortOrder"     INTEGER NOT NULL DEFAULT 0,
+        CONSTRAINT "HelpRequestPosition_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS "HelpRequestPosition_helpRequestId_idx" ON "HelpRequestPosition"("helpRequestId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'HelpRequestPosition_helpRequestId_fkey') THEN
+          ALTER TABLE "HelpRequestPosition" ADD CONSTRAINT "HelpRequestPosition_helpRequestId_fkey"
+            FOREIGN KEY ("helpRequestId") REFERENCES "HelpRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // HelpSlot: optional FK to position
+    await run(`ALTER TABLE "HelpSlot" ADD COLUMN IF NOT EXISTS "positionId" TEXT`);
+    await run(`CREATE INDEX IF NOT EXISTS "HelpSlot_positionId_idx" ON "HelpSlot"("positionId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'HelpSlot_positionId_fkey') THEN
+          ALTER TABLE "HelpSlot" ADD CONSTRAINT "HelpSlot_positionId_fkey"
+            FOREIGN KEY ("positionId") REFERENCES "HelpRequestPosition"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // Backfill: legacy requests without positions get one synthetic position
+    await run(`
+      INSERT INTO "HelpRequestPosition" ("id", "helpRequestId", "sectorKey", "sectorLabel", "shiftTimeText", "neededSpots", "sortOrder")
+      SELECT
+        'pos_legacy_' || hr."id",
+        hr."id",
+        hr."sectorKey",
+        hr."sectorLabel",
+        COALESCE(hr."shiftTime", 'Schicht ' || hr."shiftNumber"::text),
+        hr."neededSpots",
+        0
+      FROM "HelpRequest" hr
+      WHERE hr."neededSpots" > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM "HelpRequestPosition" p WHERE p."helpRequestId" = hr."id"
+        )
+      ON CONFLICT DO NOTHING
+    `);
+
+    // ── 17. OneOnOneTopic meeting fields ─────────────────────────────────────
+    await run(`ALTER TABLE "OneOnOneTopic" ADD COLUMN IF NOT EXISTS "meetingStartsAt" TIMESTAMP(3)`);
+    await run(`ALTER TABLE "OneOnOneTopic" ADD COLUMN IF NOT EXISTS "meetingEndsAt" TIMESTAMP(3)`);
+    await run(`ALTER TABLE "OneOnOneTopic" ADD COLUMN IF NOT EXISTS "meetingLocation" TEXT`);
+    await run(`ALTER TABLE "OneOnOneTopic" ADD COLUMN IF NOT EXISTS "requesterCalendarEventId" TEXT`);
+    await run(`ALTER TABLE "OneOnOneTopic" ADD COLUMN IF NOT EXISTS "supervisorCalendarEventId" TEXT`);
+    await run(`CREATE INDEX IF NOT EXISTS "OneOnOneTopic_meetingStartsAt_idx" ON "OneOnOneTopic"("meetingStartsAt")`);
+    await run(`CREATE INDEX IF NOT EXISTS "OneOnOneTopic_status_idx" ON "OneOnOneTopic"("status")`);
+
+    // ── 18. OneOnOneComment table ────────────────────────────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "OneOnOneComment" (
+        "id"        TEXT NOT NULL,
+        "topicId"   TEXT NOT NULL,
+        "authorId"  TEXT NOT NULL,
+        "body"      TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "OneOnOneComment_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS "OneOnOneComment_topicId_createdAt_idx" ON "OneOnOneComment"("topicId", "createdAt")`);
+    await run(`CREATE INDEX IF NOT EXISTS "OneOnOneComment_authorId_idx" ON "OneOnOneComment"("authorId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'OneOnOneComment_topicId_fkey') THEN
+          ALTER TABLE "OneOnOneComment" ADD CONSTRAINT "OneOnOneComment_topicId_fkey"
+            FOREIGN KEY ("topicId") REFERENCES "OneOnOneTopic"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'OneOnOneComment_authorId_fkey') THEN
+          ALTER TABLE "OneOnOneComment" ADD CONSTRAINT "OneOnOneComment_authorId_fkey"
+            FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+
+    // ── 19. OneOnOneAttachment table ─────────────────────────────────────────
+    await run(`
+      CREATE TABLE IF NOT EXISTS "OneOnOneAttachment" (
+        "id"           TEXT NOT NULL,
+        "topicId"      TEXT NOT NULL,
+        "commentId"    TEXT,
+        "uploadedById" TEXT NOT NULL,
+        "fileUrl"      TEXT NOT NULL,
+        "fileName"     TEXT NOT NULL,
+        "fileType"     TEXT NOT NULL,
+        "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "OneOnOneAttachment_pkey" PRIMARY KEY ("id")
+      )
+    `);
+    await run(`CREATE INDEX IF NOT EXISTS "OneOnOneAttachment_topicId_idx" ON "OneOnOneAttachment"("topicId")`);
+    await run(`CREATE INDEX IF NOT EXISTS "OneOnOneAttachment_commentId_idx" ON "OneOnOneAttachment"("commentId")`);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'OneOnOneAttachment_topicId_fkey') THEN
+          ALTER TABLE "OneOnOneAttachment" ADD CONSTRAINT "OneOnOneAttachment_topicId_fkey"
+            FOREIGN KEY ("topicId") REFERENCES "OneOnOneTopic"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'OneOnOneAttachment_uploadedById_fkey') THEN
+          ALTER TABLE "OneOnOneAttachment" ADD CONSTRAINT "OneOnOneAttachment_uploadedById_fkey"
+            FOREIGN KEY ("uploadedById") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$
+    `);
+    await run(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'OneOnOneAttachment_commentId_fkey') THEN
+          ALTER TABLE "OneOnOneAttachment" ADD CONSTRAINT "OneOnOneAttachment_commentId_fkey"
+            FOREIGN KEY ("commentId") REFERENCES "OneOnOneComment"("id") ON DELETE SET NULL ON UPDATE CASCADE;
         END IF;
       END $$
     `);

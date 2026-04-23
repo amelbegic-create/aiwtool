@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_TOOLS, TOOL_CATEGORIES } from "@/lib/tools/tools-config";
-import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, CalendarRange, FileText, Lightbulb, Lock, Unlock, MessageCircle, GraduationCap, MessageSquare } from "lucide-react";
+import { ChevronDown, LayoutGrid, LogOut, User, Menu, X, Bell, Settings, CheckCircle2, XCircle, RotateCcw, Clock, CalendarX, CalendarRange, FileText, Lightbulb, Lock, Unlock, MessageCircle, GraduationCap, MessageSquare, ClipboardList, CalendarDays } from "lucide-react";
 import { useState, useEffect, useRef, useTransition } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { Kanit } from "next/font/google";
@@ -159,6 +159,22 @@ function kindMeta(kind?: string, status?: string) {
       icon: <MessageSquare size={14} className="text-white" />,
       bg: "bg-[#1a3826]",
       label: "Thema aktualisiert",
+      labelColor: "text-[#1a3826] dark:text-[#FFC72C]",
+    };
+  }
+  if (kind === "one_on_one_meeting_scheduled") {
+    return {
+      icon: <CalendarDays size={14} className="text-white" />,
+      bg: "bg-[#1a3826]",
+      label: "Termin festgelegt",
+      labelColor: "text-[#1a3826] dark:text-[#FFC72C]",
+    };
+  }
+  if (kind === "aushilfe_request") {
+    return {
+      icon: <ClipboardList size={14} className="text-white" />,
+      bg: "bg-[#1a3826]",
+      label: "Aushilfe",
       labelColor: "text-[#1a3826] dark:text-[#FFC72C]",
     };
   }
@@ -478,6 +494,10 @@ export default function TopNavbar({
                       const isDashboardNotif =
                         n.kind === "dashboard_news_new" || n.kind === "dashboard_events_new";
                       const isIdeaReplyNotif = n.kind === "user_idea_reply";
+                      const isVacationWorkerKind =
+                        n.kind === "worker_vacation_approved" ||
+                        n.kind === "worker_vacation_rejected" ||
+                        n.kind === "worker_vacation_returned";
                       return (
                         <div key={n.id} className="flex items-start gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors group relative">
                           <Link
@@ -511,23 +531,28 @@ export default function TopNavbar({
                                   {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
                                   {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
                                 </>
-                              ) : isDashboardNotif || isIdeaReplyNotif ? (
-                                <>
-                                  <p className="text-sm leading-snug text-foreground break-words">
-                                    <span className="font-black">{n.title}</span>{" "}
-                                    <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
-                                  </p>
-                                  {isIdeaReplyNotif && n.actorName && (
-                                    <p className="text-[11px] text-muted-foreground mt-0.5">von {n.actorName}</p>
-                                  )}
-                                </>
-                              ) : (
+                              ) : isVacationWorkerKind ? (
                                 <>
                                   <p className="text-sm leading-snug text-foreground">
                                     <span className="font-bold">Ihr Urlaubsantrag </span>
                                     <span className={`font-black ${meta.labelColor}`}>{meta.label}</span>
                                   </p>
                                   {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-sm leading-snug text-foreground break-words">
+                                    <span className="font-black">{n.title}</span>
+                                  </p>
+                                  <p className={`text-[11px] font-semibold mt-0.5 break-words ${meta.labelColor}`}>{n.description}</p>
+                                  {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
+                                  {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                                  {isDashboardNotif && n.actorName && (
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">von {n.actorName}</p>
+                                  )}
+                                  {isIdeaReplyNotif && n.actorName && (
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">von {n.actorName}</p>
+                                  )}
                                 </>
                               )}
                               <p className="text-[10px] text-muted-foreground/60 mt-1 font-semibold">{timeAgo(n.createdAt)}</p>
@@ -785,6 +810,10 @@ export default function TopNavbar({
                 const isDashboardNotif =
                   n.kind === "dashboard_news_new" || n.kind === "dashboard_events_new";
                 const isIdeaReplyNotif = n.kind === "user_idea_reply";
+                const isVacationWorkerKind =
+                  n.kind === "worker_vacation_approved" ||
+                  n.kind === "worker_vacation_rejected" ||
+                  n.kind === "worker_vacation_returned";
                 return (
                   <div
                     key={n.id}
@@ -819,23 +848,25 @@ export default function TopNavbar({
                             {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
                             {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
                           </>
-                        ) : isDashboardNotif || isIdeaReplyNotif ? (
-                          <>
-                            <p className="text-sm leading-snug text-foreground break-words">
-                              <span className="font-black">{n.title}</span>{" "}
-                              <span className={`font-bold ${meta.labelColor}`}>{n.description}</span>
-                            </p>
-                            {isIdeaReplyNotif && n.actorName && (
-                              <p className="text-[11px] text-muted-foreground mt-0.5">von {n.actorName}</p>
-                            )}
-                          </>
-                        ) : (
+                        ) : isVacationWorkerKind ? (
                           <>
                             <p className="text-sm leading-snug text-foreground">
                               <span className="font-bold">Ihr Urlaubsantrag </span>
                               <span className={`font-black ${meta.labelColor}`}>{meta.label}</span>
                             </p>
                             {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm leading-snug text-foreground break-words">
+                              <span className="font-black">{n.title}</span>
+                            </p>
+                            <p className={`text-[11px] font-semibold mt-0.5 break-words ${meta.labelColor}`}>{n.description}</p>
+                            {n.restaurantName && <p className="text-[11px] text-muted-foreground mt-0.5">📍 {n.restaurantName}</p>}
+                            {n.vacationDates && <p className="text-[11px] font-mono text-muted-foreground mt-0.5">📅 {n.vacationDates}</p>}
+                            {(isDashboardNotif || isIdeaReplyNotif) && n.actorName && (
+                              <p className="text-[11px] text-muted-foreground mt-0.5">von {n.actorName}</p>
+                            )}
                           </>
                         )}
                         <p className="text-[10px] text-muted-foreground/60 mt-1 font-semibold">{timeAgo(n.createdAt)}</p>

@@ -14,6 +14,7 @@ const SECTION_ACCENT: Record<string, [number, number, number]> = {
   Service: [26, 74, 46],
   Lobby: [15, 46, 28],
   McCafe: [74, 26, 0],
+  Verschiedenes: [26, 56, 38],
 };
 
 function drawPageHeader(doc: jsPDF, restaurantName: string, title: string) {
@@ -72,35 +73,32 @@ function drawSectionTable(
     item.modell ?? "—",
     item.seriennummer ?? "—",
     item.anschaffungsjahr ? String(item.anschaffungsjahr) : "—",
-    item.garantieUrl ? "✓" : "—",
   ]);
 
   autoTable(doc, {
     startY: startY + 12,
-    head: [["Gerät", "Marke", "Modell", "Seriennummer", "Baujahr", "Garantie"]],
+    head: [["Gerät", "Marke", "Modell", "Seriennummer", "Baujahr"]],
     body: tableData,
     margin: { left: 15, right: 15 },
     styles: {
-      fontSize: 8,
-      cellPadding: 3,
+      fontSize: 9,
+      cellPadding: 3.5,
       textColor: DARK_TXT,
       lineColor: [220, 225, 220],
       lineWidth: 0.2,
+      overflow: "linebreak",
+      cellWidth: "wrap",
     },
     headStyles: {
       fillColor: LIGHT_GREEN,
       textColor: GREEN,
       fontStyle: "bold",
-      fontSize: 8,
+      fontSize: 9,
     },
     alternateRowStyles: { fillColor: [248, 252, 249] },
+    tableWidth: "auto",
     columnStyles: {
-      0: { cellWidth: 50 },
-      1: { cellWidth: 28 },
-      2: { cellWidth: 30 },
-      3: { cellWidth: 38 },
-      4: { cellWidth: 18, halign: "center" },
-      5: { cellWidth: 14, halign: "center" },
+      4: { halign: "center" },
     },
   });
 
@@ -147,7 +145,8 @@ export function generateFullEquipmentPDF(
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
 
-  drawPageHeader(doc, restaurantName, "Vollständige Geräteliste");
+  const restLabel = (restaurantName || "").trim() || "—";
+  drawPageHeader(doc, restLabel, "Vollständige Geräteliste");
 
   // Summary stats box
   const totalItems = sections.reduce((s, sec) => s + sec.items.length, 0);
@@ -155,31 +154,70 @@ export function generateFullEquipmentPDF(
     (s, sec) => s + sec.items.filter((i) => i.seriennummer).length,
     0
   );
-  const withGarantie = sections.reduce(
-    (s, sec) => s + sec.items.filter((i) => i.garantieUrl).length,
-    0
-  );
 
   doc.setFillColor(...LIGHT_GREEN);
-  doc.roundedRect(15, 40, pw - 30, 14, 2, 2, "F");
+  doc.roundedRect(15, 40, pw - 30, 18, 2, 2, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setTextColor(...GREEN);
-  doc.text(`Gesamt: ${totalItems} Geräte`, 22, 48);
+  doc.text(`Restaurant: ${restLabel}`, 22, 48);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...MUTED);
-  doc.text(`Seriennummer: ${withSerial}/${totalItems}`, 90, 48);
-  doc.text(`Garantiescheine: ${withGarantie}/${totalItems}`, 180, 48);
+  doc.text(`Gesamt Geräte: ${totalItems}`, 22, 55);
+  doc.text(`Mit Seriennummer: ${withSerial}/${totalItems}`, 90, 55);
+  doc.text(
+    `Exportiert: ${new Date().toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" })}`,
+    pw - 22,
+    55,
+    { align: "right" }
+  );
 
-  let y = 60;
+  // Cover: section overview table (so page 1 is never empty)
+  const coverRows = sections.map((s) => [
+    s.name,
+    String(s.items.length),
+    String(s.items.filter((i) => i.seriennummer).length),
+  ]);
 
+  autoTable(doc, {
+    startY: 66,
+    head: [["Sektion", "Geräte", "Mit Seriennummer"]],
+    body: coverRows,
+    margin: { left: 15, right: 15 },
+    styles: {
+      fontSize: 10,
+      cellPadding: 4,
+      textColor: DARK_TXT,
+      lineColor: [220, 225, 220],
+      lineWidth: 0.2,
+    },
+    headStyles: {
+      fillColor: GREEN,
+      textColor: WHITE,
+      fontStyle: "bold",
+      halign: "left",
+    },
+    alternateRowStyles: { fillColor: [248, 252, 249] },
+    columnStyles: {
+      1: { halign: "center", cellWidth: 28 },
+      2: { halign: "center", cellWidth: 42 },
+    },
+  });
+
+  // Each section starts on a new page for clean layout / no awkward breaks
   sections.forEach((section, idx) => {
-    if (y > ph - 40 && idx > 0) {
-      doc.addPage();
-      drawPageHeader(doc, restaurantName, "Vollständige Geräteliste (Fortsetzung)");
-      y = 42;
+    doc.addPage();
+    drawPageHeader(doc, restLabel, `Sektion: ${section.name}`);
+    drawSectionTable(doc, section, 42);
+    // If a section spans multiple pages, re-draw header on the following pages
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const last = (doc as any).lastAutoTable;
+    if (last && typeof last.pageNumber === "number") {
+      // no-op: autoTable handles splitting; header will exist on the first page of the section
     }
-    y = drawSectionTable(doc, section, y);
+    // remove: y tracking, we rely on autoTable paging within a section
+    void idx;
+    void ph;
   });
 
   drawFooter(doc);

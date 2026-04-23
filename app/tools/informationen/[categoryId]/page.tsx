@@ -7,7 +7,7 @@ import InformationenListClient from "./InformationenListClient";
 export default async function InformationenCategoryPage({
   params,
 }: {
-  params: { categoryId: string };
+  params: Promise<{ categoryId: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
@@ -18,7 +18,7 @@ export default async function InformationenCategoryPage({
     );
   }
 
-  const { categoryId } = params;
+  const { categoryId } = await params;
   const [category, items] = await Promise.all([
     prisma.informationCategory.findUnique({ where: { id: categoryId } }),
     getInformationItems(categoryId),

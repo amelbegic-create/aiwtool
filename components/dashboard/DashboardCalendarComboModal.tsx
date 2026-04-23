@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, X, CalendarDays } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { CalendarEventItem, CalendarEventType } from "@/lib/calendarShared";
 import MiniMonthCalendar from "@/components/calendar/MiniMonthCalendar";
 import { uniqueEventsForDay, parseCalendarEventDate } from "@/components/calendar/calendarEventUi";
@@ -45,7 +45,6 @@ export default function DashboardCalendarComboModal({
   onNextMonth: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [tab, setTab] = useState<"day" | "month">("day");
 
   useEffect(() => {
     if (!open) return;
@@ -63,7 +62,7 @@ export default function DashboardCalendarComboModal({
   }, [open, onClose]);
 
   useEffect(() => {
-    if (open) setTab("day");
+    // no-op: previously reset Tag/Monat toggle
   }, [open, year, month]);
 
   const monthLabel = useMemo(() => {
@@ -107,30 +106,6 @@ export default function DashboardCalendarComboModal({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1">
-                <button
-                  type="button"
-                  onClick={() => setTab("day")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition ${
-                    tab === "day"
-                      ? "bg-[#1a3826] text-white dark:bg-[#FFC72C] dark:text-[#1a3826]"
-                      : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                  }`}
-                >
-                  Tag
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTab("month")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition ${
-                    tab === "month"
-                      ? "bg-[#1a3826] text-white dark:bg-[#FFC72C] dark:text-[#1a3826]"
-                      : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                  }`}
-                >
-                  Monat
-                </button>
-              </div>
               <button
                 ref={closeRef}
                 type="button"
@@ -177,7 +152,6 @@ export default function DashboardCalendarComboModal({
                 events={events}
                 onDayClick={(d) => {
                   onSelectDay(d);
-                  setTab("day");
                 }}
                 onPrevMonth={onPrevMonth}
                 onNextMonth={onNextMonth}
@@ -205,15 +179,6 @@ export default function DashboardCalendarComboModal({
                     {format(selectedDay, "MMMM yyyy", { locale: de })}
                   </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setTab(tab === "day" ? "month" : "day")}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-2 text-sm font-black text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  <CalendarDays size={16} />
-                  {tab === "day" ? "Monat" : "Tag"}
-                </button>
               </div>
 
               <div className="mt-5">

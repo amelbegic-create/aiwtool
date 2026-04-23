@@ -301,6 +301,8 @@ model User {
 
   oneOnOneTopics         OneOnOneTopic[] @relation("TopicRequester")
   supervisedTopics       OneOnOneTopic[] @relation("TopicSupervisor")
+  oneOnOneComments       OneOnOneComment[] @relation("OneOnOneCommentAuthor")
+  oneOnOneAttachments    OneOnOneAttachment[] @relation("OneOnOneAttachmentUploader")
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -1247,33 +1249,49 @@ model BonusEntry {
 // ─── Aushilfe (Ispomoć) ───────────────────────────────────────────────────────
 
 model HelpRequest {
-  id                     String      @id @default(cuid())
+  id                     String                  @id @default(cuid())
   requestingRestaurantId String
-  requestingRestaurant   Restaurant  @relation("HelpRequestingRestaurant", fields: [requestingRestaurantId], references: [id])
-  date                   String      // YYYY-MM-DD
-  shiftTime              String?     // Legacy: "06:00–14:00" (nullable za nove zapise)
-  shiftNumber            Int         @default(1) // 1 = Früh, 2 = Mittel, 3 = Spät
-  sectorKey              String      @default("kueche") // npr. "kueche"
-  sectorLabel            String      @default("Küche")  // snapshot labela
-  neededSpots            Int
+  requestingRestaurant   Restaurant              @relation("HelpRequestingRestaurant", fields: [requestingRestaurantId], references: [id])
+  date                   String                  // YYYY-MM-DD
+  // Legacy fields – kept for backward compat with old rows only
+  shiftTime              String?
+  shiftNumber            Int                     @default(1)
+  sectorKey              String                  @default("kueche")
+  sectorLabel            String                  @default("Küche")
+  neededSpots            Int                     @default(0)
   notes                  String?
-  isArchived             Boolean     @default(false)
+  isArchived             Boolean                 @default(false)
   createdByUserId        String?
-  createdByUser          User?       @relation("HelpRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdAt              DateTime    @default(now())
+  createdByUser          User?                   @relation("HelpRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt              DateTime                @default(now())
   slots                  HelpSlot[]
+  positions              HelpRequestPosition[]
 
   @@index([requestingRestaurantId])
   @@index([isArchived, date])
   @@index([createdByUserId])
 }
 
+model HelpRequestPosition {
+  id            String      @id @default(cuid())
+  helpRequestId String
+  helpRequest   HelpRequest @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+  sectorKey     String
+  sectorLabel   String
+  shiftTimeText String      // e.g. "Smjena 1 od 13:30 do 20:00"
+  neededSpots   Int
+  sortOrder     Int         @default(0)
+  slots         HelpSlot[]
+
+  @@index([helpRequestId])
+}
+
 model AushilfeCustomSector {
   id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  key          String     // unikatan slug po restoranu, npr. "custom_grill"
-  label        String     // prikazni naziv, npr. "Grill Station"
+  key          String
+  label        String
   group        String     @default("Sonstiges")
   sortOrder    Int        @default(0)
   createdAt    DateTime   @default(now())
@@ -1284,17 +1302,20 @@ model AushilfeCustomSector {
 }
 
 model HelpSlot {
-  id                    String      @id @default(cuid())
+  id                    String               @id @default(cuid())
   helpRequestId         String
-  helpRequest           HelpRequest @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+  helpRequest           HelpRequest          @relation(fields: [helpRequestId], references: [id], onDelete: Cascade)
+  positionId            String?
+  position              HelpRequestPosition? @relation(fields: [positionId], references: [id], onDelete: SetNull)
   providingRestaurantId String
-  providingRestaurant   Restaurant  @relation("HelpProvidingRestaurant", fields: [providingRestaurantId], references: [id])
+  providingRestaurant   Restaurant           @relation("HelpProvidingRestaurant", fields: [providingRestaurantId], references: [id])
   workerName            String
   providerManagerId     String?
-  providerManager       User?       @relation("HelpSlotProviderManager", fields: [providerManagerId], references: [id], onDelete: SetNull)
-  createdAt             DateTime    @default(now())
+  providerManager       User?                @relation("HelpSlotProviderManager", fields: [providerManagerId], references: [id], onDelete: SetNull)
+  createdAt             DateTime             @default(now())
 
   @@index([helpRequestId])
+  @@index([positionId])
   @@index([providingRestaurantId])
   @@index([providerManagerId])
 }
@@ -1317,23 +1338,68 @@ enum OneOnOneTopicStatus {
 }
 
 model OneOnOneTopic {
-  id                     String               @id @default(cuid())
-  createdByUserId        String
-  createdBy              User                 @relation("TopicRequester", fields: [createdByUserId], references: [id], onDelete: Cascade)
-  supervisorUserId       String
-  supervisor             User                 @relation("TopicSupervisor", fields: [supervisorUserId], references: [id], onDelete: Cascade)
-  title                  String
-  details                String?
-  isUrgent               Boolean              @default(false)
-  status                 OneOnOneTopicStatus  @default(OPEN)
-  supervisorNotes        String?
-  agreedActions          String?
-  isArchivedByRequester  Boolean              @default(false)
-  isArchivedBySupervisor Boolean              @default(false)
-  resolvedAt             DateTime?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
+  id                       String               @id @default(cuid())
+  createdByUserId          String
+  createdBy                User                 @relation("TopicRequester", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  supervisorUserId         String
+  supervisor               User                 @relation("TopicSupervisor", fields: [supervisorUserId], references: [id], onDelete: Cascade)
+  title                    String
+  details                  String?
+  isUrgent                 Boolean              @default(false)
+  status                   OneOnOneTopicStatus  @default(OPEN)
+  supervisorNotes          String?
+  agreedActions            String?
+  isArchivedByRequester    Boolean              @default(false)
+  isArchivedBySupervisor   Boolean              @default(false)
+  resolvedAt               DateTime?
+
+  // Meeting scheduling
+  meetingStartsAt          DateTime?
+  meetingEndsAt            DateTime?
+  meetingLocation          String?
+  requesterCalendarEventId String?
+  supervisorCalendarEventId String?
+
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  comments                 OneOnOneComment[]
+  attachments              OneOnOneAttachment[]
 
   @@index([createdByUserId])
   @@index([supervisorUserId])
+  @@index([meetingStartsAt])
+  @@index([status])
+}
+
+model OneOnOneComment {
+  id          String          @id @default(cuid())
+  topicId     String
+  topic       OneOnOneTopic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User            @relation("OneOnOneCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body        String          @db.Text
+  createdAt   DateTime        @default(now())
+
+  attachments OneOnOneAttachment[]
+
+  @@index([topicId, createdAt])
+  @@index([authorId])
+}
+
+model OneOnOneAttachment {
+  id           String           @id @default(cuid())
+  topicId      String
+  topic        OneOnOneTopic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  commentId    String?
+  comment      OneOnOneComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  uploadedById String
+  uploadedBy   User             @relation("OneOnOneAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  fileUrl      String
+  fileName     String
+  fileType     String
+  createdAt    DateTime         @default(now())
+
+  @@index([topicId])
+  @@index([commentId])
 }

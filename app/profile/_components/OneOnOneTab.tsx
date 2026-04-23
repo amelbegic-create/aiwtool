@@ -1,33 +1,43 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   MessageSquare, Plus, X, Loader2, ChevronDown, ChevronUp,
   Clock, CheckCircle, AlertCircle, Ban, Archive, RotateCcw,
-  Edit, Send, Users, Inbox, AlertTriangle,
+  Edit, Send, Users, Inbox, AlertTriangle, Calendar, MapPin,
+  Paperclip, FileText, Image as ImageIcon, Download, UserPlus,
 } from "lucide-react";
 import {
   createOneOnOneTopic,
+  createOneOnOneTopicAsSupervisor,
   getMyOneOnOneTopics,
   getMySubordinateTopics,
+  getMySubordinates,
+  scheduleOneOnOneMeeting,
   updateTopicStatus,
   cancelMyTopic,
   archiveTopic,
   unarchiveTopic,
   updateTopicNotes,
   updateMyTopic,
+  addOneOnOneComment,
+  uploadOneOnOneAttachment,
+  getTopicComments,
   type OneOnOneTopicRow,
+  type OneOnOneCommentRow,
+  type OneOnOneAttachmentRow,
 } from "@/app/actions/oneOnOneActions";
 import type { OneOnOneTopicStatus } from "@prisma/client";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<OneOnOneTopicStatus, { label: string; icon: React.ReactNode; chip: string }> = {
-  OPEN:        { label: "Offen",         icon: <Clock size={12} />,        chip: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-300/50" },
-  IN_PROGRESS: { label: "In Bearbeitung",icon: <AlertCircle size={12} />,  chip: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-300/50" },
-  DONE:        { label: "Erledigt",      icon: <CheckCircle size={12} />,  chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-300/50" },
-  CANCELLED:   { label: "Storniert",     icon: <Ban size={12} />,          chip: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300/50" },
+  OPEN:        { label: "Offen",          icon: <Clock size={12} />,        chip: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-300/50" },
+  IN_PROGRESS: { label: "In Bearbeitung", icon: <AlertCircle size={12} />,  chip: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-300/50" },
+  DONE:        { label: "Erledigt",       icon: <CheckCircle size={12} />,  chip: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-300/50" },
+  CANCELLED:   { label: "Storniert",      icon: <Ban size={12} />,          chip: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-300/50" },
 };
 
 function StatusChip({ status }: { status: OneOnOneTopicStatus }) {
@@ -43,12 +53,22 @@ function fmtDate(d: Date | string) {
   return new Date(d).toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function fmtDateOnly(d: Date | string) {
+  return new Date(d).toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 function initials(name: string | null | undefined) {
   if (!name) return "?";
   return name.trim().split(/\s+/).map((p) => p[0]).join("").toUpperCase().slice(0, 2);
 }
 
-// ─── Create Modal ─────────────────────────────────────────────────────────────
+function toLocalDatetimeInput(d: Date | null): string {
+  if (!d) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ─── Create Modal (as employee) ───────────────────────────────────────────────
 
 function CreateModal({
   supervisorName,
@@ -91,7 +111,6 @@ function CreateModal({
             <X size={18} />
           </button>
         </div>
-
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {supervisorName && (
             <div className="flex items-center gap-2 rounded-xl bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
@@ -99,57 +118,28 @@ function CreateModal({
               Anfrage wird gesendet an: <strong className="text-foreground ml-1">{supervisorName}</strong>
             </div>
           )}
-
           <div>
             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Thema *</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={200}
-              placeholder="Worum geht es?"
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition"
-              autoFocus
-            />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} placeholder="Worum geht es?"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition" autoFocus />
             <div className="text-right text-[10px] text-muted-foreground/60 mt-1">{title.length}/200</div>
           </div>
-
           <div>
             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Details (optional)</label>
-            <textarea
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              rows={4}
-              maxLength={1000}
-              placeholder="Hintergrund, Fragen, Anliegen…"
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition"
-            />
+            <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={4} maxLength={1000} placeholder="Hintergrund, Fragen, Anliegen…"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 focus:border-[#1a3826] transition" />
             <div className="text-right text-[10px] text-muted-foreground/60 mt-1">{details.length}/1000</div>
           </div>
-
           <label className="flex items-center gap-3 cursor-pointer rounded-xl border border-border px-4 py-3 hover:bg-muted/40 transition select-none">
-            <input
-              type="checkbox"
-              checked={isUrgent}
-              onChange={(e) => setIsUrgent(e.target.checked)}
-              className="rounded"
-            />
+            <input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} className="rounded" />
             <div>
-              <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                <AlertTriangle size={14} className="text-red-500" /> Dringend
-              </div>
+              <div className="text-sm font-bold text-foreground flex items-center gap-1.5"><AlertTriangle size={14} className="text-red-500" /> Dringend</div>
               <div className="text-xs text-muted-foreground">Bevorzugte Behandlung anfragen</div>
             </div>
           </label>
-
           <div className="flex items-center justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition">
-              Abbrechen
-            </button>
-            <button
-              type="submit"
-              disabled={pending || !title.trim()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a3826] text-[#FFC72C] text-sm font-black hover:bg-[#142d1f] transition disabled:opacity-60"
-            >
+            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition">Abbrechen</button>
+            <button type="submit" disabled={pending || !title.trim()} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a3826] text-[#FFC72C] text-sm font-black hover:bg-[#142d1f] transition disabled:opacity-60">
               {pending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               {pending ? "Senden…" : "Thema senden"}
             </button>
@@ -160,16 +150,334 @@ function CreateModal({
   );
 }
 
-// ─── Detail / Edit Modal ──────────────────────────────────────────────────────
+// ─── Create Topic For Subordinate Modal ───────────────────────────────────────
+
+type SubUser = { id: string; name: string | null; email: string | null; image: string | null; role: string };
+
+function CreateForSubordinateModal({
+  subordinates,
+  onClose,
+  onCreated,
+}: {
+  subordinates: SubUser[];
+  onClose: () => void;
+  onCreated: (t: OneOnOneTopicRow) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(subordinates[0]?.id ?? "");
+  const [title, setTitle] = useState("");
+  const [details, setDetails] = useState("");
+  const [isUrgent, setIsUrgent] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) { toast.error("Bitte einen Titel eingeben."); return; }
+    if (!selectedId) { toast.error("Bitte einen Mitarbeiter wählen."); return; }
+    startTransition(async () => {
+      const r = await createOneOnOneTopicAsSupervisor({ subordinateUserId: selectedId, title, details, isUrgent });
+      if (r.ok) {
+        toast.success("Gesprächsthema erstellt.");
+        onCreated(r.topic);
+        onClose();
+      } else {
+        toast.error(r.error);
+      }
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between px-6 py-4 bg-[#1a3826]">
+          <div className="flex items-center gap-2.5">
+            <UserPlus size={18} className="text-[#FFC72C]" />
+            <span className="text-sm font-black text-white">Gespräch für Mitarbeiter erstellen</span>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Mitarbeiter *</label>
+            <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20">
+              {subordinates.map((u) => (
+                <option key={u.id} value={u.id}>{u.name ?? u.email ?? u.id}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Thema *</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} placeholder="Gesprächsthema"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" autoFocus />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Details (optional)</label>
+            <textarea value={details} onChange={(e) => setDetails(e.target.value)} rows={3} maxLength={1000} placeholder="Hintergrund, Fragen…"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer rounded-xl border border-border px-4 py-3 hover:bg-muted/40 transition select-none">
+            <input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} className="rounded" />
+            <span className="text-sm font-bold text-foreground flex items-center gap-1.5"><AlertTriangle size={14} className="text-red-500" /> Dringend</span>
+          </label>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition">Abbrechen</button>
+            <button type="submit" disabled={pending || !title.trim()} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a3826] text-[#FFC72C] text-sm font-black hover:bg-[#142d1f] transition disabled:opacity-60">
+              {pending ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}
+              {pending ? "Erstellen…" : "Thema erstellen"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Schedule Meeting Modal ────────────────────────────────────────────────────
+
+function ScheduleMeetingModal({
+  topic,
+  onClose,
+  onScheduled,
+}: {
+  topic: OneOnOneTopicRow;
+  onClose: () => void;
+  onScheduled: () => void;
+}) {
+  const defaultStart = topic.meetingStartsAt
+    ? toLocalDatetimeInput(new Date(topic.meetingStartsAt))
+    : toLocalDatetimeInput((() => { const d = new Date(); d.setHours(d.getHours() + 1, 0, 0, 0); return d; })());
+  const defaultEnd = topic.meetingEndsAt
+    ? toLocalDatetimeInput(new Date(topic.meetingEndsAt))
+    : "";
+
+  const [startsAt, setStartsAt] = useState(defaultStart);
+  const [endsAt, setEndsAt] = useState(defaultEnd);
+  const [location, setLocation] = useState(topic.meetingLocation ?? "");
+  const [pending, startTransition] = useTransition();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!startsAt) { toast.error("Bitte Start-Zeit angeben."); return; }
+    startTransition(async () => {
+      const r = await scheduleOneOnOneMeeting(topic.id, {
+        startsAt: new Date(startsAt),
+        endsAt: endsAt ? new Date(endsAt) : undefined,
+        location: location.trim() || undefined,
+      });
+      if (r.ok) {
+        toast.success("Termin gespeichert & in Kalender eingetragen.");
+        onScheduled();
+        onClose();
+      } else {
+        toast.error(r.error ?? "Fehler.");
+      }
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between px-6 py-4 bg-[#1a3826]">
+          <div className="flex items-center gap-2.5">
+            <Calendar size={18} className="text-[#FFC72C]" />
+            <span className="text-sm font-black text-white">Termin festlegen</span>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="rounded-xl bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground">
+            <span className="font-bold text-foreground">{topic.title}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Von *</label>
+              <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)}
+                className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Bis (opt.)</label>
+              <input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)}
+                className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+              <MapPin size={11} className="inline mr-1" /> Ort (optional)
+            </label>
+            <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={200} placeholder="z. B. Büro, Zoom-Link…"
+              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
+          </div>
+          <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+            <Calendar size={12} className="mt-0.5 shrink-0 text-[#1a3826] dark:text-[#FFC72C]" />
+            Der Termin wird automatisch im Kalender beider Teilnehmer eingetragen.
+          </p>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2.5 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition">Abbrechen</button>
+            <button type="submit" disabled={pending || !startsAt} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1a3826] text-[#FFC72C] text-sm font-black hover:bg-[#142d1f] transition disabled:opacity-60">
+              {pending ? <Loader2 size={15} className="animate-spin" /> : <Calendar size={15} />}
+              {pending ? "Speichern…" : "Termin speichern"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Comment Thread ───────────────────────────────────────────────────────────
+
+function CommentThread({
+  topicId,
+  currentUserId,
+}: {
+  topicId: string;
+  currentUserId: string;
+}) {
+  const [comments, setComments] = useState<OneOnOneCommentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [body, setBody] = useState("");
+  const [pending, startTransition] = useTransition();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const c = await getTopicComments(topicId);
+    setComments(c);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [topicId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddComment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!body.trim()) return;
+    startTransition(async () => {
+      const r = await addOneOnOneComment(topicId, body);
+      if (r.ok && r.comment) {
+        setComments((prev) => [...prev, r.comment!]);
+        setBody("");
+      } else {
+        toast.error(r.error ?? "Fehler.");
+      }
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await uploadOneOnOneAttachment(fd, { topicId });
+    if (r.ok) {
+      toast.success("Datei hochgeladen.");
+      load();
+    } else {
+      toast.error(r.error ?? "Fehler.");
+    }
+    e.target.value = "";
+  };
+
+  return (
+    <div className="space-y-3">
+      {loading ? (
+        <div className="flex items-center gap-2 text-muted-foreground py-2">
+          <Loader2 size={14} className="animate-spin" />
+          <span className="text-xs">Laden…</span>
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic py-2">Noch keine Kommentare.</p>
+      ) : (
+        <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+          {comments.map((c) => {
+            const isMe = c.authorId === currentUserId;
+            return (
+              <div key={c.id} className={`flex gap-2.5 ${isMe ? "flex-row-reverse" : ""}`}>
+                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#1a3826] to-[#0f2218] flex items-center justify-center text-[#FFC72C] text-[9px] font-black shrink-0 overflow-hidden">
+                  {c.author.image ? <img src={c.author.image} alt="" className="w-full h-full object-cover rounded-full" /> : initials(c.author.name)}
+                </div>
+                <div className={`flex-1 min-w-0 ${isMe ? "items-end flex flex-col" : ""}`}>
+                  <div className={`rounded-2xl px-3.5 py-2.5 text-sm max-w-[85%] ${isMe ? "bg-[#1a3826] text-white ml-auto" : "bg-muted/60 text-foreground"}`}>
+                    <p className="leading-snug whitespace-pre-wrap">{c.body}</p>
+                  </div>
+                  {c.attachments.length > 0 && (
+                    <div className={`flex flex-wrap gap-1.5 mt-1 ${isMe ? "justify-end" : ""}`}>
+                      {c.attachments.map((a) => (
+                        <AttachmentChip key={a.id} attachment={a} />
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[9px] text-muted-foreground mt-1 px-1">
+                    {c.author.name ?? "?"} · {fmtDate(c.createdAt)}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* New comment form */}
+      <form onSubmit={handleAddComment} className="flex gap-2 items-end pt-1 border-t border-border/40">
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          rows={2}
+          maxLength={2000}
+          placeholder="Kommentar schreiben…"
+          className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20 transition"
+        />
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="submit"
+            disabled={pending || !body.trim()}
+            className="p-2.5 rounded-xl bg-[#1a3826] text-[#FFC72C] hover:bg-[#142d1f] transition disabled:opacity-50"
+            title="Senden"
+          >
+            {pending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+          </button>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="p-2.5 rounded-xl border border-border hover:bg-muted transition text-muted-foreground"
+            title="Datei anhängen"
+          >
+            <Paperclip size={15} />
+          </button>
+        </div>
+        <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} />
+      </form>
+    </div>
+  );
+}
+
+function AttachmentChip({ attachment }: { attachment: OneOnOneAttachmentRow }) {
+  const isImage = attachment.fileType.startsWith("image/");
+  const isPdf = attachment.fileType === "application/pdf";
+  return (
+    <a
+      href={attachment.fileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#1a3826]/8 dark:bg-[#FFC72C]/8 border border-[#1a3826]/15 dark:border-[#FFC72C]/15 text-[10px] font-bold text-[#1a3826] dark:text-[#FFC72C] hover:opacity-80 transition max-w-[180px]"
+    >
+      {isImage ? <ImageIcon size={11} /> : isPdf ? <FileText size={11} /> : <Download size={11} />}
+      <span className="truncate">{attachment.fileName}</span>
+    </a>
+  );
+}
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
 
 function TopicDetailModal({
   topic,
   viewAs,
+  currentUserId,
   onClose,
   onUpdated,
 }: {
   topic: OneOnOneTopicRow;
   viewAs: "requester" | "supervisor";
+  currentUserId: string;
   onClose: () => void;
   onUpdated: () => void;
 }) {
@@ -182,10 +490,12 @@ function TopicDetailModal({
   const [editTitle, setEditTitle] = useState(topic.title);
   const [editDetails, setEditDetails] = useState(topic.details ?? "");
   const [editMode, setEditMode] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   const canEditTopic = viewAs === "requester" && topic.status === "OPEN";
   const canChangeStatus = viewAs === "supervisor" && (topic.status === "OPEN" || topic.status === "IN_PROGRESS");
   const canSaveNotes = viewAs === "supervisor";
+  const canSchedule = viewAs === "supervisor" && (topic.status === "OPEN" || topic.status === "IN_PROGRESS");
 
   const handleStatusChange = (newStatus: "IN_PROGRESS" | "DONE" | "CANCELLED") => {
     startStatusTransition(async () => {
@@ -203,201 +513,210 @@ function TopicDetailModal({
   const handleSaveNotes = () => {
     startNotesTransition(async () => {
       const r = await updateTopicNotes(topic.id, { supervisorNotes: supNotes, agreedActions });
-      if (r.ok) {
-        toast.success("Notizen gespeichert.");
-        onUpdated();
-      } else {
-        toast.error(r.error ?? "Fehler.");
-      }
+      if (r.ok) { toast.success("Notizen gespeichert."); onUpdated(); }
+      else toast.error(r.error ?? "Fehler.");
     });
   };
 
   const handleSaveEdit = () => {
     startEditTransition(async () => {
       const r = await updateMyTopic(topic.id, { title: editTitle, details: editDetails });
-      if (r.ok) {
-        toast.success("Thema aktualisiert.");
-        onUpdated();
-        setEditMode(false);
-      } else {
-        toast.error(r.error ?? "Fehler.");
-      }
+      if (r.ok) { toast.success("Thema aktualisiert."); onUpdated(); setEditMode(false); }
+      else toast.error(r.error ?? "Fehler.");
     });
   };
 
   const handleCancel = () => {
     startStatusTransition(async () => {
       const r = await cancelMyTopic(topic.id);
-      if (r.ok) {
-        toast.success("Thema storniert.");
-        onUpdated();
-        onClose();
-      } else {
-        toast.error(r.error ?? "Fehler.");
-      }
+      if (r.ok) { toast.success("Thema storniert."); onUpdated(); onClose(); }
+      else toast.error(r.error ?? "Fehler.");
     });
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4 bg-[#1a3826] sticky top-0 z-10">
-          <div className="flex-1 min-w-0 pr-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <StatusChip status={topic.status} />
-              {topic.isUrgent && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-500/20 text-red-200 border border-red-500/30">
-                  <AlertTriangle size={10} /> Dringend
-                </span>
-              )}
+    <>
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className="bg-card rounded-2xl shadow-2xl border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150">
+          {/* Header */}
+          <div className="flex items-start justify-between px-6 py-4 bg-[#1a3826] sticky top-0 z-10">
+            <div className="flex-1 min-w-0 pr-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <StatusChip status={topic.status} />
+                {topic.isUrgent && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-500/20 text-red-200 border border-red-500/30">
+                    <AlertTriangle size={10} /> Dringend
+                  </span>
+                )}
+              </div>
+              <h2 className="text-base font-black text-white mt-1.5 leading-tight">{topic.title}</h2>
             </div>
-            <h2 className="text-base font-black text-white mt-1.5 leading-tight">{topic.title}</h2>
-          </div>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 shrink-0">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-5">
-          {/* Participants */}
-          <div className="grid grid-cols-2 gap-3">
-            <ParticipantCard label="Anfragender" user={topic.createdByUser} date={topic.createdAt} />
-            <ParticipantCard label="Vorgesetzter" user={topic.supervisor} date={null} />
+            <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 shrink-0"><X size={18} /></button>
           </div>
 
-          {/* Edit mode for requester */}
-          {canEditTopic && editMode ? (
-            <div className="space-y-3 rounded-2xl border border-[#1a3826]/20 bg-[#1a3826]/3 p-4">
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Thema</label>
-                <input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Details</label>
-                <textarea
-                  value={editDetails}
-                  onChange={(e) => setEditDetails(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setEditMode(false)} className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-muted">Abbrechen</button>
-                <button type="button" onClick={handleSaveEdit} disabled={editPending} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a3826] text-[#FFC72C] text-xs font-black disabled:opacity-60">
-                  {editPending ? <Loader2 size={12} className="animate-spin" /> : null} Speichern
-                </button>
-              </div>
+          <div className="p-6 space-y-5">
+            {/* Participants */}
+            <div className="grid grid-cols-2 gap-3">
+              <ParticipantCard label="Anfragender" user={topic.createdByUser} date={topic.createdAt} />
+              <ParticipantCard label="Vorgesetzter" user={topic.supervisor} date={null} />
             </div>
-          ) : (
-            <>
-              {/* Details */}
-              {topic.details && (
+
+            {/* Meeting info */}
+            {topic.meetingStartsAt && (
+              <div className="rounded-2xl border border-[#1a3826]/20 dark:border-[#FFC72C]/20 bg-[#1a3826]/5 dark:bg-[#FFC72C]/5 p-4">
+                <div className="flex items-center gap-2 mb-2 text-xs font-black text-muted-foreground uppercase tracking-wide">
+                  <Calendar size={14} className="text-[#1a3826] dark:text-[#FFC72C]" />
+                  Termin
+                </div>
+                <div className="space-y-1 text-sm text-foreground">
+                  <p>
+                    <span className="font-bold">Von:</span>{" "}
+                    {fmtDate(topic.meetingStartsAt)}
+                    {topic.meetingEndsAt && (
+                      <> &rarr; {fmtDate(topic.meetingEndsAt)}</>
+                    )}
+                  </p>
+                  {topic.meetingLocation && (
+                    <p className="flex items-center gap-1.5 text-muted-foreground">
+                      <MapPin size={13} /> {topic.meetingLocation}
+                    </p>
+                  )}
+                </div>
+                {canSchedule && (
+                  <button type="button" onClick={() => setShowSchedule(true)}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-[#1a3826] dark:text-[#FFC72C] hover:opacity-70 transition">
+                    <Calendar size={12} /> Termin ändern
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Edit mode for requester */}
+            {canEditTopic && editMode ? (
+              <div className="space-y-3 rounded-2xl border border-[#1a3826]/20 bg-[#1a3826]/3 p-4">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Thema</label>
+                  <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Details</label>
+                  <textarea value={editDetails} onChange={(e) => setEditDetails(e.target.value)} rows={3}
+                    className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditMode(false)} className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-muted">Abbrechen</button>
+                  <button type="button" onClick={handleSaveEdit} disabled={editPending} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a3826] text-[#FFC72C] text-xs font-black disabled:opacity-60">
+                    {editPending ? <Loader2 size={12} className="animate-spin" /> : null} Speichern
+                  </button>
+                </div>
+              </div>
+            ) : (
+              topic.details && (
                 <Section title="Details" icon={<MessageSquare size={14} />}>
                   <p className="text-sm text-foreground whitespace-pre-wrap">{topic.details}</p>
                 </Section>
-              )}
-            </>
-          )}
+              )
+            )}
 
-          {/* Supervisor notes section */}
-          {(topic.supervisorNotes || topic.agreedActions || canSaveNotes) && (
-            <Section title="Nach dem Gespräch" icon={<CheckCircle size={14} />} accent>
-              {canSaveNotes ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Gesprächsnotizen</label>
-                    <textarea
-                      value={supNotes}
-                      onChange={(e) => setSupNotes(e.target.value)}
-                      rows={3}
-                      maxLength={2000}
-                      placeholder="Was wurde besprochen?"
-                      className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Dogovoreni koraci</label>
-                    <textarea
-                      value={agreedActions}
-                      onChange={(e) => setAgreedActions(e.target.value)}
-                      rows={2}
-                      maxLength={1000}
-                      placeholder="Was wurde vereinbart?"
-                      className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveNotes}
-                    disabled={notesPending}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#1a3826]/30 text-xs font-black text-[#1a3826] dark:text-[#FFC72C] hover:bg-[#1a3826]/5 transition disabled:opacity-60"
-                  >
-                    {notesPending ? <Loader2 size={12} className="animate-spin" /> : null} Notizen speichern
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {topic.supervisorNotes && (
+            {/* Supervisor notes */}
+            {(topic.supervisorNotes || topic.agreedActions || canSaveNotes) && (
+              <Section title="Nach dem Gespräch" icon={<CheckCircle size={14} />} accent>
+                {canSaveNotes ? (
+                  <div className="space-y-3">
                     <div>
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">Notizen</div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{topic.supervisorNotes}</p>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Gesprächsnotizen</label>
+                      <textarea value={supNotes} onChange={(e) => setSupNotes(e.target.value)} rows={3} maxLength={2000} placeholder="Was wurde besprochen?"
+                        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
                     </div>
-                  )}
-                  {topic.agreedActions && (
                     <div>
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">Vereinbarte Schritte</div>
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{topic.agreedActions}</p>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Dogovoreni koraci</label>
+                      <textarea value={agreedActions} onChange={(e) => setAgreedActions(e.target.value)} rows={2} maxLength={1000} placeholder="Was wurde vereinbart?"
+                        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1a3826]/20" />
                     </div>
-                  )}
-                </div>
-              )}
+                    <button type="button" onClick={handleSaveNotes} disabled={notesPending}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#1a3826]/30 text-xs font-black text-[#1a3826] dark:text-[#FFC72C] hover:bg-[#1a3826]/5 transition disabled:opacity-60">
+                      {notesPending ? <Loader2 size={12} className="animate-spin" /> : null} Notizen speichern
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {topic.supervisorNotes && (
+                      <div>
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">Notizen</div>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">{topic.supervisorNotes}</p>
+                      </div>
+                    )}
+                    {topic.agreedActions && (
+                      <div>
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-1">Vereinbarte Schritte</div>
+                        <p className="text-sm text-foreground whitespace-pre-wrap">{topic.agreedActions}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Section>
+            )}
+
+            {/* Comments thread */}
+            <Section title="Kommentare & Anhänge" icon={<MessageSquare size={14} />}>
+              <CommentThread topicId={topic.id} currentUserId={currentUserId} />
             </Section>
-          )}
 
-          {/* Timeline */}
-          <Section title="Verlauf" icon={<Clock size={14} />}>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              <TimelineEntry label="Erstellt" date={topic.createdAt} />
-              {topic.updatedAt !== topic.createdAt && <TimelineEntry label="Aktualisiert" date={topic.updatedAt} />}
-              {topic.resolvedAt && <TimelineEntry label="Abgeschlossen" date={topic.resolvedAt} />}
+            {/* Timeline */}
+            <Section title="Verlauf" icon={<Clock size={14} />}>
+              <div className="space-y-1.5 text-xs text-muted-foreground">
+                <TimelineEntry label="Erstellt" date={topic.createdAt} />
+                {topic.updatedAt !== topic.createdAt && <TimelineEntry label="Aktualisiert" date={topic.updatedAt} />}
+                {topic.meetingStartsAt && <TimelineEntry label="Termin" date={topic.meetingStartsAt} />}
+                {topic.resolvedAt && <TimelineEntry label="Abgeschlossen" date={topic.resolvedAt} />}
+              </div>
+            </Section>
+
+            {/* Actions */}
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+              {canEditTopic && !editMode && (
+                <button type="button" onClick={() => setEditMode(true)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-muted transition">
+                  <Edit size={13} /> Bearbeiten
+                </button>
+              )}
+              {canSchedule && !topic.meetingStartsAt && (
+                <button type="button" onClick={() => setShowSchedule(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a3826]/10 text-[#1a3826] dark:text-[#FFC72C] border border-[#1a3826]/20 text-xs font-bold hover:bg-[#1a3826]/15 transition">
+                  <Calendar size={13} /> Termin festlegen
+                </button>
+              )}
+              {viewAs === "requester" && topic.status === "OPEN" && (
+                <button type="button" onClick={handleCancel} disabled={statusPending}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 transition disabled:opacity-60 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/10">
+                  {statusPending ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />} Stornieren
+                </button>
+              )}
+              {canChangeStatus && topic.status === "OPEN" && (
+                <button type="button" onClick={() => handleStatusChange("IN_PROGRESS")} disabled={statusPending}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-400/30 text-xs font-bold hover:bg-amber-500/15 transition disabled:opacity-60">
+                  {statusPending ? <Loader2 size={13} className="animate-spin" /> : <AlertCircle size={13} />} In Bearbeitung
+                </button>
+              )}
+              {canChangeStatus && (
+                <button type="button" onClick={() => handleStatusChange("DONE")} disabled={statusPending}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-400/30 text-xs font-bold hover:bg-emerald-500/15 transition disabled:opacity-60">
+                  {statusPending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />} Als erledigt markieren
+                </button>
+              )}
             </div>
-          </Section>
-
-          {/* Actions */}
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
-            {/* Requester: edit OPEN */}
-            {canEditTopic && !editMode && (
-              <button type="button" onClick={() => setEditMode(true)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-muted transition">
-                <Edit size={13} /> Bearbeiten
-              </button>
-            )}
-            {/* Requester: cancel OPEN */}
-            {viewAs === "requester" && topic.status === "OPEN" && (
-              <button type="button" onClick={handleCancel} disabled={statusPending} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 transition disabled:opacity-60 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/10">
-                {statusPending ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />} Stornieren
-              </button>
-            )}
-            {/* Supervisor: set in progress */}
-            {canChangeStatus && topic.status === "OPEN" && (
-              <button type="button" onClick={() => handleStatusChange("IN_PROGRESS")} disabled={statusPending} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-400/30 text-xs font-bold hover:bg-amber-500/15 transition disabled:opacity-60">
-                {statusPending ? <Loader2 size={13} className="animate-spin" /> : <AlertCircle size={13} />} In Bearbeitung
-              </button>
-            )}
-            {/* Supervisor: done */}
-            {canChangeStatus && (
-              <button type="button" onClick={() => handleStatusChange("DONE")} disabled={statusPending} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-400/30 text-xs font-bold hover:bg-emerald-500/15 transition disabled:opacity-60">
-                {statusPending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle size={13} />} Als erledigt markieren
-              </button>
-            )}
           </div>
         </div>
       </div>
-    </div>
+
+      {showSchedule && (
+        <ScheduleMeetingModal
+          topic={topic}
+          onClose={() => setShowSchedule(false)}
+          onScheduled={() => { setShowSchedule(false); onUpdated(); }}
+        />
+      )}
+    </>
   );
 }
 
@@ -424,22 +743,23 @@ function TopicCard({
     <div className={`rounded-2xl border ${topic.isUrgent && topic.status === "OPEN" ? "border-red-300/60 dark:border-red-700/40" : "border-border"} bg-card shadow-sm hover:shadow-md transition overflow-hidden`}>
       <div className="p-4">
         <div className="flex items-start gap-3">
-          {/* Avatar */}
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#1a3826] to-[#0f2218] flex items-center justify-center text-[#FFC72C] text-xs font-black shrink-0">
             {otherUser.image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={otherUser.image} alt="" className="w-full h-full rounded-full object-cover" />
-            ) : (
-              initials(otherUser.name)
-            )}
+            ) : initials(otherUser.name)}
           </div>
-          {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <StatusChip status={topic.status} />
               {topic.isUrgent && (
                 <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-red-600 dark:text-red-400">
                   <AlertTriangle size={10} /> Dringend
+                </span>
+              )}
+              {topic.meetingStartsAt && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-[#1a3826] dark:text-[#FFC72C]">
+                  <Calendar size={10} /> {fmtDateOnly(topic.meetingStartsAt)}
                 </span>
               )}
             </div>
@@ -449,29 +769,20 @@ function TopicCard({
               {" · "}
               {fmtDate(topic.createdAt)}
             </p>
-            {topic.details && (
-              <p className="text-xs text-muted-foreground mt-1 line-clamp-2 opacity-70">{topic.details}</p>
-            )}
+            {topic.details && <p className="text-xs text-muted-foreground mt-1 line-clamp-2 opacity-70">{topic.details}</p>}
           </div>
         </div>
       </div>
       <div className="px-4 pb-3 flex items-center gap-2 border-t border-border/40 pt-2.5">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex-1 py-2 rounded-xl bg-[#1a3826]/8 hover:bg-[#1a3826]/15 dark:bg-[#FFC72C]/8 dark:hover:bg-[#FFC72C]/15 text-[#1a3826] dark:text-[#FFC72C] text-xs font-black transition"
-        >
+        <button type="button" onClick={onOpen}
+          className="flex-1 py-2 rounded-xl bg-[#1a3826]/8 hover:bg-[#1a3826]/15 dark:bg-[#FFC72C]/8 dark:hover:bg-[#FFC72C]/15 text-[#1a3826] dark:text-[#FFC72C] text-xs font-black transition">
           Öffnen
         </button>
         {isArchived ? (
-          <button type="button" onClick={onUnarchive} className="p-2 rounded-xl border border-border hover:bg-muted transition text-muted-foreground" title="Wiederherstellen">
-            <RotateCcw size={14} />
-          </button>
+          <button type="button" onClick={onUnarchive} className="p-2 rounded-xl border border-border hover:bg-muted transition text-muted-foreground" title="Wiederherstellen"><RotateCcw size={14} /></button>
         ) : (
           (topic.status === "DONE" || topic.status === "CANCELLED") && (
-            <button type="button" onClick={onArchive} className="p-2 rounded-xl border border-border hover:bg-muted transition text-muted-foreground" title="Archivieren">
-              <Archive size={14} />
-            </button>
+            <button type="button" onClick={onArchive} className="p-2 rounded-xl border border-border hover:bg-muted transition text-muted-foreground" title="Archivieren"><Archive size={14} /></button>
           )
         )}
       </div>
@@ -479,7 +790,7 @@ function TopicCard({
   );
 }
 
-// ─── Section helper ───────────────────────────────────────────────────────────
+// ─── Section + helpers ────────────────────────────────────────────────────────
 
 function Section({ title, icon, children, accent }: { title: string; icon: React.ReactNode; children: React.ReactNode; accent?: boolean }) {
   return (
@@ -528,17 +839,26 @@ type Props = {
   supervisorName: string | null;
   supervisorImage: string | null;
   hasSubordinates: boolean;
+  /** Optional: directly open a specific topic by id (used from dashboard modal) */
+  initialOpenTopicId?: string | null;
 };
 
 export default function OneOnOneTab({
+  userId,
   hasSupervisor,
   supervisorName,
   supervisorImage,
   hasSubordinates,
+  initialOpenTopicId,
 }: Props) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [activeSection, setActiveSection] = useState<"mine" | "inbox">("mine");
   const [showArchived, setShowArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createForSubOpen, setCreateForSubOpen] = useState(false);
+  const [subordinates, setSubordinates] = useState<SubUser[]>([]);
   const [selectedTopic, setSelectedTopic] = useState<{ topic: OneOnOneTopicRow; viewAs: "requester" | "supervisor" } | null>(null);
 
   const [myTopics, setMyTopics] = useState<OneOnOneTopicRow[]>([]);
@@ -556,10 +876,27 @@ export default function OneOnOneTab({
     setLoading(false);
   };
 
+  useEffect(() => { loadTopics(); }, [showArchived]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link: open=<topicId> via URL query OR initialOpenTopicId prop
   useEffect(() => {
-    loadTopics();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showArchived]);
+    const openId = initialOpenTopicId ?? searchParams.get("open");
+    if (!openId) return;
+    if (loading) return;
+    const tryOpen = (topics: OneOnOneTopicRow[], view: "requester" | "supervisor") => {
+      const found = topics.find((t) => t.id === openId);
+      if (found) { setSelectedTopic({ topic: found, viewAs: view }); return true; }
+      return false;
+    };
+    if (!tryOpen(myTopics, "requester")) tryOpen(inboxTopics, "supervisor");
+  }, [initialOpenTopicId, searchParams, loading, myTopics, inboxTopics]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load subordinates for supervisor
+  useEffect(() => {
+    if (hasSubordinates) {
+      getMySubordinates().then(setSubordinates);
+    }
+  }, [hasSubordinates]);
 
   const handleArchive = async (topicId: string) => {
     const r = await archiveTopic(topicId);
@@ -590,19 +927,24 @@ export default function OneOnOneTab({
             Themen für das nächste Gespräch mit dem Vorgesetzten festhalten
           </p>
         </div>
-        {hasSupervisor && (
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] text-[#FFC72C] text-sm font-black hover:bg-[#142d1f] transition shadow-md"
-          >
-            <Plus size={15} /> Neues Thema
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hasSubordinates && (
+            <button type="button" onClick={() => setCreateForSubOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#1a3826]/30 dark:border-[#FFC72C]/30 text-[#1a3826] dark:text-[#FFC72C] text-sm font-black hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/5 transition">
+              <UserPlus size={15} /> Für Mitarbeiter
+            </button>
+          )}
+          {hasSupervisor && (
+            <button type="button" onClick={() => setCreateOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] text-[#FFC72C] text-sm font-black hover:bg-[#142d1f] transition shadow-md">
+              <Plus size={15} /> Neues Thema
+            </button>
+          )}
+        </div>
       </div>
 
       {/* No supervisor notice */}
-      {!hasSupervisor && (
+      {!hasSupervisor && !hasSubordinates && (
         <div className="rounded-2xl border border-amber-300/60 bg-amber-50/50 dark:bg-amber-900/10 p-5 flex items-start gap-3">
           <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
           <div>
@@ -612,14 +954,11 @@ export default function OneOnOneTab({
         </div>
       )}
 
-      {/* Section switcher (if user has subordinates) */}
+      {/* Section switcher */}
       {hasSubordinates && (
         <div className="flex rounded-xl border border-border overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setActiveSection("mine")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black transition ${activeSection === "mine" ? "bg-[#1a3826] text-[#FFC72C]" : "bg-card text-muted-foreground hover:bg-muted"}`}
-          >
+          <button type="button" onClick={() => setActiveSection("mine")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black transition ${activeSection === "mine" ? "bg-[#1a3826] text-[#FFC72C]" : "bg-card text-muted-foreground hover:bg-muted"}`}>
             <Send size={14} />
             Meine Themen
             {myTopics.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS").length > 0 && (
@@ -628,11 +967,8 @@ export default function OneOnOneTab({
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveSection("inbox")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black transition ${activeSection === "inbox" ? "bg-[#1a3826] text-[#FFC72C]" : "bg-card text-muted-foreground hover:bg-muted"}`}
-          >
+          <button type="button" onClick={() => setActiveSection("inbox")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-black transition ${activeSection === "inbox" ? "bg-[#1a3826] text-[#FFC72C]" : "bg-card text-muted-foreground hover:bg-muted"}`}>
             <Inbox size={14} />
             Von Mitarbeitern
             {inboxTopics.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS").length > 0 && (
@@ -649,11 +985,8 @@ export default function OneOnOneTab({
         <span className="text-xs font-bold text-muted-foreground">
           {loading ? "Laden…" : `${openCount} aktive${openCount !== 1 ? "" : "s"} Thema${openCount !== 1 ? "en" : ""}`}
         </span>
-        <button
-          type="button"
-          onClick={() => setShowArchived((v) => !v)}
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-bold transition"
-        >
+        <button type="button" onClick={() => setShowArchived((v) => !v)}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-bold transition">
           <Archive size={13} />
           {showArchived ? "Aktive anzeigen" : "Archiv anzeigen"}
           {showArchived ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
@@ -673,11 +1006,8 @@ export default function OneOnOneTab({
             {showArchived ? "Keine archivierten Themen." : "Keine aktiven Themen."}
           </p>
           {!showArchived && hasSupervisor && activeSection === "mine" && (
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a3826] text-[#FFC72C] text-xs font-black hover:bg-[#142d1f] transition"
-            >
+            <button type="button" onClick={() => setCreateOpen(true)}
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#1a3826] text-[#FFC72C] text-xs font-black hover:bg-[#142d1f] transition">
               <Plus size={13} /> Erstes Thema erstellen
             </button>
           )}
@@ -698,7 +1028,7 @@ export default function OneOnOneTab({
         </div>
       )}
 
-      {/* Supervisor display (if mine) */}
+      {/* Supervisor display */}
       {activeSection === "mine" && supervisorName && !showArchived && (
         <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-3">
           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-[#1a3826] to-[#0f2218] flex items-center justify-center text-[#FFC72C] text-[10px] font-black shrink-0 overflow-hidden">
@@ -714,11 +1044,17 @@ export default function OneOnOneTab({
 
       {/* Modals */}
       {createOpen && (
-        <CreateModal
-          supervisorName={supervisorName}
-          onClose={() => setCreateOpen(false)}
+        <CreateModal supervisorName={supervisorName} onClose={() => setCreateOpen(false)}
+          onCreated={(t) => { setMyTopics((prev) => [t, ...prev]); }} />
+      )}
+
+      {createForSubOpen && subordinates.length > 0 && (
+        <CreateForSubordinateModal
+          subordinates={subordinates}
+          onClose={() => setCreateForSubOpen(false)}
           onCreated={(t) => {
-            setMyTopics((prev) => [t, ...prev]);
+            setInboxTopics((prev) => [t, ...prev]);
+            setCreateForSubOpen(false);
           }}
         />
       )}
@@ -727,7 +1063,18 @@ export default function OneOnOneTab({
         <TopicDetailModal
           topic={selectedTopic.topic}
           viewAs={selectedTopic.viewAs}
-          onClose={() => setSelectedTopic(null)}
+          currentUserId={userId}
+          onClose={() => {
+            setSelectedTopic(null);
+            // Clear deep-link from URL if we're on the profile page
+            try {
+              const url = new URL(window.location.href);
+              if (url.searchParams.has("open")) {
+                url.searchParams.delete("open");
+                router.replace(url.pathname + url.search, { scroll: false });
+              }
+            } catch { /* ignore in modal context */ }
+          }}
           onUpdated={() => {
             setSelectedTopic(null);
             loadTopics();

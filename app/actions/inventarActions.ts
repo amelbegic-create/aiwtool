@@ -88,10 +88,28 @@ async function userHasRestaurantAccess(
 // ─── Pre-fill ─────────────────────────────────────────────────────────────────
 
 export async function ensureInventarPrefilled(restaurantId: string): Promise<void> {
-  const existing = await prisma.inventarSection.count({ where: { restaurantId } });
-  if (existing > 0) return;
+  const existing = await prisma.inventarSection.findMany({
+    where: { restaurantId },
+    select: { id: true, name: true },
+  });
+
+  const existingNames = new Set(existing.map((s) => s.name.toLowerCase()));
+
+  // Rename legacy "Ostalo" → "Verschiedenes" (so we don't create duplicates)
+  if (existingNames.has("ostalo") && !existingNames.has("verschiedenes")) {
+    const legacy = existing.find((s) => s.name.toLowerCase() === "ostalo");
+    if (legacy) {
+      await prisma.inventarSection.update({
+        where: { id: legacy.id },
+        data: { name: "Verschiedenes", icon: "Package", sortOrder: 4 },
+      });
+      existingNames.delete("ostalo");
+      existingNames.add("verschiedenes");
+    }
+  }
 
   for (const sec of STANDARD_SECTIONS) {
+    if (existingNames.has(sec.name.toLowerCase())) continue;
     const section = await prisma.inventarSection.create({
       data: {
         restaurantId,
@@ -100,13 +118,15 @@ export async function ensureInventarPrefilled(restaurantId: string): Promise<voi
         sortOrder: sec.sortOrder,
       },
     });
-    await prisma.inventarItem.createMany({
-      data: sec.devices.map((geraet, i) => ({
-        sectionId: section.id,
-        geraet,
-        sortOrder: i,
-      })),
-    });
+    if (sec.devices.length > 0) {
+      await prisma.inventarItem.createMany({
+        data: sec.devices.map((geraet, i) => ({
+          sectionId: section.id,
+          geraet,
+          sortOrder: i,
+        })),
+      });
+    }
   }
 }
 

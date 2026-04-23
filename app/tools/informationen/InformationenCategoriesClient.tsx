@@ -106,8 +106,9 @@ export default function InformationenCategoriesClient({ categories }: { categori
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8">
         <div className="flex flex-col gap-4 border-b border-border pb-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-4xl font-black text-[#1a3826] dark:text-[#FFC72C] uppercase tracking-tighter mb-2">
-              INFORMATIONEN
+            <h1 className="text-4xl font-black uppercase tracking-tighter mb-2">
+              <span className="text-[#1a3826] dark:text-white">INFORMA</span>
+              <span className="text-[#FFC72C]">TIONEN</span>
             </h1>
             <p className="text-muted-foreground text-sm font-medium">
               Interne Richtlinien, Dresscode und wichtige Informationen für alle Mitarbeiter.
@@ -300,21 +301,21 @@ export default function InformationenCategoriesClient({ categories }: { categori
                     >
                       <Link
                         href={`/tools/informationen/${cat.id}`}
-                        className="group block rounded-2xl md:rounded-3xl overflow-hidden h-full min-h-[170px] bg-gradient-to-br from-[#1a3826] via-[#1a3826] to-[#0b1a12] border border-[#FFC72C]/25 shadow-[0_18px_40px_rgba(0,0,0,0.45)] hover:-translate-y-1 hover:border-[#FFC72C]/60 hover:shadow-[0_22px_55px_rgba(0,0,0,0.6)] transition-all duration-300 flex flex-col p-5 md:p-6"
+                        className="group block rounded-2xl md:rounded-3xl overflow-hidden h-full min-h-[170px] bg-[#FFC72C] border border-[#1a3826]/20 shadow-[0_18px_40px_rgba(0,0,0,0.12)] hover:-translate-y-1 hover:border-[#1a3826]/40 hover:bg-[#e6b328] hover:shadow-[0_22px_55px_rgba(0,0,0,0.18)] transition-all duration-300 flex flex-col p-5 md:p-6"
                       >
                         <div className="flex items-start justify-between gap-3 flex-1 min-h-0">
-                          <h2 className="text-base md:text-lg font-black text-white leading-snug line-clamp-3 flex-1 min-w-0">
+                          <h2 className="text-base md:text-lg font-black text-[#1a3826] leading-snug line-clamp-3 flex-1 min-w-0">
                             {cat.name}
                           </h2>
                           <div className="shrink-0 flex items-center justify-center w-12 h-12">
-                            <CardIcon size={36} className="text-[#FFC72C]" strokeWidth={2.25} />
+                            <CardIcon size={36} className="text-[#1a3826]" strokeWidth={2.25} />
                           </div>
                         </div>
                         <div className="mt-3 flex items-center justify-between text-xs">
-                          <span className="text-white/60 font-medium">
+                          <span className="text-[#1a3826]/70 font-semibold">
                             {cat._count?.items ?? 0} Dokument(e)
                           </span>
-                          <span className="flex items-center gap-1.5 text-[#FFC72C] font-bold opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
+                          <span className="flex items-center gap-1.5 text-[#1a3826] font-black opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
                             Öffnen
                             <ChevronRight size={14} />
                           </span>
@@ -343,22 +344,22 @@ export default function InformationenCategoriesClient({ categories }: { categori
                     >
                       <Link
                         href={`/tools/informationen/${cat.id}`}
-                        className="group flex items-center justify-between gap-4 rounded-2xl border border-[#1a3826]/20 dark:border-[#FFC72C]/25 bg-gradient-to-r from-[#1a3826] via-[#0f2319] to-[#07110b] px-4 sm:px-5 py-3.5 sm:py-4 shadow-md hover:shadow-xl hover:border-[#FFC72C]/50 transition-all duration-200"
+                        className="group flex items-center justify-between gap-4 rounded-2xl border border-[#1a3826]/20 dark:border-[#1a3826]/25 bg-[#FFC72C] px-4 sm:px-5 py-3.5 sm:py-4 shadow-md hover:bg-[#e6b328] hover:shadow-xl hover:border-[#1a3826]/40 transition-all duration-200"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className="shrink-0 flex items-center justify-center w-11 h-11">
-                            <ListIcon size={31} className="text-[#FFC72C]" strokeWidth={2.25} />
+                            <ListIcon size={31} className="text-[#1a3826]" strokeWidth={2.25} />
                           </div>
                           <div className="flex flex-col gap-1 min-w-0">
-                            <h2 className="text-sm sm:text-base font-semibold text-white leading-snug line-clamp-1 sm:line-clamp-2">
+                            <h2 className="text-sm sm:text-base font-black text-[#1a3826] leading-snug line-clamp-1 sm:line-clamp-2">
                               {cat.name}
                             </h2>
-                            <span className="text-white/60 text-xs">
+                            <span className="text-[#1a3826]/70 text-xs font-semibold">
                               {cat._count?.items ?? 0} Dokument(e)
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 text-[#FFC72C] text-xs font-bold shrink-0 opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all duration-200">
+                        <div className="flex items-center gap-1.5 text-[#1a3826] text-xs font-black shrink-0 opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all duration-200">
                           Öffnen
                           <ChevronRight size={14} />
                         </div>

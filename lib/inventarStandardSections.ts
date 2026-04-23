@@ -120,4 +120,10 @@ export const STANDARD_SECTIONS: StandardSection[] = [
       "PK Schrank 2",
     ],
   },
+  {
+    name: "Verschiedenes",
+    icon: "Package",
+    sortOrder: 4,
+    devices: [],
+  },
 ];

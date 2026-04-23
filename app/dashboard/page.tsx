@@ -15,9 +15,9 @@ import EventSlider from "@/components/restaurant/EventSlider";
 import { hasPermission } from "@/lib/access";
 import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
 import { getCalendarEvents } from "@/app/actions/calendarActions";
-import { getTodos } from "@/app/actions/todoActions";
 import { dict } from "@/translations";
-import DashboardTodoCard from "@/components/dashboard/DashboardTodoCard";
+import DashboardOneOnOneCard from "@/components/dashboard/DashboardOneOnOneCard";
+import { getDashboardOneOnOnePreview } from "@/app/actions/oneOnOneActions";
 import DashboardVacationCard from "@/components/dashboard/DashboardVacationCard";
 import { getUserVacationYearSnapshot, getVacationReportForUser } from "@/app/actions/vacationActions";
 import { getActiveDashboardNews } from "@/app/actions/dashboardNewsActions";
@@ -134,11 +134,19 @@ export default async function DashboardPage({
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/login");
 
-  let dbUser: Awaited<ReturnType<typeof prisma.user.findUnique>>;
+  type DashboardUser = {
+    id: string; name: string | null; role: Role; permissions: string[];
+    supervisorId: string | null;
+    supervisor: { id: string; name: string | null; image: string | null } | null;
+  };
+  let dbUser: DashboardUser | null;
   try {
     dbUser = await prisma.user.findUnique({
       where: { email: session.user.email },
-      select: { id: true, name: true, role: true, permissions: true },
+      select: {
+        id: true, name: true, role: true, permissions: true, supervisorId: true,
+        supervisor: { select: { id: true, name: true, image: true } },
+      },
     });
   } catch (e) {
     if (isDbUnreachable(e)) return DB_ERROR_UI;
@@ -152,7 +160,7 @@ export default async function DashboardPage({
   let teamMembers: Awaited<ReturnType<typeof getTeamMembers>>;
   let changelog: Awaited<ReturnType<typeof getDashboardChangelog>>;
   let calendarEvents: Awaited<ReturnType<typeof getCalendarEvents>>;
-  let initialTodos: Awaited<ReturnType<typeof getTodos>>;
+  let oneOnOnePreview: Awaited<ReturnType<typeof getDashboardOneOnOnePreview>>;
 
   const now = new Date();
   const currentYearForCalendar = now.getFullYear();
@@ -164,7 +172,7 @@ export default async function DashboardPage({
   );
 
   try {
-    [vacationSnapshot, vacationReport, teamCount, teamMembers, changelog, calendarEvents, initialTodos] =
+    [vacationSnapshot, vacationReport, teamCount, teamMembers, changelog, calendarEvents, oneOnOnePreview] =
       await Promise.all([
         getUserVacationYearSnapshot(dbUser.id, currentYearForCalendar),
         canVacationPdf ? getVacationReportForUser(dbUser.id, currentYearForCalendar) : Promise.resolve(null),
@@ -172,7 +180,12 @@ export default async function DashboardPage({
         getTeamMembers(dbUser.id, String(dbUser.role)),
         getDashboardChangelog(),
         getCalendarEvents(dbUser.id, currentYearForCalendar, currentMonthForCalendar),
-        getTodos(dbUser.id),
+        getDashboardOneOnOnePreview(dbUser.id).catch(() => ({
+          myOpenCount: 0,
+          inboxCount: 0,
+          recentTopics: [],
+          nextMeeting: null,
+        })),
       ]);
   } catch (e) {
     if (isDbUnreachable(e)) return DB_ERROR_UI;
@@ -370,9 +383,20 @@ export default async function DashboardPage({
             </Link>
           </div>}
 
-          {/* 3. Meine Aufgaben */}
+          {/* 3. Gesprächsthemen */}
           <div className="min-h-0 flex flex-col overflow-hidden lg:min-h-0 lg:max-h-full">
-            <DashboardTodoCard userId={dbUser.id} initialTodos={initialTodos} />
+            <DashboardOneOnOneCard
+              userId={dbUser.id}
+              userRole={String(dbUser.role)}
+              myOpenCount={oneOnOnePreview.myOpenCount}
+              inboxCount={oneOnOnePreview.inboxCount}
+              recentTopics={oneOnOnePreview.recentTopics}
+              nextMeeting={oneOnOnePreview.nextMeeting}
+              hasSupervisor={!!dbUser.supervisorId}
+              supervisorName={dbUser.supervisor?.name ?? null}
+              supervisorImage={dbUser.supervisor?.image ?? null}
+              hasSubordinates={teamCount > 0}
+            />
           </div>
 
           {/* 4. JAHRESURLAUB */}

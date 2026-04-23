@@ -36,7 +36,8 @@ export type NotificationKind =
   | "training_participant_added"
   | "aushilfe_request"
   | "one_on_one_topic_created"
-  | "one_on_one_topic_updated";
+  | "one_on_one_topic_updated"
+  | "one_on_one_meeting_scheduled";
 
 export interface NotificationItem {
   id: string;
@@ -621,21 +622,36 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
         include: {
           requestingRestaurant: { select: { name: true, code: true } },
           createdByUser: { select: { name: true, email: true, image: true } },
+          positions: { select: { sectorLabel: true, neededSpots: true }, orderBy: { sortOrder: "asc" } },
         },
         orderBy: { createdAt: "desc" },
+        take: 30,
       });
       for (const hr of recentHelpRequests) {
-        const restCode = (hr.requestingRestaurant.code ?? "").trim() || (hr.requestingRestaurant.name ?? "").trim();
+        const rCode = (hr.requestingRestaurant.code ?? "").trim() || (hr.requestingRestaurant.name ?? "").trim();
         const restName = hr.requestingRestaurant.name ?? hr.requestingRestaurant.code;
         const requesterName = hr.createdByUser?.name?.trim() || hr.createdByUser?.email?.trim() || "Unbekannt";
-        const personenText = hr.neededSpots === 1 ? "Person" : "Personen";
-        
+
+        // Build a short preview of requested positions
+        let positionPreview = "";
+        if (hr.positions.length > 0) {
+          const totalNeeded = hr.positions.reduce((s, p) => s + p.neededSpots, 0);
+          const posSnippet = hr.positions
+            .slice(0, 2)
+            .map((p) => `${p.neededSpots}× ${p.sectorLabel}`)
+            .join(", ");
+          positionPreview = `${posSnippet}${hr.positions.length > 2 ? ` +${hr.positions.length - 2}` : ""} — ${totalNeeded} Person${totalNeeded !== 1 ? "en" : ""}`;
+        } else {
+          const n = hr.neededSpots;
+          positionPreview = `${n} Person${n !== 1 ? "en" : ""}`;
+        }
+
         items.push({
           id: `aushilfe:${hr.id}`,
           kind: "aushilfe_request",
-          title: `Restaurant #${restCode} sucht ${hr.neededSpots} ${personenText}`,
-          description: `${requesterName} braucht Aushilfe`,
-          href: "/tools/aushilfe",
+          title: `Restaurant #${rCode} sucht Aushilfe`,
+          description: `${requesterName}: ${positionPreview}`,
+          href: `/tools/aushilfe?open=${hr.id}`,
           createdAt: hr.createdAt.toISOString(),
           restaurantName: restName,
           actorName: requesterName,
@@ -698,11 +714,50 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
         kind: "one_on_one_topic_updated",
         title: `Thema aktualisiert von ${supName}`,
         description: `„${topic.title}" → ${topic.status === "DONE" ? "Erledigt" : "In Bearbeitung"}`,
-        href: "/profile?tab=topics",
+        href: `/profile?tab=topics&open=${topic.id}`,
         createdAt: topic.updatedAt.toISOString(),
         actorName: supName,
         actorImage: topic.supervisor?.image,
         actorInitials: initials(topic.supervisor?.name),
+      });
+    }
+
+    // Meeting scheduled notifications — shown to BOTH participants
+    const sevenDaysAhead = new Date();
+    sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 14);
+    const scheduledTopics = await (prisma.oneOnOneTopic as any).findMany({
+      where: {
+        OR: [
+          { createdByUserId: userId, isArchivedByRequester: false },
+          { supervisorUserId: userId, isArchivedBySupervisor: false },
+        ],
+        meetingStartsAt: { not: null, lte: sevenDaysAhead },
+      },
+      include: {
+        createdBy: { select: { name: true, email: true, image: true } },
+        supervisor: { select: { name: true, email: true, image: true } },
+      },
+      orderBy: { meetingStartsAt: "asc" },
+    }).catch(() => []);
+    for (const topic of scheduledTopics as any[]) {
+      if (!topic.meetingStartsAt) continue;
+      const meetDate = new Date(topic.meetingStartsAt);
+      const dateStr = meetDate.toLocaleDateString("de-AT", { day: "2-digit", month: "2-digit", year: "numeric" });
+      const timeStr = meetDate.toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" });
+      const otherName = topic.supervisorUserId === userId
+        ? (topic.createdBy?.name?.trim() || topic.createdBy?.email?.trim() || "Unbekannt")
+        : (topic.supervisor?.name?.trim() || topic.supervisor?.email?.trim() || "Vorgesetzter");
+      const otherImage = topic.supervisorUserId === userId ? topic.createdBy?.image : topic.supervisor?.image;
+      items.push({
+        id: `one-on-one-meeting:${topic.id}:${topic.meetingStartsAt}`,
+        kind: "one_on_one_meeting_scheduled" as any,
+        title: `Termin: ${topic.title}`,
+        description: `${dateStr} um ${timeStr}${topic.meetingLocation ? ` · ${topic.meetingLocation}` : ""}`,
+        href: `/profile?tab=topics&open=${topic.id}`,
+        createdAt: topic.updatedAt.toISOString(),
+        actorName: otherName,
+        actorImage: otherImage,
+        actorInitials: initials(otherName),
       });
     }
   } catch {

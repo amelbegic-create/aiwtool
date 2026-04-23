@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const COOKIE = "mcd_training_guest";
 const WINDOW_MS = 60_000;
 const MAX_ATTEMPTS = 10;

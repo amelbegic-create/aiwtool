@@ -14,7 +14,6 @@ import {
   X,
   Loader2,
   Package,
-  ShieldCheck,
   Hash,
   Layers,
 } from "lucide-react";
@@ -71,6 +70,15 @@ const SECTION_STYLES: Record<string, SectionStyle> = {
     badge: "bg-amber-400 text-amber-900",
     icon: <Coffee size={32} strokeWidth={1.8} />,
     accentText: "text-amber-400",
+  },
+  Verschiedenes: {
+    bg: "bg-[#1a3826]",
+    gradientFrom: "from-[#1a3826]",
+    gradientTo: "to-[#0b1a12]",
+    border: "border-[#1a3826]/25",
+    badge: "bg-[#FFC72C] text-[#1a3826]",
+    icon: <Package size={32} strokeWidth={1.8} />,
+    accentText: "text-[#FFC72C]",
   },
 };
 
@@ -148,10 +156,17 @@ function SectionCard({
   const style = SECTION_STYLES[section.name] ?? FALLBACK_STYLE;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="group w-full text-left rounded-2xl md:rounded-3xl overflow-hidden min-h-[180px] bg-gradient-to-br from-[#1a3826] via-[#1a3826] to-[#0b1a12] border border-[#FFC72C]/25 shadow-[0_18px_40px_rgba(0,0,0,0.45)] hover:-translate-y-1 hover:border-[#FFC72C]/60 hover:shadow-[0_22px_55px_rgba(0,0,0,0.6)] transition-all duration-300 flex flex-col p-5 md:p-6"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="group w-full text-left rounded-2xl md:rounded-3xl overflow-hidden min-h-[180px] bg-gradient-to-br from-[#1a3826] via-[#1a3826] to-[#0b1a12] border border-[#FFC72C]/25 shadow-[0_18px_40px_rgba(0,0,0,0.45)] hover:-translate-y-1 hover:border-[#FFC72C]/60 hover:shadow-[0_22px_55px_rgba(0,0,0,0.6)] transition-all duration-300 flex flex-col p-5 md:p-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC72C]/60"
     >
       {/* Header: icon + title */}
       <div className="flex items-start justify-between gap-3 flex-1 min-h-0">
@@ -195,7 +210,7 @@ function SectionCard({
           <ChevronRight size={14} />
         </span>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -291,12 +306,11 @@ export default function InventarClient({
         </div>
 
         {/* ── Stats bar ── */}
-        <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[
             { label: "Sektionen", value: sections.length, icon: <Layers size={16} /> },
             { label: "Geräte gesamt", value: totalItems, icon: <Package size={16} /> },
             { label: "Seriennummern", value: "—", icon: <Hash size={16} /> },
-            { label: "Garantiescheine", value: "—", icon: <ShieldCheck size={16} /> },
           ].map((stat) => (
             <div
               key={stat.label}

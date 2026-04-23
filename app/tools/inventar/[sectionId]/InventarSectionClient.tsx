@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useRef } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -8,22 +8,175 @@ import {
   Pencil,
   Trash2,
   FileText,
-  Upload,
   X,
-  ChevronDown,
-  ExternalLink,
   AlertTriangle,
   Check,
   Search,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   createInventarItem,
   updateInventarItem,
   deleteInventarItem,
-  uploadGarantie,
 } from "@/app/actions/inventarActions";
 import type { InventarSectionDetail, InventarItemRow, InventarItemData } from "@/app/actions/inventarActions";
+import { generateSectionPDF } from "@/lib/equipmentPdf";
+
+type FilterState = {
+  geraet: Set<string>;
+  marke: Set<string>;
+  modell: Set<string>;
+  seriennummer: Set<string>;
+  anschaffungsjahr: Set<string>;
+};
+
+function uniq(values: string[]) {
+  return Array.from(new Set(values.map((v) => v.trim()).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, "de", { numeric: true, sensitivity: "base" })
+  );
+}
+
+function FilterPopover({
+  title,
+  values,
+  selected,
+  onToggle,
+  onClose,
+}: {
+  title: string;
+  values: string[];
+  selected: Set<string>;
+  onToggle: (value: string) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const visible = q.trim()
+    ? values.filter((v) => v.toLowerCase().includes(q.trim().toLowerCase()))
+    : values;
+
+  return (
+    <div className="absolute z-[80] mt-2 w-[min(340px,90vw)] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border bg-muted/20">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">{title}</p>
+          <p className="text-[11px] text-muted-foreground">{selected.size} ausgewählt</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+        >
+          <X size={16} />
+        </button>
+      </div>
+      <div className="p-3 border-b border-border">
+        <div className="flex items-center gap-2 rounded-xl border border-border px-3 py-2">
+          <Search size={14} className="text-muted-foreground shrink-0" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Suchen…"
+            className="flex-1 bg-transparent text-sm focus:outline-none"
+          />
+        </div>
+      </div>
+      <div className="max-h-64 overflow-y-auto p-2">
+        {visible.length === 0 ? (
+          <p className="px-3 py-6 text-sm text-muted-foreground text-center">Keine Werte.</p>
+        ) : (
+          visible.map((v) => {
+            const checked = selected.has(v);
+            return (
+              <label
+                key={v}
+                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-muted/40 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => onToggle(v)}
+                  className="h-4 w-4 accent-[#1a3826]"
+                />
+                <span className="text-sm font-semibold text-foreground truncate">{v}</span>
+              </label>
+            );
+          })
+        )}
+      </div>
+      <div className="px-4 py-3 border-t border-border flex items-center justify-between bg-muted/10">
+        <button
+          type="button"
+          onClick={() => {
+            // clear selection
+            selected.forEach((v) => onToggle(v));
+          }}
+          className="text-xs font-bold text-muted-foreground hover:text-foreground"
+        >
+          Auswahl löschen
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs font-black rounded-lg bg-[#1a3826] text-[#FFC72C] px-3 py-2 hover:bg-[#1a3826]/90 transition"
+        >
+          Fertig
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PdfPreviewModal({
+  url,
+  title,
+  onClose,
+}: {
+  url: string;
+  title: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="relative bg-card rounded-2xl shadow-2xl border border-[#1a3826]/20 w-full max-w-6xl h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#1a3826]">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <FileText size={18} className="text-[#FFC72C] shrink-0" />
+            <span className="text-sm font-black text-white uppercase tracking-wider truncate">
+              {title}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={url}
+              download={`${title}.pdf`}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black bg-[#FFC72C] text-[#1a3826] hover:bg-[#FFC72C]/90 transition"
+            >
+              <Download size={14} />
+              Herunterladen
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 bg-slate-100 dark:bg-slate-900">
+          <iframe src={url} className="w-full h-full border-0" title={title} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,8 +186,6 @@ type FormState = {
   modell: string;
   seriennummer: string;
   anschaffungsjahr: string;
-  garantieUrl: string;
-  garantieName: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -43,8 +194,6 @@ const EMPTY_FORM: FormState = {
   modell: "",
   seriennummer: "",
   anschaffungsjahr: "",
-  garantieUrl: "",
-  garantieName: "",
 };
 
 const INPUT_CLS =
@@ -57,8 +206,6 @@ function itemToForm(item: InventarItemRow): FormState {
     modell: item.modell ?? "",
     seriennummer: item.seriennummer ?? "",
     anschaffungsjahr: item.anschaffungsjahr ? String(item.anschaffungsjahr) : "",
-    garantieUrl: item.garantieUrl ?? "",
-    garantieName: item.garantieName ?? "",
   };
 }
 
@@ -69,8 +216,6 @@ function formToData(form: FormState): InventarItemData {
     modell: form.modell || null,
     seriennummer: form.seriennummer || null,
     anschaffungsjahr: form.anschaffungsjahr ? parseInt(form.anschaffungsjahr, 10) || null : null,
-    garantieUrl: form.garantieUrl || null,
-    garantieName: form.garantieName || null,
   };
 }
 
@@ -151,120 +296,26 @@ function ModalFooter({
   );
 }
 
-// ─── Guarantee upload ─────────────────────────────────────────────────────────
-
-function GarantieUploader({
-  restaurantId,
-  currentUrl,
-  currentName,
-  onUploaded,
-}: {
-  restaurantId: string;
-  currentUrl: string;
-  currentName: string;
-  onUploaded: (url: string, name: string) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await uploadGarantie(fd, restaurantId);
-      if (!res.success) {
-        toast.error(res.error);
-      } else {
-        onUploaded(res.url, res.fileName);
-        toast.success("Garantieschein hochgeladen.");
-      }
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-        Garantieschein
-      </label>
-      <div className="flex items-center gap-2 flex-wrap">
-        {currentUrl && (
-          <a
-            href={currentUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#1a3826]/20 bg-[#1a3826]/5 text-xs font-semibold text-[#1a3826] dark:text-[#FFC72C] hover:bg-[#1a3826]/10 transition"
-          >
-            <FileText size={12} />
-            {currentName || "Garantieschein"}
-            <ExternalLink size={11} />
-          </a>
-        )}
-        <button
-          type="button"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/50 hover:bg-muted text-xs font-semibold text-muted-foreground transition disabled:opacity-50"
-        >
-          <Upload size={12} />
-          {uploading ? "Wird hochgeladen…" : currentUrl ? "Ersetzen" : "Hochladen"}
-        </button>
-        {currentUrl && (
-          <button
-            type="button"
-            onClick={() => onUploaded("", "")}
-            className="text-xs text-muted-foreground hover:text-destructive transition"
-            title="Garantieschein entfernen"
-          >
-            <X size={14} />
-          </button>
-        )}
-      </div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-        className="hidden"
-        onChange={handleFile}
-      />
-    </div>
-  );
-}
-
 // ─── Add Modal ────────────────────────────────────────────────────────────────
 
 function AddModal({
   sectionName,
   sectionId,
   restaurantId,
-  standardDeviceNames,
   onClose,
   onSaved,
 }: {
   sectionName: string;
   sectionId: string;
   restaurantId: string;
-  standardDeviceNames: string[];
   onClose: () => void;
   onSaved: (item: InventarItemRow) => void;
 }) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [isPending, startTransition] = useTransition();
-  const [useCustomName, setUseCustomName] = useState(standardDeviceNames.length === 0);
-  const [deviceSearch, setDeviceSearch] = useState("");
-  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const set = (key: keyof FormState, val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
-
-  const filteredDevices = deviceSearch
-    ? standardDeviceNames.filter((d) => d.toLowerCase().includes(deviceSearch.toLowerCase()))
-    : standardDeviceNames;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,92 +337,15 @@ function AddModal({
     <ModalShell title={`Gerät hinzufügen – ${sectionName}`} onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Device name */}
-        {!useCustomName ? (
-          <div className="space-y-1">
-            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Gerät *
-            </label>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setDropdownOpen((o) => !o)}
-                className="w-full flex items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1a3826]/40"
-              >
-                <span className={form.geraet ? "text-foreground" : "text-muted-foreground"}>
-                  {form.geraet || "Gerät aus Standardliste wählen…"}
-                </span>
-                <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-              </button>
-              {dropdownOpen && (
-                <div className="absolute z-50 mt-1 w-full rounded-xl border border-border bg-card shadow-lg overflow-hidden">
-                  <div className="p-2 border-b border-border">
-                    <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5">
-                      <Search size={13} className="text-muted-foreground shrink-0" />
-                      <input
-                        autoFocus
-                        value={deviceSearch}
-                        onChange={(e) => setDeviceSearch(e.target.value)}
-                        placeholder="Suchen…"
-                        className="flex-1 bg-transparent text-sm focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div className="max-h-52 overflow-y-auto">
-                    {filteredDevices.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => {
-                          set("geraet", name);
-                          setDropdownOpen(false);
-                          setDeviceSearch("");
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/5 flex items-center justify-between"
-                      >
-                        {name}
-                        {form.geraet === name && (
-                          <Check size={13} className="text-[#1a3826] dark:text-[#FFC72C]" />
-                        )}
-                      </button>
-                    ))}
-                    {filteredDevices.length === 0 && (
-                      <p className="px-4 py-3 text-sm text-muted-foreground">Keine Ergebnisse.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setUseCustomName(true)}
-              className="text-xs text-muted-foreground underline hover:text-foreground"
-            >
-              Benutzerdefinierter Name
-            </button>
-          </div>
-        ) : (
-          <FormField label="Gerät *">
-            <input
-              autoFocus
-              value={form.geraet}
-              onChange={(e) => set("geraet", e.target.value)}
-              placeholder="z.B. Griller 3"
-              className={INPUT_CLS}
-            />
-            {standardDeviceNames.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setUseCustomName(false);
-                  set("geraet", "");
-                }}
-                className="text-xs text-muted-foreground underline hover:text-foreground"
-              >
-                Aus Standardliste wählen
-              </button>
-            )}
-          </FormField>
-        )}
+        <FormField label="Gerät *">
+          <input
+            autoFocus
+            value={form.geraet}
+            onChange={(e) => set("geraet", e.target.value)}
+            placeholder="z.B. Griller 3"
+            className={INPUT_CLS}
+          />
+        </FormField>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField label="Marke">
@@ -412,15 +386,6 @@ function AddModal({
             />
           </FormField>
         </div>
-        <GarantieUploader
-          restaurantId={restaurantId}
-          currentUrl={form.garantieUrl}
-          currentName={form.garantieName}
-          onUploaded={(url, name) => {
-            set("garantieUrl", url);
-            set("garantieName", name);
-          }}
-        />
         <ModalFooter onClose={onClose} isPending={isPending} submitLabel="Hinzufügen" />
       </form>
     </ModalShell>
@@ -512,15 +477,6 @@ function EditModal({
             />
           </FormField>
         </div>
-        <GarantieUploader
-          restaurantId={restaurantId}
-          currentUrl={form.garantieUrl}
-          currentName={form.garantieName}
-          onUploaded={(url, name) => {
-            set("garantieUrl", url);
-            set("garantieName", name);
-          }}
-        />
         <ModalFooter onClose={onClose} isPending={isPending} submitLabel="Speichern" />
       </form>
     </ModalShell>
@@ -579,7 +535,6 @@ type Props = {
   restaurantName: string;
   restaurantId: string;
   canEdit: boolean;
-  standardDeviceNames: string[];
 };
 
 export default function InventarSectionClient({
@@ -587,23 +542,51 @@ export default function InventarSectionClient({
   restaurantName,
   restaurantId,
   canEdit,
-  standardDeviceNames,
 }: Props) {
   const [items, setItems] = useState<InventarItemRow[]>(initialSection.items);
   const [search, setSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState<null | keyof FilterState>(null);
+  const [filters, setFilters] = useState<FilterState>({
+    geraet: new Set<string>(),
+    marke: new Set<string>(),
+    modell: new Set<string>(),
+    seriennummer: new Set<string>(),
+    anschaffungsjahr: new Set<string>(),
+  });
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<InventarItemRow | null>(null);
   const [deleteItem, setDeleteItem] = useState<InventarItemRow | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [pdfModal, setPdfModal] = useState<{ url: string; title: string } | null>(null);
+  const [exportingPdf, startExportPdf] = useTransition();
 
-  const filtered = search
-    ? items.filter(
-        (it) =>
-          it.geraet.toLowerCase().includes(search.toLowerCase()) ||
-          (it.marke ?? "").toLowerCase().includes(search.toLowerCase()) ||
-          (it.seriennummer ?? "").toLowerCase().includes(search.toLowerCase())
-      )
-    : items;
+  const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().trim();
+  const filtered = items.filter((it) => {
+    const q = norm(search);
+    const matchGlobal =
+      !q ||
+      norm(it.geraet).includes(q) ||
+      norm(it.marke).includes(q) ||
+      norm(it.modell).includes(q) ||
+      norm(it.seriennummer).includes(q) ||
+      norm(it.anschaffungsjahr ? String(it.anschaffungsjahr) : "").includes(q);
+
+    const vGeraet = it.geraet?.trim() ?? "";
+    const vMarke = it.marke?.trim() ?? "";
+    const vModell = it.modell?.trim() ?? "";
+    const vSn = it.seriennummer?.trim() ?? "";
+    const vYear = it.anschaffungsjahr ? String(it.anschaffungsjahr) : "";
+
+    const f = filters;
+    const matchCols =
+      (f.geraet.size === 0 || f.geraet.has(vGeraet)) &&
+      (f.marke.size === 0 || f.marke.has(vMarke)) &&
+      (f.modell.size === 0 || f.modell.has(vModell)) &&
+      (f.seriennummer.size === 0 || f.seriennummer.has(vSn)) &&
+      (f.anschaffungsjahr.size === 0 || f.anschaffungsjahr.has(vYear));
+
+    return matchGlobal && matchCols;
+  });
 
   const handleDelete = () => {
     if (!deleteItem) return;
@@ -643,43 +626,78 @@ export default function InventarSectionClient({
             </p>
           </div>
           {canEdit && (
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] hover:bg-[#1a3826]/90 text-[#FFC72C] text-sm font-black min-h-[44px] touch-manipulation transition self-start md:self-auto"
-            >
-              <Plus size={16} />
-              Neues Gerät
-            </button>
+            <div className="flex items-center gap-2 self-start md:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  startExportPdf(() => {
+                    const detail: InventarSectionDetail = { ...initialSection, items: filtered };
+                    const url = generateSectionPDF(detail, restaurantName);
+                    setPdfModal({ url, title: `Equipment – ${initialSection.name} – ${restaurantName}` });
+                  });
+                }}
+                disabled={exportingPdf}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#1a3826]/15 bg-white hover:bg-[#1a3826]/5 text-[#1a3826] text-sm font-black min-h-[44px] touch-manipulation transition"
+              >
+                {exportingPdf ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+                PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#1a3826] hover:bg-[#1a3826]/90 text-[#FFC72C] text-sm font-black min-h-[44px] touch-manipulation transition"
+              >
+                <Plus size={16} />
+                Neues Gerät
+              </button>
+            </div>
           )}
         </div>
 
       <div className="mt-6 space-y-4">
         {/* Search */}
-        <div className="flex items-center gap-2.5 rounded-xl border border-[#1a3826]/15 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/80 via-card to-[#1a3826]/5 dark:from-[#1a3826]/15 dark:via-card dark:to-[#1a3826]/10 px-4 py-2.5 max-w-sm shadow-sm focus-within:ring-2 focus-within:ring-[#1a3826]/20 dark:focus-within:ring-[#FFC72C]/20 transition-all">
-          <Search size={15} className="text-[#1a3826]/50 dark:text-[#FFC72C]/60 shrink-0" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Suchen…"
-            className="flex-1 bg-transparent text-sm focus:outline-none text-foreground placeholder:text-muted-foreground"
-          />
-          {search && (
-            <button type="button" onClick={() => setSearch("")}>
-              <X size={13} className="text-muted-foreground hover:text-foreground" />
-            </button>
-          )}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2.5 rounded-xl border border-[#1a3826]/15 dark:border-[#FFC72C]/20 bg-gradient-to-br from-emerald-50/80 via-card to-[#1a3826]/5 dark:from-[#1a3826]/15 dark:via-card dark:to-[#1a3826]/10 px-4 py-2.5 max-w-sm shadow-sm focus-within:ring-2 focus-within:ring-[#1a3826]/20 dark:focus-within:ring-[#FFC72C]/20 transition-all">
+            <Search size={15} className="text-[#1a3826]/50 dark:text-[#FFC72C]/60 shrink-0" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Suchen…"
+              className="flex-1 bg-transparent text-sm focus:outline-none text-foreground placeholder:text-muted-foreground"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch("")}>
+                <X size={13} className="text-muted-foreground hover:text-foreground" />
+              </button>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              setFilters({
+                geraet: new Set(),
+                marke: new Set(),
+                modell: new Set(),
+                seriennummer: new Set(),
+                anschaffungsjahr: new Set(),
+              })
+            }
+            className="text-xs font-bold text-muted-foreground hover:text-[#1a3826] dark:hover:text-[#FFC72C] px-3 py-2 rounded-lg hover:bg-[#1a3826]/5 dark:hover:bg-[#FFC72C]/10 transition-colors w-fit"
+          >
+            Filter zurücksetzen
+          </button>
         </div>
 
         {/* Table */}
-        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-visible">
           {/* Table header */}
-          <div className="bg-[#1a3826] px-4 py-3">
+          <div className="bg-[#1a3826] px-4 py-3 relative z-[20]">
             <div
               className={`grid gap-3 text-[10px] font-black text-[#FFC72C]/80 uppercase tracking-wider ${
                 canEdit
-                  ? "grid-cols-[2fr_1.2fr_1.2fr_1.4fr_1fr_1fr_44px]"
-                  : "grid-cols-[2fr_1.2fr_1.2fr_1.4fr_1fr_1fr]"
+                  ? "grid-cols-[2.2fr_1.2fr_1.2fr_1.4fr_0.8fr_44px]"
+                  : "grid-cols-[2.2fr_1.2fr_1.2fr_1.4fr_0.8fr]"
               }`}
             >
               <span>Gerät</span>
@@ -687,9 +705,71 @@ export default function InventarSectionClient({
               <span>Modell</span>
               <span>Seriennummer</span>
               <span>Baujahr</span>
-              <span>Garantie</span>
               {canEdit && <span />}
             </div>
+          </div>
+          {/* Column filters (checkbox popovers) */}
+          <div className="px-4 py-3 border-b border-border bg-card/60 relative z-[30]">
+            {(() => {
+              const values = {
+                geraet: uniq(items.map((i) => i.geraet ?? "")),
+                marke: uniq(items.map((i) => i.marke ?? "")),
+                modell: uniq(items.map((i) => i.modell ?? "")),
+                seriennummer: uniq(items.map((i) => i.seriennummer ?? "")),
+                anschaffungsjahr: uniq(items.map((i) => (i.anschaffungsjahr ? String(i.anschaffungsjahr) : ""))),
+              } as const;
+
+              const btn = (key: keyof FilterState, label: string) => (
+                <div key={key} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setFilterOpen((v) => (v === key ? null : key))}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/30 transition flex items-center justify-between gap-2"
+                    title="Filtern"
+                  >
+                    <span className="truncate">{label}</span>
+                    <span className="shrink-0 rounded-full bg-[#1a3826]/10 px-2 py-0.5 text-[10px] font-black text-[#1a3826]">
+                      {filters[key].size}
+                    </span>
+                  </button>
+                  {filterOpen === key && (
+                    <FilterPopover
+                      title={label}
+                      values={values[key]}
+                      selected={filters[key]}
+                      onToggle={(value) => {
+                        setFilters((prev) => {
+                          const next = { ...prev } as FilterState;
+                          const set = new Set(next[key]);
+                          if (set.has(value)) set.delete(value);
+                          else set.add(value);
+                          next[key] = set;
+                          return next;
+                        });
+                      }}
+                      onClose={() => setFilterOpen(null)}
+                    />
+                  )}
+                </div>
+              );
+
+              return (
+                <div
+                  className={`grid gap-3 ${
+                    canEdit
+                      ? "grid-cols-[2.2fr_1.2fr_1.2fr_1.4fr_0.8fr_44px]"
+                      : "grid-cols-[2.2fr_1.2fr_1.2fr_1.4fr_0.8fr]"
+                  }`}
+                >
+                  {btn("geraet", "Gerät")}
+                  {btn("marke", "Marke")}
+                  {btn("modell", "Modell")}
+                  {btn("seriennummer", "Seriennummer")}
+                  {btn("anschaffungsjahr", "Baujahr")}
+                  {canEdit && <div />}
+                </div>
+              );
+            })()}
           </div>
 
           {filtered.length === 0 ? (
@@ -697,14 +777,14 @@ export default function InventarSectionClient({
               {search ? "Keine Ergebnisse für diese Suche." : "Keine Geräte in dieser Sektion."}
             </div>
           ) : (
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-border overflow-hidden rounded-b-2xl">
               {filtered.map((item) => (
                 <div
                   key={item.id}
                   className={`group grid gap-3 px-4 py-3 items-center hover:bg-muted/30 transition-colors ${
                     canEdit
-                      ? "grid-cols-[2fr_1.2fr_1.2fr_1.4fr_1fr_1fr_44px]"
-                      : "grid-cols-[2fr_1.2fr_1.2fr_1.4fr_1fr_1fr]"
+                      ? "grid-cols-[2.2fr_1.2fr_1.2fr_1.4fr_0.8fr_44px]"
+                      : "grid-cols-[2.2fr_1.2fr_1.2fr_1.4fr_0.8fr]"
                   }`}
                 >
                   <span className="text-sm font-semibold text-foreground truncate">
@@ -721,24 +801,6 @@ export default function InventarSectionClient({
                   </span>
                   <span className="text-sm text-muted-foreground">
                     {item.anschaffungsjahr || "—"}
-                  </span>
-                  <span>
-                    {item.garantieUrl ? (
-                      <a
-                        href={item.garantieUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#1a3826] dark:text-[#FFC72C] hover:underline"
-                        title={item.garantieName ?? "Garantieschein"}
-                      >
-                        <FileText size={13} />
-                        <span className="truncate max-w-[80px]">
-                          {item.garantieName ?? "PDF"}
-                        </span>
-                      </a>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
                   </span>
                   {canEdit && (
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -774,12 +836,6 @@ export default function InventarSectionClient({
             </strong>{" "}
             / {items.length} mit Seriennummer
           </span>
-          <span>
-            <strong className="text-foreground">
-              {items.filter((i) => i.garantieUrl).length}
-            </strong>{" "}
-            Garantiescheine hinterlegt
-          </span>
         </div>
       </div>
       </div>
@@ -790,7 +846,6 @@ export default function InventarSectionClient({
           sectionName={initialSection.name}
           sectionId={initialSection.id}
           restaurantId={restaurantId}
-          standardDeviceNames={standardDeviceNames}
           onClose={() => setAddOpen(false)}
           onSaved={(item) => {
             setItems((prev) => [...prev, item]);
@@ -820,6 +875,21 @@ export default function InventarSectionClient({
           onCancel={() => setDeleteItem(null)}
           onConfirm={handleDelete}
           isPending={isPending}
+        />
+      )}
+
+      {pdfModal && (
+        <PdfPreviewModal
+          url={pdfModal.url}
+          title={pdfModal.title}
+          onClose={() => {
+            try {
+              URL.revokeObjectURL(pdfModal.url);
+            } catch {
+              // ignore
+            }
+            setPdfModal(null);
+          }}
         />
       )}
     </div>
