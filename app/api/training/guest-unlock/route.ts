@@ -14,8 +14,20 @@ const DEV_ONLY_FALLBACK_PASSWORD = "1234";
 const buckets = new Map<string, { count: number; reset: number }>();
 
 function resolveExpectedGuestPassword(): string | undefined {
-  const fromEnv = process.env.TRAINING_GUEST_PASSWORD?.trim();
-  if (fromEnv) return fromEnv;
+  // Be tolerant with env-var naming on Vercel to avoid lockouts caused by a typo / wrong key.
+  // Primary key is TRAINING_GUEST_PASSWORD (documented), but we also accept a few common variants.
+  const candidates = [
+    process.env.TRAINING_GUEST_PASSWORD,
+    // Common variants / legacy keys
+    (process.env as Record<string, string | undefined>).TRAINING_GUEST_PASSWORT,
+    (process.env as Record<string, string | undefined>).TRAINING_GUEST_CODE,
+    // If someone accidentally created it as a public env var
+    process.env.NEXT_PUBLIC_TRAINING_GUEST_PASSWORD,
+  ]
+    .map((v) => v?.trim())
+    .filter(Boolean) as string[];
+
+  if (candidates.length > 0) return candidates[0];
   // Lokales next dev: ohne .env trotzdem testbar; Production/Preview braucht immer TRAINING_GUEST_PASSWORD.
   if (process.env.NODE_ENV === "development" && !process.env.VERCEL) {
     console.warn(
@@ -40,7 +52,7 @@ export async function POST(req: Request) {
       {
         ok: false,
         error:
-          "Gast-Zugang ist nicht konfiguriert. Production/Preview: TRAINING_GUEST_PASSWORD in Vercel setzen und deployen. Lokal: Variable in .env oder `npm run dev` mit Dev-Fallback (siehe .env.example).",
+          "Gast-Zugang ist nicht konfiguriert. Production/Preview: `TRAINING_GUEST_PASSWORD` in Vercel setzen und deployen. (Akzeptierte Varianten: `TRAINING_GUEST_PASSWORD`, `TRAINING_GUEST_PASSWORT`, `TRAINING_GUEST_CODE`, `NEXT_PUBLIC_TRAINING_GUEST_PASSWORD`). Lokal: Variable in .env oder `npm run dev` mit Dev-Fallback (siehe .env.example).",
       },
       { status: 503 }
     );
