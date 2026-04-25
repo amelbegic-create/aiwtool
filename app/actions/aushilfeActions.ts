@@ -184,7 +184,11 @@ export async function createHelpRequest(data: {
   }
   for (const pos of data.positions) {
     if (!pos.sectorKey || !pos.sectorLabel) return { success: false, error: "Sektor fehlt." };
-    if (!pos.shiftTimeText?.trim()) return { success: false, error: "Schichtzeit fehlt." };
+    const st = (pos.shiftTimeText ?? "").trim().replace(/-/g, "–");
+    if (!st) return { success: false, error: "Schichtzeit fehlt." };
+    if (!/^\d{2}:\d{2}\s*–\s*\d{2}:\d{2}$/.test(st)) {
+      return { success: false, error: "Schicht/Uhrzeit muss im Format 13:30–20:00 sein." };
+    }
     if (pos.neededSpots < 1 || pos.neededSpots > 50) return { success: false, error: "Anzahl Personen: 1–50." };
   }
 
@@ -207,7 +211,7 @@ export async function createHelpRequest(data: {
           create: data.positions.map((pos, i) => ({
             sectorKey: pos.sectorKey.trim(),
             sectorLabel: pos.sectorLabel.trim(),
-            shiftTimeText: pos.shiftTimeText.trim(),
+            shiftTimeText: pos.shiftTimeText.trim().replace(/-/g, "–").replace(/\s*–\s*/g, "–"),
             neededSpots: pos.neededSpots,
             sortOrder: i,
           })),
@@ -233,6 +237,8 @@ export async function fillHelpSlot(
   const session = await getServerSession(authOptions);
   if (!session?.user) return { success: false, error: "Nicht angemeldet." };
   const userId = (session.user as { id?: string }).id;
+  const role   = (session.user as { role?: string }).role;
+  const isPrivileged = role === "ADMIN" || role === "SYSTEM_ARCHITECT";
 
   const trimmedName = workerName.trim();
   if (!trimmedName) return { success: false, error: "Name des Mitarbeiters fehlt." };
@@ -269,6 +275,80 @@ export async function fillHelpSlot(
   } catch (err) {
     console.error("fillHelpSlot:", err);
     return { success: false, error: "Fehler beim Eintragen." };
+  }
+}
+
+/* ─── 2b. Update Help Slot (only creator or admin) ─────────────────────────── */
+
+export async function updateHelpSlot(
+  slotId: string,
+  workerName: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return { success: false, error: "Nicht angemeldet." };
+  const userId = (session.user as { id?: string }).id;
+  const role   = (session.user as { role?: string }).role;
+  const isPrivileged = role === "ADMIN" || role === "SYSTEM_ARCHITECT";
+
+  const trimmedName = workerName.trim();
+  if (!slotId) return { success: false, error: "Ungültiger Eintrag." };
+  if (!trimmedName) return { success: false, error: "Name des Mitarbeiters fehlt." };
+  if (trimmedName.length > 80) return { success: false, error: "Name ist zu lang (max. 80 Zeichen)." };
+
+  try {
+    const slot = await prisma.helpSlot.findUnique({
+      where: { id: slotId },
+      select: { id: true, providerManagerId: true, helpRequest: { select: { id: true, isArchived: true } } },
+    });
+    if (!slot) return { success: false, error: "Eintrag nicht gefunden." };
+    if (slot.helpRequest.isArchived) return { success: false, error: "Diese Anfrage ist bereits abgeschlossen." };
+    if (!isPrivileged && slot.providerManagerId !== userId) {
+      return { success: false, error: "Nur die Person, die den Eintrag erstellt hat, darf ihn bearbeiten." };
+    }
+
+    await prisma.helpSlot.update({
+      where: { id: slotId },
+      data: { workerName: trimmedName },
+    });
+
+    revalidatePath(REVALIDATE);
+    return { success: true };
+  } catch (err) {
+    console.error("updateHelpSlot:", err);
+    return { success: false, error: "Fehler beim Speichern." };
+  }
+}
+
+/* ─── 2c. Delete Help Slot (only creator or admin) ─────────────────────────── */
+
+export async function deleteHelpSlot(
+  slotId: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return { success: false, error: "Nicht angemeldet." };
+  const userId = (session.user as { id?: string }).id;
+  const role   = (session.user as { role?: string }).role;
+  const isPrivileged = role === "ADMIN" || role === "SYSTEM_ARCHITECT";
+
+  if (!slotId) return { success: false, error: "Ungültiger Eintrag." };
+
+  try {
+    const slot = await prisma.helpSlot.findUnique({
+      where: { id: slotId },
+      select: { id: true, providerManagerId: true, helpRequest: { select: { id: true, isArchived: true } } },
+    });
+    if (!slot) return { success: false, error: "Eintrag nicht gefunden." };
+    if (slot.helpRequest.isArchived) return { success: false, error: "Diese Anfrage ist bereits abgeschlossen." };
+    if (!isPrivileged && slot.providerManagerId !== userId) {
+      return { success: false, error: "Nur die Person, die den Eintrag erstellt hat, darf ihn löschen." };
+    }
+
+    await prisma.helpSlot.delete({ where: { id: slotId } });
+    revalidatePath(REVALIDATE);
+    return { success: true };
+  } catch (err) {
+    console.error("deleteHelpSlot:", err);
+    return { success: false, error: "Fehler beim Löschen." };
   }
 }
 

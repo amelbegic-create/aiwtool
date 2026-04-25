@@ -41,7 +41,6 @@ export default async function AdminHome() {
   const besuchsberichteAccess = await tryRequirePermission("besuchsberichte:manage");
   const dashboardNewsAccess = await tryRequirePermission("dashboard_news:manage");
   const dashboardEventsAccess = await tryRequirePermission("dashboard_events:manage");
-  const dashboardDocsAccess = await tryRequirePermission("dashboard_docs:manage");
   const trainingManageAccess = await tryRequirePermission("training:manage");
   const clAnalyseAccess = await tryRequirePermission("labor:access");
 
@@ -224,17 +223,7 @@ export default async function AdminHome() {
           } satisfies AdminCard,
         ]
       : []),
-    ...(dashboardDocsAccess.ok
-      ? [
-          {
-            title: "Dashboard-Dokumente",
-            desc: "Zwei globale PDFs („Biblija AIW“) für alle Nutzer auf dem Dashboard verwalten.",
-            href: "/admin/dashboard-docs",
-            icon: BookOpen,
-            tag: "Dashboard",
-          } satisfies AdminCard,
-        ]
-      : []),
+    // Dashboard-Dokumente removed
     ...(trainingManageAccess.ok
       ? [
           {

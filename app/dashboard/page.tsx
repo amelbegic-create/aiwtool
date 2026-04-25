@@ -17,13 +17,12 @@ import { getDashboardChangelog } from "@/app/actions/dashboardChangelogActions";
 import { getCalendarEvents } from "@/app/actions/calendarActions";
 import { dict } from "@/translations";
 import DashboardOneOnOneCard from "@/components/dashboard/DashboardOneOnOneCard";
-import { getDashboardOneOnOnePreview } from "@/app/actions/oneOnOneActions";
+import { getDashboardConversationPreview } from "@/app/actions/conversationActions";
 import DashboardVacationCard from "@/components/dashboard/DashboardVacationCard";
 import { getUserVacationYearSnapshot, getVacationReportForUser } from "@/app/actions/vacationActions";
 import { getActiveDashboardNews } from "@/app/actions/dashboardNewsActions";
 import { getActiveDashboardEvents } from "@/app/actions/dashboardEventActions";
-import { getPinnedDocs } from "@/app/actions/dashboardPinnedDocsActions";
-import QualitaetsfuehrerLauncher from "@/components/dashboard/QualitaetsfuehrerLauncher";
+// Qualitätsführer / pinned docs removed
 
 export const dynamic = "force-dynamic";
 
@@ -160,7 +159,7 @@ export default async function DashboardPage({
   let teamMembers: Awaited<ReturnType<typeof getTeamMembers>>;
   let changelog: Awaited<ReturnType<typeof getDashboardChangelog>>;
   let calendarEvents: Awaited<ReturnType<typeof getCalendarEvents>>;
-  let oneOnOnePreview: Awaited<ReturnType<typeof getDashboardOneOnOnePreview>>;
+  let oneOnOnePreview: Awaited<ReturnType<typeof getDashboardConversationPreview>>;
 
   const now = new Date();
   const currentYearForCalendar = now.getFullYear();
@@ -180,11 +179,10 @@ export default async function DashboardPage({
         getTeamMembers(dbUser.id, String(dbUser.role)),
         getDashboardChangelog(),
         getCalendarEvents(dbUser.id, currentYearForCalendar, currentMonthForCalendar),
-        getDashboardOneOnOnePreview(dbUser.id).catch(() => ({
+        getDashboardConversationPreview(dbUser.id).catch(() => ({
           myOpenCount: 0,
           inboxCount: 0,
-          recentTopics: [],
-          nextMeeting: null,
+          recentConversations: [],
         })),
       ]);
   } catch (e) {
@@ -225,12 +223,7 @@ export default async function DashboardPage({
     /* Tabelle fehlt bis db push / instrumentation */
   }
 
-  let pinnedDocs: Awaited<ReturnType<typeof getPinnedDocs>> = [];
-  try {
-    pinnedDocs = await getPinnedDocs();
-  } catch {
-    /* Tabelle fehlt bis db push / instrumentation */
-  }
+  // pinned docs removed
 
   const sp = await searchParams;
   const openNewsId = typeof sp?.openNews === "string" ? sp.openNews : null;
@@ -285,9 +278,7 @@ export default async function DashboardPage({
               </span>
             </div>
           </div>
-          <div className="flex justify-center px-1 md:px-2">
-            <QualitaetsfuehrerLauncher docs={pinnedDocs} />
-          </div>
+          <div className="flex justify-center px-1 md:px-2" />
           <div className="flex flex-col items-stretch sm:items-end sm:flex-row sm:justify-end gap-2 justify-self-end w-full md:w-auto">
             <div className="flex items-center justify-center sm:justify-end gap-2">
               <DeineIdeeButton />
@@ -390,8 +381,7 @@ export default async function DashboardPage({
               userRole={String(dbUser.role)}
               myOpenCount={oneOnOnePreview.myOpenCount}
               inboxCount={oneOnOnePreview.inboxCount}
-              recentTopics={oneOnOnePreview.recentTopics}
-              nextMeeting={oneOnOnePreview.nextMeeting}
+              recentConversations={oneOnOnePreview.recentConversations}
               hasSupervisor={!!dbUser.supervisorId}
               supervisorName={dbUser.supervisor?.name ?? null}
               supervisorImage={dbUser.supervisor?.image ?? null}

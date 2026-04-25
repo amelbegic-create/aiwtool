@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Image as ImageIcon, RefreshCw, UploadCloud, Video } from "lucide-react";
+import { toast } from "sonner";
 import {
   createDashboardEventItem,
   updateDashboardEventItem,
@@ -90,7 +91,7 @@ export default function DashboardEventsForm({
     })
   );
 
-  const maxGallery = 200;
+  const maxGallery = 100;
   const existingCount = initial?.galleryUrls?.length ?? 0;
   const keepCount = gallery.kept.size;
   const newCount = gallery.newFiles.length;
@@ -112,10 +113,30 @@ export default function DashboardEventsForm({
     const raw = Array.from(e.currentTarget.files ?? []);
     e.currentTarget.value = "";
     if (raw.length === 0) return;
+
+    const MAX_MB = 5;
+    const MAX_BYTES = MAX_MB * 1024 * 1024;
+    const tooBig = raw.filter((f) => f.size > MAX_BYTES);
+    if (tooBig.length > 0) {
+      toast.error(`Max. ${MAX_MB} MB pro Bild.`, {
+        description: `${tooBig.length} Datei(en) sind zu groß und wurden übersprungen.`,
+      });
+    }
+    const underLimit = raw.filter((f) => f.size > 0 && f.size <= MAX_BYTES);
+
     const files = shrinkGallery
-      ? await Promise.all(raw.map((f) => resizeImageFileIfNeeded(f)))
-      : raw;
-    dispatch({ type: "addFiles", files, max: maxGallery });
+      ? await Promise.all(underLimit.map((f) => resizeImageFileIfNeeded(f)))
+      : underLimit;
+
+    const afterResizeTooBig = files.filter((f) => f.size > MAX_BYTES);
+    if (afterResizeTooBig.length > 0) {
+      toast.error(`Max. ${MAX_MB} MB pro Bild.`, {
+        description: `${afterResizeTooBig.length} Bild(er) wurden nach dem Resize zu groß und wurden übersprungen.`,
+      });
+    }
+    const finalFiles = files.filter((f) => f.size > 0 && f.size <= MAX_BYTES);
+
+    dispatch({ type: "addFiles", files: finalFiles, max: maxGallery });
   }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {

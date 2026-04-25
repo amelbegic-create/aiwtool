@@ -5,9 +5,9 @@ import { getDbUserForAccess, requirePermission } from "@/lib/access";
 import { put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
-const MAX_GALLERY_IMAGES = 200;
+const MAX_GALLERY_IMAGES = 100;
 const GALLERY_UPLOAD_CONCURRENCY = 4;
 
 async function uploadManyWithConcurrency<T, R>(
@@ -48,7 +48,7 @@ function isVideoFile(file: File): boolean {
 
 function assertImageFile(file: File, label: string) {
   if (!file || file.size === 0) throw new Error(`${label}: Datei fehlt.`);
-  if (file.size > MAX_IMAGE_BYTES) throw new Error(`${label}: Max. 10 MB.`);
+  if (file.size > MAX_IMAGE_BYTES) throw new Error(`${label}: Max. 5 MB.`);
   if (!isImageFile(file)) throw new Error(`${label}: Nur Bilddateien erlaubt (inkl. GIF).`);
 }
 

@@ -37,7 +37,8 @@ export type NotificationKind =
   | "aushilfe_request"
   | "one_on_one_topic_created"
   | "one_on_one_topic_updated"
-  | "one_on_one_meeting_scheduled";
+  | "one_on_one_meeting_scheduled"
+  | "one_on_one_conversation_created";
 
 export interface NotificationItem {
   id: string;
@@ -762,6 +763,48 @@ async function buildNotificationsForUser(userId: string): Promise<NotificationIt
     }
   } catch {
     // Ignore if table not yet available
+  }
+
+  // Gespraechsthemen (neues Modell): neue Gespräche / neue Kommentare / neue To-Dos
+  try {
+    const sinceConv = new Date();
+    sinceConv.setDate(sinceConv.getDate() - 30);
+
+    // Neue Gespräche, die mich betreffen (OPEN oder ARCHIVED) – nur wenn sie neu/aktualisiert sind.
+    const recentConversations = await prisma.oneOnOneConversation.findMany({
+      where: {
+        OR: [{ requesterUserId: userId }, { supervisorUserId: userId }],
+        createdAt: { gte: sinceConv },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+      include: {
+        requester: { select: { name: true, email: true, image: true } },
+        supervisor: { select: { name: true, email: true, image: true } },
+      },
+    });
+
+    for (const c of recentConversations) {
+      // Only notify the OTHER participant at creation time.
+      if (c.createdById && c.createdById === userId) continue;
+      const other = c.requesterUserId === userId ? c.supervisor : c.requester;
+      const otherName = other?.name?.trim() || other?.email?.trim() || "Unbekannt";
+      items.push({
+        id: `one-on-one-conv:new:${c.id}`,
+        kind: "one_on_one_conversation_created",
+        title: "Neues Gespräch",
+        description: `mit ${otherName}`,
+        href: "/profile?tab=topics",
+        createdAt: c.createdAt.toISOString(),
+        actorName: otherName,
+        actorImage: other?.image ?? null,
+        actorInitials: initials(otherName),
+      });
+    }
+
+    // NOTE: Keine Notifikationen für Kommentare oder To-Dos (nur beim Erstellen eines Gesprächs).
+  } catch {
+    // ignore if new tables not yet available
   }
 
   items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));

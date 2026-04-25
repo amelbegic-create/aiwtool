@@ -20,7 +20,8 @@ const nextConfig: NextConfig = {
   // Keep server actions upload body size limit
   experimental: {
     serverActions: {
-      bodySizeLimit: "50mb",
+      // Up to 100 images x 5 MB = 500 MB (+ overhead)
+      bodySizeLimit: "600mb",
     },
   },
 

@@ -293,6 +293,7 @@ export default function ProfileHubClient({
               {activeTab === "topics" && (
                 <OneOnOneTab
                   userId={user.id}
+                  userRole={user.role}
                   hasSupervisor={!!user.supervisorId}
                   supervisorName={user.supervisorName}
                   supervisorImage={user.supervisorImage}

@@ -24,6 +24,8 @@ import { toast } from "sonner";
 import {
   createHelpRequest,
   fillHelpSlot,
+  updateHelpSlot,
+  deleteHelpSlot,
   getHelpRequests,
   getArchivedByMonth,
   archiveHelpRequest,
@@ -85,6 +87,17 @@ function formatRequesterName(u: { name: string | null; email: string | null } | 
 function restaurantNumberBadge(r: { code: string; name: string | null } | undefined): string {
   if (!r) return "–";
   return (r.code ?? "").trim() || (r.name ?? "").trim() || "–";
+}
+
+function normalizeShiftTimeText(raw: string): string {
+  // Only allow: digits, colon, dash/en-dash, spaces; normalize any dash to en-dash.
+  const cleaned = raw.replace(/[^\d:\-–\s]/g, "");
+  return cleaned.replace(/\s+/g, " ").replace(/-/g, "–").trimStart();
+}
+
+function isValidShiftTimeText(value: string): boolean {
+  // Strict: "HH:MM–HH:MM" with optional spaces around the dash.
+  return /^\d{2}:\d{2}\s*–\s*\d{2}:\d{2}$/.test(value.trim());
 }
 
 /** Total needed and filled across all positions */
@@ -267,17 +280,49 @@ function SlotFormRow({ index, positionId, requestId, restaurants, userRestaurant
 
 /* ─── Position Block (inside Detail Modal) ───────────────────────────────────── */
 
-function PositionBlock({ pos, requestId, restaurants, userRestaurantId, onFilled }: {
+function PositionBlock({ pos, requestId, restaurants, userRestaurantId, userId, userRole, onFilled }: {
   pos: HelpRequestPositionRow;
   requestId: string;
   restaurants: Restaurant[];
   userRestaurantId: string;
+  userId: string;
+  userRole: string;
   onFilled: () => void;
 }) {
   const filled = pos.slots.length;
   const total = pos.neededSpots;
   const isFull = filled >= total;
   const emptyCount = Math.max(0, total - filled);
+  const isPrivileged = userRole === "ADMIN" || userRole === "SYSTEM_ARCHITECT";
+  const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPending, startEditTransition] = useTransition();
+
+  function startEdit(slotId: string, currentName: string) {
+    setEditingSlotId(slotId);
+    setEditName(currentName);
+  }
+
+  function cancelEdit() {
+    setEditingSlotId(null);
+    setEditName("");
+  }
+
+  function saveEdit() {
+    const slotId = editingSlotId;
+    if (!slotId) return;
+    if (!editName.trim()) return;
+    startEditTransition(async () => {
+      const res = await updateHelpSlot(slotId, editName.trim());
+      if (res.success) {
+        toast.success("Eintrag aktualisiert.");
+        cancelEdit();
+        onFilled();
+      } else {
+        toast.error(res.error ?? "Fehler.");
+      }
+    });
+  }
 
   return (
     <div className="rounded-2xl border border-[#1a3826]/12 bg-gradient-to-br from-emerald-50/40 to-white overflow-hidden">
@@ -311,11 +356,76 @@ function PositionBlock({ pos, requestId, restaurants, userRestaurantId, onFilled
         {pos.slots.map(slot => {
           const manager = slot.providerManager?.name?.trim() || slot.providerManager?.email?.trim() || null;
           const restCode = (slot.providingRestaurant.code ?? "").trim() || (slot.providingRestaurant.name ?? "").trim();
+          const canEditSlot = isPrivileged || (slot.providerManagerId && slot.providerManagerId === userId);
           return (
             <div key={slot.id} className="flex items-center gap-3 py-2 px-3 rounded-xl bg-emerald-50 border border-emerald-100">
               <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
               <div className="flex-1 min-w-0">
-                <span className="text-sm font-bold text-slate-800 truncate block">{slot.workerName}</span>
+                {editingSlotId === slot.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      disabled={editPending}
+                      maxLength={80}
+                      className="flex-1 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-sm font-bold text-slate-800 outline-none focus:border-[#1a3826] disabled:opacity-60"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveEdit}
+                      disabled={editPending || !editName.trim()}
+                      className="rounded-lg bg-[#1a3826] px-3 py-1.5 text-xs font-black text-[#FFC72C] disabled:opacity-50"
+                    >
+                      Speichern
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      disabled={editPending}
+                      className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-black text-slate-600 hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-sm font-bold text-slate-800 truncate block">{slot.workerName}</span>
+                    {/* Edit button shows only for the person who created this slot (enforced server-side too) */}
+                    {canEditSlot && (
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(slot.id, slot.workerName)}
+                          className="rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600 hover:bg-emerald-100"
+                          title="Eintrag bearbeiten"
+                        >
+                          Bearbeiten
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!confirm("Eintrag wirklich löschen?")) return;
+                            startEditTransition(async () => {
+                              const res = await deleteHelpSlot(slot.id);
+                              if (res.success) {
+                                toast.success("Eintrag gelöscht.");
+                                if (editingSlotId === slot.id) cancelEdit();
+                                onFilled();
+                              } else {
+                                toast.error(res.error ?? "Fehler.");
+                              }
+                            });
+                          }}
+                          className="rounded-lg border border-red-200 bg-white px-2 py-1 text-[10px] font-black text-red-600 hover:bg-red-50"
+                          title="Eintrag löschen"
+                        >
+                          Löschen
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {manager && (
                   <span className="text-[10px] text-slate-500 block truncate">
                     Von: <span className="font-semibold text-slate-700">{manager}</span>
@@ -435,6 +545,8 @@ function DetailModal({ request, restaurants, userRestaurantId, userId, userRole,
               requestId={request.id}
               restaurants={restaurants}
               userRestaurantId={userRestaurantId}
+              userId={userId}
+              userRole={userRole}
               onFilled={onRefresh}
             />
           ))}
@@ -589,31 +701,74 @@ function PositionRow({ pos, index, sectors, onChange, onRemove, canRemove }: {
         )}
       </div>
 
-      {/* Sector */}
-      <div>
-        <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1.5">
-          Sektor / Bereich *
-        </label>
-        <select value={pos.sectorKey}
-          onChange={e => {
-            const opt = sectors.find(s => s.key === e.target.value);
-            onChange({ ...pos, sectorKey: e.target.value, sectorLabel: opt?.label ?? e.target.value });
-          }}
-          className="w-full rounded-xl border-2 border-[#1a3826]/15 px-3 py-2.5 text-sm font-semibold text-slate-800 bg-white focus:outline-none focus:border-[#1a3826]">
-          {sectors.map(s => <option key={s.key} value={s.key}>{s.label}{s.isCustom ? " ✦" : ""}</option>)}
-        </select>
+      {/* Sector + Needed spots */}
+      <div className="grid grid-cols-2 gap-3 items-end">
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1.5">
+            Sektor / Bereich *
+          </label>
+          <select
+            value={pos.sectorKey}
+            onChange={(e) => {
+              const opt = sectors.find((s) => s.key === e.target.value);
+              onChange({ ...pos, sectorKey: e.target.value, sectorLabel: opt?.label ?? e.target.value });
+            }}
+            className="w-full rounded-xl border-2 border-[#1a3826]/15 px-3 py-2.5 text-sm font-semibold text-slate-800 bg-white focus:outline-none focus:border-[#1a3826]"
+          >
+            {sectors.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+                {s.isCustom ? " ✦" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1.5">
+            Personen *
+          </label>
+          <div className="flex items-center justify-between rounded-xl border-2 border-[#1a3826]/15 bg-white px-2 py-2">
+            <button
+              type="button"
+              onClick={() => onChange({ ...pos, neededSpots: Math.max(1, (pos.neededSpots || 1) - 1) })}
+              disabled={(pos.neededSpots || 1) <= 1}
+              className="h-9 w-9 rounded-lg border border-[#1a3826]/15 bg-white text-[#1a3826] font-black hover:bg-[#1a3826]/5 disabled:opacity-40"
+              title="Weniger"
+            >
+              –
+            </button>
+            <div className="flex flex-col items-center justify-center px-2">
+              <span className="text-sm font-black text-[#1a3826] tabular-nums">{pos.neededSpots || 1}</span>
+              <span className="text-[10px] font-bold text-slate-400">max. 5</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange({ ...pos, neededSpots: Math.min(5, (pos.neededSpots || 1) + 1) })}
+              disabled={(pos.neededSpots || 1) >= 5}
+              className="h-9 w-9 rounded-lg border border-[#1a3826]/15 bg-white text-[#1a3826] font-black hover:bg-[#1a3826]/5 disabled:opacity-40"
+              title="Mehr"
+            >
+              +
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Shift time text */}
       <div>
         <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1.5">
-          Schicht / Uhrzeit * <span className="font-normal normal-case tracking-normal">(z.B. "Schicht 1, 13:30–20:00")</span>
+          Schicht / Uhrzeit * <span className="font-normal normal-case tracking-normal">(Format: 13:30–20:00)</span>
         </label>
         <input type="text" value={pos.shiftTimeText}
-          onChange={e => onChange({ ...pos, shiftTimeText: e.target.value })}
-          placeholder="z.B. Schicht 1 von 13:30 bis 20:00"
-          maxLength={80}
+          inputMode="numeric"
+          onChange={e => onChange({ ...pos, shiftTimeText: normalizeShiftTimeText(e.target.value) })}
+          placeholder="13:30–20:00"
+          maxLength={13}
           className="w-full rounded-xl border-2 border-[#1a3826]/15 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1a3826]" />
+        {!pos.shiftTimeText.trim() ? null : !isValidShiftTimeText(pos.shiftTimeText) ? (
+          <p className="mt-1 text-[11px] font-semibold text-red-600">Bitte nur Uhrzeit eingeben: 13:30–20:00</p>
+        ) : null}
       </div>
 
     </div>
@@ -645,6 +800,7 @@ function CreateModal({
 
   const [restaurantId, setRestaurantId] = useState("");
   const [date, setDate] = useState("");
+  const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [positions, setPositions] = useState<PositionInput[]>([defaultPosition()]);
 
@@ -655,6 +811,7 @@ function CreateModal({
       : accessibleRestaurants[0]?.id ?? "";
     setRestaurantId(valid);
     setDate("");
+    setReason("");
     setNotes("");
     setPositions([{ sectorKey: "", sectorLabel: "", shiftTimeText: "", neededSpots: 1 }]);
   }, [open, defaultRestaurantId, accessibleRestaurants]);
@@ -692,10 +849,12 @@ function CreateModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!date) { toast.error("Datum angeben."); return; }
+    if (!reason.trim()) { toast.error("Grund angeben."); return; }
     if (positions.length === 0) { toast.error("Mindestens eine Position."); return; }
     for (const p of positions) {
       if (!p.sectorKey) { toast.error("Sektor wählen."); return; }
       if (!p.shiftTimeText.trim()) { toast.error("Schichtzeit eintragen."); return; }
+      if (!isValidShiftTimeText(p.shiftTimeText)) { toast.error("Schicht/Uhrzeit: bitte nur Uhrzeit im Format 13:30–20:00."); return; }
     }
 
     startTransition(async () => {
@@ -703,7 +862,7 @@ function CreateModal({
         requestingRestaurantId: restaurantId,
         date,
         positions,
-        notes: notes.trim() || undefined,
+        notes: [reason.trim(), notes.trim()].filter(Boolean).join("\n") || undefined,
       });
       if (res.success) {
         toast.success("Aushilfe-Anfrage erstellt!");
@@ -771,6 +930,22 @@ function CreateModal({
               <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1.5">Datum *</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} required
                 className="w-full rounded-xl border-2 border-[#1a3826]/15 px-3 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:border-[#1a3826] bg-white" />
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500 mb-1.5">
+                Grund *
+              </label>
+              <input
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                required
+                maxLength={200}
+                placeholder="z.B. Krankheitsausfall, kurzfristiger Engpass…"
+                className="w-full rounded-xl border-2 border-[#1a3826]/15 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-[#1a3826] bg-white"
+              />
             </div>
 
             {/* Positions */}

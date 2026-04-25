@@ -304,6 +304,15 @@ model User {
   oneOnOneComments       OneOnOneComment[] @relation("OneOnOneCommentAuthor")
   oneOnOneAttachments    OneOnOneAttachment[] @relation("OneOnOneAttachmentUploader")
 
+  conversations          OneOnOneConversation[] @relation("ConversationRequester")
+  supervisedConversations OneOnOneConversation[] @relation("ConversationSupervisor")
+  archivedConversations  OneOnOneConversation[] @relation("ConversationArchivedBy")
+  conversationAttachments OneOnOneConversationAttachment[] @relation("ConversationAttachmentUploader")
+  conversationItemComments OneOnOneConversationItemComment[] @relation("ConversationItemCommentAuthor")
+  conversationTodosCreated OneOnOneConversationTodoItem[] @relation("ConversationTodoCreatedBy")
+  conversationsCreated    OneOnOneConversation[] @relation("ConversationCreatedBy")
+  conversationItemsCreated OneOnOneConversationItem[] @relation("ConversationItemCreatedBy")
+
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }
@@ -1329,7 +1338,106 @@ model BonusSheet {
   updatedAt DateTime @updatedAt
 }
 
-// ─── 1:1 TEME ZA RAZGOVOR ─────────────────────────────────────────────────────
+// ─── GESPRÄCHSTHEMEN (neues Modell: Gespräch mit mehreren Themen) ────────────
+
+enum ConversationStatus {
+  OPEN
+  ARCHIVED
+}
+
+model OneOnOneConversation {
+  id               String                    @id @default(cuid())
+  createdById      String?
+  createdBy        User?                     @relation("ConversationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  requesterUserId  String
+  requester        User                      @relation("ConversationRequester", fields: [requesterUserId], references: [id], onDelete: Cascade)
+  supervisorUserId String
+  supervisor       User                      @relation("ConversationSupervisor", fields: [supervisorUserId], references: [id], onDelete: Cascade)
+  meetingDate      String?                   // YYYY-MM-DD, optional
+  notes            String?                   @db.Text
+  status           ConversationStatus        @default(OPEN)
+  archivedAt       DateTime?
+  archivedById     String?
+  archivedBy       User?                     @relation("ConversationArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  items            OneOnOneConversationItem[]
+  attachments      OneOnOneConversationAttachment[]
+  todos            OneOnOneConversationTodoItem[]
+
+  @@index([requesterUserId])
+  @@index([supervisorUserId])
+  @@index([status])
+  @@index([createdById])
+}
+
+model OneOnOneConversationItem {
+  id             String                @id @default(cuid())
+  conversationId String
+  conversation   OneOnOneConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdById    String?
+  createdBy      User?                 @relation("ConversationItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  title          String
+  comment        String?               @db.Text
+  sortOrder      Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  attachments    OneOnOneConversationAttachment[]
+  comments       OneOnOneConversationItemComment[]
+
+  @@index([conversationId, sortOrder])
+  @@index([createdById])
+}
+
+model OneOnOneConversationItemComment {
+  id        String                 @id @default(cuid())
+  itemId    String
+  item      OneOnOneConversationItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User                   @relation("ConversationItemCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  body      String                 @db.Text
+  createdAt DateTime               @default(now())
+
+  @@index([itemId, createdAt])
+  @@index([authorId])
+}
+
+model OneOnOneConversationTodoItem {
+  id             String               @id @default(cuid())
+  conversationId String
+  conversation   OneOnOneConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdById    String
+  createdBy      User                 @relation("ConversationTodoCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  title          String
+  completed      Boolean              @default(false)
+  sortOrder      Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([conversationId, sortOrder])
+  @@index([createdById])
+}
+
+model OneOnOneConversationAttachment {
+  id             String                     @id @default(cuid())
+  conversationId String
+  conversation   OneOnOneConversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  itemId         String?
+  item           OneOnOneConversationItem?  @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  uploadedById   String
+  uploadedBy     User                       @relation("ConversationAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  fileUrl        String
+  fileName       String
+  fileType       String
+  createdAt      DateTime                   @default(now())
+
+  @@index([conversationId])
+  @@index([itemId])
+}
+
+// ─── 1:1 TEME ZA RAZGOVOR (legacy) ───────────────────────────────────────────
 enum OneOnOneTopicStatus {
   OPEN
   IN_PROGRESS

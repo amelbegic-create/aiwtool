@@ -20,354 +20,16 @@ function personName(u: { name: string | null; email: string | null } | null | un
 
 export function generateAushilfePDF(request: HelpRequestRow) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const L = 15;
-  const R = 15;
-  const contentWidth = pageWidth - L - R;
-
-  const greenDark = [26, 56, 38] as [number, number, number];
-  const yellow = [255, 199, 44] as [number, number, number];
-
-  // ── Header band ──────────────────────────────────────────────────────────────
-  doc.setFillColor(...greenDark);
-  doc.rect(0, 0, pageWidth, 35, "F");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(24);
-  doc.setTextColor(255, 255, 255);
-  doc.text("AUSHILFE ANFRAGE", L, 15);
-
-  doc.setFontSize(11);
-  doc.setTextColor(...yellow);
-  doc.text("Personalunterstützung zwischen Restaurants", L, 25);
-
-  let yPos = 45;
-
-  // ── Request info card ────────────────────────────────────────────────────────
-  doc.setDrawColor(...greenDark);
-  doc.setFillColor(...yellow);
-  doc.roundedRect(L, yPos, contentWidth, 28, 3, 3, "FD");
-
+  renderCompactAushilfePdf(doc, request);
   const restNr = restCode(request.requestingRestaurant);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(32);
-  doc.setTextColor(...greenDark);
-  doc.text(`#${restNr}`, L + 5, yPos + 20);
-
-  const requester = personName(request.createdByUser);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("Anfrage von:", L + 40, yPos + 8);
-  doc.setFont("helvetica", "normal");
-  doc.text(requester, L + 40, yPos + 14);
-
-  doc.setFont("helvetica", "bold");
-  doc.text("Datum:", L + 40, yPos + 22);
-  doc.setFont("helvetica", "normal");
-  doc.text(formatDate(request.date), L + 60, yPos + 22);
-
-  yPos += 35;
-
-  // ── Notes ────────────────────────────────────────────────────────────────────
-  if (request.notes?.trim()) {
-    yPos += 4;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    doc.text("Anmerkungen:", L, yPos);
-    yPos += 6;
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    const notesLines = doc.splitTextToSize(request.notes.trim(), contentWidth - 10);
-    doc.text(notesLines, L + 5, yPos);
-    yPos += notesLines.length * 4 + 4;
-  }
-
-  yPos += 4;
-
-  // ── Positions ────────────────────────────────────────────────────────────────
-  const hasPositions = request.positions.length > 0;
-
-  if (hasPositions) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(...greenDark);
-    doc.text("Benötigte Positionen", L, yPos);
-    yPos += 6;
-
-    for (const pos of request.positions) {
-      if (yPos > pageHeight - 50) { doc.addPage(); yPos = 20; }
-
-      // Position header
-      doc.setFillColor(240, 247, 240);
-      doc.setDrawColor(...greenDark);
-      doc.roundedRect(L, yPos, contentWidth, 14, 2, 2, "FD");
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(...greenDark);
-      doc.text(pos.sectorLabel, L + 4, yPos + 5);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(60, 60, 60);
-      doc.text(pos.shiftTimeText, L + 4, yPos + 11);
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(...greenDark);
-      const spotsLabel = `${pos.slots.length}/${pos.neededSpots} besetzt`;
-      const spotsWidth = doc.getTextWidth(spotsLabel);
-      doc.text(spotsLabel, L + contentWidth - spotsWidth - 2, yPos + 8);
-
-      yPos += 16;
-
-      // Slots table for this position
-      const tableData: string[][] = Array.from({ length: pos.neededSpots }, (_, i) => {
-        const slot = pos.slots[i];
-        if (slot) {
-          const manager = personName(slot.providerManager);
-          const rc = restCode(slot.providingRestaurant);
-          return [`${i + 1}`, slot.workerName, `${manager} · #${rc}`, "✔"];
-        }
-        return [`${i + 1}`, "–", "–", "✗"];
-      });
-
-      autoTable(doc, {
-        startY: yPos,
-        head: [["Platz", "Mitarbeiter", "Geschickt von", "Status"]],
-        body: tableData,
-        styles: { fontSize: 9, cellPadding: 3, valign: "middle", lineColor: [210, 210, 210], lineWidth: 0.2 },
-        headStyles: { fillColor: greenDark, textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
-        columnStyles: {
-          0: { halign: "center", cellWidth: 18 },
-          1: { cellWidth: 48 },
-          2: { cellWidth: "auto" },
-          3: { halign: "center", cellWidth: 18 },
-        },
-        alternateRowStyles: { fillColor: [248, 252, 248] },
-        margin: { left: L, right: R },
-      });
-
-      yPos = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? yPos) + 8;
-    }
-  } else {
-    // Legacy: single slot table
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(...greenDark);
-    doc.text("Mitarbeiter", L, yPos);
-    yPos += 6;
-
-    const tableData: string[][] = request.slots.map((slot, i) => [
-      `${i + 1}`,
-      slot.workerName,
-      `${personName(slot.providerManager)} · #${restCode(slot.providingRestaurant)}`,
-      "✔",
-    ]);
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [["Platz", "Mitarbeiter", "Geschickt von", "Status"]],
-      body: tableData,
-      styles: { fontSize: 10, cellPadding: 4, valign: "middle", lineColor: [200, 200, 200], lineWidth: 0.3 },
-      headStyles: { fillColor: greenDark, textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
-      columnStyles: {
-        0: { halign: "center", cellWidth: 20 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: "auto" },
-        3: { halign: "center", cellWidth: 20 },
-      },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-      margin: { left: L, right: R },
-    });
-  }
-
-  // ── Footer ───────────────────────────────────────────────────────────────────
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
-  doc.text(`Exportiert am ${new Date().toLocaleString("de-AT")}`, L, pageHeight - 10);
-
   doc.save(`Aushilfe_Restaurant_${restNr}_${request.date}.pdf`);
 }
 
 export function openAushilfePDFPopup(request: HelpRequestRow) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const L = 15;
-  const R = 15;
-  const contentWidth = pageWidth - L - R;
-
-  const greenDark = [26, 56, 38] as [number, number, number];
-  const yellow = [255, 199, 44] as [number, number, number];
-
-  // ── Header band ──────────────────────────────────────────────────────────────
-  doc.setFillColor(...greenDark);
-  doc.rect(0, 0, pageWidth, 35, "F");
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(24);
-  doc.setTextColor(255, 255, 255);
-  doc.text("AUSHILFE ANFRAGE", L, 15);
-
-  doc.setFontSize(11);
-  doc.setTextColor(...yellow);
-  doc.text("Personalunterstützung zwischen Restaurants", L, 25);
-
-  let yPos = 45;
-
-  // ── Request info card ────────────────────────────────────────────────────────
-  doc.setDrawColor(...greenDark);
-  doc.setFillColor(...yellow);
-  doc.roundedRect(L, yPos, contentWidth, 28, 3, 3, "FD");
+  renderCompactAushilfePdf(doc, request);
 
   const restNr = restCode(request.requestingRestaurant);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(32);
-  doc.setTextColor(...greenDark);
-  doc.text(`#${restNr}`, L + 5, yPos + 20);
-
-  const requester = personName(request.createdByUser);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("Anfrage von:", L + 40, yPos + 8);
-  doc.setFont("helvetica", "normal");
-  doc.text(requester, L + 40, yPos + 14);
-
-  doc.setFont("helvetica", "bold");
-  doc.text("Datum:", L + 40, yPos + 22);
-  doc.setFont("helvetica", "normal");
-  doc.text(formatDate(request.date), L + 60, yPos + 22);
-
-  yPos += 35;
-
-  // ── Notes ────────────────────────────────────────────────────────────────────
-  if (request.notes?.trim()) {
-    yPos += 4;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    doc.text("Anmerkungen:", L, yPos);
-    yPos += 6;
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    const notesLines = doc.splitTextToSize(request.notes.trim(), contentWidth - 10);
-    doc.text(notesLines, L + 5, yPos);
-    yPos += notesLines.length * 4 + 4;
-  }
-
-  yPos += 4;
-
-  // ── Positions ────────────────────────────────────────────────────────────────
-  const hasPositions = request.positions.length > 0;
-
-  if (hasPositions) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(...greenDark);
-    doc.text("Benötigte Positionen", L, yPos);
-    yPos += 6;
-
-    for (const pos of request.positions) {
-      if (yPos > pageHeight - 50) {
-        doc.addPage();
-        yPos = 20;
-      }
-
-      doc.setFillColor(240, 247, 240);
-      doc.setDrawColor(...greenDark);
-      doc.roundedRect(L, yPos, contentWidth, 14, 2, 2, "FD");
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(...greenDark);
-      doc.text(pos.sectorLabel, L + 4, yPos + 5);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(60, 60, 60);
-      doc.text(pos.shiftTimeText, L + 4, yPos + 11);
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(...greenDark);
-      const spotsLabel = `${pos.slots.length}/${pos.neededSpots} besetzt`;
-      const spotsWidth = doc.getTextWidth(spotsLabel);
-      doc.text(spotsLabel, L + contentWidth - spotsWidth - 2, yPos + 8);
-
-      yPos += 16;
-
-      const tableData: string[][] = Array.from({ length: pos.neededSpots }, (_, i) => {
-        const slot = pos.slots[i];
-        if (slot) {
-          const manager = personName(slot.providerManager);
-          const rc = restCode(slot.providingRestaurant);
-          return [`${i + 1}`, slot.workerName, `${manager} · #${rc}`, "✔"];
-        }
-        return [`${i + 1}`, "–", "–", "✗"];
-      });
-
-      autoTable(doc, {
-        startY: yPos,
-        head: [["Platz", "Mitarbeiter", "Geschickt von", "Status"]],
-        body: tableData,
-        styles: { fontSize: 9, cellPadding: 3, valign: "middle", lineColor: [210, 210, 210], lineWidth: 0.2 },
-        headStyles: { fillColor: greenDark, textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
-        columnStyles: {
-          0: { halign: "center", cellWidth: 18 },
-          1: { cellWidth: 48 },
-          2: { cellWidth: "auto" },
-          3: { halign: "center", cellWidth: 18 },
-        },
-        alternateRowStyles: { fillColor: [248, 252, 248] },
-        margin: { left: L, right: R },
-      });
-
-      yPos = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? yPos) + 8;
-    }
-  } else {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(...greenDark);
-    doc.text("Mitarbeiter", L, yPos);
-    yPos += 6;
-
-    const tableData: string[][] = request.slots.map((slot, i) => [
-      `${i + 1}`,
-      slot.workerName,
-      `${personName(slot.providerManager)} · #${restCode(slot.providingRestaurant)}`,
-      "✔",
-    ]);
-
-    autoTable(doc, {
-      startY: yPos,
-      head: [["Platz", "Mitarbeiter", "Geschickt von", "Status"]],
-      body: tableData,
-      styles: { fontSize: 10, cellPadding: 4, valign: "middle", lineColor: [200, 200, 200], lineWidth: 0.3 },
-      headStyles: { fillColor: greenDark, textColor: [255, 255, 255], fontStyle: "bold", halign: "center" },
-      columnStyles: {
-        0: { halign: "center", cellWidth: 20 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: "auto" },
-        3: { halign: "center", cellWidth: 20 },
-      },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-      margin: { left: L, right: R },
-    });
-  }
-
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(8);
-  doc.setTextColor(150, 150, 150);
-  doc.text(`Exportiert am ${new Date().toLocaleString("de-AT")}`, L, pageHeight - 10);
-
   const filename = `Aushilfe_Restaurant_${restNr}_${request.date}.pdf`;
 
   const blob = doc.output("blob");
@@ -394,4 +56,149 @@ export function openAushilfePDFPopup(request: HelpRequestRow) {
     try { URL.revokeObjectURL(url); } catch { /* noop */ }
   };
   w.addEventListener("beforeunload", revoke, { once: true });
+}
+
+function renderCompactAushilfePdf(doc: jsPDF, request: HelpRequestRow) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const L = 12;
+  const R = 12;
+  const contentWidth = pageWidth - L - R;
+
+  const greenDark = [26, 56, 38] as [number, number, number];
+  const yellow = [255, 199, 44] as [number, number, number];
+  const headerH = 26;
+
+  // Header band (keep style, more compact)
+  doc.setFillColor(...greenDark);
+  doc.rect(0, 0, pageWidth, headerH, "F");
+  // accent line
+  doc.setFillColor(...yellow);
+  doc.rect(0, headerH - 1.2, pageWidth, 1.2, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(255, 255, 255);
+  doc.text("AUSHILFE ANFRAGE", L, 15);
+  doc.setFontSize(9.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text("Personalunterstützung zwischen Restaurants", L, 21);
+
+  const restNr = restCode(request.requestingRestaurant);
+  const requester = personName(request.createdByUser);
+
+  let yPos = headerH + 6;
+
+  // Info card (branded, compact)
+  doc.setDrawColor(26, 56, 38);
+  doc.setFillColor(255, 199, 44);
+  doc.roundedRect(L, yPos, contentWidth, 18, 3, 3, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(...greenDark);
+  doc.text(`#${restNr}`, L + 4, yPos + 12.5);
+
+  doc.setFontSize(9.5);
+  doc.setTextColor(26, 56, 38);
+  doc.text("Datum:", L + 38, yPos + 7);
+  doc.setFont("helvetica", "normal");
+  doc.text(formatDate(request.date), L + 52, yPos + 7);
+
+  doc.setFont("helvetica", "bold");
+  doc.text("Erstellt von:", L + 38, yPos + 13);
+  doc.setFont("helvetica", "normal");
+  doc.text(requester, L + 63, yPos + 13);
+
+  yPos += 22;
+
+  // Notes box
+  if (request.notes?.trim()) {
+    doc.setDrawColor(210, 210, 210);
+    doc.setFillColor(248, 250, 248);
+    const noteH = 10;
+    doc.roundedRect(L, yPos, contentWidth, noteH, 2.5, 2.5, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(26, 56, 38);
+    doc.text("Grund:", L + 3, yPos + 6.4);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(70, 70, 70);
+    const notesLines = doc.splitTextToSize(request.notes.trim(), contentWidth - 18);
+    doc.text(notesLines.slice(0, 2), L + 18, yPos + 6.4);
+    yPos += noteH + 4;
+  }
+
+  const positions = request.positions.length > 0 ? request.positions : [
+    {
+      id: "legacy",
+      sectorKey: request.sectorKey ?? "",
+      sectorLabel: request.sectorLabel ?? "–",
+      shiftTimeText: request.shiftTime ?? "–",
+      neededSpots: request.neededSpots ?? request.slots.length,
+      sortOrder: 0,
+      slots: request.slots,
+    },
+  ];
+
+  // Position summary (few rows)
+  const posSummaryBody = positions.map((p) => [
+    p.sectorLabel,
+    p.shiftTimeText,
+    String(p.neededSpots),
+    String(p.slots.length),
+  ]);
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [["Sektor/Bereich", "Uhrzeit", "Benötigt", "Besetzt"]],
+    body: posSummaryBody,
+    styles: { fontSize: 7.6, cellPadding: 1.3, valign: "middle", lineColor: [210, 210, 210], lineWidth: 0.15 },
+    headStyles: { fillColor: greenDark, textColor: [255, 255, 255], fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: 48 },
+      1: { cellWidth: 30 },
+      2: { halign: "center", cellWidth: 18 },
+      3: { halign: "center", cellWidth: 18 },
+    },
+    margin: { left: L, right: R },
+  });
+
+  yPos = ((doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? yPos) + 2.5;
+
+  // Workers table (one row per filled person) – sized to fit 1 page for ~20 rows
+  const workerRows: string[][] = [];
+  for (const p of positions) {
+    for (const s of p.slots) {
+      const mgr = personName(s.providerManager);
+      const rc = restCode(s.providingRestaurant);
+      workerRows.push([p.sectorLabel, p.shiftTimeText, s.workerName, mgr, `#${rc}`]);
+    }
+  }
+  if (workerRows.length === 0) {
+    workerRows.push(["–", "–", "–", "–", "–"]);
+  }
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [["Sektor", "Zeit", "Mitarbeiter", "Von", "Rest."]],
+    body: workerRows,
+    styles: { fontSize: 7.1, cellPadding: 1.15, valign: "middle", lineColor: [220, 220, 220], lineWidth: 0.12 },
+    headStyles: { fillColor: yellow, textColor: greenDark, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [252, 253, 252] },
+    columnStyles: {
+      0: { cellWidth: 32 },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 42 },
+      3: { cellWidth: "auto" },
+      4: { halign: "center", cellWidth: 16 },
+    },
+    margin: { left: L, right: R },
+    tableWidth: contentWidth,
+  });
+
+  // Footer
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7);
+  doc.setTextColor(140, 140, 140);
+  doc.text(`Exportiert am ${new Date().toLocaleString("de-AT")}`, L, pageHeight - 6);
 }

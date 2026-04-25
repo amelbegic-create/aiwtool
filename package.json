@@ -14,6 +14,8 @@
     "import-partners": "tsx scripts/import-partners.ts",
     "vercel:env": "node scripts/vercel-env-push.mjs",
     "backfill:iam": "tsx prisma/backfill-iam-permissions.ts"
+    ,
+    "backfill:oneonone-createdby": "tsx scripts/backfill-conversations-createdby.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
